@@ -23,6 +23,14 @@ jobs:
       - name: 类型检查
         run: npm run typecheck
 
+      - name: 恢复 Next 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'lib/**', 'next.config.ts') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
       - name: 生产构建
         run: npm run build
 

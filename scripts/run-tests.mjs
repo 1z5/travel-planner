@@ -112,16 +112,21 @@ async function phaseA(api) {
 
   console.log("\n== 故障注入 ==");
 
-  console.log("-- 用例 1：正常链路 --");
+  console.log("-- 用例 1：正常链路（返回真实苏州 fixture）--");
   const r1 = await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] });
   check("POST 202", r1.status === 202, `got ${r1.status}`);
   const j1 = await api.waitJob(r1.body.jobId);
   check("任务 done", j1.status === "done", JSON.stringify(j1).slice(0, 120));
   const plan = j1.plan ?? {};
   check("3 天结构", plan.days?.length === 3);
-  check("预算预警触发", (plan.warnings ?? []).some((w) => w.includes("超出预算")),
+  check("Day1 含真实 POI（拙政园/苏州博物馆）",
+    (plan.days?.[0]?.spots ?? []).some((s) => s.name.includes("拙政园"))
+    && (plan.days?.[0]?.spots ?? []).some((s) => s.name.includes("苏州博物馆")));
+  check("预算预警触发（fixture 总价 1925 > 1000×1.05）",
+    (plan.warnings ?? []).some((w) => w.includes("超出预算")),
     JSON.stringify(plan.warnings));
-  check("节奏预警触发", (plan.warnings ?? []).some((w) => w.includes("偏满")),
+  check("节奏预警触发（Day1 7 点超 10 小时）",
+    (plan.warnings ?? []).some((w) => w.includes("偏满")),
     JSON.stringify(plan.warnings));
   check("MOCK 模式 verified=false", plan.verified === false);
   check("remaining = 2", j1.remaining === 2, `got ${j1.remaining}`);
@@ -161,15 +166,19 @@ async function phaseB(api) {
   const days = plan.days ?? [];
 
   check("verified=true（走了真实高德路径）", plan.verified === true);
-  check("Day1 通勤 = 66 分钟（3 段 × 22，坐标解析+距离换算正确）",
-    days[0]?.transitMin === 66, `got ${days[0]?.transitMin}`);
-  check("Day2 通勤 = 0（单点无换乘）", days[1]?.transitMin === 0, `got ${days[1]?.transitMin}`);
-  check("Day3 通勤 = 22 分钟（1 段）", days[2]?.transitMin === 22, `got ${days[2]?.transitMin}`);
-  check("POI 未命中预警（Day2 的测试景点E）",
-    (plan.warnings ?? []).some((w) => w.includes("测试景点E") && w.includes("未在高德检索到")),
+  // fixture 每天点数 [7,5,4] → 段数 [6,4,3]；Day1 的「桃花源记」搜不到，
+  // 涉及它的 2 段走 30 分钟 fallback，其余 4 段 22 分钟 → 4×22 + 2×30 = 148
+  check("Day1 通勤 = 148 分钟（4 段×22 + 2 段 fallback×30）",
+    days[0]?.transitMin === 148, `got ${days[0]?.transitMin}`);
+  check("Day2 通勤 = 88 分钟（4 段）", days[1]?.transitMin === 88, `got ${days[1]?.transitMin}`);
+  check("Day3 通勤 = 66 分钟（3 段）", days[2]?.transitMin === 66, `got ${days[2]?.transitMin}`);
+  check("总价 = 1925（每日 cost 汇总正确）",
+    plan.totalCostCny === 1925, `got ${plan.totalCostCny}`);
+  check("POI 未命中预警（Day1 的桃花源记）",
+    (plan.warnings ?? []).some((w) => w.includes("桃花源记") && w.includes("未在高德检索到")),
     JSON.stringify(plan.warnings));
-  check("命中项不产生未验真预警（Day1/Day3 不在预警里）",
-    !(plan.warnings ?? []).some((w) => w.includes("测试景点A") && w.includes("未在高德")),
+  check("命中项不误报（拙政园不在未命中预警里）",
+    !(plan.warnings ?? []).some((w) => w.includes("拙政园") && w.includes("未在高德")),
     JSON.stringify(plan.warnings));
 }
 

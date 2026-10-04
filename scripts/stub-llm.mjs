@@ -11,48 +11,15 @@
  * 用法：node scripts/stub-llm.mjs [port]   （默认 8898）
  */
 import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
 
 const PORT = Number(process.argv[2] || process.env.STUB_PORT || 8898);
 
-// 精心构造的测试行程：第一天超长（触发节奏预警）、第三天超贵（触发预算预警）
-const CANNED_PLAN = {
-  city: "成都",
-  summary: "桩服务测试行程",
-  days: [
-    {
-      day: 1,
-      theme: "高强度测试日",
-      spots: [
-        ["morning", "09:00-10:00", "sight", "测试景点A", 300, 10],
-        ["afternoon", "10:00-11:00", "sight", "测试景点B", 300, 10],
-        ["dinner", "11:00-12:00", "food", "测试餐厅C", 90, 10],
-        ["evening", "19:00-20:00", "sight", "测试景点D", 120, 10],
-      ].map(([period, time, type, name, durationMin, costCny]) => ({
-        period, time, type, name, area: "测试区", durationMin, costCny, reason: "占位",
-      })),
-    },
-    {
-      day: 2,
-      theme: "普通日",
-      spots: [
-        { period: "morning", time: "09:00-11:00", type: "sight",
-          name: "测试景点E", area: "测试区", durationMin: 120, costCny: 10, reason: "占位" },
-      ],
-    },
-    {
-      day: 3,
-      theme: "超预算日",
-      spots: [
-        { period: "morning", time: "09:00-11:00", type: "sight",
-          name: "测试景点F", area: "测试区", durationMin: 120, costCny: 600, reason: "占位" },
-        { period: "dinner", time: "18:00-19:30", type: "food",
-          name: "测试餐厅G", area: "测试区", durationMin: 90, costCny: 600, reason: "占位" },
-      ],
-    },
-  ],
-  totalCostCny: 0,
-  tips: ["桩服务提示：这是自动化测试数据"],
-};
+// 正常模式返回的真实行程 fixture：来自一次真实生成的「苏州 3 天」结果
+// （day.transitMin / dailyCostCny 是 validate 回填字段，LLM 输出层不带）
+const CANNED_PLAN = JSON.parse(
+  readFileSync(new URL("./fixture-plan.json", import.meta.url), "utf8"),
+);
 
 const server = createServer((req, res) => {
   if (req.method !== "POST" || !req.url?.includes("/chat/completions")) {

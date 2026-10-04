@@ -47,14 +47,22 @@ export function createJob(
     createdAt: Date.now(),
   };
   jobs.set(job.id, job);
+  console.log(
+    `[job] ${job.id} 开始 城市=${input.city} 天数=${input.days} 预算=${input.budget}`,
+  );
   void (async () => {
+    const t0 = Date.now();
     try {
       job.plan = await validatePlan(await generatePlan(input), input);
       job.status = "done";
+      console.log(
+        `[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 预警 ${job.plan.warnings.length} 条`,
+      );
     } catch (e) {
       job.status = "error";
       job.error = e instanceof Error ? e.message : "生成失败，请稍后重试";
       onError?.(); // 失败归还配额
+      console.log(`[job] ${job.id} 失败 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 原因=${job.error}`);
     }
   })();
   return job;

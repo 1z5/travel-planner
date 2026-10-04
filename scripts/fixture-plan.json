@@ -1,0 +1,199 @@
+{
+  "city": "苏州",
+  "summary": "3天2晚不绕路：古城园林古街、天平山木渎山水古镇、同里水乡湿地，自然风光与苏帮美食兼顾。",
+  "days": [
+    {
+      "day": 1,
+      "theme": "姑苏园林古韵",
+      "spots": [
+        {
+          "period": "morning",
+          "time": "08:00-10:00",
+          "type": "sight",
+          "name": "拙政园",
+          "area": "姑苏区临顿路一带",
+          "durationMin": 120,
+          "costCny": 90,
+          "reason": "中国四大名园之一，早进园人少，可细看借景与花窗。",
+          "rainBackup": "苏州博物馆（室内，需提前实名预约）"
+        },
+        {
+          "period": "lunch",
+          "time": "10:15-11:15",
+          "type": "food",
+          "name": "姑苏桥·文人苏式面馆",
+          "area": "临顿路",
+          "durationMin": 60,
+          "costCny": 35,
+          "reason": "苏式汤面出品稳定，枫镇大肉面、三虾面有本地味。"
+        },
+        {
+          "period": "afternoon",
+          "time": "11:30-12:50",
+          "type": "sight",
+          "name": "苏州博物馆",
+          "area": "姑苏区东北街",
+          "durationMin": 80,
+          "costCny": 0,
+          "reason": "贝聿铭封山之作，片石假山与光影非常适合雨天室内看。"
+        },
+        {
+          "period": "afternoon",
+          "time": "13:10-15:10",
+          "type": "activity",
+          "name": "平江历史街区",
+          "area": "平江路",
+          "durationMin": 120,
+          "costCny": 0,
+          "reason": "水陆并行的古城肌理，沿河慢逛比主商业街舒服。",
+          "rainBackup": "苏州评弹博物馆（平江路内，室内听评弹）"
+        },
+        {
+          "period": "dinner",
+          "time": "15:30-16:30",
+          "type": "food",
+          "name": "桃花源记",
+          "area": "平江路",
+          "durationMin": 60,
+          "costCny": 60,
+          "reason": "苏式小吃集合，赤豆圆子、鸡头米、酒香饼都扎实。"
+        },
+        {
+          "period": "evening",
+          "time": "17:00-18:30",
+          "type": "sight",
+          "name": "七里山塘",
+          "area": "山塘街",
+          "durationMin": 90,
+          "costCny": 0,
+          "reason": "夜色灯河与古桥很苏州，适合拍夜景、散步。",
+          "rainBackup": "山塘街生肖邮票博物馆（室内）"
+        },
+        {
+          "period": "evening",
+          "time": "18:40-20:00",
+          "type": "hotel",
+          "name": "苏州书香府邸·平江府",
+          "area": "平江路",
+          "durationMin": 80,
+          "costCny": 1200,
+          "reason": "平江路核心区酒店，省去夜间折返，后续两天步行打车都方便。"
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "theme": "天平山间古镇",
+      "spots": [
+        {
+          "period": "morning",
+          "time": "07:30-10:00",
+          "type": "sight",
+          "name": "天平山风景名胜区",
+          "area": "吴中区木渎",
+          "durationMin": 150,
+          "costCny": 30,
+          "reason": "“吴中第一山”，自然山林加古御道、白云泉，比园林更野。",
+          "rainBackup": "范仲淹纪念馆（景区内室内）"
+        },
+        {
+          "period": "lunch",
+          "time": "10:30-11:30",
+          "type": "food",
+          "name": "石家饭店",
+          "area": "木渎古镇",
+          "durationMin": 60,
+          "costCny": 80,
+          "reason": "木渎百年老店，鲃肺汤、响油鳝糊是招牌苏帮菜。"
+        },
+        {
+          "period": "afternoon",
+          "time": "11:50-13:50",
+          "type": "sight",
+          "name": "木渎古镇",
+          "area": "木渎",
+          "durationMin": 120,
+          "costCny": 60,
+          "reason": "严家花园、榜眼府第加香溪水巷，园林与江南水乡二合一。",
+          "rainBackup": "虹饮山房（园林建筑内殿宇）"
+        },
+        {
+          "period": "dinner",
+          "time": "14:30-15:30",
+          "type": "food",
+          "name": "协和菜馆",
+          "area": "凤凰街",
+          "durationMin": 60,
+          "costCny": 100,
+          "reason": "本地人也去的老牌苏帮菜，酱汁肉、松鼠鳜鱼稳妥。"
+        },
+        {
+          "period": "evening",
+          "time": "17:00-19:00",
+          "type": "activity",
+          "name": "十全街",
+          "area": "十全街",
+          "durationMin": 120,
+          "costCny": 0,
+          "reason": "梧桐老街区适合夜逛，有咖啡馆、老书店和苏州生活气。",
+          "rainBackup": "观前街室内商圈（美罗商城/第一百货）"
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "theme": "同里水乡收尾",
+      "spots": [
+        {
+          "period": "morning",
+          "time": "08:00-11:30",
+          "type": "sight",
+          "name": "同里古镇",
+          "area": "同里古镇",
+          "durationMin": 210,
+          "costCny": 100,
+          "reason": "世界遗产退思园加“三桥”，团队比周庄少，适合慢看。",
+          "rainBackup": "崇本堂/嘉荫堂（古镇古建室内）"
+        },
+        {
+          "period": "lunch",
+          "time": "11:45-12:45",
+          "type": "food",
+          "name": "同里状元居",
+          "area": "同里古镇",
+          "durationMin": 60,
+          "costCny": 60,
+          "reason": "状元蹄、袜底酥、芡实糕都在老街边，逛吃顺路。"
+        },
+        {
+          "period": "afternoon",
+          "time": "13:10-15:10",
+          "type": "activity",
+          "name": "同里国家湿地公园",
+          "area": "同里",
+          "durationMin": 120,
+          "costCny": 20,
+          "reason": "杉林水道与摇橹船自然野趣，是苏州少有的湿地泡。",
+          "rainBackup": "花间堂·丽则女学（室内展陈文创空间）"
+        },
+        {
+          "period": "dinner",
+          "time": "16:30-17:30",
+          "type": "food",
+          "name": "老苏州茶酒楼",
+          "area": "十全街",
+          "durationMin": 60,
+          "costCny": 90,
+          "reason": "收尾吃一桌地道苏帮菜，松鼠鳜鱼、碧螺虾仁都适合一人食。"
+        }
+      ]
+    }
+  ],
+  "totalCostCny": 1925,
+  "tips": [
+    "苏州博物馆、拙政园建议提前7天实名预约；苏州博物馆周一闭馆，行程请避开。",
+    "同里往返可走地铁4号线同里站转接驳车，别信古镇出口拉客的‘便宜快船/近路’。",
+    "山塘街主街较游客化，想吃苏州味往临顿路、白塔东路、凤凰街、十全街方向找老店。",
+    "Day2如遇雨天，天平山可改去穹窿山或孙武文化园，吃饭照常安排在木渎，不大幅绕路。"
+  ]
+}
