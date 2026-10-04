@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+.env.local
+.git
+*.md
+!README.md
+.DS_Store
+npm-debug.log*
