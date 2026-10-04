@@ -29,6 +29,8 @@ npm test        # 自包含：自动启动桩 LLM + 隔离端口(3103)测试服�
 
 **高德集成要点**（2026-10 按官方文档校正）：POI 搜索 `/v3/place/text`；通勤距离用 `/v5/direction/driving`（v3/distance 已不在文档内），且该接口**只收经纬度坐标**——`transitMinutes` 内部先把地名经 POI 搜索解析成坐标再算距离；POI 结果进程内缓存 30 分钟（同一 POI 会被验真和多次通勤复用，个人 key 有 QPS 限制）。
 
+## 快速开始
+
 ```bash
 cp .env.example .env   # 已生成；填入 LLM_API_KEY 即可跑（MOCK 模式无需高德 key）
 npm install
@@ -39,6 +41,18 @@ npm run dev             # http://localhost:3000
 - `LLM_*`：step-5（OpenAI 兼容），已预填
 - `AMAP_WEB_SERVICE_KEY`：[高德控制台](https://console.amap.com/dev/key/app) 申请「Web服务」类型（个人免费）。**不填则 MOCK 模式**：全链路可跑，POI 不验真，`plan.verified=false`
 - `DAILY_FREE_LIMIT`：每日免费次数（v0 按 IP 计数，内存实现）
+
+## 常见问题排查
+
+| 症状 | 原因与处理 |
+|---|---|
+| 首次请求 500「缺少 LLM_API_KEY」 | `.env` 没配。`cp .env.example .env` 后填入 key |
+| 端口被占用 | `npm run dev -- --port 3001` 换端口 |
+| Node 报错/安装失败 | 需要 Node ≥ 20（package.json engines 已约束） |
+| 生成等 4 分钟还没返回 | **正常**：推理模型做约束规划就要 3-4 分钟，页面有秒表和阶段提示；超过 7 分钟会超时并**自动退还配额** |
+| 轮询返回「任务不存在」 | 服务重启过（任务态在内存）或超过 2 小时，重新提交即可 |
+| POI 全带「未在高德检索到」 | 没配 `AMAP_WEB_SERVICE_KEY`（MOCK 模式）或 key 类型选错（要「Web服务」类型） |
+| 体检总提示「通勤偏长」 | 模型把景点排太散，属于预警生效中；可删减当天景点 |
 
 ## 架构
 
