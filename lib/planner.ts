@@ -135,6 +135,11 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
       }
       continue;
     }
+    // 成本可见：每次生成的 token 消耗（上线前盯账单用）
+    console.log(
+      `[llm] ${input.city} ${input.days}天 第${attempt}次尝试 ` +
+      `prompt=${res.usage?.prompt_tokens ?? "?"} completion=${res.usage?.completion_tokens ?? "?"}`,
+    );
     try {
       const parsed = PlanSchema.parse(extractJson(content));
       return {

@@ -77,6 +77,8 @@ Base URL：`/api`（与前端同源）
 | POST | `/api/auth/logout` | 清除 cookie |
 | GET | `/api/me` | 当前登录态：`{loggedIn, phone?, provider, remaining}` |
 
+微信登录（`AUTH_PROVIDER=wechat`）：`GET /api/auth/wechat/login?redirect=/` 跳转授权页（state+wx_state cookie 防 CSRF）→ 微信回调 `GET /api/auth/wechat/callback?code=&state=` 服务端换 openid → 签发同一套 session（标识为 `wx:<openid>`）。伪造 state → 400。
+
 错误：手机号格式→400；验证码错误→401；配额用尽→429（文案区分登录/未登录并引导）。
 
 ## Plan Schema（done 时返回）

@@ -16,6 +16,33 @@ export function userLimit(): number {
   return Number(process.env.AUTH_USER_LIMIT || 10);
 }
 
+// ---- 滑动窗口限流（发验证码防轰炸）----
+// 固定窗口实现：每 windowMs 一个窗口，超限拒绝。v0 够用；
+// 多实例部署前换 Redis（同 DAILY 配额）。
+// 状态同样挂 globalThis：dev 下各路由会编译出独立的模块实例，
+// 模块级 Map 会在请求间丢失（与 buckets 同理）
+const g2 = globalThis as typeof globalThis & {
+  __travelQuotaWindows?: Map<string, { w: number; c: number }>;
+};
+const windowBuckets: Map<string, { w: number; c: number }> =
+  (g2.__travelQuotaWindows ??= new Map());
+
+export function consumeWindow(
+  key: string,
+  limit: number,
+  windowMs: number,
+): { allowed: boolean; remaining: number } {
+  const w = Math.floor(Date.now() / windowMs);
+  const b = windowBuckets.get(key);
+  if (!b || b.w !== w) {
+    windowBuckets.set(key, { w, c: 1 });
+    return { allowed: true, remaining: limit - 1 };
+  }
+  if (b.c >= limit) return { allowed: false, remaining: 0 };
+  b.c += 1;
+  return { allowed: true, remaining: limit - b.c };
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }

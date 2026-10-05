@@ -226,7 +226,7 @@ export default function Home() {
           {me?.loggedIn ? (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span className="muted">
-                已登录：{me.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
+                已登录：{me.phone?.startsWith("wx:") ? "微信用户" : me.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
                 {me.remaining !== null && ` · 今日剩余 ${me.remaining} 次`}
               </span>
               <button type="button" onClick={logout}
@@ -257,10 +257,18 @@ export default function Home() {
               )}
             </>
           ) : (
-            <button type="button" onClick={() => setLoginOpen(true)}
-              style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 14, padding: 0 }}>
-              手机号登录：未登录每天 3 次，登录后 10 次 →
-            </button>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <button type="button" onClick={() => setLoginOpen(true)}
+                style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 14, padding: 0 }}>
+                手机号登录：未登录每天 3 次，登录后 10 次 →
+              </button>
+              {me?.provider === "wechat" && (
+                <a href="/api/auth/wechat/login?redirect=/"
+                  style={{ border: "none", background: "none", color: "#07c160", cursor: "pointer", fontSize: 14, textDecoration: "none" }}>
+                  微信一键登录 →
+                </a>
+              )}
+            </div>
           )}
           {authError && <p className="error" style={{ marginTop: 8, marginBottom: 0 }}>{authError}</p>}
         </div>

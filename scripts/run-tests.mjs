@@ -15,7 +15,8 @@ import path from "node:path";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STUB_PORT = 8898;   // 桩 LLM
 const AMAP_STUB_PORT = 8899; // 桩高德
-const PORTS = { mock: 3103, real: 3104, auth: 3105 };
+const WECHAT_STUB_PORT = 8900; // 桩微信
+const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106 };
 const APP = (k) => `http://127.0.0.1:${PORTS[k]}`;
 
 let passed = 0;
@@ -262,6 +263,67 @@ async function phaseC(api) {
   await api.authPost("/api/auth/logout", {});
   const me3 = await api.me();
   check("登出后 loggedIn=false", me3.body.loggedIn === false);
+
+  // 短信防轰炸：单手机号 5 条/小时（之前已发 1 条，再发 4 条到顶，第 6 条拦截）
+  for (let i = 0; i < 4; i++) {
+    await api.authPost("/api/auth/code", { phone: "13800138000" });
+  }
+  const spam = await api.authPost("/api/auth/code", { phone: "13800138000" });
+  check("同手机号第 6 条验证码 → 429（5 条/小时）", spam.status === 429, `got ${spam.status}`);
+}
+
+// ---------------- 阶段 D：微信 OAuth（桩微信） ----------------
+
+async function phaseD(base) {
+  console.log("\n== 微信 OAuth（桩微信，全流程） ==");
+
+  // 1. 发起登录 → 跳转（桩）微信授权页，并下发 wx_state cookie
+  // 注：Next 的 NextResponse.redirect 是 307，浏览器同样正常跟随
+  const r1 = await fetch(`${base}/api/auth/wechat/login?redirect=/`, { redirect: "manual" });
+  check("login → 307/302", r1.status === 307 || r1.status === 302, `got ${r1.status}`);
+  const authUrl = new URL(r1.headers.get("location") ?? "");
+  check("跳转桩 authorize 且带 appid",
+    authUrl.pathname === "/connect/oauth2/authorize" && authUrl.searchParams.get("appid") === "wx_stub",
+    authUrl.toString().slice(0, 80));
+  const state = authUrl.searchParams.get("state") ?? "";
+  const wxCookie = (r1.headers.get("set-cookie") ?? "").split(";")[0];
+  check("下发 wx_state cookie（CSRF 防护）", wxCookie.startsWith("wx_state="));
+
+  // 2. 模拟「用户在微信点同意」：请求授权页，桩带 code+state 回流本站 callback
+  const r2 = await fetch(authUrl.toString(), { redirect: "manual" });
+  const cb = new URL(r2.headers.get("location") ?? "");
+  check("回流到本站 callback", cb.pathname === "/api/auth/wechat/callback", cb.pathname);
+
+  // 3. 回调（带 wx_state）→ code 换 openid → 302 落地页 + session cookie
+  const r3 = await fetch(`${base}${cb.pathname}${cb.search}`, {
+    redirect: "manual",
+    headers: { Cookie: wxCookie },
+  });
+  check("callback → 307/302", r3.status === 307 || r3.status === 302, `got ${r3.status}`);
+  const sessionCookie = (r3.headers.get("set-cookie") ?? "").split(";")[0];
+  check("下发 tp_session", sessionCookie.startsWith("tp_session="));
+
+  // 4. /api/me：微信用户身份
+  const meBody = await (await fetch(`${base}/api/me`, { headers: { Cookie: sessionCookie } })).json();
+  check("微信用户登录态（wx:stub_openid_001）",
+    meBody.loggedIn === true && meBody.phone === "wx:stub_openid_001", JSON.stringify(meBody));
+
+  // 5. 双轨配额对微信 key 生效（用户轨 10 次）
+  const r5 = await fetch(`${base}/api/plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: sessionCookie },
+    body: JSON.stringify({ city: "成都", days: 3, budget: 1000, preferences: [] }),
+  });
+  check("微信用户可提交 202", r5.status === 202, `got ${r5.status}`);
+  const meBody2 = await (await fetch(`${base}/api/me`, { headers: { Cookie: sessionCookie } })).json();
+  check("微信用户配额 = 9（提交 1 次后）", meBody2.remaining === 9, `got ${meBody2.remaining}`);
+
+  // 6. 伪造 state → 400（CSRF 防护真实生效）
+  const bad = await fetch(`${base}/api/auth/wechat/callback?code=stub_wx_code&state=forged_state`, {
+    redirect: "manual",
+    headers: { Cookie: wxCookie },
+  });
+  check("伪造 state → 400", bad.status === 400, `got ${bad.status}`);
 }
 
 // ---------------- 主流程 ----------------
@@ -270,6 +332,7 @@ async function main() {
   console.log("启动桩服务与两台测试服务器（MOCK 3103 / 真实 3104）……");
   spawnCmd("node", ["scripts/stub-llm.mjs", String(STUB_PORT)]);
   spawnCmd("node", ["scripts/amap-stub.mjs", String(AMAP_STUB_PORT)]);
+  spawnCmd("node", ["scripts/wechat-stub.mjs", String(WECHAT_STUB_PORT)]);
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.mock)], {
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
@@ -287,14 +350,25 @@ async function main() {
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
   });
+  spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.wx)], {
+    LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
+    LLM_API_KEY: "stub-key",
+    LLM_MODEL: "step-5-preview",
+    AUTH_PROVIDER: "wechat",
+    WECHAT_APPID: "wx_stub",
+    WECHAT_SECRET: "stub_secret",
+    WECHAT_API_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
+    WECHAT_AUTH_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
+  });
 
-  const [upA, upB, upC] = await Promise.all([
+  const [upA, upB, upC, upD] = await Promise.all([
     waitReady(`${APP("mock")}/`),
     waitReady(`${APP("real")}/`),
     waitReady(`${APP("auth")}/`),
+    waitReady(`${APP("wx")}/`),
   ]);
-  if (!upA || !upB || !upC) {
-    console.error(`❌ 测试服务器未就绪（mock=${upA}, real=${upB}, auth=${upC}）`);
+  if (!upA || !upB || !upC || !upD) {
+    console.error(`❌ 测试服务器未就绪（mock=${upA}, real=${upB}, auth=${upC}, wx=${upD}）`);
     for (const c of children) c.kill("SIGTERM");
     process.exitCode = 1;
     return;
@@ -304,6 +378,7 @@ async function main() {
     await phaseA(makeApi(APP("mock")));
     await phaseB(makeApi(APP("real")));
     await phaseC(makeApi(APP("auth")));
+    await phaseD(APP("wx"));
   } finally {
     for (const c of children) c.kill("SIGTERM");
   }

@@ -95,3 +95,12 @@ button.primary:disabled { background: #93b4f5; cursor: wait; }
 .summary-line { font-size: 15px; margin: 4px 0 12px; }
 .error { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px; }
 .muted { color: var(--muted); font-size: 13px; }
+
+/* 打印：旅行者要纸质行程。隐藏表单与操作，保留行程卡片，一天一页不截断 */
+@media print {
+  body { background: #fff; }
+  form.card, button, .error { display: none !important; }
+  .card { border: none; padding: 8px 0; break-inside: avoid; }
+  .warnings { background: #fff; border: 1px solid #999; }
+  .container { max-width: 100%; }
+}
