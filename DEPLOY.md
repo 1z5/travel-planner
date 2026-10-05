@@ -26,7 +26,21 @@ docker run -d -p 3000:3000 \
   --name travel-planner travel-planner
 ```
 
-镜像基于 `output: "standalone"` 构建，体积约 150MB。健康检查可打 `GET /`（静态页 200 即活）。
+镜像基于 `output: "standalone"` 构建，体积约 150MB。健康检查可打 `GET /api/health`（返回 `status:ok` 与配置自检，不泄露密钥）。
+
+## 方式二：裸机 / 虚拟机（standalone 直跑，无需 Docker）
+
+```bash
+npm ci && npm run build
+# ⚠️ 两个必须注意的点（都实测踩过）：
+# 1) output:standalone 下 npm start 不可用，必须直接跑 standalone 产物：
+cp -r .next/static .next/standalone/.next/static   # 构建不会自动放进 standalone
+mkdir -p .next/standalone/public && cp -r public/* .next/standalone/public/ 2>/dev/null
+# 2) standalone 不读 .env，环境变量必须显式注入：
+LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
+```
+
+实测：standalone + 显式 env 下 `/api/health` 返回 `llmConfigured:true`，真实生成（厦门 4 天）297s 完成，产物行为与 dev 一致。
 
 ## 方式二：CloudBase 云托管
 
