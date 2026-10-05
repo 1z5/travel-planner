@@ -13,7 +13,8 @@
     "test": "node scripts/run-tests.mjs",
     "preflight": "node --env-file=.env scripts/preflight.mjs",
     "verify:amap": "node --env-file=.env scripts/verify-amap.mjs",
-    "eval:cases": "node scripts/eval-cases.mjs"
+    "eval:cases": "node scripts/eval-cases.mjs",
+    "smoke": "node scripts/smoke-deployed.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",

@@ -80,7 +80,19 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 
 服务端日志每次打印 `[llm] 城市 天数 第N次尝试 prompt=xx completion=xx`，可按天汇总核对账单。要控成本就调 `DAILY_FREE_LIMIT` / `AUTH_USER_LIMIT` / `LLM_MAX_TOKENS`（调小会增加空返回重试概率，谨慎）。
 
+## 上线当日 Runbook（按顺序执行）
+
+```bash
+# 0. 部署机/容器内：环境变量已注入（见上文），然后——
+npm run preflight                  # ① 配置自检，🟢 GO 才能继续
+npm run verify:amap                # ② 高德 key 5 秒验收（配了则 live 模式）
+node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链路冒烟（消耗 1 次当日配额）
+# ④ 观察 24 小时：服务端 [llm] tokens 日志核对成本；/api/health 配监控告警
+```
+
+## 上线后必须跟进的事项
+
 1. **配额换存储**：内存 Map 每实例独立、重启清零 → 上 Redis（云托管可挂云数据库 Redis 版）
-2. **任务态换存储**：同理，jobs Map 换 Redis，否则多实例轮询会 404
-3. **登录体系**：下一步 M3，把「按 IP 计数」换成「按用户计数」
+2. **任务态换存储**：同理，jobs Map 换 Redis，否则多实例部署轮询会 404
+3. ~~登录体系~~（M3 已完成，剩厂商凭据）：选短信（填 SMS_APP_ID/SIGN/TEMPLATE_ID，`AUTH_PROVIDER=sms`）或微信（填 WECHAT_APPID/SECRET + 备案回调域名，`AUTH_PROVIDER=wechat`）
 4. **监控**：生成失败率 / 超时率 / 平均耗时（当前基线 3-5 分钟）
