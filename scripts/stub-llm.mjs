@@ -30,16 +30,18 @@ const server = createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     let userMsg = "";
+    let isStream = false;
     try {
       const parsed = JSON.parse(body);
       userMsg = parsed.messages?.filter((m) => m.role === "user").map((m) => m.content).join("\n") ?? "";
+      isStream = parsed.stream === true;
     } catch { /* 空 body 按 valid 处理 */ }
 
     let mode = "valid";
     if (userMsg.includes("垃圾")) mode = "garbage";
     else if (userMsg.includes("空")) mode = "empty";
     else if (userMsg.includes("故障")) mode = "http500";
-    console.log(`[stub] ${mode}`);
+    console.log(`[stub] ${mode}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -51,6 +53,31 @@ const server = createServer((req, res) => {
       mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
       : mode === "empty" ? ""
       : JSON.stringify(CANNED_PLAN);
+
+    if (isStream) {
+      // SSE：模拟真实流式（role 帧 → 内容分两帧 → 结束帧带 usage）
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      const chunk = (delta, finishReason, usage) => {
+        const payload = { id: "stub-1", object: "chat.completion.chunk",
+          choices: [{ index: 0, delta, finish_reason: finishReason ?? null }] };
+        if (usage) payload.usage = usage;
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      };
+      chunk({ role: "assistant" }, null);
+      if (content) {
+        const mid = Math.floor(content.length / 2);
+        chunk({ content: content.slice(0, mid) }, null);
+        chunk({ content: content.slice(mid) }, null);
+      }
+      chunk({}, "stop", { prompt_tokens: 10, completion_tokens: content.length, total_tokens: 20 + content.length });
+      res.write("data: [DONE]\n\n");
+      res.end();
+      return;
+    }
 
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({

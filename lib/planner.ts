@@ -103,9 +103,13 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
 
   // 两次机会：空返回或 JSON 不合法就原样重试一次
   for (let attempt = 1; attempt <= 2; attempt++) {
-    let res;
+    let content = "";
+    let totalTokens = 0;
     try {
-      res = await llm.chat.completions.create({
+      // 流式：推理模型生成要 3-5 分钟，非流式会撞上 Node fetch 的
+      // undici headersTimeout（默认 300s，响应头迟迟不来就被掐断，
+      // 比我们的 420s 超时先炸）。流式下 header 立即返回、chunk 持续流动。
+      const stream = await llm.chat.completions.create({
         model: process.env.LLM_MODEL || "step-5-preview",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -119,16 +123,23 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
         ],
         max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
         reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
+        stream: true,
+        stream_options: { include_usage: true },
       });
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) content += delta;
+        if (chunk.usage) totalTokens = chunk.usage.total_tokens ?? 0;
+      }
     } catch (e) {
       const msg = (e as Error).message ?? "";
+      console.log(`[llm] ${input.city} 第${attempt}次异常: ${msg}`);
       if (/timed out|timeout/i.test(msg)) {
-        throw new Error("生成超时（8 分钟未返回），请稍后重试或减少天数");
+        throw new Error("生成超时（7 分钟未返回），请稍后重试或减少天数");
       }
       throw e;
     }
 
-    const content = res.choices[0]?.message?.content ?? "";
     if (!content.trim()) {
       if (attempt === 2) {
         throw new Error("LLM 返回为空（推理可能吃满了 token，请调大 LLM_MAX_TOKENS）");
@@ -137,8 +148,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
     }
     // 成本可见：每次生成的 token 消耗（上线前盯账单用）
     console.log(
-      `[llm] ${input.city} ${input.days}天 第${attempt}次尝试 ` +
-      `prompt=${res.usage?.prompt_tokens ?? "?"} completion=${res.usage?.completion_tokens ?? "?"}`,
+      `[llm] ${input.city} ${input.days}天 第${attempt}次尝试 tokens=${totalTokens || "?"}`,
     );
     try {
       const parsed = PlanSchema.parse(extractJson(content));
