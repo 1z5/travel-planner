@@ -66,6 +66,19 @@ Base URL：`/api`（与前端同源）
 { "error": "任务不存在或已过期，请重新生成" }
 ```
 
+## 认证接口（M3：可选登录）
+
+登录是增强不是门槛：未登录按 IP 计数（3 次/天），登录后按用户计数（10 次/天）。session 为服务端自签 HMAC cookie（`tp_session`，7 天有效，无数据库）。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/auth/code` | 发送验证码。body `{phone}`；dev provider 固定码 `123456` |
+| POST | `/api/auth/verify` | 校验。body `{phone, code}`；成功 200 并 `Set-Cookie` |
+| POST | `/api/auth/logout` | 清除 cookie |
+| GET | `/api/me` | 当前登录态：`{loggedIn, phone?, provider, remaining}` |
+
+错误：手机号格式→400；验证码错误→401；配额用尽→429（文案区分登录/未登录并引导）。
+
 ## Plan Schema（done 时返回）
 
 ```typescript

@@ -65,6 +65,63 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
 
+  // ---- 登录态（可选：未登录 3 次/天，登录后 10 次/天）----
+  const [me, setMe] = useState<{ loggedIn: boolean; phone?: string; remaining: number | null; provider: string } | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then(setMe).catch(() => setMe(null));
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function sendCode() {
+    setAuthError("");
+    const r = await fetch("/api/auth/code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setAuthError(d.error || "发送失败");
+      return;
+    }
+    setCooldown(60);
+  }
+
+  async function login() {
+    setAuthError("");
+    const r = await fetch("/api/auth/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, code }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setAuthError(d.error || "登录失败");
+      return;
+    }
+    setLoginOpen(false);
+    setCode("");
+    const meData = await (await fetch("/api/me")).json();
+    setMe(meData);
+    setRemaining(null);
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setMe({ loggedIn: false, remaining: null, provider: me?.provider ?? "none" });
+  }
+
   // 等待期间的秒表
   useEffect(() => {
     if (!loading) return;
@@ -162,6 +219,50 @@ export default function Home() {
             <span key={p} className={`chip ${prefs.includes(p) ? "on" : ""}`}
                   onClick={() => togglePref(p)}>{p}</span>
           ))}
+        </div>
+
+        {/* 登录区：可选增强，未登录 3 次/天，登录后 10 次/天 */}
+        <div style={{ marginTop: 16, borderTop: "1px dashed var(--border)", paddingTop: 12 }}>
+          {me?.loggedIn ? (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span className="muted">
+                已登录：{me.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
+                {me.remaining !== null && ` · 今日剩余 ${me.remaining} 次`}
+              </span>
+              <button type="button" onClick={logout}
+                style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", textDecoration: "underline", fontSize: 13 }}>
+                退出登录
+              </button>
+            </div>
+          ) : loginOpen ? (
+            <>
+              <div className="row">
+                <input placeholder="手机号" value={phone} maxLength={11}
+                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
+                <div className="row">
+                  <input placeholder="验证码" value={code} maxLength={6}
+                         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+                  <button type="button" onClick={sendCode} disabled={cooldown > 0 || phone.length !== 11}
+                    style={{ whiteSpace: "nowrap", border: "1px solid var(--border)", borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+                    {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+                  </button>
+                </div>
+                <button type="button" onClick={login} disabled={phone.length !== 11 || code.length < 4}
+                  style={{ whiteSpace: "nowrap", border: "1px solid var(--accent)", borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent)", cursor: "pointer" }}>
+                  登录
+                </button>
+              </div>
+              {me?.provider === "none" && (
+                <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>开发模式（未接短信服务），验证码固定为 123456</p>
+              )}
+            </>
+          ) : (
+            <button type="button" onClick={() => setLoginOpen(true)}
+              style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 14, padding: 0 }}>
+              手机号登录：未登录每天 3 次，登录后 10 次 →
+            </button>
+          )}
+          {authError && <p className="error" style={{ marginTop: 8, marginBottom: 0 }}>{authError}</p>}
         </div>
 
         <button className="primary" disabled={loading}>

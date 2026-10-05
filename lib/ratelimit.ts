@@ -11,6 +11,11 @@ interface Bucket { date: string; count: number }
 const g = globalThis as typeof globalThis & { __travelQuota?: Map<string, Bucket> };
 const buckets: Map<string, Bucket> = (g.__travelQuota ??= new Map());
 
+// 配额上限：登录用户 10 次/天，未登录 3 次/天 / IP（见 /api/plan 的双轨逻辑）
+export function userLimit(): number {
+  return Number(process.env.AUTH_USER_LIMIT || 10);
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }

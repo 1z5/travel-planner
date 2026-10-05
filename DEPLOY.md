@@ -46,7 +46,11 @@ docker run -d -p 3000:3000 \
 | `LLM_REASONING_EFFORT` | | 默认 `low`，实测 medium 无收益且更慢 |
 | `AMAP_WEB_SERVICE_KEY` | 建议 | 高德 Web 服务 key；不填则 MOCK 模式（POI 不验真，`verified=false`） |
 | `AMAP_BASE_URL` | | 默认 `https://restapi.amap.com`，一般不用改 |
-| `DAILY_FREE_LIMIT` | | 默认 3 次/天/IP |
+| `DAILY_FREE_LIMIT` | | 默认 3 次/天/IP（未登录） |
+| `AUTH_PROVIDER` | | `none`（开发，验证码固定 123456）/ `sms` / `wechat` |
+| `SESSION_SECRET` | 生产必改 | session cookie HMAC 密钥，换成随机长字符串 |
+| `AUTH_USER_LIMIT` | | 默认 10 次/天（登录用户） |
+| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信服务商三件套 |
 | `PORT` | | 默认 3000 |
 
 ## 上线后必须跟进的事项

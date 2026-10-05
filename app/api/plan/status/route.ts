@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "任务不存在或已过期，请重新生成" }, { status: 404 });
   }
   // 剩余次数实时计算：失败退还后立刻反映，不做快照
-  const remaining = peek(job.ip, job.limit);
+  const remaining = peek(job.key, job.limit);
   if (job.status === "done") {
     return NextResponse.json({ status: "done", plan: job.plan, remaining });
   }

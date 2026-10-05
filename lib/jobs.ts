@@ -20,7 +20,7 @@ export interface Job {
   status: "running" | "done" | "error";
   plan?: Plan;
   error?: string;
-  ip: string;
+  key: string;
   limit: number;
   createdAt: number;
 }
@@ -35,14 +35,14 @@ function newId(): string {
 
 export function createJob(
   input: PlanInput,
-  ip: string,
+  key: string,
   limit: number,
   onError?: () => void,
 ): Job {
   const job: Job = {
     id: newId(),
     status: "running",
-    ip,
+    key,
     limit,
     createdAt: Date.now(),
   };

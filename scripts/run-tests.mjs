@@ -15,7 +15,7 @@ import path from "node:path";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STUB_PORT = 8898;   // 桩 LLM
 const AMAP_STUB_PORT = 8899; // 桩高德
-const PORTS = { mock: 3103, real: 3104 };
+const PORTS = { mock: 3103, real: 3104, auth: 3105 };
 const APP = (k) => `http://127.0.0.1:${PORTS[k]}`;
 
 let passed = 0;
@@ -59,19 +59,28 @@ async function waitReady(url, timeoutMs = 60000) {
 }
 
 function makeApi(base) {
+  const jar = { cookie: "" };
+  const withCookie = (headers = {}) =>
+    jar.cookie ? { ...headers, Cookie: jar.cookie } : headers;
+  const captureCookie = (r) => {
+    const setCookie = r.headers.get("set-cookie");
+    if (setCookie) jar.cookie = setCookie.split(";")[0];
+  };
   return {
+    jar,
     async post(payload) {
       const r = await fetch(`${base}/api/plan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCookie({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
-      return { status: r.status, body: await r.json().catch(() => ({})) };
+      const body = await r.json().catch(() => ({}));
+      return { status: r.status, body };
     },
     async postRaw(text) {
       const r = await fetch(`${base}/api/plan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCookie({ "Content-Type": "application/json" }),
         body: text,
       });
       return { status: r.status, body: await r.json().catch(() => ({})) };
@@ -79,12 +88,25 @@ function makeApi(base) {
     async waitJob(jobId, timeoutMs = 30000) {
       const t0 = Date.now();
       while (Date.now() - t0 < timeoutMs) {
-        const r = await fetch(`${base}/api/plan/status?id=${jobId}`);
+        const r = await fetch(`${base}/api/plan/status?id=${jobId}`, { headers: withCookie() });
         const d = await r.json();
         if (d.status === "done" || d.status === "error") return d;
         await new Promise((res) => setTimeout(res, 500));
       }
       return { status: "timeout" };
+    },
+    async authPost(path, payload) {
+      const r = await fetch(`${base}${path}`, {
+        method: "POST",
+        headers: withCookie({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+      });
+      captureCookie(r);
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    },
+    async me() {
+      const r = await fetch(`${base}/api/me`, { headers: withCookie() });
+      return { status: r.status, body: await r.json() };
     },
   };
 }
@@ -182,6 +204,66 @@ async function phaseB(api) {
     JSON.stringify(plan.warnings));
 }
 
+// ---------------- 阶段 C：登录体系（dev provider） ----------------
+
+async function phaseC(api) {
+  console.log("\n== 登录体系（dev provider，验证码 123456）==");
+
+  const me0 = await api.me();
+  check("未登录时 loggedIn=false", me0.body.loggedIn === false);
+
+  // 手机号格式校验
+  const badPhone = await api.authPost("/api/auth/code", { phone: "123" });
+  check("非法手机号 → 400", badPhone.status === 400, `got ${badPhone.status}`);
+
+  // 错误验证码
+  const wrong = await api.authPost("/api/auth/verify", { phone: "13800138000", code: "000000" });
+  check("错误验证码 → 401", wrong.status === 401, `got ${wrong.status}`);
+
+  // 正确登录（dev provider 固定码）
+  const sent = await api.authPost("/api/auth/code", { phone: "13800138000" });
+  check("发送验证码 → 200", sent.status === 200, `got ${sent.status}`);
+  const ok = await api.authPost("/api/auth/verify", { phone: "13800138000", code: "123456" });
+  check("正确验证码 → 200 且下发 cookie", ok.status === 200 && api.jar.cookie.startsWith("tp_session="),
+    `status=${ok.status} cookie=${api.jar.cookie.slice(0, 20)}`);
+
+  const me1 = await api.me();
+  check("登录后 /api/me 返回手机号", me1.body.loggedIn === true && me1.body.phone === "13800138000");
+  check("登录后剩余 = 10（用户配额）", me1.body.remaining === 10, `got ${me1.body.remaining}`);
+
+  // 登录用户配额独立：连提 4 次（桩 LLM 秒回，不等待完成，配额提交即扣）
+  for (let i = 0; i < 4; i++) {
+    const r = await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] });
+    if (r.status !== 202) check(`第 ${i + 1} 次提交应 202`, false, `got ${r.status}`);
+  }
+  const me2 = await api.me();
+  check("登录用户 4 次后剩余 = 6", me2.body.remaining === 6, `got ${me2.body.remaining}`);
+
+  // 另一用户配额独立
+  await api.authPost("/api/auth/verify", { phone: "13900139000", code: "123456" });
+  const meB = await api.me();
+  check("第二个用户独立 quota（=10）", meB.body.remaining === 10, `got ${meB.body.remaining}`);
+
+  // 陌生人仍走 IP 配额（3 次/天）
+  const noCookieApi = makeApi(`http://127.0.0.1:${PORTS.auth}`);
+  for (let i = 0; i < 3; i++) {
+    const r = await noCookieApi.post({ city: "成都", days: 3, budget: 1000, preferences: [] });
+    if (r.status !== 202) check(`陌生人第 ${i + 1} 次应 202`, false, `got ${r.status}`);
+  }
+  const r4 = await noCookieApi.post({ city: "成都", days: 3, budget: 1000, preferences: [] });
+  check("陌生人第 4 次 → 429（IP 配额 3）", r4.status === 429, `got ${r4.status}`);
+  check("429 文案引导登录", (r4.body.error ?? "").includes("登录"), r4.body.error);
+
+  // 登录不受 IP 配额影响（关键：双轨隔离）
+  const r5 = await api.post({ city: "成都", days: 3, budget: 1000, preferences: [] });
+  check("IP 被限流后登录用户仍可提交", r5.status === 202, `got ${r5.status}`);
+
+  // 登出
+  await api.authPost("/api/auth/logout", {});
+  const me3 = await api.me();
+  check("登出后 loggedIn=false", me3.body.loggedIn === false);
+}
+
 // ---------------- 主流程 ----------------
 
 async function main() {
@@ -200,13 +282,19 @@ async function main() {
     AMAP_WEB_SERVICE_KEY: "stub-amap-key",
     AMAP_BASE_URL: `http://127.0.0.1:${AMAP_STUB_PORT}`,
   });
+  spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.auth)], {
+    LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
+    LLM_API_KEY: "stub-key",
+    LLM_MODEL: "step-5-preview",
+  });
 
-  const [upA, upB] = await Promise.all([
+  const [upA, upB, upC] = await Promise.all([
     waitReady(`${APP("mock")}/`),
     waitReady(`${APP("real")}/`),
+    waitReady(`${APP("auth")}/`),
   ]);
-  if (!upA || !upB) {
-    console.error(`❌ 测试服务器未就绪（mock=${upA}, real=${upB}）`);
+  if (!upA || !upB || !upC) {
+    console.error(`❌ 测试服务器未就绪（mock=${upA}, real=${upB}, auth=${upC}）`);
     for (const c of children) c.kill("SIGTERM");
     process.exitCode = 1;
     return;
@@ -215,6 +303,7 @@ async function main() {
   try {
     await phaseA(makeApi(APP("mock")));
     await phaseB(makeApi(APP("real")));
+    await phaseC(makeApi(APP("auth")));
   } finally {
     for (const c of children) c.kill("SIGTERM");
   }
