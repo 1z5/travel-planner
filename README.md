@@ -43,6 +43,7 @@ npm run dev             # http://localhost:3000
 配置说明：
 - `LLM_*`：step-5（OpenAI 兼容），已预填
 - `AMAP_WEB_SERVICE_KEY`：[高德控制台](https://console.amap.com/dev/key/app) 申请「Web服务」类型（个人免费）。**不填则 MOCK 模式**：全链路可跑，POI 不验真，`plan.verified=false`
+- 拿到 key 后跑 `npm run verify:amap`：5 秒验证 key 有效性 / POI 验真 / 通勤矩阵（打真实接口，含错误码解读），全过再重启 dev server
 - `DAILY_FREE_LIMIT`：每日免费次数（v0 按 IP 计数，内存实现）
 
 ## 常见问题排查

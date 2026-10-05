@@ -11,7 +11,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs",
-    "preflight": "node --env-file=.env scripts/preflight.mjs"
+    "preflight": "node --env-file=.env scripts/preflight.mjs",
+    "verify:amap": "node --env-file=.env scripts/verify-amap.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",
