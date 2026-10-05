@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "preflight": "node --env-file=.env scripts/preflight.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",
