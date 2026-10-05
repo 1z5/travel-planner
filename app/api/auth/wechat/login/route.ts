@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { wechatLoginUrl } from "@/lib/auth/wechat";
+import { cookieSecure } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     sameSite: "lax",
     path: "/",
     maxAge: 300,
+    secure: cookieSecure(),
   });
   return res;
 }

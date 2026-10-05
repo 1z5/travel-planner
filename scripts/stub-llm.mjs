@@ -5,7 +5,7 @@
  * 按请求里「目的地：X」的城市名分支：
  *   含"垃圾" -> 返回非 JSON 文本（测 parse 重试路径）
  *   含"空"   -> 返回空 content（测空返回重试路径）
- *   含"500"  -> 直接 HTTP 500（测上游错误路径）
+ *   含"故障" -> 直接 HTTP 500（测上游错误路径）
  *   其他     -> 返回构造好的合法行程（测正常链路 + 体检阈值）
  *
  * 用法：node scripts/stub-llm.mjs [port]   （默认 8898）
@@ -38,7 +38,7 @@ const server = createServer((req, res) => {
     let mode = "valid";
     if (userMsg.includes("垃圾")) mode = "garbage";
     else if (userMsg.includes("空")) mode = "empty";
-    else if (userMsg.includes("500")) mode = "http500";
+    else if (userMsg.includes("故障")) mode = "http500";
     console.log(`[stub] ${mode}`);
 
     if (mode === "http500") {

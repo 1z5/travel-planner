@@ -58,7 +58,15 @@ export function readSession(cookieHeader: string | null | undefined): SessionPay
   }
 }
 
-export function cookieHeader(token: string, maxAgeSec: number, secure = false): string {
+// 是否给 cookie 打 Secure 标志：生产（NODE_ENV=production）默认打上；
+// 本地 http 开发用 COOKIE_SECURE=0 关掉
+export function cookieSecure(): boolean {
+  if (process.env.COOKIE_SECURE === "1") return true;
+  if (process.env.COOKIE_SECURE === "0") return false;
+  return process.env.NODE_ENV === "production";
+}
+
+export function cookieHeader(token: string, maxAgeSec: number, secure = cookieSecure()): string {
   const parts = [
     `${SESSION_COOKIE}=${token}`,
     "Path=/",

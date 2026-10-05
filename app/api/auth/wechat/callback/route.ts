@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { wechatExchange } from "@/lib/auth/wechat";
-import { createSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { createSession, cookieSecure, SESSION_COOKIE } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +41,10 @@ export async function GET(req: NextRequest) {
     sameSite: "lax",
     path: "/",
     maxAge: maxAgeSec,
+    secure: cookieSecure(),
   });
-  res.cookies.set("wx_state", "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
+  res.cookies.set("wx_state", "", {
+    httpOnly: true, sameSite: "lax", path: "/", maxAge: 0, secure: cookieSecure(),
+  });
   return res;
 }

@@ -53,7 +53,18 @@ docker run -d -p 3000:3000 \
 | `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信服务商三件套 |
 | `PORT` | | 默认 3000 |
 
-## 上线后必须跟进的事项
+## 成本模型（LLM 费用，上线前必读）
+
+每次生成实测（step-5-preview，effort=low）：prompt ~600 tokens，completion ~1.2-1.5 万 tokens（含推理），上限 64000。
+
+**成本上限由配额锁死**：
+
+```
+月成本 ≈ 日生成次数 × 单次 completion tokens × 模型单价
+日生成次数上限 = 陌生 UV × 3 + 登录用户数 × 10（双轨配额即成本闸门）
+```
+
+服务端日志每次打印 `[llm] 城市 天数 第N次尝试 prompt=xx completion=xx`，可按天汇总核对账单。要控成本就调 `DAILY_FREE_LIMIT` / `AUTH_USER_LIMIT` / `LLM_MAX_TOKENS`（调小会增加空返回重试概率，谨慎）。
 
 1. **配额换存储**：内存 Map 每实例独立、重启清零 → 上 Redis（云托管可挂云数据库 Redis 版）
 2. **任务态换存储**：同理，jobs Map 换 Redis，否则多实例轮询会 404
