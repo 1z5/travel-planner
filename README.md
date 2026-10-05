@@ -32,6 +32,14 @@ npm test        # 自包含：自动启动桩 LLM + 隔离端口(3103)测试服�
 
 **高德集成要点**（2026-10 按官方文档校正）：POI 搜索 `/v3/place/text`；通勤距离用 `/v5/direction/driving`（v3/distance 已不在文档内），且该接口**只收经纬度坐标**——`transitMinutes` 内部先把地名经 POI 搜索解析成坐标再算距离；POI 结果进程内缓存 30 分钟（同一 POI 会被验真和多次通勤复用，个人 key 有 QPS 限制）。
 
+**M2 评测**（接入真 key 后跑）：
+```bash
+DAILY_FREE_LIMIT=200 npm run dev       # 评测量大，临时放大配额
+npm run verify:amap                    # 先确认 key 可用
+npm run eval:cases                     # 20 城 case，并发 3，约 30 分钟
+```
+产出：成功率 / **POI 验真率** / 通勤预警率（绕路误报参考）/ 预算贴合度 / 耗时分布，明细存 `eval-results/`。
+
 ## 快速开始
 
 ```bash
