@@ -20,6 +20,9 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
+      - name: 依赖安全审计（高危阻断）
+        run: npm audit --audit-level=high
+
       - name: 类型检查
         run: npm run typecheck
 
