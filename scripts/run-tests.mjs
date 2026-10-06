@@ -176,6 +176,9 @@ async function phaseA(api) {
   const shareHtml = await share.text();
   check("分享页 /p/{jobId} → 200", share.status === 200, `got ${share.status}`);
   check("分享页 SSR 含行程内容（拙政园）", shareHtml.includes("拙政园"));
+  const ogMatch = shareHtml.match(/<meta property="og:title" content="([^"]+)"/);
+  check("分享页有动态 OG 标题（微信/Twitter 卡片预览）",
+    ogMatch?.[1]?.includes("3 天行程"), `og:title=${ogMatch?.[1] ?? "无"}`);
   const expired = await fetch(`${api.baseUrl}/p/job_nonexistent`);
   check("无效分享链接 → 友好提示（非 500）",
     expired.status === 200 && (await expired.text()).includes("链接已失效"),
