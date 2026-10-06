@@ -64,7 +64,8 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 | `AUTH_PROVIDER` | | `none`（开发，验证码固定 123456）/ `sms` / `wechat` |
 | `SESSION_SECRET` | 生产必改 | session cookie HMAC 密钥，换成随机长字符串 |
 | `AUTH_USER_LIMIT` | | 默认 10 次/天（登录用户） |
-| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信服务商三件套 |
+| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信三件套（应用 ID/签名/模板） |
+| `SMS_SECRET_ID` / `SMS_SECRET_KEY` | sms 时必填 | 腾讯云 API 密钥（控制台 → 访问管理） |
 | `PORT` | | 默认 3000 |
 
 ## 成本模型（LLM 费用，上线前必读）

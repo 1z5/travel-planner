@@ -2,8 +2,10 @@
 /**
  * 端到端测试编排器（自包含，可本地跑也可在 CI 跑）：
  *   阶段 A（MOCK 高德）：桩 LLM + 测试服务器 3103 → 输入边界 16 例 + 健康检查 + 故障注入 5 例
- *   阶段 B（真实模式）：桩 LLM + 高德桩 + 测试服务器 3104（带 AMAP key）
- *                       → 验真/坐标解析/通勤换算/未命中预警
+ *   阶段 B（真实模式）：桩 LLM + 高德桩 + 测试服务器 3104（带 AMAP key）→ 验真/坐标解析/通勤换算/未命中预警
+ *   阶段 C（dev 登录）：测试服务器 3105 → 验证码流 + 双轨配额 + 防轰炸
+ *   阶段 D（微信）：桩微信 + 测试服务器 3106 → OAuth 全流程 + CSRF
+ *   阶段 E（短信）：桩腾讯云短信 + 测试服务器 3107 → TC3 直签 + 服务端验证码 + 一次性消费
  *   全部 tear down，退出码非零即失败
  *
  * 用法：npm test
@@ -16,7 +18,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STUB_PORT = 8898;   // 桩 LLM
 const AMAP_STUB_PORT = 8899; // 桩高德
 const WECHAT_STUB_PORT = 8900; // 桩微信
-const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106 };
+const SMS_STUB_PORT = 8901; // 桩腾讯云短信
+const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106, sms: 3107 };
 const APP = (k) => `http://127.0.0.1:${PORTS[k]}`;
 
 let passed = 0;
@@ -340,6 +343,37 @@ async function phaseD(base) {
   check("伪造 state → 400", bad.status === 400, `got ${bad.status}`);
 }
 
+// ---------------- 阶段 E：短信 provider（真实实现走桩腾讯云） ----------------
+
+async function phaseE(base, smsStubBase) {
+  console.log("\n== 短信 provider（TC3 直签 + 服务端验证码，走桩）==");
+  const api = makeApi(base);
+
+  const sent = await api.authPost("/api/auth/code", { phone: "13700137000" });
+  check("发送验证码 → 200", sent.status === 200, `got ${sent.status}`);
+
+  // 桩侧收到了 TC3 SendSms 请求，且验证码是 6 位数字（真实随机）
+  const last = await (await fetch(`${smsStubBase}/_last_code`)).json();
+  check("桩收到 SendSms 请求（TC3 头/负载构造正确）",
+    last.action === "SendSms" && last.phone === "+8613700137000",
+    JSON.stringify(last));
+  check("验证码为 6 位数字随机值", /^\d{6}$/.test(last.code ?? ""), String(last.code));
+
+  const wrong = await api.authPost("/api/auth/verify", { phone: "13700137000", code: "000000" });
+  check("错误验证码 → 401", wrong.status === 401, `got ${wrong.status}`);
+
+  const ok = await api.authPost("/api/auth/verify", { phone: "13700137000", code: last.code });
+  check("正确验证码（服务端比对）→ 200 + cookie",
+    ok.status === 200 && api.jar.cookie.startsWith("tp_session="), `status=${ok.status}`);
+
+  const reuse = await api.authPost("/api/auth/verify", { phone: "13700137000", code: last.code });
+  check("同码复用 → 401（一次性消费）", reuse.status === 401, `got ${reuse.status}`);
+
+  const me = await api.me();
+  check("登录态正确（13700137000）",
+    me.body.loggedIn === true && me.body.phone === "13700137000", JSON.stringify(me.body));
+}
+
 // ---------------- 主流程 ----------------
 
 async function main() {
@@ -347,6 +381,7 @@ async function main() {
   spawnCmd("node", ["scripts/stub-llm.mjs", String(STUB_PORT)]);
   spawnCmd("node", ["scripts/amap-stub.mjs", String(AMAP_STUB_PORT)]);
   spawnCmd("node", ["scripts/wechat-stub.mjs", String(WECHAT_STUB_PORT)]);
+  spawnCmd("node", ["scripts/sms-stub.mjs", String(SMS_STUB_PORT)]);
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.mock)], {
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
@@ -374,15 +409,28 @@ async function main() {
     WECHAT_API_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
     WECHAT_AUTH_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
   });
+  spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.sms)], {
+    LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
+    LLM_API_KEY: "stub-key",
+    LLM_MODEL: "step-5-preview",
+    AUTH_PROVIDER: "sms",
+    SMS_API_BASE: `http://127.0.0.1:${SMS_STUB_PORT}`,
+    SMS_SECRET_ID: "stub_secret_id",
+    SMS_SECRET_KEY: "stub_secret_key",
+    SMS_APP_ID: "1400000000",
+    SMS_SIGN: "测试签名",
+    SMS_TEMPLATE_ID: "1000000",
+  });
 
-  const [upA, upB, upC, upD] = await Promise.all([
+  const [upA, upB, upC, upD, upE] = await Promise.all([
     waitReady(`${APP("mock")}/`),
     waitReady(`${APP("real")}/`),
     waitReady(`${APP("auth")}/`),
     waitReady(`${APP("wx")}/`),
+    waitReady(`${APP("sms")}/`),
   ]);
-  if (!upA || !upB || !upC || !upD) {
-    console.error(`❌ 测试服务器未就绪（mock=${upA}, real=${upB}, auth=${upC}, wx=${upD}）`);
+  if (!upA || !upB || !upC || !upD || !upE) {
+    console.error(`❌ 测试服务器未就绪（mock=${upA} real=${upB} auth=${upC} wx=${upD} sms=${upE}）`);
     for (const c of children) c.kill("SIGTERM");
     process.exitCode = 1;
     return;
@@ -393,6 +441,7 @@ async function main() {
     await phaseB(makeApi(APP("real")));
     await phaseC(makeApi(APP("auth")));
     await phaseD(APP("wx"));
+    await phaseE(APP("sms"), `http://127.0.0.1:${SMS_STUB_PORT}`);
   } finally {
     for (const c of children) c.kill("SIGTERM");
   }

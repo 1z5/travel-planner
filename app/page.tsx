@@ -344,7 +344,10 @@ export default function Home() {
                 </div>
               ))}
               <p className="muted" style={{ marginBottom: 0 }}>
-                当天通勤约 {Math.round(day.transitMin / 6) / 10}h · 人均 ¥{day.dailyCostCny.toLocaleString()}
+                {plan.verified
+                  ? `当天通勤约 ${Math.round(day.transitMin / 6) / 10}h · `
+                  : "MOCK 模式未估算通勤 · "}
+                人均 ¥{day.dailyCostCny.toLocaleString()}
               </p>
             </div>
           ))}

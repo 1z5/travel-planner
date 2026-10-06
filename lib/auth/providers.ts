@@ -1,11 +1,12 @@
 import "server-only";
 import type { AuthProvider } from "./types";
+import { checkCode, randomCode, sendSmsCode, storeCode } from "./sms";
 
 // ============================================================
 // Provider 实现：
 // - none：开发/测试用，固定验证码 123456，不发真实短信
-// - sms：骨架，待接入阿里云/腾讯云短信（见 DEPLOY.md 的配置说明）
-// - wechat：骨架，微信网页 OAuth2 需 appid/secret + 回调域名
+// - sms：腾讯云短信（TC3 直签，无需 SDK），验证码服务端存储校验
+// - wechat：OAuth 跳转型，不走验证码，走网页授权入口
 // ============================================================
 
 const DEV_CODE = "123456";
@@ -25,25 +26,16 @@ class SmsProvider implements AuthProvider {
   readonly id = "sms" as const;
 
   async sendCode(phone: string) {
-    // TODO(M3): 接入短信服务商。以腾讯云为例：
-    //   const client = new tencentcloud.sms.v20210111.Client({...});
-    //   await client.SendSms({ PhoneNumberSet: [`+86${phone}`],
-    //     TemplateId: process.env.SMS_TEMPLATE_ID, SignName: process.env.SMS_SIGN,
-    //     TemplateParamSet: [code], SmsSdkAppId: process.env.SMS_APP_ID });
-    // 未配置环境变量时抛错，避免静默失败
-    if (!process.env.SMS_APP_ID || !process.env.SMS_TEMPLATE_ID || !process.env.SMS_SIGN) {
-      return { ok: false, error: "短信服务未配置（SMS_APP_ID / SMS_TEMPLATE_ID / SMS_SIGN）" };
-    }
-    void phone;
-    return { ok: false, error: "短信 provider 骨架待接入" };
+    // 限流已在 /api/auth/code 处理（单号 5/h、单 IP 20/h），这里只管发送
+    const code = randomCode();
+    const result = await sendSmsCode(phone, code);
+    if (!result.ok) return result;
+    storeCode(phone, code); // 发送成功才落库，供 verify 比对
+    return { ok: true };
   }
 
   async verifyCode(phone: string, code: string) {
-    // TODO(M3): 真机验证应改为「服务端下发 + 服务端校验」，
-    // 即发送时把 code 存 Redis（phone -> code, 5 分钟过期），此处比对后删除
-    void phone;
-    void code;
-    return false;
+    return checkCode(phone, code);
   }
 }
 

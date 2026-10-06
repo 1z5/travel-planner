@@ -33,17 +33,21 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
       }
     }
 
-    // 2) 通勤：顺序累加相邻站点间的估算时间
+    // 2) 通勤：顺序累加相邻站点间的估算时间。
+    // MOCK 模式下不估算——哈希假数据只会制造「疑似绕路」的虚假预警，
+    // 节奏判定也退化为纯停留时长（avoids 假数据污染两个指标）。
     let transit = 0;
-    for (let i = 0; i < day.spots.length - 1; i++) {
-      transit += await transitMinutes(plan.city, day.spots[i].name, day.spots[i + 1].name);
+    if (!AMAP_MOCK) {
+      for (let i = 0; i < day.spots.length - 1; i++) {
+        transit += await transitMinutes(plan.city, day.spots[i].name, day.spots[i + 1].name);
+      }
+      if (transit > TRANSIT_WARN_MIN) {
+        warnings.push(
+          `第 ${day.day} 天站点间通勤约 ${fmtMin(transit)}，偏长，可能存在绕路，建议合并同区域景点`,
+        );
+      }
     }
     day.transitMin = transit;
-    if (transit > TRANSIT_WARN_MIN) {
-      warnings.push(
-        `第 ${day.day} 天站点间通勤约 ${fmtMin(transit)}，偏长，可能存在绕路，建议合并同区域景点`,
-      );
-    }
 
     // 3) 节奏：停留 + 通勤
     const active = day.spots.reduce((s, x) => s + x.durationMin, 0) + transit;

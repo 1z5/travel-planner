@@ -77,6 +77,8 @@ Base URL：`/api`（与前端同源）
 | POST | `/api/auth/logout` | 清除 cookie |
 | GET | `/api/me` | 当前登录态：`{loggedIn, phone?, provider, remaining}` |
 
+`AUTH_PROVIDER=sms` 时：验证码由腾讯云短信（TC3 直签，`lib/auth/sms.ts`）下发，服务端存储校验（5 分钟有效、一次性消费），需配 `SMS_SECRET_ID / SMS_SECRET_KEY / SMS_APP_ID / SMS_SIGN / SMS_TEMPLATE_ID`。模板内容形如「您的验证码是 {1}，5 分钟内有效」。
+
 微信登录（`AUTH_PROVIDER=wechat`）：`GET /api/auth/wechat/login?redirect=/` 跳转授权页（state+wx_state cookie 防 CSRF）→ 微信回调 `GET /api/auth/wechat/callback?code=&state=` 服务端换 openid → 签发同一套 session（标识为 `wx:<openid>`）。伪造 state → 400。
 
 错误：手机号格式→400；验证码错误→401；配额用尽→429（文案区分登录/未登录并引导）。
