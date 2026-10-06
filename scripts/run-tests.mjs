@@ -171,6 +171,16 @@ async function phaseA(api) {
   check("MOCK 模式 verified=false", plan.verified === false);
   check("remaining = 2", j1.remaining === 2, `got ${j1.remaining}`);
 
+  // 分享页：同一份 job 的只读链接
+  const share = await fetch(`${api.baseUrl}/p/${r1.body.jobId}`);
+  const shareHtml = await share.text();
+  check("分享页 /p/{jobId} → 200", share.status === 200, `got ${share.status}`);
+  check("分享页 SSR 含行程内容（拙政园）", shareHtml.includes("拙政园"));
+  const expired = await fetch(`${api.baseUrl}/p/job_nonexistent`);
+  check("无效分享链接 → 友好提示（非 500）",
+    expired.status === 200 && (await expired.text()).includes("链接已失效"),
+    `got ${expired.status}`);
+
   console.log("-- 用例 2：垃圾输出 --");
   const j2 = await api.waitJob((await api.post({ city: "垃圾测试城市", days: 3, budget: 1000, preferences: [] })).body.jobId);
   check("任务 error", j2.status === "error");

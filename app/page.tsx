@@ -3,16 +3,12 @@
 import { useEffect, useState } from "react";
 import type { Plan } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { PlanView } from "@/components/PlanView";
 
 const PREF_OPTIONS = [
   "美食", "历史文化", "自然风光", "Citywalk", "博物馆",
   "购物", "拍照打卡", "小众冷门", "亲子友好", "夜生活",
 ];
-
-const TYPE_LABEL: Record<string, string> = {
-  sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
-  shopping: "购物", activity: "体验",
-};
 
 // 等待期的阶段提示（对应真实处理流程：生成 → 展开 → 验真 → 体检）
 const WAITING_TIPS = [
@@ -28,31 +24,6 @@ function fmtElapsed(sec: number): string {
   return m ? `${m} 分 ${s} 秒` : `${s} 秒`;
 }
 
-function toMarkdown(plan: Plan): string {
-  const lines: string[] = [`# ${plan.city} ${plan.days.length} 天行程`, "", `> ${plan.summary}`, ""];
-  for (const day of plan.days) {
-    lines.push(`## Day ${day.day} ${day.theme}`, "");
-    for (const s of day.spots) {
-      lines.push(`### ${s.time} ${s.name}`);
-      lines.push(
-        `- ${TYPE_LABEL[s.type] ?? s.type} · ${s.area} · 停留 ${s.durationMin} 分钟 · 人均 ¥${s.costCny}`,
-      );
-      lines.push(`- ${s.reason}`);
-      if (s.rainBackup) lines.push(`- 🌧 雨天备选：${s.rainBackup}`);
-      lines.push("");
-    }
-    lines.push(`当天通勤约 ${Math.round((day.transitMin / 60) * 10) / 10} 小时 · 人均 ¥${day.dailyCostCny}`, "");
-  }
-  lines.push(`## 预算`, "", `合计人均约 ¥${plan.totalCostCny}`, "");
-  if (plan.warnings.length) {
-    lines.push("## 体检预警", "", ...plan.warnings.map((w) => `- ⚠️ ${w}`), "");
-  }
-  if (plan.tips.length) {
-    lines.push("## 出发前提醒", "", ...plan.tips.map((t) => `- ${t}`), "");
-  }
-  return lines.join("\n");
-}
-
 export default function Home() {
   const [city, setCity] = useState("成都");
   const [days, setDays] = useState(4);
@@ -62,7 +33,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [remaining, setRemaining] = useState<number | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
   const [sampleMode, setSampleMode] = useState(false);
@@ -150,6 +121,7 @@ export default function Home() {
       const data = await res.json();
       if (data.status === "done") {
         setPlan(data.plan);
+        setJobId(jobId);
         setRemaining(data.remaining ?? null);
         setLoading(false);
         return;
@@ -303,8 +275,10 @@ export default function Home() {
       {error && <div className="error">{error}</div>}
 
       {displayPlan && (
-        <>
-          {sampleMode && (
+        <PlanView
+          plan={displayPlan}
+          shareId={sampleMode ? undefined : jobId ?? undefined}
+          banner={sampleMode ? (
             <div className="card" style={{ background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14 }}>以上是一份<b>真实生成的示例</b>（预置数据，非本次生成）——这就是产品的输出质量。</span>
@@ -314,73 +288,8 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          )}
-          <div className="card">
-            <h2>{displayPlan.city} · {displayPlan.days.length} 天行程</h2>
-            <p className="summary-line">{displayPlan.summary}</p>
-            <p className="muted">
-              合计人均约 ¥{displayPlan.totalCostCny.toLocaleString()}
-              {" · "}{displayPlan.verified ? "POI 已通过高德验真" : "MOCK 模式：未接高德，POI 未验真"}
-            </p>
-            <button
-              type="button"
-              onClick={async () => {
-                await navigator.clipboard.writeText(toMarkdown(displayPlan));
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              style={{
-                marginTop: 8, padding: "6px 14px", fontSize: 13, cursor: "pointer",
-                border: "1px solid var(--border)", borderRadius: 8, background: "#fff",
-              }}
-            >
-              {copied ? "✅ 已复制 Markdown" : "复制 Markdown"}
-            </button>
-          </div>
-
-          {displayPlan.warnings.length > 0 && (
-            <div className="warnings">
-              <div className="wtitle">⚠️ 行程体检发现 {displayPlan.warnings.length} 个问题</div>
-              <ul>{displayPlan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
-            </div>
-          )}
-
-          {displayPlan.days.map((day) => (
-            <div className="card" key={day.day}>
-              <div className="day-header">
-                <h2>Day {day.day}</h2>
-                <span className="theme">{day.theme}</span>
-              </div>
-              {day.spots.map((s, i) => (
-                <div className="spot" key={i}>
-                  <div className="time">{s.time}</div>
-                  <div className="body">
-                    <div className="name">
-                      <span className="badge">{TYPE_LABEL[s.type] ?? s.type}</span>
-                      {s.name}
-                      <span className="meta"> · {s.area} · {Math.round(s.durationMin / 60 * 10) / 10}h · ¥{s.costCny}</span>
-                    </div>
-                    <div className="reason">{s.reason}</div>
-                    {s.rainBackup && <div className="backup">🌧 雨天备选：{s.rainBackup}</div>}
-                  </div>
-                </div>
-              ))}
-              <p className="muted" style={{ marginBottom: 0 }}>
-                {displayPlan.verified
-                  ? `当天通勤约 ${Math.round(day.transitMin / 6) / 10}h · `
-                  : "MOCK 模式未估算通勤 · "}
-                人均 ¥{day.dailyCostCny.toLocaleString()}
-              </p>
-            </div>
-          ))}
-
-          {displayPlan.tips.length > 0 && (
-            <div className="card">
-              <h2>出发前提醒</h2>
-              <ul>{displayPlan.tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
-            </div>
-          )}
-        </>
+          ) : undefined}
+        />
       )}
     </main>
   );
