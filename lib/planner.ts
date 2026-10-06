@@ -69,11 +69,16 @@ const SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为单人旅行
 - 每天 2~4 个主景点 + 午餐 + 晚餐；同一天的景点集中在同一 area，避免跨城折返。
 - 每天 21:00 前结束；第一天最后一个景点后安排酒店入住（type=hotel，用具体酒店名，costCny 填全程住宿总价 = 晚均价 × 总晚数；晚均价按预算档位取 250-500 元，预算高取高档）。
 - totalCostCny = 全程门票 + 餐饮 + 住宿 + 市内交通，应贴近用户预算（至少用掉 80%）但不超过 105%。
+
 - 室外景点（公园、古镇、步行街类）必须给室内 rainBackup。
 - 餐饮选本地人常去、有代表性的店，避开"XX 小吃一条街"这类游客陷阱。
 - 每个景点给真实合理的人均花费（含门票），没有门票填 0。
-- totalCostCny = 全程门票 + 餐饮 + 住宿 + 市内交通，不得超过用户预算的 105%。
-- 每天净游玩时间（景点停留 + 通勤）不超过 10 小时；宁松勿满。`;
+- 每天净游玩时间（景点停留 + 通勤）不超过 10 小时；宁松勿满。
+
+用户约束（若提供，优先级高于上述默认规则）：
+- 住所：用户已指定住宿地点。全程以此为基地：第一天入住的酒店 spot 必须直接使用用户指定的住所（不要替换成其他酒店），后续每天的交通 spot 从该住所出发组织（如「住所→景点」）。住宿总价按该住所档次计入 costCny。
+- 期望必游地：列出的地点**必须全部出现**在行程中（按所在区域分配到各天，与你的推荐融合排期）。不得以任何理由静默丢弃；若某必游地你判断不存在或明显无法安排（如闭馆），放在 tips 里显式说明，不要假装安排了。
+`;
 
 function client(): OpenAI {
   if (!process.env.LLM_API_KEY) throw new Error("缺少 LLM_API_KEY，请配置 .env");
@@ -87,6 +92,23 @@ function client(): OpenAI {
     // 且 generatePlan 已有 attempt 2，重试交给它
     maxRetries: 0,
   });
+}
+
+function buildUserPrompt(input: PlanInput): string {
+  const lines = [
+    "请规划行程：",
+    `- 目的地：${input.city}`,
+    `- 天数：${input.days} 天`,
+    `- 人均预算：${input.budget} 元（不含往返大交通，含当地吃住行玩）`,
+    `- 出行偏好：${input.preferences.join("、") || "均衡体验"}`,
+  ];
+  if (input.hotel?.trim()) {
+    lines.push(`- 我的住所（已定好，全程以此为基地，不要换成别的酒店）：${input.hotel.trim()}`);
+  }
+  if (input.mustVisit?.length) {
+    lines.push(`- 期望必游地（必须全部安排进行程）：${input.mustVisit.join("、")}`);
+  }
+  return lines.join("\n");
 }
 
 function extractJson(text: string): unknown {
@@ -113,13 +135,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
         model: process.env.LLM_MODEL || "step-5-preview",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content:
-              `请规划行程：\n- 目的地：${input.city}\n- 天数：${input.days} 天\n` +
-              `- 人均预算：${input.budget} 元（不含往返大交通，含当地吃住行玩）\n` +
-              `- 出行偏好：${input.preferences.join("、") || "均衡体验"}`,
-          },
+          { role: "user", content: buildUserPrompt(input) },
         ],
         max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
         reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",

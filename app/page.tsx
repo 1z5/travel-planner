@@ -37,6 +37,10 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
   const [sampleMode, setSampleMode] = useState(false);
+  // 新增：用户指定住所 + 期望必游地（硬约束）
+  const [hotel, setHotel] = useState("");
+  const [mustVisit, setMustVisit] = useState<string[]>([]);
+  const [mvInput, setMvInput] = useState("");
 
   // ---- 登录态（可选：未登录 3 次/天，登录后 10 次/天）----
   const [me, setMe] = useState<{ loggedIn: boolean; phone?: string; remaining: number | null; provider: string } | null>(null);
@@ -148,7 +152,14 @@ export default function Home() {
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city, days, budget, preferences: prefs }),
+        body: JSON.stringify({
+          city,
+          days,
+          budget,
+          preferences: prefs,
+          hotel: hotel.trim() || undefined,
+          mustVisit,
+        }),
       });
       const data = await res.json();
       if (res.status === 202 && data.jobId) {
@@ -188,6 +199,50 @@ export default function Home() {
                    onChange={(e) => setBudget(Number(e.target.value))} required />
           </div>
         </div>
+
+        <label>我的住所（选填，全程以此为基地）</label>
+        <input value={hotel} onChange={(e) => setHotel(e.target.value)}
+               placeholder='如：全季酒店(春熙路店)，或"住春熙路附近"' maxLength={40} />
+
+        <label>期望必游地（选填，最多 5 个，必须全部安排）</label>
+        <div className="chips">
+          {mustVisit.map((m) => (
+            <span key={m} className="chip on">
+              {m}
+              <span onClick={() => setMustVisit((cur) => cur.filter((x) => x !== m))}
+                style={{ marginLeft: 6, cursor: "pointer" }}>×</span>
+            </span>
+          ))}
+        </div>
+        <div className="row" style={{ marginTop: 6 }}>
+          <input value={mvInput} onChange={(e) => setMvInput(e.target.value)}
+                 placeholder="输入地名后点添加，或回车" maxLength={20}
+                 onKeyDown={(e) => {
+                   if (e.key === "Enter") {
+                     e.preventDefault();
+                     const v = mvInput.trim();
+                     if (v && mustVisit.length < 5 && !mustVisit.includes(v)) {
+                       setMustVisit((cur) => [...cur, v]);
+                       setMvInput("");
+                     }
+                   }
+                 }} />
+          <button type="button"
+            onClick={() => {
+              const v = mvInput.trim();
+              if (v && mustVisit.length < 5 && !mustVisit.includes(v)) {
+                setMustVisit((cur) => [...cur, v]);
+                setMvInput("");
+              }
+            }}
+            style={{ flex: "0 0 auto", padding: "9px 16px", border: "1px solid var(--border)",
+                     borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+            添加
+          </button>
+        </div>
+        {mustVisit.length >= 5 && (
+          <p className="muted" style={{ marginTop: 4 }}>最多 5 个必游地</p>
+        )}
 
         <label>出行偏好（可多选）</label>
         <div className="chips">

@@ -68,6 +68,24 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
     );
   }
 
+  // 5) 用户硬约束核验：prompt 要求了，这里验证承诺是否兑现
+  const allSpotNames = plan.days.flatMap((d) => d.spots.map((s) => s.name)).join("\n");
+  for (const mv of input.mustVisit ?? []) {
+    if (!allSpotNames.includes(mv)) {
+      warnings.push(
+        `必游地「${mv}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
+      );
+    }
+  }
+  const hotel = input.hotel?.trim();
+  if (hotel) {
+    const mentioned = plan.days.some((d) =>
+      d.spots.some((s) => s.name.includes(hotel) || s.area.includes(hotel)));
+    if (!mentioned) {
+      warnings.push(`住所「${hotel}」未体现在行程中——行程应以它为每日出发点`);
+    }
+  }
+
   plan.totalCostCny = grandTotal;
   plan.warnings = warnings;
   plan.verified = !AMAP_MOCK;

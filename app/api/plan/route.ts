@@ -15,6 +15,16 @@ const InputSchema = z.object({
   budget: z.coerce.number().int().min(500).max(200000),
   // 偏好标签同样进 prompt：白名单 + 数量上限
   preferences: z.array(z.string().regex(/^[\u4e00-\u9fa5A-Za-z]{1,10}$/)).max(5).default([]),
+  // 住所（选填）：允许数字/书名号/括号（"7天酒店(春熙路店)"）
+  hotel: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.string().trim().max(40).regex(/^[\u4e00-\u9fa5A-Za-z0-9·（）()\s]{2,40}$/).optional(),
+  ),
+  // 期望必游地（选填）：最多 5 个，硬约束（validate 会核验是否全部出现）
+  mustVisit: z.preprocess(
+    (v) => (v === "" || v == null ? [] : v),
+    z.array(z.string().trim().max(20).regex(/^[\u4e00-\u9fa5A-Za-z0-9·（）()\s]{2,20}$/)).max(5).default([]),
+  ),
 });
 
 // 配额双轨：登录用户按手机号计数（默认 10 次/天），陌生人按 IP（默认 3 次/天）
@@ -49,7 +59,7 @@ export async function POST(req: NextRequest) {
   } catch {
     refund(q.key, q.limit);
     return NextResponse.json(
-      { error: "参数不完整：需要城市（中文/字母）、3-4 天、预算（元）、偏好不超过 5 个" },
+      { error: "参数不完整：需要城市（中文/字母）、3-4 天、预算（元）、偏好≤5、必游地≤5" },
       { status: 400 },
     );
   }

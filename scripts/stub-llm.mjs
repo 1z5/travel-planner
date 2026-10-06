@@ -21,8 +21,19 @@ const CANNED_PLAN = JSON.parse(
   readFileSync(new URL("./fixture-plan.json", import.meta.url), "utf8"),
 );
 
+let lastUserMsg = "";
+
 const server = createServer((req, res) => {
-  if (req.method !== "POST" || !req.url?.includes("/chat/completions")) {
+  const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+
+  // 测试用：查看最近一次收到的 user 消息（验证输入确实拼进了 prompt）
+  if (req.method === "GET" && url.pathname === "/_last_user") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ user: lastUserMsg }));
+    return;
+  }
+
+  if (req.method !== "POST" || !url.pathname.includes("/chat/completions")) {
     res.writeHead(404).end("not found");
     return;
   }
@@ -34,6 +45,7 @@ const server = createServer((req, res) => {
     try {
       const parsed = JSON.parse(body);
       userMsg = parsed.messages?.filter((m) => m.role === "user").map((m) => m.content).join("\n") ?? "";
+      lastUserMsg = userMsg;
       isStream = parsed.stream === true;
     } catch { /* 空 body 按 valid 处理 */ }
 

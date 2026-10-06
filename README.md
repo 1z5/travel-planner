@@ -18,9 +18,9 @@ AI 智能旅游规划 v1：输入目的地/天数/预算/偏好 → step-5 生�
 npm test        # 自包含：自动启动桩 LLM + 隔离端口(3103)测试服务器，跑完自动清理
 ```
 
-覆盖 73 条断言：
-- **输入边界 14 例 + 健康检查 2 例**：空 body / 城市太短 / 天数超界 / 预算过低 / 畸形 JSON / 城市与偏好的特殊字符与超长（防 prompt 注入）/ 偏好超 5 个 → 全部 400；`/api/health` 200 且不泄露密钥
-- **故障注入 5 例**：正常链路 / 垃圾输出 / 空 content / 上游 500 / 配额退还算术
+覆盖 88 条断言：
+- **输入边界 19 例 + 健康检查 2 例**（含住所/必游地的格式与注入用例）：空 body / 城市太短 / 天数超界 / 预算过低 / 畸形 JSON / 城市与偏好的特殊字符与超长（防 prompt 注入）/ 偏好超 5 个 → 全部 400；`/api/health` 200 且不泄露密钥
+- **故障注入 6 例**（新增：住所+必游地硬约束——满足项不告警/漏排告警/住所未体现告警/prompt 接线验证）：正常链路 / 垃圾输出 / 空 content / 上游 500 / 配额退还算术
 - **高德集成 9 例（真实模式）**：按官方文档形状跑桩高德——`verified=true`、地名→坐标→距离→分钟换算（含 POI 未命中段的 30 分钟 fallback：4×22+2×30=148）、总价汇总、未命中预警精确触发、命中项不误报
 - **登录体系 49 例**（dev provider 21 + 微信 OAuth 15 + 短信 13）：验证码收发/校验、错误码 401、非法手机号 400、cookie 下发、双轨配额（用户 10 / IP 3）、多用户独立账目、IP 限流后登录用户不受影响、登出、短信防轰炸（第 6 条 429）、微信全流程（授权跳转/state 防 CSRF/code 换 openid/session/配额入轨/伪造 state 400）、短信全流程（TC3 签名请求构造/6 位随机码/服务端比对/一次性消费）
 
@@ -50,8 +50,7 @@ npm run dev             # http://localhost:3000
 
 配置说明：
 - `LLM_*`：step-5（OpenAI 兼容），已预填
-- `AMAP_WEB_SERVICE_KEY`：[高德控制台](https://console.amap.com/dev/key/app) 申请「Web服务」类型（个人免费）。**不填则 MOCK 模式**：全链路可跑，POI 不验真，`plan.verified=false`
-- 拿到 key 后跑 `npm run verify:amap`：5 秒验证 key 有效性 / POI 验真 / 通勤矩阵（打真实接口，含错误码解读），全过再重启 dev server
+- `AMAP_WEB_SERVICE_KEY`：[高德控制台](https://console.amap.com/dev/key/app) 申请「Web服务」类型（个人免费）。**不填则 MOCK 模式**：全链路可跑，POI 不验真，`plan.verified=false`- 拿到 key 后跑 `npm run verify:amap`：5 秒验证 key 有效性 / POI 验真 / 通勤矩阵（打真实接口，含错误码解读），全过再重启 dev server
 - `DAILY_FREE_LIMIT`：每日免费次数（v0 按 IP 计数，内存实现）
 
 ## 常见问题排查
