@@ -243,6 +243,24 @@ async function phaseA(api) {
   check("prompt 含住所字段", (lastUser.user ?? "").includes("我的住所") && (lastUser.user ?? "").includes("测试酒店A"));
   check("prompt 含必游地字段", (lastUser.user ?? "").includes("期望必游地") && (lastUser.user ?? "").includes("测试必游地X"));
 
+  // 用例 11：日历导出（.ics）——时刻表 → VEVENT，日期按 startDate 推导
+  const r11 = await api.post({ city: "苏州", days: 3, budget: 2500, preferences: ["美食"] });
+  check("日历导出：提交 202", r11.status === 202, `got ${r11.status}`);
+  const j11 = await api.waitJob(r11.body.jobId);
+  check("日历导出：任务 done", j11.status === "done");
+  check("plan 带 startDate（2026-10-10）", j11.plan?.startDate === "2026-10-10",
+    `got ${j11.plan?.startDate}`);
+  const ics = await (await fetch(`${api.baseUrl}/api/plan/ics?id=${r11.body.jobId}`)).text();
+  const vevents = (ics.match(/BEGIN:VEVENT/g) ?? []).length;
+  check(".ics 含 VCALENDAR 头", ics.includes("BEGIN:VCALENDAR") && ics.includes("END:VCALENDAR"));
+  check(".ics 每个 spot 一个 VEVENT（fixture 16 个点）", vevents === 16, `got ${vevents}`);
+  check(".ics 事件日期按 Day 偏移（首日 20261010）", ics.includes("DTSTART:20261010T"),
+    ics.match(/DTSTART:\d+T\d+/)?.[0]);
+  check(".ics 次日偏移正确（20261011）", ics.includes("DTSTART:20261011T"));
+  check(".ics 含转义与中文 SUMMARY", ics.includes("SUMMARY:") && /SUMMARY:[^\r]*景/.test(ics));
+  const icsBad = await fetch(`${api.baseUrl}/api/plan/ics?id=job_nonexistent`);
+  check(".ics 无效 id → 404", icsBad.status === 404, `got ${icsBad.status}`);
+
   // 用例 7：模糊住所描述（真实 case 揪出的误报修复）——fixture 含「平江历史街区」，
   // 用户说「住平江附近」时模型会转化成具体酒店，全串匹配会误报，核心词匹配才正确
   const p7 = await submitAndWait(api, { city: "苏州", days: 3, budget: 2500, preferences: ["美食"],

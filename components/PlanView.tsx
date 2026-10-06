@@ -72,20 +72,32 @@ export function PlanView({
             {copied ? "✅ 已复制 Markdown" : "复制 Markdown"}
           </button>
           {shareId && (
-            <button
-              type="button"
-              onClick={async () => {
-                await navigator.clipboard.writeText(`${location.origin}/p/${shareId}`);
-                setLinkCopied(true);
-                setTimeout(() => setLinkCopied(false), 2000);
-              }}
-              style={{
-                padding: "6px 14px", fontSize: 13, cursor: "pointer",
-                border: "1px solid var(--border)", borderRadius: 8, background: "#fff",
-              }}
-            >
-              {linkCopied ? "✅ 链接已复制" : "复制分享链接"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(`${location.origin}/p/${shareId}`);
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2000);
+                }}
+                style={{
+                  padding: "6px 14px", fontSize: 13, cursor: "pointer",
+                  border: "1px solid var(--border)", borderRadius: 8, background: "#fff",
+                }}
+              >
+                {linkCopied ? "✅ 链接已复制" : "复制分享链接"}
+              </button>
+              <a
+                href={`/api/plan/ics?id=${shareId}`}
+                style={{
+                  padding: "6px 14px", fontSize: 13, cursor: "pointer",
+                  border: "1px solid var(--border)", borderRadius: 8, background: "#fff",
+                  color: "var(--text)", textDecoration: "none",
+                }}
+              >
+                下载日历（.ics）
+              </a>
+            </>
           )}
         </div>
       </div>

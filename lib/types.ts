@@ -37,6 +37,7 @@ export interface PlanDay {
 
 export interface Plan {
   city: string;
+  startDate?: string;       // 行程首日 "YYYY-MM-DD"（用于日历导出与分享页展示）
   summary: string;
   days: PlanDay[];
   totalCostCny: number;

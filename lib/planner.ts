@@ -196,6 +196,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
       const parsed = PlanSchema.parse(extractJson(content));
       return {
         ...parsed,
+        startDate: input.startAt?.slice(0, 10),
         days: parsed.days.map((d) => ({
           ...d,
           spots: d.spots as PlanSpot[],
