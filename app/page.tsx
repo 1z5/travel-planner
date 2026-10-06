@@ -256,7 +256,7 @@ export default function Home() {
           <p className="muted" style={{ marginTop: 8 }}>{WAITING_TIPS[tipIndex]}</p>
         ) : (
           <p className="muted" style={{ marginTop: 8 }}>
-            推理模型做约束规划需要 2-4 分钟：先推演预算与动线约束，再输出完整行程，
+            推理模型做约束规划通常 2-4 分钟，跨境目的地（如香港）可能 8 分钟以上，
             可以放着等，页面上方会实时显示进度。
           </p>
         )}
@@ -264,7 +264,7 @@ export default function Home() {
           <p className="muted" style={{ marginTop: 4 }}>今日剩余免费次数：{remaining}</p>
         )}
         <p className="muted" style={{ marginTop: 8 }}>
-          生成要 2-4 分钟，等不及？{" "}
+          生成通常 2-4 分钟（跨境更久），等不及？{" "}
           <button type="button" onClick={() => setSampleMode(true)}
             style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 13, padding: 0, textDecoration: "underline" }}>
             看一个真实生成的示例（苏州 3 天）

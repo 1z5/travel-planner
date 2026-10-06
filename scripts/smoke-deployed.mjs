@@ -65,7 +65,7 @@ if (failed === 0) {
       const { jobId } = await r.json();
       const t0 = Date.now();
       let job = null;
-      while (Date.now() - t0 < 8 * 60 * 1000) {
+      while (Date.now() - t0 < 10 * 60 * 1000) {
         await new Promise((res) => setTimeout(res, 5000));
         job = await (await fetch(`${BASE}/api/plan/status?id=${jobId}`)).json();
         if (job.status === "done" || job.status === "error") break;
@@ -80,7 +80,7 @@ if (failed === 0) {
       } else if (job?.status === "error") {
         fail(`生成失败: ${job.error}（查看服务端日志定位）`);
       } else {
-        fail("生成 8 分钟未完成（推理模型慢是正常的，但 8 分钟仍判超时——检查 LLM_BASE_URL 与模型名）");
+        fail("生成 10 分钟未完成（推理模型慢是正常的，但 10 分钟仍判超时——检查 LLM_BASE_URL 与模型名）");
       }
     }
   } catch (e) {

@@ -135,7 +135,9 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
       const msg = (e as Error).message ?? "";
       console.log(`[llm] ${input.city} 第${attempt}次异常: ${msg}`);
       if (/timed out|timeout/i.test(msg)) {
-        throw new Error("生成超时（7 分钟未返回），请稍后重试或减少天数");
+        // 流式下 SDK 超时约束的是「chunk 间隔」而非总时长（实测 496s 的任务
+        // 也未被 420s 掐断），所以这里触发时是断流/连接问题，不是“到点没返回”
+        throw new Error("生成中断或连接超时，请稍后重试（可减少天数或换个城市）");
       }
       throw e;
     }
