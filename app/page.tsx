@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Plan } from "@/lib/types";
+import { SAMPLE_PLAN } from "@/lib/sample-plan";
 
 const PREF_OPTIONS = [
   "美食", "历史文化", "自然风光", "Citywalk", "博物馆",
@@ -64,6 +65,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
+  const [sampleMode, setSampleMode] = useState(false);
 
   // ---- 登录态（可选：未登录 3 次/天，登录后 10 次/天）----
   const [me, setMe] = useState<{ loggedIn: boolean; phone?: string; remaining: number | null; provider: string } | null>(null);
@@ -162,6 +164,8 @@ export default function Home() {
     };
     await poll();
   }
+
+  const displayPlan = plan ?? (sampleMode ? SAMPLE_PLAN : null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -287,23 +291,41 @@ export default function Home() {
         {remaining !== null && (
           <p className="muted" style={{ marginTop: 4 }}>今日剩余免费次数：{remaining}</p>
         )}
+        <p className="muted" style={{ marginTop: 8 }}>
+          生成要 2-4 分钟，等不及？{" "}
+          <button type="button" onClick={() => setSampleMode(true)}
+            style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 13, padding: 0, textDecoration: "underline" }}>
+            看一个真实生成的示例（苏州 3 天）
+          </button>
+        </p>
       </form>
 
       {error && <div className="error">{error}</div>}
 
-      {plan && (
+      {displayPlan && (
         <>
+          {sampleMode && (
+            <div className="card" style={{ background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14 }}>以上是一份<b>真实生成的示例</b>（预置数据，非本次生成）——这就是产品的输出质量。</span>
+                <button type="button" onClick={() => setSampleMode(false)}
+                  style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 13, textDecoration: "underline" }}>
+                  收起示例
+                </button>
+              </div>
+            </div>
+          )}
           <div className="card">
-            <h2>{plan.city} · {plan.days.length} 天行程</h2>
-            <p className="summary-line">{plan.summary}</p>
+            <h2>{displayPlan.city} · {displayPlan.days.length} 天行程</h2>
+            <p className="summary-line">{displayPlan.summary}</p>
             <p className="muted">
-              合计人均约 ¥{plan.totalCostCny.toLocaleString()}
-              {" · "}{plan.verified ? "POI 已通过高德验真" : "MOCK 模式：未接高德，POI 未验真"}
+              合计人均约 ¥{displayPlan.totalCostCny.toLocaleString()}
+              {" · "}{displayPlan.verified ? "POI 已通过高德验真" : "MOCK 模式：未接高德，POI 未验真"}
             </p>
             <button
               type="button"
               onClick={async () => {
-                await navigator.clipboard.writeText(toMarkdown(plan));
+                await navigator.clipboard.writeText(toMarkdown(displayPlan));
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
@@ -316,14 +338,14 @@ export default function Home() {
             </button>
           </div>
 
-          {plan.warnings.length > 0 && (
+          {displayPlan.warnings.length > 0 && (
             <div className="warnings">
-              <div className="wtitle">⚠️ 行程体检发现 {plan.warnings.length} 个问题</div>
-              <ul>{plan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+              <div className="wtitle">⚠️ 行程体检发现 {displayPlan.warnings.length} 个问题</div>
+              <ul>{displayPlan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
             </div>
           )}
 
-          {plan.days.map((day) => (
+          {displayPlan.days.map((day) => (
             <div className="card" key={day.day}>
               <div className="day-header">
                 <h2>Day {day.day}</h2>
@@ -344,7 +366,7 @@ export default function Home() {
                 </div>
               ))}
               <p className="muted" style={{ marginBottom: 0 }}>
-                {plan.verified
+                {displayPlan.verified
                   ? `当天通勤约 ${Math.round(day.transitMin / 6) / 10}h · `
                   : "MOCK 模式未估算通勤 · "}
                 人均 ¥{day.dailyCostCny.toLocaleString()}
@@ -352,10 +374,10 @@ export default function Home() {
             </div>
           ))}
 
-          {plan.tips.length > 0 && (
+          {displayPlan.tips.length > 0 && (
             <div className="card">
               <h2>出发前提醒</h2>
-              <ul>{plan.tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
+              <ul>{displayPlan.tips.map((t, i) => <li key={i}>{t}</li>)}</ul>
             </div>
           )}
         </>
