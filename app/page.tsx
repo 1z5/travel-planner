@@ -41,6 +41,8 @@ export default function Home() {
   const [hotel, setHotel] = useState("");
   const [mustVisit, setMustVisit] = useState<string[]>([]);
   const [mvInput, setMvInput] = useState("");
+  // 行程节奏：轻松/适中/紧凑
+  const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
 
   // ---- 登录态（可选：未登录 3 次/天，登录后 10 次/天）----
   const [me, setMe] = useState<{ loggedIn: boolean; phone?: string; remaining: number | null; provider: string } | null>(null);
@@ -159,6 +161,7 @@ export default function Home() {
           preferences: prefs,
           hotel: hotel.trim() || undefined,
           mustVisit,
+          pace,
         }),
       });
       const data = await res.json();
@@ -198,6 +201,19 @@ export default function Home() {
             <input type="number" value={budget} min={500} step={100}
                    onChange={(e) => setBudget(Number(e.target.value))} required />
           </div>
+        </div>
+
+        <label>行程节奏</label>
+        <div className="chips">
+          {([
+            ["relaxed", "轻松（每天 1-3 个主景点）"],
+            ["balanced", "适中（2-4 个）"],
+            ["packed", "紧凑（3-5 个）"],
+          ] as const).map(([value, label]) => (
+            <span key={value}
+              className={`chip ${pace === value ? "on" : ""}`}
+              onClick={() => setPace(value)}>{label}</span>
+          ))}
         </div>
 
         <label>我的住所（选填，全程以此为基地）</label>

@@ -16,6 +16,7 @@ Base URL：`/api`（与前端同源）
 | preferences | string[] | | 默认 `[]` | 偏好标签：美食/历史文化/自然风光/Citywalk/博物馆/购物/拍照打卡/小众冷门/亲子友好/夜生活 |
 | hotel | string | | ≤40 字符 | **住所**（选填）：如 `全季酒店(春熙路店)` 或 `住春熙路附近`。全程以此为基地，第一天的酒店 spot 直接使用它 |
 | mustVisit | string[] | | ≤5 个，每个 2-20 字符 | **期望必游地**（选填，硬约束）：必须全部出现在行程中；漏排会在 warnings 里显式告警 |
+| pace | string | | `relaxed`/`balanced`/`packed`，默认 balanced | **行程节奏**：轻松（每天 1-3 主景点/净玩 ≤8h）/ 适中（2-4/≤10h）/ 紧凑（3-5/≤13h）。同时影响 prompt 密度与体检阈值 |
 
 ```json
 { "city": "成都", "days": 3, "budget": 2500, "preferences": ["美食", "历史文化"] }

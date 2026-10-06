@@ -25,6 +25,8 @@ const InputSchema = z.object({
     (v) => (v === "" || v == null ? [] : v),
     z.array(z.string().trim().max(20).regex(/^[\u4e00-\u9fa5A-Za-z0-9·（）()\s]{2,20}$/)).max(5).default([]),
   ),
+  // 行程节奏：轻松/适中/紧凑（影响 prompt 密度与体检阈值）
+  pace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
 });
 
 // 配额双轨：登录用户按手机号计数（默认 10 次/天），陌生人按 IP（默认 3 次/天）

@@ -7,8 +7,18 @@ import type { Plan, PlanInput } from "./types";
 // 用户看到的每个风险都摊开说，而不是假装完美。
 
 const TRANSIT_WARN_MIN = 120;   // 当天通勤超过 2 小时视为疑似绕路
-const RELAX_DAY_MIN = 10 * 60;  // 每天净时长上限 10h
 const LOOSE_DAY_MIN = 5 * 60;   // 每天净时长低于 5h 视为过松
+// 节奏上限按用户选择的行程分档（默认适中 10h）——避免"天天偏满"的告警噪音
+const PACE_DAY_MIN: Record<NonNullable<PlanInput["pace"]>, number> = {
+  relaxed: 8 * 60,
+  balanced: 10 * 60,
+  packed: 13 * 60,
+};
+const PACE_LABEL: Record<NonNullable<PlanInput["pace"]>, string> = {
+  relaxed: "轻松",
+  balanced: "适中",
+  packed: "紧凑",
+};
 const BUDGET_OVER = 1.05;       // 总花费超预算 5% 预警
 
 function fmtMin(min: number): string {
@@ -51,8 +61,11 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
 
     // 3) 节奏：停留 + 通勤
     const active = day.spots.reduce((s, x) => s + x.durationMin, 0) + transit;
-    if (active > RELAX_DAY_MIN) {
-      warnings.push(`第 ${day.day} 天安排约 ${fmtMin(active)}，偏满，可考虑删减 1 个景点`);
+    const pace = input.pace ?? "balanced";
+    if (active > PACE_DAY_MIN[pace]) {
+      warnings.push(
+        `第 ${day.day} 天安排约 ${fmtMin(active)}，超出${PACE_LABEL[pace]}节奏上限（${PACE_DAY_MIN[pace] / 60} 小时），可删减 1 个景点或改选更紧凑节奏`,
+      );
     } else if (active < LOOSE_DAY_MIN) {
       warnings.push(`第 ${day.day} 天安排约 ${fmtMin(active)}，偏松，可加一个景点或放慢节奏`);
     }
