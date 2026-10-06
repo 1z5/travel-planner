@@ -231,6 +231,16 @@ async function phaseA(api) {
   const lastUser = await (await fetch(`http://127.0.0.1:${STUB_PORT}/_last_user`)).json();
   check("prompt 含住所字段", (lastUser.user ?? "").includes("我的住所") && (lastUser.user ?? "").includes("测试酒店A"));
   check("prompt 含必游地字段", (lastUser.user ?? "").includes("期望必游地") && (lastUser.user ?? "").includes("测试必游地X"));
+
+  // 用例 7：模糊住所描述（真实 case 揪出的误报修复）——fixture 含「平江历史街区」，
+  // 用户说「住平江附近」时模型会转化成具体酒店，全串匹配会误报，核心词匹配才正确
+  const r7 = await api.post({ city: "苏州", days: 3, budget: 2500, preferences: ["美食"],
+    hotel: "住平江附近", mustVisit: [] });
+  const j7 = await api.waitJob(r7.body.jobId);
+  const p7 = j7.plan ?? {};
+  check("模糊住所不误报（住平江附近 → 平江历史街区）",
+    !(p7.warnings ?? []).some((w) => w.includes("住所")),
+    JSON.stringify(p7.warnings));
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------

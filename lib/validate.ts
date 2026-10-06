@@ -79,8 +79,17 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
   }
   const hotel = input.hotel?.trim();
   if (hotel) {
+    // 用户可能给模糊描述（"住春熙路附近"），模型会合理转化成具体酒店
+    // （"春熙路亚朵S酒店"）——全字符串匹配会误报。提取场所核心词双路匹配：
+    // 完整串命中（用户给了确切酒店名）或核心词命中（模糊描述的正确执行）
+    const hotelKey = hotel
+      .replace(/住在?|附近|旁边|一带|周边|那一片|这边/g, "")
+      .replace(/的?(酒店|宾馆|民宿|旅馆)/g, "")
+      .trim() || hotel;
     const mentioned = plan.days.some((d) =>
-      d.spots.some((s) => s.name.includes(hotel) || s.area.includes(hotel)));
+      d.spots.some((s) =>
+        s.name.includes(hotel) || s.area.includes(hotel)
+        || (hotelKey.length >= 2 && (s.name.includes(hotelKey) || s.area.includes(hotelKey)))));
     if (!mentioned) {
       warnings.push(`住所「${hotel}」未体现在行程中——行程应以它为每日出发点`);
     }
