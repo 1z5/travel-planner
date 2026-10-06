@@ -26,7 +26,14 @@ function fmtElapsed(sec: number): string {
 
 export default function Home() {
   const [city, setCity] = useState("成都");
-  const [days, setDays] = useState(4);
+  const [startAt, setStartAt] = useState(() => {
+    const d = new Date(Date.now() + 86400000);
+    return `${d.toISOString().slice(0, 10)}T10:00`;
+  });
+  const [endAt, setEndAt] = useState(() => {
+    const d = new Date(Date.now() + 4 * 86400000); // 明天出发 + 4 天 = 5 个日历日中的 4 天行程
+    return `${d.toISOString().slice(0, 10)}T18:00`;
+  });
   const [budget, setBudget] = useState(3000);
   const [prefs, setPrefs] = useState<string[]>(["美食", "历史文化"]);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -145,6 +152,14 @@ export default function Home() {
 
   const displayPlan = plan ?? (sampleMode ? SAMPLE_PLAN : null);
 
+  // 由起止时间推导天数（日历日含头含尾），用于展示与提交前提示
+  const derivedDays = (() => {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(startAt) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(endAt)) return null;
+    const s = new Date(`${startAt.slice(0, 10)}T00:00:00Z`).getTime();
+    const en = new Date(`${endAt.slice(0, 10)}T00:00:00Z`).getTime();
+    return Math.round((en - s) / 86400000) + 1;
+  })();
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -156,7 +171,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           city,
-          days,
+          startAt,
+          endAt,
           budget,
           preferences: prefs,
           hotel: hotel.trim() || undefined,
@@ -190,18 +206,30 @@ export default function Home() {
                    placeholder="如：成都" maxLength={20} required />
           </div>
           <div>
-            <label>天数</label>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-              <option value={3}>3 天</option>
-              <option value={4}>4 天</option>
-            </select>
-          </div>
-          <div>
             <label>人均预算（元，不含大交通）</label>
             <input type="number" value={budget} min={500} step={100}
                    onChange={(e) => setBudget(Number(e.target.value))} required />
           </div>
         </div>
+
+        <div className="row">
+          <div>
+            <label>起始时间</label>
+            <input type="datetime-local" value={startAt}
+                   onChange={(e) => setStartAt(e.target.value)} required />
+          </div>
+          <div>
+            <label>结束时间</label>
+            <input type="datetime-local" value={endAt}
+                   onChange={(e) => setEndAt(e.target.value)} required />
+          </div>
+        </div>
+        {derivedDays !== null && (
+          <p className="muted" style={{ marginTop: 4 }}>
+            共 {derivedDays} 天{derivedDays > 4 ? "（超过 4 天的部分暂不支持）" : ""}
+            {derivedDays === 1 ? "（当天往返）" : ""}
+          </p>
+        )}
 
         <label>行程节奏</label>
         <div className="chips">

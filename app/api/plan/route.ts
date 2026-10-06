@@ -7,11 +7,21 @@ import { readSession } from "@/lib/auth/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// 起止时间（本地时间，精确到分钟）：决定行程天数
+const DT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+// 天数推导：按起止「日历日」含头含尾（10月1日→10月3日 = 3 天；同日 = 1 天）
+function deriveDays(startAt: string, endAt: string): number {
+  const s = new Date(`${startAt.slice(0, 10)}T00:00:00Z`).getTime();
+  const e = new Date(`${endAt.slice(0, 10)}T00:00:00Z`).getTime();
+  return Math.round((e - s) / 86400000) + 1;
+}
+
 const InputSchema = z.object({
   // 字符白名单：用户输入会拼进 LLM prompt，必须防注入（拒绝特殊字符/超长）
   city: z.string().regex(/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/, "城市名格式不正确"),
-  // v1 上限 4 天：实测 5 天会因输出过长触发空返回/超时（约 16 分钟仍失败）
-  days: z.coerce.number().int().min(3).max(4),
+  startAt: z.string().regex(DT_RE, "起始时间格式不正确"),
+  endAt: z.string().regex(DT_RE, "结束时间格式不正确"),
   budget: z.coerce.number().int().min(500).max(200000),
   // 偏好标签同样进 prompt：白名单 + 数量上限
   preferences: z.array(z.string().regex(/^[\u4e00-\u9fa5A-Za-z]{1,10}$/)).max(5).default([]),
@@ -27,7 +37,11 @@ const InputSchema = z.object({
   ),
   // 行程节奏：轻松/适中/紧凑（影响 prompt 密度与体检阈值）
   pace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
-});
+})
+  .refine((d) => d.endAt > d.startAt, { message: "结束时间必须晚于开始时间" })
+  .refine((d) => deriveDays(d.startAt, d.endAt) <= 4, {
+    message: "目前支持 1-4 天行程：5 天及以上的单次生成会超时（架构升级后开放）",
+  });
 
 // 配额双轨：登录用户按手机号计数（默认 10 次/天），陌生人按 IP（默认 3 次/天）
 function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolean } {
@@ -58,15 +72,18 @@ export async function POST(req: NextRequest) {
   let input: z.infer<typeof InputSchema>;
   try {
     input = InputSchema.parse(await req.json());
-  } catch {
+  } catch (e) {
     refund(q.key, q.limit);
+    const msg =
+      e instanceof z.ZodError ? e.issues[0]?.message : null;
     return NextResponse.json(
-      { error: "参数不完整：需要城市（中文/字母）、3-4 天、预算（元）、偏好≤5、必游地≤5" },
+      { error: msg ?? "参数不完整：需要城市、起止时间、预算（元）" },
       { status: 400 },
     );
   }
 
-  // 3) 创建异步任务，立即返回
-  const job = createJob(input, q.key, q.limit, () => refund(q.key, q.limit));
+  // 3) 创建异步任务（days 由起止时间推导），立即返回
+  const job = createJob({ ...input, days: deriveDays(input.startAt, input.endAt) },
+    q.key, q.limit, () => refund(q.key, q.limit));
   return NextResponse.json({ jobId: job.id }, { status: 202 });
 }

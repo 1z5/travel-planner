@@ -1,7 +1,9 @@
 // ---------- 用户输入 ----------
 export interface PlanInput {
   city: string;            // 目的地城市，如 "成都"
-  days: number;            // 天数，3-4
+  days: number;            // 天数（由起止时间推导，1-4）
+  startAt?: string;        // 起始时间 "YYYY-MM-DDTHH:mm"（本地时间）
+  endAt?: string;          // 结束时间 "YYYY-MM-DDTHH:mm"（本地时间）
   budget: number;          // 人均总预算（不含大交通）
   preferences: string[];   // 偏好标签
   hotel?: string;          // 用户指定住所（酒店名/区域），如 "全季酒店(春熙路店)" 或 "住春熙路附近"

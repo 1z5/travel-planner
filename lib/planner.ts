@@ -94,6 +94,15 @@ function client(): OpenAI {
   });
 }
 
+function fmtRange(startAt: string, endAt: string): string {
+  const fmt = (s: string) => {
+    const [date, time = ""] = s.split("T");
+    const [, m, d] = date.split("-");
+    return `${Number(m)}月${Number(d)}日${time ? ` ${time}` : ""}`;
+  };
+  return `${fmt(startAt)} – ${fmt(endAt)}`;
+}
+
 const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
   relaxed: "轻松：每天 1~3 个主景点 + 午餐 + 晚餐，午饭后留咖啡/闲逛/休息的时间，当天净游玩时间不超过 8 小时。",
   balanced: "适中：每天 2~4 个主景点 + 午餐 + 晚餐，当天净游玩时间不超过 10 小时。",
@@ -109,6 +118,14 @@ function buildUserPrompt(input: PlanInput): string {
     `- 出行偏好：${input.preferences.join("、") || "均衡体验"}`,
     `- 行程节奏：${PACE_RULES[input.pace ?? "balanced"]}`,
   ];
+  if (input.startAt && input.endAt) {
+    lines.push(`- 行程时间：${fmtRange(input.startAt, input.endAt)}（共 ${input.days} 天）`);
+    if (input.days === 1) {
+      lines.push("- 当天往返行程：不要安排酒店 spot，预算不含住宿。");
+    } else {
+      lines.push("- 第一天的安排从抵达时间之后开始（不要安排抵达前的内容）；最后一天在离开时间前收尾。");
+    }
+  }
   if (input.hotel?.trim()) {
     lines.push(`- 我的住所（已定好，全程以此为基地，不要换成别的酒店）：${input.hotel.trim()}`);
   }
