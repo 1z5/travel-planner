@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
+import { getStore } from "../store";
 
 // ============================================================
 // 腾讯云短信（TC3-HMAC-SHA256 签名，直接签名调 API，不引 SDK ~50MB 依赖）
@@ -92,29 +93,15 @@ export async function sendSmsCode(phone: string, code: string): Promise<{ ok: bo
   }
 }
 
-// ---- 服务端验证码存储（5 分钟有效，发送后才存在；一次性消费）----
-// 挂 globalThis：dev 下各路由模块实例可能编译成多份（同 jobs/quota 的教训）
+// ---- 服务端验证码存储（5 分钟有效，一次性消费；经 Store 门面）----
 const CODE_TTL_MS = 5 * 60 * 1000;
 
-const g = globalThis as typeof globalThis & {
-  __travelSmsCodes?: Map<string, { code: string; expiresAt: number }>;
-};
-const codes: Map<string, { code: string; expiresAt: number }> = (g.__travelSmsCodes ??= new Map());
-
-export function storeCode(phone: string, code: string): void {
-  codes.set(phone, { code, expiresAt: Date.now() + CODE_TTL_MS });
+export async function storeCode(phone: string, code: string): Promise<void> {
+  await getStore().codes.put({ phone, code, expiresAt: Date.now() + CODE_TTL_MS });
 }
 
-export function checkCode(phone: string, code: string): boolean {
-  const entry = codes.get(phone);
-  if (!entry) return false;
-  if (entry.expiresAt < Date.now()) {
-    codes.delete(phone);
-    return false;
-  }
-  const ok = entry.code === code;
-  if (ok) codes.delete(phone); // 一次性
-  return ok;
+export async function checkCode(phone: string, code: string): Promise<boolean> {
+  return getStore().codes.verify(phone, code);
 }
 
 export function randomCode(): string {

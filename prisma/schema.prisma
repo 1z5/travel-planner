@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// 行程生成任务（原内存 Map，重启即丢 → 持久化）
+model Job {
+  id        String   @id
+  status    String // running | done | error
+  plan      Json?
+  error     String?
+  key       String // 配额键（u:<phone> / ip:<addr>）
+  limit     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// 每日配额计数（按 key + 日期）
+model QuotaBucket {
+  key   String @id
+  date  String
+  count Int
+}
+
+/// 短信验证码（5 分钟有效、一次性）
+model SmsCode {
+  phone     String   @id
+  code      String
+  expiresAt DateTime
+}

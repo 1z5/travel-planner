@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function getPlan(id: string) {
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job || job.status !== "done" || !job.plan) return null;
   return job.plan;
 }

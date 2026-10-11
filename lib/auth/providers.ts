@@ -30,7 +30,7 @@ class SmsProvider implements AuthProvider {
     const code = randomCode();
     const result = await sendSmsCode(phone, code);
     if (!result.ok) return result;
-    storeCode(phone, code); // 发送成功才落库，供 verify 比对
+    await storeCode(phone, code); // 发送成功才落库，供 verify 比对
     return { ok: true };
   }
 

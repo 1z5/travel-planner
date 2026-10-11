@@ -60,7 +60,7 @@ function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolea
 export async function POST(req: NextRequest) {
   // 1) 配额（提交即扣，失败归还）
   const q = quotaOf(req);
-  const quota = consume(q.key, q.limit);
+  const quota = await consume(q.key, q.limit);
   if (!quota.allowed) {
     const msg = q.isUser
       ? `今日免费次数已用完（登录用户每天 ${q.limit} 次）。明天再来。`
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   try {
     input = InputSchema.parse(await req.json());
   } catch (e) {
-    refund(q.key, q.limit);
+    await refund(q.key);
     const msg =
       e instanceof z.ZodError ? e.issues[0]?.message : null;
     return NextResponse.json(
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 3) 创建异步任务（days 由起止时间推导），立即返回
-  const job = createJob({ ...input, days: deriveDays(input.startAt, input.endAt) },
-    q.key, q.limit, () => refund(q.key, q.limit));
+  const job = await createJob({ ...input, days: deriveDays(input.startAt, input.endAt) },
+    q.key, q.limit, () => void refund(q.key));
   return NextResponse.json({ jobId: job.id }, { status: 202 });
 }

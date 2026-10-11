@@ -19,7 +19,8 @@ const STUB_PORT = 8898;   // 桩 LLM
 const AMAP_STUB_PORT = 8899; // 桩高德
 const WECHAT_STUB_PORT = 8900; // 桩微信
 const SMS_STUB_PORT = 8901; // 桩腾讯云短信
-const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106, sms: 3107 };
+const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106, sms: 3107, pg: 3108 };
+const HAS_PG = Boolean(process.env.DATABASE_URL);
 const APP = (k) => `http://127.0.0.1:${PORTS[k]}`;
 
 let passed = 0;
@@ -474,6 +475,27 @@ async function phaseE(base, smsStubBase) {
     me.body.loggedIn === true && me.body.phone === "13700137000", JSON.stringify(me.body));
 }
 
+// ---------------- 阶段 P：Postgres 实现契约测试（有 DATABASE_URL 才跑） ----------------
+
+async function phaseP(api) {
+  console.log("\n== Postgres 实现契约（DATA_STORE=postgres）==");
+  const health = await (await fetch(`${api.baseUrl}/api/health`)).json();
+  check("health 报告 store=postgres", health.store === "postgres", JSON.stringify(health));
+
+  // 任务持久化：提交 → 完成 → 状态可读
+  const r1 = await api.post({ city: "成都", budget: 2000 });
+  check("PG：提交 202", r1.status === 202, `got ${r1.status}`);
+  const j1 = await api.waitJob(r1.body.jobId);
+  check("PG：任务 done（job 落库）", j1.status === "done", JSON.stringify(j1).slice(0, 100));
+  check("PG：行程内容完整", (j1.plan?.days ?? []).length === 3);
+
+  // 配额持久化：limit=2，第 3 次必须 429（PG 侧 upsert 计数）
+  const r2 = await api.post({ city: "成都", budget: 2000 });
+  check("PG：第 2 次提交 202（limit=2）", r2.status === 202, `got ${r2.status}`);
+  const r3 = await api.post({ city: "成都", budget: 2000 });
+  check("PG：第 3 次提交 429（PG 配额生效）", r3.status === 429, `got ${r3.status}`);
+}
+
 // ---------------- 主流程 ----------------
 
 async function main() {
@@ -514,6 +536,18 @@ async function main() {
     WECHAT_API_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
     WECHAT_AUTH_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
   });
+  if (HAS_PG) {
+    // Postgres 实现契约测试（需 DATABASE_URL；表结构由 prisma migrate deploy 建好）
+    spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.pg)], {
+      NEXT_DIST_DIR: `.next-t-pg`,
+      DATA_STORE: "postgres",
+      DATABASE_URL: process.env.DATABASE_URL,
+      LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
+      LLM_API_KEY: "stub-key",
+      LLM_MODEL: "step-5-preview",
+      DAILY_FREE_LIMIT: "2",
+    });
+  }
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.sms)], {
     NEXT_DIST_DIR: `.next-t-sms`,
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
@@ -540,6 +574,11 @@ async function main() {
     for (const c of children) c.kill("SIGTERM");
     process.exitCode = 1;
     return;
+  }
+
+  if (HAS_PG) {
+    await waitReady(`${APP("pg")}/`, 150000);
+    await phaseP(makeApi(APP("pg")));
   }
 
   try {

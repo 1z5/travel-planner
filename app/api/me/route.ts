@@ -17,6 +17,6 @@ export async function GET(req: NextRequest) {
     phone: session.p,
     provider,
     // 登录用户按用户计数（10 次/天）
-    remaining: peek(`u:${session.p}`, userLimit()),
+    remaining: await peek(`u:${session.p}`, userLimit()),
   });
 }

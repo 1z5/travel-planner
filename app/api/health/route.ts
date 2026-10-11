@@ -11,5 +11,6 @@ export async function GET() {
     llmConfigured: Boolean(process.env.LLM_API_KEY),
     amapMode: process.env.AMAP_WEB_SERVICE_KEY ? "live" : "mock",
     authProvider: process.env.AUTH_PROVIDER || "none",
+    store: process.env.DATA_STORE || "memory",
   });
 }

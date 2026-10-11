@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
 // GET /api/plan/status?id=job_xxx
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id") ?? "";
-  const job = getJob(id);
+  const job = await getJob(id);
   if (!job) {
     return NextResponse.json({ error: "任务不存在或已过期，请重新生成" }, { status: 404 });
   }
   // 剩余次数实时计算：失败退还后立刻反映，不做快照
-  const remaining = peek(job.key, job.limit);
+  const remaining = await peek(job.key, job.limit);
   if (job.status === "done") {
     return NextResponse.json({ status: "done", plan: job.plan, remaining });
   }

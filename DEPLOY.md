@@ -91,9 +91,29 @@ node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链�
 # ④ 观察 24 小时：服务端 [llm] tokens 日志核对成本；/api/health 配监控告警
 ```
 
+## 数据层：内存 → PostgreSQL（架构演进）
+
+原版三块状态（任务/配额/验证码）都在内存 Map，重启即丢、多实例全废。现已抽象出 Store 接口（`lib/store/`），双实现：
+
+| DATA_STORE | 实现 | 适用 |
+|---|---|---|
+| `memory`（默认） | globalThis Map，行为同原版 | 开发/测试/单机 |
+| `postgres` | Prisma + PostgreSQL | 生产多实例 |
+
+切换到 Postgres：
+```bash
+# 1. 建表（新环境用 db push；有迁移历史的环境用 db:migrate）
+DATABASE_URL=postgres://... npm run db:push
+# 2. 环境变量加两行
+DATA_STORE=postgres
+DATABASE_URL=postgres://...
+# 3. 验证：/api/health 应返回 "store":"postgres"
+```
+
+契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径 113 断言不受影响）。
+
 ## 上线后必须跟进的事项
 
-1. **配额换存储**：内存 Map 每实例独立、重启清零 → 上 Redis（云托管可挂云数据库 Redis 版）
-2. **任务态换存储**：同理，jobs Map 换 Redis，否则多实例部署轮询会 404
+1. ~~配额换存储~~ / ~~任务态换存储~~：✅ 本轮已由 Store 抽象 + Postgres 实现解决（DATA_STORE=postgres）
 3. ~~登录体系~~（M3 已完成，剩厂商凭据）：选短信（填 SMS_APP_ID/SIGN/TEMPLATE_ID，`AUTH_PROVIDER=sms`）或微信（填 WECHAT_APPID/SECRET + 备案回调域名，`AUTH_PROVIDER=wechat`）
 4. **监控**：生成失败率 / 超时率 / 平均耗时（当前基线 3-5 分钟）

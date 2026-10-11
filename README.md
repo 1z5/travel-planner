@@ -72,10 +72,13 @@ app/page.tsx                表单 + 行程渲染 + Markdown 导出（客户端�
 app/api/plan/route.ts       POST → 配额 → 创建异步任务 → 立即返回 jobId（202）
 app/api/plan/status/route.ts GET ?id= → 轮询任务状态（running/done/error）
 lib/planner.ts              step-5 单次生成完整行程 + zod schema 约束（质量核心）
-lib/jobs.ts                 异步任务：后台执行生成+体检，结果保留 2 小时
+lib/jobs.ts                 异步任务：后台执行生成+体检，结果经 Store 持久化
+lib/store/                  存储抽象层：JobStore/QuotaStore/CodeStore 接口 +
+                             memory（默认）/ postgres（Prisma）双实现，
+                             DATA_STORE 切换，两实现共享契约测试
 lib/amap.ts                 POI 验真 + 距离矩阵通勤估算（MOCK 兜底）
 lib/validate.ts             幻觉治理 + 体检：绕路/节奏/预算/未验真
-lib/ratelimit.ts            v0 防薅（按 IP 每日计数，提交扣、失败还）
+lib/ratelimit.ts            配额与限流（每日双轨 + 小时桶防轰炸），经 Store 门面
 ```
 
 测试与契约：`API.md`（接口契约 + Plan Schema + 错误目录）；故障注入套件覆盖正常/垃圾输出/空 content/上游 500/配额退还/参数边界，**16/16 通过**（曾靠它抓到「失败后 remaining 快照不刷新」的真 bug）。
