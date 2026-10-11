@@ -197,6 +197,9 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
       return {
         ...parsed,
         startDate: input.startAt?.slice(0, 10),
+        endDate: input.endAt?.slice(0, 10),
+        startAt: input.startAt,
+        endAt: input.endAt,
         days: parsed.days.map((d) => ({
           ...d,
           spots: d.spots as PlanSpot[],

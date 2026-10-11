@@ -37,7 +37,10 @@ export interface PlanDay {
 
 export interface Plan {
   city: string;
-  startDate?: string;       // 行程首日 "YYYY-MM-DD"（用于日历导出与分享页展示）
+  startDate?: string;       // 行程首日 "YYYY-MM-DD"（日历导出/结果卡/分享页展示）
+  endDate?: string;         // 行程末日 "YYYY-MM-DD"
+  startAt?: string;         // 完整起始时间 "YYYY-MM-DDTHH:mm"（结果卡展示）
+  endAt?: string;           // 完整结束时间 "YYYY-MM-DDTHH:mm"
   summary: string;
   days: PlanDay[];
   totalCostCny: number;

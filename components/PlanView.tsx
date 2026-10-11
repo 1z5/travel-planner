@@ -33,6 +33,11 @@ function toMarkdown(plan: Plan): string {
   return lines.join("\n");
 }
 
+function fmtDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${Number(m)}月${Number(d)}日`;
+}
+
 /** 行程展示：结果区与分享页（/p/[id]）共用。 */
 export function PlanView({
   plan,
@@ -51,6 +56,12 @@ export function PlanView({
       {banner}
       <div className="card">
         <h2>{plan.city} · {plan.days.length} 天行程</h2>
+        {plan.startDate && (
+          <p className="muted" style={{ marginTop: 2 }}>
+            {fmtDate(plan.startDate)}{plan.endDate ? ` – ${fmtDate(plan.endDate)}` : ""}
+            {plan.startAt && plan.endAt ? ` · ${plan.startAt.slice(11)} – ${plan.endAt.slice(11)}` : ""}
+          </p>
+        )}
         <p className="summary-line">{plan.summary}</p>
         <p className="muted">
           合计人均约 ¥{plan.totalCostCny.toLocaleString()}

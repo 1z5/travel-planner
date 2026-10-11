@@ -28,6 +28,25 @@ describe("PlanView", () => {
     }
   });
 
+  it("有起止时间时渲染日期行（月日 + 时段）", () => {
+    const plan = {
+      ...SAMPLE_PLAN,
+      startDate: "2026-10-07",
+      endDate: "2026-10-10",
+      startAt: "2026-10-07T10:00",
+      endAt: "2026-10-10T18:00",
+    };
+    render(<PlanView plan={plan} />);
+    expect(screen.getByText(/10月7日 – 10月10日/)).toBeInTheDocument();
+    expect(screen.getByText(/10:00 – 18:00/)).toBeInTheDocument();
+  });
+
+  it("无起止时间时不渲染日期行（向后兼容）", () => {
+    const plan = { ...SAMPLE_PLAN, startDate: undefined, startAt: undefined };
+    render(<PlanView plan={plan} />);
+    expect(screen.queryByText(/月.*日 –/)).not.toBeInTheDocument();
+  });
+
   it("雨天备选标注渲染", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     const withBackup = SAMPLE_PLAN.days.flatMap((d) => d.spots).find((s) => s.rainBackup);
