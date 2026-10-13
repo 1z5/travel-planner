@@ -6,6 +6,7 @@ import {
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
+import { cityImage } from "@/lib/city-images";
 import { RouteMap } from "./RouteMap";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
@@ -70,13 +71,17 @@ export function PlanView({
     <>
       {banner}
 
-      {/* ===== 行程头部：城市/日期/概览/预算 + 导出操作 ===== */}
-      <div className="card">
-        <div className="plan-head">
-          <div>
+      {/* ===== 行程头部：城市封面 + 日期/概览/预算 + 导出操作 ===== */}
+      <motion.div className="card"
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}>
+        <div className="result-cover">
+          <img src={cityImage(plan.city)} alt="" />
+          <div className="result-cover-veil" />
+          <div className="result-cover-text">
             <h2>{plan.city} · {plan.days.length} 天行程</h2>
             {plan.startDate && (
-              <div className="plan-dates">
+              <div className="result-cover-dates">
                 <CalendarDays size={14} />
                 {fmtDate(plan.startDate)}
                 {plan.endDate ? ` – ${fmtDate(plan.endDate)}` : ""}
@@ -84,6 +89,10 @@ export function PlanView({
               </div>
             )}
           </div>
+        </div>
+
+        <div className="card-body">
+        <div className="plan-head">
           <span className={`verified-badge ${plan.verified ? "live" : "mock"}`}>
             {plan.verified ? "✓ POI 已通过高德验真" : "MOCK 模式：未接高德，POI 未验真"}
           </span>
@@ -127,7 +136,8 @@ export function PlanView({
             </>
           )}
         </div>
-      </div>
+        </div>
+      </motion.div>
 
       {/* ===== 体检预警 ===== */}
       {plan.warnings.length > 0 && (

@@ -208,10 +208,10 @@ export default function Home() {
         <motion.div className="masthead-inner"
           initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}>
-          <span className="masthead-eyebrow"><Sparkles size={13} />AI 行程规划</span>
-          <h1>去{city || "哪儿"}</h1>
+          <span className="masthead-eyebrow"><Sparkles size={13} />AI 行程规划平台</span>
+          <h1>去哪儿，都放心</h1>
           <p className="masthead-sub">
-            告诉它时间和偏好，几分钟内得到一份经过事实核查的行程——
+            任何目的地、任何天数——几分钟内得到一份经过事实核查的行程：
             每个景点真实存在，每段路线距离可信。
           </p>
           <div className="masthead-points">
@@ -419,7 +419,7 @@ export default function Home() {
           plan={displayPlan}
           shareId={sampleMode ? undefined : jobId ?? undefined}
           banner={sampleMode ? (
-            <div className="card" style={{ background: "var(--primary-soft)", borderColor: "var(--primary)" }}>
+            <div className="card" style={{ background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14 }}>以上是一份<b>真实生成的示例</b>（预置数据，非本次生成）——这就是产品的输出质量。</span>
                 <button type="button" onClick={() => setSampleMode(false)} className="btn-link" style={{ fontSize: 13, textDecoration: "underline" }}>

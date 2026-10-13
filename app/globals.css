@@ -214,7 +214,28 @@ input:focus {
 }
 .btn-link:hover { text-decoration: underline; }
 
+/* ---------- 卡片（结果页/分享页共用） ---------- */
+
+.card {
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  margin-bottom: var(--sp-4);
+}
+.card-body { padding: var(--sp-5); }
+
 /* ---------- 行程结果：玻璃杂志 ---------- */
+
+.result-cover { position: relative; height: 156px; flex-shrink: 0; }
+.result-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 38%; }
+.result-cover-veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9, 9, 11, 0.08) 0%, rgba(9, 9, 11, 0.78) 100%); }
+.result-cover-text { position: absolute; left: 0; right: 0; bottom: 0; padding: var(--sp-4) var(--sp-5); color: #fff; }
+.result-cover-text h2 { text-shadow: 0 1px 16px rgba(0, 0, 0, 0.5); }
+.result-cover-dates { color: rgba(255, 255, 255, 0.85); font-size: var(--fs-small); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
 
 .result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
 .result-head h2 { font-family: var(--font-serif); font-size: 28px; font-weight: 700; margin: 0; letter-spacing: 0.01em; }
@@ -309,7 +330,9 @@ input:focus {
 @media print {
   body { background: #fff; color: #000; }
   .masthead, .panel, .btn, button { display: none !important; }
-  .card { border: none; box-shadow: none; padding: var(--sp-2) 0; break-inside: avoid; }
+  .card { border: none; box-shadow: none; break-inside: avoid; }
+  .result-cover { display: none; }
+  .card-body { padding: var(--sp-2) 0; }
   .container { max-width: 100%; }
   .spot-name, .spot-reason, .day-num, .kpi-value { color: #000; }
 }
