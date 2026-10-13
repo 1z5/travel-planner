@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import type { Plan } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope,
+} from "lucide-react";
 import { PlanView } from "@/components/PlanView";
 
 const PREF_OPTIONS = [
@@ -196,33 +198,25 @@ export default function Home() {
 
   return (
     <main>
-      <header className="hero">
-        <svg className="hero-art" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMid slice"
-             aria-hidden="true">
-          <circle cx="1180" cy="70" r="46" fill="#fde68a" opacity="0.95" />
-          <circle cx="1180" cy="70" r="66" fill="#fde68a" opacity="0.25" />
-          <path d="M0 240 Q 240 160 420 230 T 860 210 T 1440 250 V320 H0 Z" fill="#1e3a8a" opacity="0.35" />
-          <path d="M0 270 Q 300 200 560 260 T 1440 245 V320 H0 Z" fill="#1e3a8a" opacity="0.55" />
-          <path d="M120 300 Q 400 190 700 270 T 1320 260" fill="none"
-                stroke="#bfdbfe" strokeWidth="3" strokeDasharray="10 8" strokeLinecap="round" opacity="0.9" />
-          <circle cx="120" cy="300" r="7" fill="#fff" />
-          <circle cx="700" cy="270" r="7" fill="#fff" />
-          <circle cx="1320" cy="260" r="7" fill="#fde68a" />
-        </svg>
+      <header className="masthead">
+        <span className="masthead-eyebrow"><Sparkles size={13} />AI 行程规划</span>
         <h1>行程规划师</h1>
-        <p>国内城市 1-4 天行程：AI 生成 + 真实 POI 验真，把绕路和幻觉挡在出发前</p>
-        <div className="hero-badges">
-          <span className="hero-badge">🗺️ 结构化行程</span>
-          <span className="hero-badge">✅ POI 验真</span>
-          <span className="hero-badge">🩺 绕路体检</span>
-          <span className="hero-badge">📅 日历导出</span>
+        <p className="masthead-sub">
+          告诉它目的地、时间和偏好，几分钟内得到一份经过事实核查的行程——
+          每个景点真实存在，每段路线距离可信。
+        </p>
+        <div className="masthead-points">
+          <span><ShieldCheck size={15} />POI 真实性验核</span>
+          <span><Route size={15} />通勤距离实测</span>
+          <span><Stethoscope size={15} />绕路与节奏体检</span>
         </div>
       </header>
 
       <div className="container">
-      <form className="card" onSubmit={onSubmit}>
-        <div className="section-title">行程信息</div>
-        <div className="row">
+      <form className="panel" onSubmit={onSubmit}>
+        <div className="field-group">
+          <div className="legend">行程信息</div>
+          <div className="row">
           <div>
             <label>目的地城市</label>
             <input value={city} onChange={(e) => setCity(e.target.value)}
@@ -233,6 +227,7 @@ export default function Home() {
                       onClick={() => setCity(c)}>{c}</span>
               ))}
             </div>
+            <p className="helper">目前支持国内城市，1-4 天</p>
           </div>
           <div>
             <label>人均预算（元，不含大交通）</label>
@@ -260,25 +255,29 @@ export default function Home() {
           </p>
         )}
 
-        <label>行程节奏</label>
-        <div className="chips">
-          {([
-            ["relaxed", "轻松（每天 1-3 个主景点）"],
-            ["balanced", "适中（2-4 个）"],
-            ["packed", "紧凑（3-5 个）"],
-          ] as const).map(([value, label]) => (
-            <span key={value}
-              className={`chip ${pace === value ? "on" : ""}`}
-              onClick={() => setPace(value)}>{label}</span>
-          ))}
+          <label>行程节奏</label>
+          <div className="segmented">
+            {([
+              ["relaxed", "轻松", "每天 1-3 个主景点"],
+              ["balanced", "适中", "每天 2-4 个"],
+              ["packed", "紧凑", "每天 3-5 个"],
+            ] as const).map(([value, label, desc]) => (
+              <button type="button" key={value}
+                className={pace === value ? "on" : ""}
+                onClick={() => setPace(value)}>
+                {label}<small>{desc}</small>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="section-title" style={{ marginTop: 22 }}>你的约束（选填，让行程围着你的安排转）</div>
-        <label>我的住所（选填，全程以此为基地）</label>
+        <div className="field-group">
+          <div className="legend">你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span></div>
+          <label>我的住所</label>
         <input value={hotel} onChange={(e) => setHotel(e.target.value)}
                placeholder='如：全季酒店(春熙路店)，或"住春熙路附近"' maxLength={40} />
 
-        <label>期望必游地（选填，最多 5 个，必须全部安排）</label>
+          <label>期望必游地<span className="optional-tag">最多 5 个，必须全部安排</span></label>
         <div className="chips">
           {mustVisit.map((m) => (
             <span key={m} className="chip on">
@@ -317,12 +316,16 @@ export default function Home() {
           <p className="muted" style={{ marginTop: 4 }}>最多 5 个必游地</p>
         )}
 
-        <label>出行偏好（可多选）</label>
-        <div className="chips">
+        </div>
+
+        <div className="field-group">
+          <div className="legend">出行偏好</div>
+          <div className="chips">
           {PREF_OPTIONS.map((p) => (
             <span key={p} className={`chip ${prefs.includes(p) ? "on" : ""}`}
                   onClick={() => togglePref(p)}>{p}</span>
           ))}
+          </div>
         </div>
 
         {/* 登录区：可选增强，未登录 3 次/天，登录后 10 次/天 */}

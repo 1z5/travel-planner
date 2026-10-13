@@ -37,9 +37,10 @@ describe("Home 表单", () => {
     expect(screen.getByText("起始时间")).toBeInTheDocument();
     expect(screen.getByText("结束时间")).toBeInTheDocument();
     expect(screen.getByText("行程节奏")).toBeInTheDocument();
-    expect(screen.getByText(/轻松（每天 1-3 个主景点）/)).toBeInTheDocument();
-    expect(screen.getByText("我的住所（选填，全程以此为基地）")).toBeInTheDocument();
-    expect(screen.getByText("期望必游地（选填，最多 5 个，必须全部安排）")).toBeInTheDocument();
+    expect(screen.getByText("轻松")).toBeInTheDocument();
+    expect(screen.getByText("每天 1-3 个主景点")).toBeInTheDocument();
+    expect(screen.getByText("我的住所")).toBeInTheDocument();
+    expect(screen.getByText("期望必游地")).toBeInTheDocument();
     // 两个 datetime-local 输入
     expect(document.querySelectorAll('input[type="datetime-local"]')).toHaveLength(2);
   });
@@ -77,7 +78,7 @@ describe("Home 表单", () => {
 
     await userEvent.clear(screen.getByPlaceholderText("如：成都"));
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
-    await userEvent.click(screen.getByText("紧凑（3-5 个）"));
+    await userEvent.click(screen.getByText("紧凑"));
 
     const hotelInput = screen.getByPlaceholderText(/全季酒店/);
     await userEvent.type(hotelInput, "住春熙路附近");

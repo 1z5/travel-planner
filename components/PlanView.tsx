@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { RouteMap } from "./RouteMap";
+import { CloudRain } from "lucide-react";
 
 const TYPE_LABEL: Record<string, string> = {
   sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
@@ -148,7 +149,7 @@ export function PlanView({
             <span className="day-theme">{day.theme}</span>
           </div>
 
-          <div style={{ margin: "10px 0 4px" }}>
+          <div className="route-map-wrap">
             <RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />
           </div>
 
@@ -176,7 +177,7 @@ export function PlanView({
                     </div>
                     <div className="spot-reason">{s.reason}</div>
                     {s.rainBackup && (
-                      <div className="spot-backup">🌧 雨天备选：{s.rainBackup}</div>
+                      <div className="spot-backup"><CloudRain size={12} />雨天备选：{s.rainBackup}</div>
                     )}
                   </div>
                 </div>
