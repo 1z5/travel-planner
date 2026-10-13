@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { RouteMap } from "./RouteMap";
+import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -142,10 +143,12 @@ export function PlanView({
       )}
 
       {/* ===== 分天时间线 ===== */}
-      {plan.days.map((day) => (
-        <div className="card" key={day.day}>
+      {plan.days.map((day, dayIdx) => (
+        <motion.div className="card" key={day.day}
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: Math.min(dayIdx * 0.06, 0.3) }}>
           <div className="day-head">
-            <h2><MapPin size={16} />Day {day.day}</h2>
+            <div className="day-num"><small>DAY</small>{day.day}</div>
             <span className="day-theme">{day.theme}</span>
           </div>
 
@@ -191,7 +194,7 @@ export function PlanView({
             </span>
             <span>人均 ¥{day.dailyCostCny.toLocaleString()}</span>
           </p>
-        </div>
+        </motion.div>
       ))}
 
       {/* ===== 出行提示 ===== */}

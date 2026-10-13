@@ -6,6 +6,8 @@ import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import {
   AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope,
 } from "lucide-react";
+import { motion } from "framer-motion";
+import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
 
 const PREF_OPTIONS = [
@@ -199,21 +201,31 @@ export default function Home() {
   return (
     <main>
       <header className="masthead">
-        <span className="masthead-eyebrow"><Sparkles size={13} />AI 行程规划</span>
-        <h1>行程规划师</h1>
-        <p className="masthead-sub">
-          告诉它目的地、时间和偏好，几分钟内得到一份经过事实核查的行程——
-          每个景点真实存在，每段路线距离可信。
-        </p>
-        <div className="masthead-points">
-          <span><ShieldCheck size={15} />POI 真实性验核</span>
-          <span><Route size={15} />通勤距离实测</span>
-          <span><Stethoscope size={15} />绕路与节奏体检</span>
-        </div>
+        <motion.img key={city} className="masthead-bg" src={cityImage(city)} alt=""
+          initial={{ scale: 1.08, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.9, ease: "easeOut" }} />
+        <div className="masthead-veil" />
+        <motion.div className="masthead-inner"
+          initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}>
+          <span className="masthead-eyebrow"><Sparkles size={13} />AI 行程规划</span>
+          <h1>去{city || "哪儿"}</h1>
+          <p className="masthead-sub">
+            告诉它时间和偏好，几分钟内得到一份经过事实核查的行程——
+            每个景点真实存在，每段路线距离可信。
+          </p>
+          <div className="masthead-points">
+            <span><ShieldCheck size={15} />POI 真实性验核</span>
+            <span><Route size={15} />通勤距离实测</span>
+            <span><Stethoscope size={15} />绕路与节奏体检</span>
+          </div>
+        </motion.div>
       </header>
 
       <div className="container">
-      <form className="panel" onSubmit={onSubmit}>
+      <motion.form className="panel" onSubmit={onSubmit}
+        initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}>
         <div className="field-group">
           <div className="legend">行程信息</div>
           <div className="row">
@@ -398,7 +410,7 @@ export default function Home() {
             看一个真实生成的示例（苏州 3 天）
           </button>
         </p>
-      </form>
+      </motion.form>
 
       {error && <div className="alert alert-error"><AlertTriangle size={16} style={{ marginTop: 2 }} />{error}</div>}
 

@@ -15,7 +15,7 @@ describe("PlanView", () => {
 
   it("渲染分天卡片与景点明细（时间/名称/区域/花费）", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
-    expect(screen.getByText(`Day ${SAMPLE_PLAN.days[0].day}`)).toBeInTheDocument();
+    expect(screen.getAllByText("DAY").length).toBe(SAMPLE_PLAN.days.length); // 杂志式日序
     const firstSpot = SAMPLE_PLAN.days[0].spots[0];
     // 名称会同时出现在路线示意图和时间线里，用 getAllByText
     expect(screen.getAllByText(firstSpot.name).length).toBeGreaterThan(0);
