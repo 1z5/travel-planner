@@ -17,8 +17,9 @@ describe("PlanView", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     expect(screen.getByText(`Day ${SAMPLE_PLAN.days[0].day}`)).toBeInTheDocument();
     const firstSpot = SAMPLE_PLAN.days[0].spots[0];
-    expect(screen.getByText(firstSpot.name)).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(firstSpot.area))).toBeInTheDocument();
+    // 名称会同时出现在路线示意图和时间线里，用 getAllByText
+    expect(screen.getAllByText(firstSpot.name).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(firstSpot.area)).length).toBeGreaterThan(0);
   });
 
   it("渲染体检预警区块（含条数）", () => {

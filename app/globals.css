@@ -281,3 +281,9 @@ input:focus, select:focus {
   .alert-warn { background: #fff; border: 1px solid #999; }
   .container { max-width: 100%; }
 }
+
+/* ---------- Hero 插画层 ---------- */
+
+.hero { position: relative; overflow: hidden; }
+.hero-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero > *:not(.hero-art) { position: relative; z-index: 1; }

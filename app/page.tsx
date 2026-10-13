@@ -197,6 +197,18 @@ export default function Home() {
   return (
     <main>
       <header className="hero">
+        <svg className="hero-art" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMid slice"
+             aria-hidden="true">
+          <circle cx="1180" cy="70" r="46" fill="#fde68a" opacity="0.95" />
+          <circle cx="1180" cy="70" r="66" fill="#fde68a" opacity="0.25" />
+          <path d="M0 240 Q 240 160 420 230 T 860 210 T 1440 250 V320 H0 Z" fill="#1e3a8a" opacity="0.35" />
+          <path d="M0 270 Q 300 200 560 260 T 1440 245 V320 H0 Z" fill="#1e3a8a" opacity="0.55" />
+          <path d="M120 300 Q 400 190 700 270 T 1320 260" fill="none"
+                stroke="#bfdbfe" strokeWidth="3" strokeDasharray="10 8" strokeLinecap="round" opacity="0.9" />
+          <circle cx="120" cy="300" r="7" fill="#fff" />
+          <circle cx="700" cy="270" r="7" fill="#fff" />
+          <circle cx="1320" cy="260" r="7" fill="#fde68a" />
+        </svg>
         <h1>行程规划师</h1>
         <p>国内城市 1-4 天行程：AI 生成 + 真实 POI 验真，把绕路和幻觉挡在出发前</p>
         <div className="hero-badges">
@@ -215,6 +227,12 @@ export default function Home() {
             <label>目的地城市</label>
             <input value={city} onChange={(e) => setCity(e.target.value)}
                    placeholder="如：成都" maxLength={20} required />
+            <div className="chips" style={{ marginTop: 8 }}>
+              {["成都", "西安", "杭州", "厦门", "重庆", "苏州"].map((c) => (
+                <span key={c} className={`chip ${city === c ? "on" : ""}`}
+                      onClick={() => setCity(c)}>{c}</span>
+              ))}
+            </div>
           </div>
           <div>
             <label>人均预算（元，不含大交通）</label>

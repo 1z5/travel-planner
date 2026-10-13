@@ -6,6 +6,7 @@ import {
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
+import { RouteMap } from "./RouteMap";
 
 const TYPE_LABEL: Record<string, string> = {
   sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
@@ -145,6 +146,10 @@ export function PlanView({
           <div className="day-head">
             <h2><MapPin size={16} />Day {day.day}</h2>
             <span className="day-theme">{day.theme}</span>
+          </div>
+
+          <div style={{ margin: "10px 0 4px" }}>
+            <RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />
           </div>
 
           <div className="timeline">
