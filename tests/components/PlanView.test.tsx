@@ -8,7 +8,7 @@ describe("PlanView", () => {
   it("渲染行程头部：城市/天数/总价/验真状态", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument();
-    expect(screen.getByText(/合计人均约/)).toBeInTheDocument();
+    expect(screen.getByText(/人均总花费/)).toBeInTheDocument();
     // MOCK 模式的行程：verified=false → 显示未验真标注
     expect(screen.getByText(/未接高德/)).toBeInTheDocument();
   });

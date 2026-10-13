@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Plan } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { AlertTriangle } from "lucide-react";
 import { PlanView } from "@/components/PlanView";
 
 const PREF_OPTIONS = [
@@ -194,11 +195,21 @@ export default function Home() {
   }
 
   return (
-    <main className="container">
-      <h1>行程规划师</h1>
-      <p className="subtitle">国内城市 3-4 天行程：AI 生成 + 真实 POI 验真，把绕路和幻觉挡在出发前</p>
+    <main>
+      <header className="hero">
+        <h1>行程规划师</h1>
+        <p>国内城市 1-4 天行程：AI 生成 + 真实 POI 验真，把绕路和幻觉挡在出发前</p>
+        <div className="hero-badges">
+          <span className="hero-badge">🗺️ 结构化行程</span>
+          <span className="hero-badge">✅ POI 验真</span>
+          <span className="hero-badge">🩺 绕路体检</span>
+          <span className="hero-badge">📅 日历导出</span>
+        </div>
+      </header>
 
+      <div className="container">
       <form className="card" onSubmit={onSubmit}>
+        <div className="section-title">行程信息</div>
         <div className="row">
           <div>
             <label>目的地城市</label>
@@ -244,6 +255,7 @@ export default function Home() {
           ))}
         </div>
 
+        <div className="section-title" style={{ marginTop: 22 }}>你的约束（选填，让行程围着你的安排转）</div>
         <label>我的住所（选填，全程以此为基地）</label>
         <input value={hotel} onChange={(e) => setHotel(e.target.value)}
                placeholder='如：全季酒店(春熙路店)，或"住春熙路附近"' maxLength={40} />
@@ -279,8 +291,7 @@ export default function Home() {
                 setMvInput("");
               }
             }}
-            style={{ flex: "0 0 auto", padding: "9px 16px", border: "1px solid var(--border)",
-                     borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+            style={{ flex: "0 0 auto" }} className="btn">
             添加
           </button>
         </div>
@@ -297,7 +308,7 @@ export default function Home() {
         </div>
 
         {/* 登录区：可选增强，未登录 3 次/天，登录后 10 次/天 */}
-        <div style={{ marginTop: 16, borderTop: "1px dashed var(--border)", paddingTop: 12 }}>
+        <div className="login-panel">
           {me?.loggedIn ? (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span className="muted">
@@ -318,12 +329,12 @@ export default function Home() {
                   <input placeholder="验证码" value={code} maxLength={6}
                          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
                   <button type="button" onClick={sendCode} disabled={cooldown > 0 || phone.length !== 11}
-                    style={{ whiteSpace: "nowrap", border: "1px solid var(--border)", borderRadius: 8, background: "#fff", cursor: "pointer" }}>
+                    style={{ whiteSpace: "nowrap" }} className="btn">
                     {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
                   </button>
                 </div>
                 <button type="button" onClick={login} disabled={phone.length !== 11 || code.length < 4}
-                  style={{ whiteSpace: "nowrap", border: "1px solid var(--accent)", borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent)", cursor: "pointer" }}>
+                  style={{ whiteSpace: "nowrap" }} className="btn">
                   登录
                 </button>
               </div>
@@ -333,13 +344,11 @@ export default function Home() {
             </>
           ) : (
             <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <button type="button" onClick={() => setLoginOpen(true)}
-                style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 14, padding: 0 }}>
+              <button type="button" onClick={() => setLoginOpen(true)} className="btn-link">
                 手机号登录：未登录每天 3 次，登录后 10 次 →
               </button>
               {me?.provider === "wechat" && (
-                <a href="/api/auth/wechat/login?redirect=/"
-                  style={{ border: "none", background: "none", color: "#07c160", cursor: "pointer", fontSize: 14, textDecoration: "none" }}>
+                <a href="/api/auth/wechat/login?redirect=/" className="btn-link" style={{ color: "#07c160" }}>
                   微信一键登录 →
                 </a>
               )}
@@ -348,7 +357,7 @@ export default function Home() {
           {authError && <p className="error" style={{ marginTop: 8, marginBottom: 0 }}>{authError}</p>}
         </div>
 
-        <button className="primary" disabled={loading}>
+        <button className="btn-primary" disabled={loading}>
           {loading ? `生成中…已等待 ${fmtElapsed(elapsed)}` : "生成行程"}
         </button>
         {loading ? (
@@ -364,25 +373,23 @@ export default function Home() {
         )}
         <p className="muted" style={{ marginTop: 8 }}>
           生成通常 2-4 分钟（跨境更久），等不及？{" "}
-          <button type="button" onClick={() => setSampleMode(true)}
-            style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 13, padding: 0, textDecoration: "underline" }}>
+          <button type="button" onClick={() => setSampleMode(true)} className="btn-link" style={{ fontSize: 13, textDecoration: "underline" }}>
             看一个真实生成的示例（苏州 3 天）
           </button>
         </p>
       </form>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="alert alert-error"><AlertTriangle size={16} style={{ marginTop: 2 }} />{error}</div>}
 
       {displayPlan && (
         <PlanView
           plan={displayPlan}
           shareId={sampleMode ? undefined : jobId ?? undefined}
           banner={sampleMode ? (
-            <div className="card" style={{ background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
+            <div className="card" style={{ background: "var(--primary-soft)", borderColor: "var(--primary)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14 }}>以上是一份<b>真实生成的示例</b>（预置数据，非本次生成）——这就是产品的输出质量。</span>
-                <button type="button" onClick={() => setSampleMode(false)}
-                  style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", fontSize: 13, textDecoration: "underline" }}>
+                <button type="button" onClick={() => setSampleMode(false)} className="btn-link" style={{ fontSize: 13, textDecoration: "underline" }}>
                   收起示例
                 </button>
               </div>
@@ -390,6 +397,7 @@ export default function Home() {
           ) : undefined}
         />
       )}
+      </div>
     </main>
   );
 }
