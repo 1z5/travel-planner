@@ -75,7 +75,12 @@ export function RouteMap({ stops }: { stops: RouteStop[] }) {
         const color = TYPE_COLOR[a.type] ?? "#2563eb";
         const above = a.y <= H / 2;
         const labelY = above ? a.y - 34 : a.y + 44;
-        const name = a.name.length > 7 ? `${a.name.slice(0, 6)}…` : a.name;
+        const name = a.name.length > 9 ? `${a.name.slice(0, 8)}…` : a.name;
+        // 边缘标签钳制：靠边的站名改用 start/end 锚点，防止被 viewBox 裁切
+        const nearLeft = a.x < 70;
+        const nearRight = a.x > W - 70;
+        const labelX = nearLeft ? Math.max(a.x, 30) : nearRight ? Math.min(a.x, W - 30) : a.x;
+        const anchor = nearLeft ? "start" : nearRight ? "end" : "middle";
         return (
           <g key={i}>
             <line x1={a.x} y1={a.y} x2={a.x} y2={above ? a.y - 14 : a.y + 14}
@@ -83,7 +88,7 @@ export function RouteMap({ stops }: { stops: RouteStop[] }) {
             <circle cx={a.x} cy={a.y} r="11" fill="#fff" stroke={color} strokeWidth="2.4" />
             <text x={a.x} y={a.y + 4} textAnchor="middle" fontSize="11"
                   fontWeight="700" fill={color}>{i + 1}</text>
-            <text x={a.x} y={labelY} textAnchor="middle" fontSize="11.5"
+            <text x={labelX} y={labelY} textAnchor={anchor} fontSize="11.5"
                   fill="#3b5266">{name}</text>
           </g>
         );
