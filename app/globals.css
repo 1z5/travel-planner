@@ -161,6 +161,7 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .helper { font-size: var(--fs-caption); color: var(--ink-4); margin-top: var(--sp-1); }
 
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.row-form { grid-template-columns: 2fr 1fr; }
 
 /* ---------- 选择器 ---------- */
 
@@ -315,6 +316,20 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .tips li:first-child { border-top: none; }
 .tips svg { color: var(--accent); flex-shrink: 0; margin-top: 4px; }
 
+/* ---------- 怎么做到的 + 页脚 ---------- */
+
+.how { margin: var(--sp-6) 0 var(--sp-7); }
+.how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-5); }
+.how-num { font-family: var(--font-serif); font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1; display: block; margin-bottom: var(--sp-3); }
+.how-item h3 { font-size: 15px; font-weight: 650; margin: 0 0 var(--sp-2); color: var(--ink); }
+.how-item p { font-size: var(--fs-small); color: var(--ink-3); margin: 0; line-height: 1.75; }
+
+.foot {
+  display: flex; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding-top: var(--sp-4);
+  font-size: var(--fs-caption); color: var(--ink-4);
+}
+
 /* ---------- 其他 ---------- */
 
 .muted { color: var(--ink-4); font-size: var(--fs-small); }
@@ -324,7 +339,7 @@ input { -moz-appearance: textfield; appearance: textfield; }
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 640px) {
-  .row { grid-template-columns: 1fr; }
+  .row, .row-form { grid-template-columns: 1fr; }
   .masthead { min-height: 460px; }
   .masthead h1 { font-size: 42px; }
   .masthead-sub { font-size: 15px; }
@@ -333,6 +348,7 @@ input { -moz-appearance: textfield; appearance: textfield; }
   .spot { grid-template-columns: 52px 26px 1fr; gap: 0 var(--sp-2); }
   .segmented { grid-template-columns: 1fr; }
   .day-num { font-size: 36px; }
+  .how-grid { grid-template-columns: 1fr; gap: var(--sp-4); }
 }
 
 /* ---------- 打印（纸质行程，强制浅色） ---------- */

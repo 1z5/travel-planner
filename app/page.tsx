@@ -228,7 +228,7 @@ export default function Home() {
         transition={{ duration: 0.5, delay: 0.3 }}>
         <div className="field-group">
           <div className="legend">行程信息</div>
-          <div className="row">
+          <div className="row row-form">
           <div>
             <label>目的地城市</label>
             <input type="text" value={city} onChange={(e) => setCity(e.target.value)}
@@ -411,6 +411,32 @@ export default function Home() {
           </button>
         </p>
       </motion.form>
+
+      <section className="how">
+        <div className="legend">怎么做到的</div>
+        <div className="how-grid">
+          <div className="how-item">
+            <span className="how-num">01</span>
+            <h3>约束优先，不是聊天</h3>
+            <p>预算、时间、地理、POI 真实性都是硬约束。模型只输出结构化行程，没有自由发挥的空间。</p>
+          </div>
+          <div className="how-item">
+            <span className="how-num">02</span>
+            <h3>逐点事实核查</h3>
+            <p>每个景点、餐厅过高德 POI 验真，站点之间用真实驾驶距离估算通勤——排一个已关门的店，比没有推荐更糟。</p>
+          </div>
+          <div className="how-item">
+            <span className="how-num">03</span>
+            <h3>体检报告，不藏着</h3>
+            <p>绕路、节奏失衡、预算超标、必游地漏排——所有风险摊开告诉你，改不改由你决定。</p>
+          </div>
+        </div>
+      </section>
+
+      <footer className="foot">
+        <span>行程规划师 · AI 行程规划平台</span>
+        <span>国内城市 1-4 天 · POI 数据来自高德开放平台</span>
+      </footer>
 
       {error && <div className="alert alert-error"><AlertTriangle size={16} style={{ marginTop: 2 }} />{error}</div>}
 
