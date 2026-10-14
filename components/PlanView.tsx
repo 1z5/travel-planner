@@ -8,6 +8,7 @@ import {
 import type { Plan } from "@/lib/types";
 import { cityImage } from "@/lib/city-images";
 import { RouteMap } from "./RouteMap";
+import { CostChart } from "./CostChart";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
 
@@ -109,6 +110,11 @@ export function PlanView({
             <span className="kpi-value">{plan.days.length} 天</span>
             <span className="kpi-label">{plan.days.reduce((n, d) => n + d.spots.length, 0)} 个行程点</span>
           </div>
+        </div>
+
+        <div className="cost-chart">
+          <div className="legend" style={{ marginBottom: 4 }}>每日人均花费</div>
+          <CostChart days={plan.days} />
         </div>
 
         <div className="plan-actions">

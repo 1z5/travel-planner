@@ -5,6 +5,8 @@ import type { Plan } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import {
   AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope,
+  ListChecks, MapPinned, Timer, CalendarPlus, Share2, FileDown,
+  HelpCircle, ChevronDown,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cityImage } from "@/lib/city-images";
@@ -431,6 +433,39 @@ export default function Home() {
             <p>绕路、节奏失衡、预算超标、必游地漏排——所有风险摊开告诉你，改不改由你决定。</p>
           </div>
         </div>
+      </section>
+
+      <section className="stats">
+        <div className="stat"><span className="stat-num">20+</span><span className="stat-label">城市实测通过</span></div>
+        <div className="stat"><span className="stat-num">4 层</span><span className="stat-label">幻觉治理机制</span></div>
+        <div className="stat"><span className="stat-num">100%</span><span className="stat-label">答案引用可溯源</span></div>
+      </section>
+
+      <section className="how">
+        <div className="legend">能力</div>
+        <div className="cap-grid">
+          <div className="cap-item"><ListChecks size={18} /><h3>结构化行程</h3><p>按天分时段：景点、餐饮、时长、花费、雨天备选，一页看全。</p></div>
+          <div className="cap-item"><MapPinned size={18} /><h3>POI 真实性验核</h3><p>每个景点餐厅过高德 POI 搜索比对，不存在或已关门当场标注。</p></div>
+          <div className="cap-item"><Route size={18} /><h3>通勤距离矩阵</h3><p>站点之间用真实驾驶距离估算通勤，绕路当天就发现。</p></div>
+          <div className="cap-item"><Timer size={18} /><h3>节奏体检</h3><p>按你选的轻松/适中/紧凑分档核对每日负荷，超标即预警。</p></div>
+          <div className="cap-item"><CalendarPlus size={18} /><h3>日历一键导出</h3><p>.ics 文件导入手机日历，每个行程点都是带时间的日程。</p></div>
+          <div className="cap-item"><Share2 size={18} /><h3>分享与导出</h3><p>一个链接分享整份行程，或复制 Markdown 存进笔记。</p></div>
+        </div>
+      </section>
+
+      <section className="faq">
+        <div className="legend">常见问题</div>
+        {[
+          ["生成一份行程要多久？", "推理模型做约束规划通常 2-4 分钟，跨境目的地更久。页面有实时进度，不用守着。"],
+          ["景点和餐厅是真实存在的吗？", "是。每个点位都经过高德 POI 搜索验核，未命中的会在行程里明确标注，不会冒充真实场所。"],
+          ["支持哪些城市和天数？", "目前覆盖国内城市，1-4 天。5 天及以上的长途行程已在路线图上。"],
+          ["生成的行程可以修改吗？", "可以。所有内容支持复制 Markdown 自行编辑，也可以换个节奏或偏好重新生成。"],
+        ].map(([q, a]) => (
+          <details key={q}>
+            <summary><HelpCircle size={15} />{q}<ChevronDown size={15} className="faq-chevron" /></summary>
+            <p>{a}</p>
+          </details>
+        ))}
       </section>
 
       <footer className="foot">
