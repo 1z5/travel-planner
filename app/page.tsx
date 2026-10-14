@@ -320,7 +320,7 @@ export default function Home() {
                 setMvInput("");
               }
             }}
-            style={{ flex: "0 0 auto" }} className="btn">
+            style={{ flex: "0 0 auto" }} className="btn btn-tall">
             添加
           </button>
         </div>
