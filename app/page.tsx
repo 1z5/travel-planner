@@ -231,7 +231,7 @@ export default function Home() {
           <div className="row">
           <div>
             <label>目的地城市</label>
-            <input value={city} onChange={(e) => setCity(e.target.value)}
+            <input type="text" value={city} onChange={(e) => setCity(e.target.value)}
                    placeholder="如：成都" maxLength={20} required />
             <div className="chips" style={{ marginTop: 8 }}>
               {["成都", "西安", "杭州", "厦门", "重庆", "苏州"].map((c) => (
@@ -286,7 +286,7 @@ export default function Home() {
         <div className="field-group">
           <div className="legend">你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span></div>
           <label>我的住所</label>
-        <input value={hotel} onChange={(e) => setHotel(e.target.value)}
+        <input type="text" value={hotel} onChange={(e) => setHotel(e.target.value)}
                placeholder='如：全季酒店(春熙路店)，或"住春熙路附近"' maxLength={40} />
 
           <label>期望必游地<span className="optional-tag">最多 5 个，必须全部安排</span></label>
@@ -300,7 +300,7 @@ export default function Home() {
           ))}
         </div>
         <div className="row" style={{ marginTop: 6 }}>
-          <input value={mvInput} onChange={(e) => setMvInput(e.target.value)}
+          <input type="text" value={mvInput} onChange={(e) => setMvInput(e.target.value)}
                  placeholder="输入地名后点添加，或回车" maxLength={20}
                  onKeyDown={(e) => {
                    if (e.key === "Enter") {
@@ -356,10 +356,10 @@ export default function Home() {
           ) : loginOpen ? (
             <>
               <div className="row">
-                <input placeholder="手机号" value={phone} maxLength={11}
+                <input type="text" placeholder="手机号" value={phone} maxLength={11}
                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
                 <div className="row">
-                  <input placeholder="验证码" value={code} maxLength={6}
+                  <input type="text" placeholder="验证码" value={code} maxLength={6}
                          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
                   <button type="button" onClick={sendCode} disabled={cooldown > 0 || phone.length !== 11}
                     style={{ whiteSpace: "nowrap" }} className="btn">

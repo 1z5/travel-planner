@@ -135,7 +135,7 @@ body {
 label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 0.01em; margin: var(--sp-4) 0 var(--sp-2); }
 .field-group label:first-of-type { margin-top: 0; }
 
-input[type="text"], input[type="number"], input[type="datetime-local"] {
+input, textarea, select {
   width: 100%; height: 40px; padding: 0 11px;
   border: 1px solid rgba(255, 255, 255, 0.11); border-radius: 6px;
   font-size: 14px; background: #0b0b0f; color: var(--ink);
@@ -150,14 +150,14 @@ input:focus {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(251, 146, 60, 0.16);
 }
 /* 深色下的原生日期选择器图标 */
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+input::-webkit-calendar-picker-indicator {
   filter: invert(0.55); cursor: pointer; opacity: 0.7;
 }
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 /* 数字输入去箭头（预算） */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input { -moz-appearance: textfield; appearance: textfield; }
 .helper { font-size: var(--fs-caption); color: var(--ink-4); margin-top: var(--sp-1); }
 
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
@@ -170,7 +170,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   padding: 6px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #141418;
   font-size: var(--fs-small);
   color: var(--ink-2);
   cursor: pointer;
