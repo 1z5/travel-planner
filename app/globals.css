@@ -248,22 +248,9 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .result-cover-text h2 { text-shadow: 0 1px 16px rgba(0, 0, 0, 0.5); }
 .result-cover-dates { color: rgba(255, 255, 255, 0.85); font-size: var(--fs-small); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
 
-.result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
-.result-head h2 { font-family: var(--font-serif); font-size: 28px; font-weight: 700; margin: 0; letter-spacing: 0.01em; }
-.result-dates { color: var(--ink-3); font-size: var(--fs-small); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
-.result-summary { color: var(--ink-2); margin: var(--sp-3) 0 0; }
-
-.pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--fs-caption); padding: 3px 10px; border-radius: 999px; font-weight: 600;
-  border: 1px solid transparent; white-space: nowrap;
-}
-.pill-ok { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
-.pill-muted { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
-
 /* 验真完成度徽章（PlanView）：ok=全部核完 / warn=高德波动部分未核 / mock=未接高德。
    注：这三个类名在 PlanView 里从设计系统 v2 用到现在，但 globals.css 一直漏了
-   定义——徽章实际是无样式渲染的。这里按 .pill 的同一套语义色补齐。 */
+   定义——徽章实际是无样式渲染的。这里按设计系统的语义色变量（ok 系列与 warn 系列）补齐。 */
 .verified-badge {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: var(--fs-caption); padding: 3px 10px; border-radius: 999px; font-weight: 600;
@@ -276,8 +263,6 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .kpi-row { display: flex; gap: var(--sp-6); margin-top: var(--sp-5); }
 .kpi-value { font-family: var(--font-serif); font-size: 34px; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .kpi-label { font-size: var(--fs-caption); color: var(--ink-4); margin-top: 2px; }
-
-.result-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
 
 /* ---------- 分天 ---------- */
 

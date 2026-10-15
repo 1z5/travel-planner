@@ -44,7 +44,10 @@
     ".next-t-wx/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next-t-sms/dev/types/**/*.ts",
-    ".next-t-auth/dev/types/**/*.ts"
+    ".next-t-auth/dev/types/**/*.ts",
+    ".next-t-wx/dev/types/**/*.ts",
+    ".next-t-mock/dev/types/**/*.ts",
+    ".next-t-real/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
