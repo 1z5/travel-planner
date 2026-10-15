@@ -66,7 +66,7 @@ npm run dev             # http://localhost:3000
 |---|---|
 | 首次请求 500「缺少 LLM_API_KEY」 | `.env` 没配。`cp .env.example .env` 后填入 key |
 | 端口被占用 | `npm run dev -- --port 3001` 换端口 |
-| Node 报错/安装失败 | 需要 Node ≥ 20（package.json engines 已约束） |
+| Node 报错/安装失败 | 需要 Node ≥ 22（package.json engines 已约束；openai SDK v7 起要求 22） |
 | 生成等 4 分钟还没返回 | **正常**：推理模型做约束规划就要 3-4 分钟，页面有秒表和阶段提示；超过 7 分钟会超时并**自动退还配额** |
 | 轮询返回「任务不存在」 | 服务重启过（任务态在内存）或超过 2 小时，重新提交即可 |
 | POI 全带「未在高德检索到」 | 没配 `AMAP_WEB_SERVICE_KEY`（MOCK 模式）或 key 类型选错（要「Web服务」类型） |
