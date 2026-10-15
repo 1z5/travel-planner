@@ -52,6 +52,7 @@ npm run eval:cases                     # 20 城 case，并发 3，约 30 分钟
 ```bash
 cp .env.example .env   # 已生成；填入 LLM_API_KEY 即可跑（MOCK 模式无需高德 key）
 npm install
+npx prisma generate    # Prisma 7 起必需：@prisma/client 已无 postinstall，不生成则任何路由都会崩
 npm run dev             # http://localhost:3000
 ```
 

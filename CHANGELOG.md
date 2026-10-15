@@ -2,6 +2,29 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 大版本升级轮：依赖现代化 + 遗留清理 + 分享增强
+
+一次性把技术栈推到当前最新稳定版，并处理升级暴露的问题。每个大版本单独提交、单独验证，出问题能独立回滚。
+
+**依赖升级**（均在 semver 内或按大版本迁移指南）：
+- openai 5 → 7：lib/planner.ts 的流式用法无需改动；v7 的 peer 是 zod "^3.25 || ^4.0"，是 zod 4 的前置
+- zod 3 → 4：被 openai v5 的 peer 锁死，升 openai 后才走得通；用法全是基础 API，无代码改动
+- Prisma 6 → 7：破坏性变更——schema 不再支持 datasource.url。拆成 prisma.config.ts（CLI 连接）+ PrismaClient 传 driver adapter（运行时连接）
+- Next 15 → 16：项目已用 async params，无需迁移代码
+- typescript ^5.6.0 → ^5.9.3
+
+**TypeScript 7 实测不可用**（记录过程避免重复踩）：TS7 已发 latest，但它是「JS 薄封装 + 平台原生二进制」结构，`ts.sys` 是 undefined。装上新诊断 TS2882（layout.tsx 的裸 CSS 导入报错，根因是 next/types 只声明 *.module.css），但决定性障碍是 `next build` 加载 next.config.ts 时直接崩溃——Next 15.5 需要 ts.sys.fileExists。结论：等 Next 16+ 级别的支持后重试。
+
+**Prisma 7 引入的 client 生成缺失回归**（验证 OG 图时暴露，比 OG 图本身严重）：dev server 运行时崩 `Cannot find module '.prisma/client/default'，且 DATA_STORE=memory 默认路径也崩（postgres 模块是静态 import）。根因：Prisma 7 起 @prisma/client 的 package.json 里没有 postinstall 了，client 生成完全依赖显式 prisma generate，而 CI/Dockerfile/preflight 三处都没有这一步——任何全新安装必崩。已实测复现（rm -rf node_modules/.prisma 后 typecheck 立刻报错）。修复：Dockerfile 与 ci.yml 补 `npx prisma generate`（只读 schema 不连库，实测无需 DATABASE_URL），preflight 新增 BLOCK 级检查。
+
+**跨大版本升级的假故障**：Next 15→16 后首次 build 在预渲染 "/" 时报 Server Components render error + digest，生产构建还刻意隐藏真实信息。起 dev server 验证首页却 200 正常。真正原因是 .next 里残留了 Next 15 的产物——rm -rf .next 后一次通过。教训：跨 Next 大版本必须先清 .next。
+
+**分享页动态 OG 图片**：新增 app/p/[id]/opengraph-image.tsx，用 next/og 生成「城市 + 天数 + 概览 + 预算/行程点」卡片图，视觉对齐 globals.css 的深色 Premium 设计系统。已验证 og:image 与 twitter:image 都正确注入（1200×630 PNG）。两个 Satori 硬约束：多子节点的 div 必须显式 display:flex（判据是 children 非字符串，数字/表达式都算）；不支持 -webkit-line-clamp，摘要改 JS 截断。中文无需自带字体——实测 Satori 回退系统 CJK 字体正常渲染。
+
+**死 CSS 清理**：删掉设计系统 v2→v4 迭代遗留的 7 个无人引用的选择器（.result-head/.result-dates/.result-summary/.result-actions/.pill 系列，共 16 行）。
+
+验证：typecheck / 50 单测 / 124 e2e / 生产构建 / npm audit 全绿。
+
 ## 2026-10 健壮化迭代：高德三态 / LLM 结构核对 / 依赖与前端加固
 
 **高德三态（本轮最重要的修复）**：原来 `amapGet` 没有 try/catch，且把「网络异常/上游错误码」和「高德明确说没有这个 POI」混为一谈（都返回 null）。后果：key 失效、QPS 超限、网络抖动时，`validate.ts` 会把一堆**真实存在**的景点标成「未在高德检索到」——预警系统自己变成谎言，正是本项目最怕的事故（与当年的 MOCK 假通勤同类）。改为三态 `hit / miss / error`：
