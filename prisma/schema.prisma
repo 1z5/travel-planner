@@ -2,9 +2,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Prisma 7 起 schema 不再携带连接串：CLI（migrate/db push）的连接地址移到
+// prisma.config.ts，运行时的直连则通过 PrismaClient 构造参数传 driver adapter
+// （见 lib/store/postgres.ts）。详见 https://pris.ly/d/config-datasource
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 /// 行程生成任务（原内存 Map，重启即丢 → 持久化）

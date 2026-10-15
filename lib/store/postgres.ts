@@ -1,17 +1,28 @@
 import "server-only";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import type { CodeRecord, JobRecord, QuotaRecord, Store } from "./types";
 
 // ============================================================
 // PostgreSQL 实现（Prisma）。客户端懒实例化——只有 DATA_STORE=
 // postgres 时才建连接，memory 路径完全不碰数据库。
 // 行为契约与 memory 实现一致（同一套契约测试验证）。
+//
+// Prisma 7 迁移：schema.prisma 不再携带连接串（见该文件注释），运行时改为
+// 显式传 driver adapter；CLI 的连接地址在 prisma.config.ts。两条路径读同一个
+// DATABASE_URL，不会漂。
 // ============================================================
 
 let client: PrismaClient | null = null;
 
 function prisma(): PrismaClient {
-  if (!client) client = new PrismaClient();
+  if (!client) {
+    const url = process.env.DATABASE_URL;
+    if (!url) {
+      throw new Error("DATA_STORE=postgres 需要配置 DATABASE_URL");
+    }
+    client = new PrismaClient({ adapter: new PrismaPg(url) });
+  }
   return client;
 }
 
