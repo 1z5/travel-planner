@@ -109,7 +109,7 @@ const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
   packed: "紧凑：每天 3~5 个主景点 + 午餐 + 晚餐，能看则看，当天净游玩时间不超过 13 小时。",
 };
 
-function buildUserPrompt(input: PlanInput): string {
+function buildUserPrompt(input: PlanInput, correction?: string): string {
   const lines = [
     "请规划行程：",
     `- 目的地：${input.city}`,
@@ -132,6 +132,11 @@ function buildUserPrompt(input: PlanInput): string {
   if (input.mustVisit?.length) {
     lines.push(`- 期望必游地（必须全部安排进行程）：${input.mustVisit.join("、")}`);
   }
+  if (correction) {
+    lines.push(
+      `- 上一次输出不符合要求：${correction}。本次必须严格输出 ${input.days} 天，day 字段从 1 连续编号，每天至少 1 个行程点。`,
+    );
+  }
   return lines.join("\n");
 }
 
@@ -144,10 +149,56 @@ function extractJson(text: string): unknown {
   return JSON.parse(raw.slice(start, end + 1));
 }
 
+/**
+ * 归一化：按 day 排序，并重编号为连续的 1..N。
+ * 模型可能输出 0 基编号、乱序或跳号（day: 1,3,4）——zod 只校验「是 number」，
+ * 这些都能通过 schema 并直接渲染成错乱行程，所以在这里强制拉直。
+ */
+function normalizePlan(parsed: z.infer<typeof PlanSchema>, input: PlanInput): Plan {
+  const days = [...parsed.days]
+    .sort((a, b) => a.day - b.day)
+    .map((d, i) => ({
+      ...d,
+      day: i + 1,
+      spots: d.spots as PlanSpot[],
+      transitMin: 0,
+      dailyCostCny: 0,
+    }));
+  return {
+    ...parsed,
+    startDate: input.startAt?.slice(0, 10),
+    endDate: input.endAt?.slice(0, 10),
+    startAt: input.startAt,
+    endAt: input.endAt,
+    days,
+    warnings: [],
+    verified: false,
+  } as Plan;
+}
+
+/**
+ * 结构核对（zod 之外的语义层）：天数必须等于请求天数；每天至少 1 个行程点、
+ * 有主题。返回 null 表示合格，否则返回人类可读的原因——既用作重试时的
+ * 纠正指令，也用作重试后仍失败时的报错文案。
+ */
+function structuralProblem(plan: Plan, input: PlanInput): string | null {
+  if (plan.days.length !== input.days) {
+    return `输出 ${plan.days.length} 天，请求 ${input.days} 天`;
+  }
+  const empty = plan.days.filter((d) => d.spots.length === 0).map((d) => d.day);
+  if (empty.length) return `第 ${empty.join("、")} 天没有行程点`;
+  const noTheme = plan.days.filter((d) => !d.theme.trim()).map((d) => d.day);
+  if (noTheme.length) return `第 ${noTheme.join("、")} 天缺少主题`;
+  return null;
+}
+
 export async function generatePlan(input: PlanInput): Promise<Plan> {
   const llm = client();
+  // 重试纠正指令：跨 attempt 保留（声明在循环外，否则第一次的纠正会在
+  // 第二次迭代时被重置丢掉）
+  let correction: string | undefined;
 
-  // 两次机会：空返回或 JSON 不合法就原样重试一次
+  // 两次机会：空返回 / JSON 不合法 / 结构不符，都带原因重试一次
   for (let attempt = 1; attempt <= 2; attempt++) {
     let content = "";
     let totalTokens = 0;
@@ -159,7 +210,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
         model: process.env.LLM_MODEL || "step-5-preview",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildUserPrompt(input) },
+          { role: "user", content: buildUserPrompt(input, correction) },
         ],
         max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
         reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
@@ -192,26 +243,26 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
     console.log(
       `[llm] ${input.city} ${input.days}天 第${attempt}次尝试 tokens=${totalTokens || "?"}`,
     );
+
+    let plan: Plan;
     try {
-      const parsed = PlanSchema.parse(extractJson(content));
-      return {
-        ...parsed,
-        startDate: input.startAt?.slice(0, 10),
-        endDate: input.endAt?.slice(0, 10),
-        startAt: input.startAt,
-        endAt: input.endAt,
-        days: parsed.days.map((d) => ({
-          ...d,
-          spots: d.spots as PlanSpot[],
-          transitMin: 0,
-          dailyCostCny: 0,
-        })),
-        warnings: [],
-        verified: false,
-      } as Plan;
+      plan = normalizePlan(PlanSchema.parse(extractJson(content)), input);
     } catch (e) {
       if (attempt === 2) throw new Error(`LLM 输出不是合法 JSON（${(e as Error).message}）`);
+      continue;
     }
+
+    // 结构核对：不符则把具体原因回灌进 prompt 重试一次（比原样重试更可能救回来）
+    const problem = structuralProblem(plan, input);
+    if (problem) {
+      if (attempt === 2) {
+        throw new Error(`LLM 输出的行程结构与请求不符（${problem}），请重试或调整参数`);
+      }
+      correction = problem;
+      console.log(`[llm] ${input.city} 结构不符（${problem}），带纠正指令重试`);
+      continue;
+    }
+    return plan;
   }
   throw new Error("unreachable");
 }

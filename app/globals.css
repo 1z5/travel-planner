@@ -261,6 +261,18 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .pill-ok { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
 .pill-muted { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
 
+/* 验真完成度徽章（PlanView）：ok=全部核完 / warn=高德波动部分未核 / mock=未接高德。
+   注：这三个类名在 PlanView 里从设计系统 v2 用到现在，但 globals.css 一直漏了
+   定义——徽章实际是无样式渲染的。这里按 .pill 的同一套语义色补齐。 */
+.verified-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-caption); padding: 3px 10px; border-radius: 999px; font-weight: 600;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.verified-badge.live { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
+.verified-badge.warn { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-line); }
+.verified-badge.mock { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
+
 .kpi-row { display: flex; gap: var(--sp-6); margin-top: var(--sp-5); }
 .kpi-value { font-family: var(--font-serif); font-size: 34px; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .kpi-label { font-size: var(--fs-caption); color: var(--ink-4); margin-top: 2px; }

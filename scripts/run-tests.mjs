@@ -292,6 +292,43 @@ async function phaseA(api) {
   const lastUser1 = await (await fetch(`http://127.0.0.1:${STUB_PORT}/_last_user`)).json();
   check("当天往返 prompt 无酒店安排", (lastUser1.user ?? "").includes("当天往返行程") && (lastUser1.user ?? "").includes("不要安排酒店"),
     lastUser1.user?.slice(-100));
+
+  // 用例 12：模型输出乱序 + 跳号（数组 [Day2,Day3,Day1]，day 字段 [5,9,2]）
+  // → planner 归一化（按 day 排序 + 重编号 1..N）后应与 canonical fixture 一致。
+  // 回归价值：zod 只校验「day 是 number」，以前这种输出会被原样渲染成错乱行程
+  const r12 = await api.post({ city: "编号乱序测试城市", days: 3, budget: 2500, preferences: ["美食"] });
+  check("乱序输出：提交 202", r12.status === 202, `got ${r12.status}`);
+  const j12 = await api.waitJob(r12.body.jobId);
+  const p12 = j12.plan ?? {};
+  check("乱序输出：任务 done（归一化后结构合法）", j12.status === "done", JSON.stringify(j12).slice(0, 120));
+  check("乱序输出：天数 = 3", p12.days?.length === 3, `got ${p12.days?.length}`);
+  check("乱序输出：day 被重编号为连续的 1,2,3",
+    (p12.days ?? []).map((d) => d.day).join(",") === "1,2,3",
+    JSON.stringify((p12.days ?? []).map((d) => d.day)));
+  check("乱序输出：排序正确（Day1 是拙政园所在的那天）",
+    (p12.days?.[0]?.spots ?? []).some((s) => s.name.includes("拙政园")),
+    JSON.stringify(p12.days?.[0]?.spots?.map((s) => s.name)));
+  check("乱序输出：总价 1925（内容未被重排破坏）", p12.totalCostCny === 1925, `got ${p12.totalCostCny}`);
+
+  // 用例 13：输出天数与请求不符（桩恒返回 3 天，请求 4 天）
+  // → 带纠正指令重试一次 → 仍不符 → 明确报错 + 退还配额（不把 3 天行程
+  //   冒充成 4 天行程交付给用户）
+  const rBase = await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] });
+  const jBase = await api.waitJob(rBase.body.jobId);
+  const before = jBase.remaining;
+  const r13 = await api.post({ city: "天数错测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-04T18:00", budget: 2500 });
+  check("天数不符：提交 202", r13.status === 202, `got ${r13.status}`);
+  const j13 = await api.waitJob(r13.body.jobId);
+  check("天数不符：任务 error", j13.status === "error", JSON.stringify(j13).slice(0, 120));
+  check("天数不符：报错点明天数差异（输出 3 天，请求 4 天）",
+    (j13.error ?? "").includes("输出 3 天，请求 4 天"), j13.error);
+  check("天数不符：配额未扣（失败退还）", j13.remaining === before, `before=${before} got=${j13.remaining}`);
+  const lastUser13 = await (await fetch(`http://127.0.0.1:${STUB_PORT}/_last_user`)).json();
+  check("天数不符：重试时 prompt 带回灌的纠正指令",
+    (lastUser13.user ?? "").includes("上一次输出不符合要求")
+    && (lastUser13.user ?? "").includes("输出 3 天，请求 4 天"),
+    lastUser13.user?.slice(-120));
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------

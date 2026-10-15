@@ -31,11 +31,14 @@ Config:
 npm test        # self-contained: spawns stub LLM + isolated-port test servers, cleans up after
 ```
 
-113 assertions across four suites:
+124 assertions across four suites:
 - **Input boundaries (20) + health check (2)**: empty body / bad city / day-range / budget / malformed JSON / hotel, must-visit and pace format & injection cases → all 400; `/api/health` returns 200 without leaking secrets
 - **Fault injection (7)**: happy path / garbage output / empty content / upstream 500 / quota refund arithmetic / hotel + must-visit hard-constraint verification (satisfied items don't warn, missing items do, fuzzy hotel descriptions don't false-positive, prompt wiring verified)
+- **LLM output structure checks (11)**: shuffled + gapped day numbering (array [Day2,Day3,Day1], day fields [5,9,2]) → normalized to consecutive 1..N without reordering content; day-count mismatch (asked 4 days, got 3) → corrective-instruction retry → then an explicit failure with the quota refunded
 - **Amap integration (9, live-shaped stubs)**: `verified=true`, place-name → coordinates → distance → minutes conversion (incl. the 30-minute fallback for unmatched POIs), cost aggregation, precise miss warnings
 - **Auth (49)**: dev provider (21) + WeChat OAuth (15) + SMS (13): code flows, 401/400 paths, cookie issuance, dual-track quota (10/day user vs 3/day IP), independent per-user accounting, SMS anti-spam (6th code → 429), full WeChat OAuth (CSRF state, code→openid, session), SMS via Tencent Cloud TC3 signing with server-side one-time codes
+
+Plus 50 Vitest unit tests: Amap three-state semantics (QPS-exceeded retries 3× and is then classified as an error — never downgraded to "not found"), in-flight dedup, bounded concurrency, and RFC 5545 `.ics` details (cross-midnight DTEND rollover, folding by UTF-8 **bytes**, escaping, UID uniqueness).
 
 Public-internet hardening: input character whitelists (user content is interpolated into prompts — injection defense), SMS flood control (5/hour per number, 20/hour per IP), httpOnly+HMAC sessions with constant-time comparison, OAuth state CSRF defense, open-redirect prevention, automatic Secure cookies in production, `/api/health` config self-check.
 

@@ -43,7 +43,10 @@ function toMarkdown(plan: Plan): string {
       if (s.rainBackup) lines.push(`- 🌧 雨天备选：${s.rainBackup}`);
       lines.push("");
     }
-    lines.push(`当天通勤约 ${Math.round((day.transitMin / 60) * 10) / 10} 小时 · 人均 ¥${day.dailyCostCny}`, "");
+    const transit = day.transitKnown === false
+      ? "通勤未能估算（高德服务波动）"
+      : `当天通勤约 ${Math.round((day.transitMin / 60) * 10) / 10} 小时`;
+    lines.push(`${transit} · 人均 ¥${day.dailyCostCny}`, "");
   }
   lines.push(`## 预算`, "", `合计人均约 ¥${plan.totalCostCny}`, "");
   if (plan.warnings.length) {
@@ -67,6 +70,14 @@ export function PlanView({
 }) {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动导致部分未核。
+  // partial 时不能沿用「已通过验真」的说法——那是把没做完的事说成做完了
+  const verification = plan.verification ?? (plan.verified ? "ok" : "mock");
+  const VERIFY_LABEL: Record<string, string> = {
+    mock: "MOCK 模式：未接高德，POI 未验真",
+    ok: "✓ POI 已通过高德验真",
+    partial: "⚠ 高德服务波动，部分 POI 未能验真",
+  };
 
   return (
     <>
@@ -94,8 +105,8 @@ export function PlanView({
 
         <div className="card-body">
         <div className="plan-head">
-          <span className={`verified-badge ${plan.verified ? "live" : "mock"}`}>
-            {plan.verified ? "✓ POI 已通过高德验真" : "MOCK 模式：未接高德，POI 未验真"}
+          <span className={`verified-badge ${verification === "ok" ? "live" : verification === "partial" ? "live warn" : "mock"}`}>
+            {VERIFY_LABEL[verification]}
           </span>
         </div>
 
@@ -206,7 +217,9 @@ export function PlanView({
 
           <p className="day-foot">
             <span>
-              {plan.verified ? `当天通勤约 ${Math.round(day.transitMin / 6) / 10} 小时` : "MOCK 模式未估算通勤"}
+              {day.transitKnown === false
+                ? "当天通勤未能估算（高德服务波动）"
+                : `当天通勤约 ${Math.round(day.transitMin / 6) / 10} 小时`}
             </span>
             <span>人均 ¥{day.dailyCostCny.toLocaleString()}</span>
           </p>

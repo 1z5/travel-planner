@@ -23,6 +23,36 @@ const CANNED_PLAN = JSON.parse(
 
 let lastUserMsg = "";
 
+// 从 user 消息解析请求天数（prompt 形如「- 天数：N 天」）。
+// planner 现在会核对「输出天数 === 请求天数」，桩不能再一律返回 3 天
+// fixture——否则 1 天/4 天的请求会被判结构不符而失败。
+// 少于 fixture 天数取前 N 天；多于则循环补齐（桩只测结构，内容复用无妨）。
+function planForRequestedDays(userMsg) {
+  const m = userMsg.match(/天数：(\d+)\s*天/);
+  const n = m ? Number(m[1]) : CANNED_PLAN.days.length;
+  if (!Number.isInteger(n) || n < 1 || n === CANNED_PLAN.days.length) return CANNED_PLAN;
+  const days = [];
+  for (let i = 0; i < n; i++) {
+    const src = CANNED_PLAN.days[Math.min(i, CANNED_PLAN.days.length - 1)];
+    days.push({ ...src, day: i + 1, spots: src.spots.map((s) => ({ ...s })) });
+  }
+  return { ...CANNED_PLAN, days };
+}
+
+// 乱序 + 跳号响应：数组顺序 [Day2, Day3, Day1]，day 字段 [5, 9, 2]。
+// planner 归一化（按 day 排序 + 重编号 1..N）后应还原成与 fixture 完全
+// 一致的结果——用来证明乱序/0 基/跳号输出不会被渲染成错乱行程。
+function scrambledPlan() {
+  return {
+    ...CANNED_PLAN,
+    days: [
+      { ...CANNED_PLAN.days[1], day: 5 },
+      { ...CANNED_PLAN.days[2], day: 9 },
+      { ...CANNED_PLAN.days[0], day: 2 },
+    ],
+  };
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
@@ -53,6 +83,8 @@ const server = createServer((req, res) => {
     if (userMsg.includes("垃圾")) mode = "garbage";
     else if (userMsg.includes("空")) mode = "empty";
     else if (userMsg.includes("故障")) mode = "http500";
+    else if (userMsg.includes("编号乱序")) mode = "scrambled";
+    else if (userMsg.includes("天数错")) mode = "wrongdays";
     console.log(`[stub] ${mode}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
@@ -64,7 +96,10 @@ const server = createServer((req, res) => {
     const content =
       mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
       : mode === "empty" ? ""
-      : JSON.stringify(CANNED_PLAN);
+      : mode === "scrambled" ? JSON.stringify(scrambledPlan())
+      // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
+      : mode === "wrongdays" ? JSON.stringify(CANNED_PLAN)
+      : JSON.stringify(planForRequestedDays(userMsg));
 
     if (isStream) {
       // SSE：模拟真实流式（role 帧 → 内容分两帧 → 结束帧带 usage）

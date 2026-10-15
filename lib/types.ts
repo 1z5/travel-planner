@@ -32,6 +32,7 @@ export interface PlanDay {
   theme: string;
   spots: PlanSpot[];
   transitMin: number;      // 当天站点间通勤合计（validate 回填真实估算）
+  transitKnown?: boolean;  // false = 通勤估算失败（高德波动），该天未做通勤/节奏判定
   dailyCostCny: number;    // 人均当天花费（validate 回填）
 }
 
@@ -47,4 +48,5 @@ export interface Plan {
   tips: string[];          // 预约/避坑提示
   warnings: string[];      // 体检结果：未验真 POI / 通勤偏长 / 节奏 / 预算
   verified: boolean;       // 是否走了真实高德数据（false = mock 模式）
+  verification?: "mock" | "ok" | "partial"; // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动导致部分未核
 }

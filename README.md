@@ -20,11 +20,14 @@ AI 智能旅游规划 v1：输入目的地/起止时间/预算/偏好/节奏/住
 npm test        # 自包含：自动启动桩 LLM + 隔离端口(3103)测试服务器，跑完自动清理
 ```
 
-覆盖 113 条断言：
+覆盖 124 条断言：
 - **输入边界 20 例 + 健康检查 2 例**（含住所/必游地/节奏的格式与注入用例）：空 body / 城市太短 / 天数超界 / 预算过低 / 畸形 JSON / 城市与偏好的特殊字符与超长（防 prompt 注入）/ 偏好超 5 个 → 全部 400；`/api/health` 200 且不泄露密钥
 - **故障注入 7 例**（住所+必游地硬约束：满足项不告警/漏排告警/住所未体现告警/模糊住所不误报/prompt 接线验证）：正常链路 / 垃圾输出 / 空 content / 上游 500 / 配额退还算术
+- **LLM 输出结构核对 11 例**（zod 只校验「day 是 number」，补不上的语义层）：**乱序 + 跳号输出**（数组 [Day2,Day3,Day1]、day 字段 [5,9,2]）→ 归一化排序重编号为连续 1..N，且内容不被重排（总价仍 1925）；**天数不符**（请求 4 天只给 3 天）→ 带纠正指令重试一次 → 仍不符则明确报错「输出 3 天，请求 4 天」并退还配额
 - **高德集成 9 例（真实模式）**：按官方文档形状跑桩高德——`verified=true`、地名→坐标→距离→分钟换算（含 POI 未命中段的 30 分钟 fallback：4×22+2×30=148）、总价汇总、未命中预警精确触发、命中项不误报
 - **登录体系 49 例**（dev provider 21 + 微信 OAuth 15 + 短信 13）：验证码收发/校验、错误码 401、非法手机号 400、cookie 下发、双轨配额（用户 10 / IP 3）、多用户独立账目、IP 限流后登录用户不受影响、登出、短信防轰炸（第 6 条 429）、微信全流程（授权跳转/state 防 CSRF/code 换 openid/session/配额入轨/伪造 state 400）、短信全流程（TC3 签名请求构造/6 位随机码/服务端比对/一次性消费）
+
+**Vitest 单测 50 条**（`npm run test:unit`，覆盖以前完全没测的纯逻辑）：高德三态语义（QPS 超限重试 3 次后归为 error 而**不**降级成 miss、网络异常、key 无效不重试、缓存与在飞去重）、通勤两态（一端 miss 沿用 30 分钟保守值 / 一端 error 返回 unknown 且不再调距离接口）、`mapLimit` 有界并发与失败语义、`.ics` 的 RFC5545 细节（跨零点 DTEND 顺延、按 UTF-8 **字节**折叠且不劈开多字节字符、转义、UID 唯一性、无 startDate 兜底）。
 
 **公网安全已加固**：输入字符白名单（用户内容会拼进 LLM prompt，防注入）、短信防轰炸（单号 5/小时、单 IP 20/小时）、session httpOnly+HMAC+常量时间比较、OAuth state 防 CSRF、防开放重定向、生产环境 cookie 自动 Secure、`/api/health` 配置自检探针。
 
@@ -32,7 +35,9 @@ npm test        # 自包含：自动启动桩 LLM + 隔离端口(3103)测试服�
 
 桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）分别按请求内容切换 LLM 与高德行为，让故障与集成测试秒级完成，不烧真 token、不需要真 key。CI（`.github/workflows/ci.yml`）：typecheck → build → test。
 
-**高德集成要点**（2026-10 按官方文档校正）：POI 搜索 `/v3/place/text`；通勤距离用 `/v5/direction/driving`（v3/distance 已不在文档内），且该接口**只收经纬度坐标**——`transitMinutes` 内部先把地名经 POI 搜索解析成坐标再算距离；POI 结果进程内缓存 30 分钟（同一 POI 会被验真和多次通勤复用，个人 key 有 QPS 限制）。
+**高德集成要点**（2026-10 按官方文档校正）：POI 搜索 `/v3/place/text`；通勤距离用 `/v5/direction/driving`（v3/distance 已不在文档内），且该接口**只收经纬度坐标**——`transitMinutes` 内部先把地名经 POI 搜索解析成坐标再算距离；POI 结果进程内缓存 30 分钟（error 态另用 10 秒短缓存：服务抖动时同一地名会被反复解析，不缓存等于把已经挂掉的服务再打几十遍）。
+
+**三态原则（命门）**：POI 查询区分 hit / miss / error，**只有 miss 才触发「未在高德检索到」预警**。网络异常、QPS 超限、key 无效必须归为 error——否则会把真实存在的景点标成不存在，预警系统自己变成谎言（与 MOCK 假通勤同类的事故）。error 只汇总成一条系统提示（`plan.verification="partial"`，徽章显示「部分未能验真」），且该天通勤未知时**跳过**通勤与节奏判定，不用拍脑袋数字污染两个指标。瞬时失败（网络异常 + QPS 类错误码）指数退避重试 3 次；非瞬时错误（key 无效/平台不匹配）不重试，并去重日志响一次，避免它只表现为「一堆景点未能验真」而没人知道根因是配置。
 
 **M2 评测**（接入真 key 后跑）：
 ```bash
@@ -70,20 +75,26 @@ npm run dev             # http://localhost:3000
 ## 架构
 
 ```
-app/page.tsx                表单 + 行程渲染 + Markdown 导出（客户端）
+app/page.tsx                服务端外壳：首页拆成「客户端表单」+「服务端营销区块」
+app/home-client.tsx         表单 + 轮询 + 行程渲染 + Markdown 导出（客户端）
+app/landing-sections.tsx    营销/能力矩阵/FAQ/页脚（服务端组件，零客户端 JS）
 app/api/plan/route.ts       POST → 配额 → 创建异步任务 → 立即返回 jobId（202）
 app/api/plan/status/route.ts GET ?id= → 轮询任务状态（running/done/error）
-lib/planner.ts              step-5 单次生成完整行程 + zod schema 约束（质量核心）
+lib/planner.ts              step-5 单次生成 + zod schema + 结构核对（质量核心）
 lib/jobs.ts                 异步任务：后台执行生成+体检，结果经 Store 持久化
 lib/store/                  存储抽象层：JobStore/QuotaStore/CodeStore 接口 +
                              memory（默认）/ postgres（Prisma）双实现，
                              DATA_STORE 切换，两实现共享契约测试
-lib/amap.ts                 POI 验真 + 距离矩阵通勤估算（MOCK 兜底）
+lib/amap.ts                 POI 验真 + 通勤估算，三态结果 hit/miss/error（MOCK 兜底）
+lib/concurrency.ts          有界并发 mapLimit：验真提速又不打满个人 key 的 QPS
 lib/validate.ts             幻觉治理 + 体检：绕路/节奏/预算/未验真
+lib/ics.ts                  行程 → iCalendar（RFC5545：字节折叠/跨零点/UID 唯一）
 lib/ratelimit.ts            配额与限流（每日双轨 + 小时桶防轰炸），经 Store 门面
 ```
 
-测试与契约：`API.md`（接口契约 + Plan Schema + 错误目录）；故障注入套件覆盖正常/垃圾输出/空 content/上游 500/配额退还/参数边界/住所必游地硬约束（合计 113 条断言，曾靠它抓到「失败后 remaining 快照不刷新」的真 bug）。
+**为什么首页要拆服务端/客户端**：client component **直接 import** 的模块仍会被打进客户端包（实测确认：静态文案出现在 `.next/static/chunks/app/page-*.js`），只有以 children 传入才是真正的服务端组件边界。拆开后营销/FAQ/页脚的 JS 完全离开客户端包（`/` 路由 9.99 kB → 8.06 kB），低端手机少一块 hydration 负担。
+
+测试与契约：`API.md`（接口契约 + Plan Schema + 错误目录）；故障注入套件覆盖正常/垃圾输出/空 content/上游 500/配额退还/参数边界/住所必游地硬约束/LLM 输出结构核对（合计 124 条断言，曾靠它抓到「失败后 remaining 快照不刷新」的真 bug）。
 
 **为什么是异步任务**：step-5 是推理模型，一次完整规划 2-4 分钟。同步等待在浏览器和 serverless 里都撑不住，所以 POST 立即返回 jobId，前端每 3 秒轮询进度并显示已等待时间；任务状态经 Store 层持久化（memory 默认 / postgres 可选，见架构节），失败自动归还配额。
 
