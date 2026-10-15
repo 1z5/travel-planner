@@ -60,6 +60,11 @@ check("BLOCK", ".gitignore 包含 .env", gitignore.includes(".env"));
 check("WARN", "已执行 npm run build", existsSync(".next/standalone/server.js"),
   "部署前必须构建；standalone 需 cp static 与 public（见 DEPLOY.md）");
 
+// 8. Prisma Client 已生成（Prisma 7 起 @prisma/client 无 postinstall，
+// npm ci 不会自动生成，缺 .prisma/client 时 postgres 路径一跑就崩）
+check("BLOCK", "Prisma Client 已生成", existsSync("node_modules/.prisma/client/default.js"),
+  "跑 npx prisma generate（只读 schema，不连库）");
+
 // ---- 汇总 ----
 let blocked = 0;
 let warned = 0;
