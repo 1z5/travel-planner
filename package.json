@@ -30,7 +30,7 @@
     "@prisma/client": "^7.10.0",
     "framer-motion": "^14.2.0",
     "lucide-react": "^1.56.0",
-    "next": "^15.5.0",
+    "next": "^16.4.1",
     "openai": "^7.34.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
