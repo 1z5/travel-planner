@@ -36,8 +36,25 @@ const BUDGET_OVER = 1.05;       // 总花费超预算 5% 预警
 // 总花费低于预算 80% 给提示——阈值与 prompt 的「至少用掉 80%」契约严格对齐：
 // 模型没兑现自己承诺的规则时，用户应该得到信号（以前只查上限，是 asymmetric 的）
 const BUDGET_UNDER = 0.8;
+// 区域分散度预警：当天的景点（sight）跨过这么多不同区县就提示。
+// 阈值用真实数据校准过（京都 5 天实测归一到区县后是 1/1/1/2/3，全部正常），
+// 取 4 是宁可漏报不要误报——预警变成噪声比没有预警更糟。
+const AREA_SPREAD_WARN = 4;
 // POI 验真/通勤估算的并发上限：个人高德 key 有 QPS 限制，5 路是速度与配额的安全档
 const VERIFY_CONCURRENCY = 5;
+
+/**
+ * 把 area 归一到「区县」粒度：「北区金阁寺」→「北区」。
+ *
+ * 为什么必须归一：area 字段粒度极细，同一片区会有多个字符串（「祇园」
+ * 「先斗町」「祇园至鸭川先斗町」实为同一带）。按原始字符串数会把正常
+ * 行程误报成一团散沙——实测某天全量 10 个区域，但景点只占 3 个且同属
+ * 东山区。无区县前缀的（如「春熙路」「东福寺一带」）原样返回，不与别处合并。
+ */
+function areaRegion(area: string): string {
+  const m = String(area).match(/^(.{1,3}?(?:区|县|市|镇|乡))/);
+  return m ? m[1] : String(area);
+}
 
 function fmtMin(min: number): string {
   const h = Math.floor(min / 60);
@@ -125,7 +142,23 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
     }
   }
 
-  // 4) 当天人均花费
+  // 4) 区域分散度：当天的景点跨过太多不同区县 → 绕路的直接前兆。
+  //    prompt 里「同一天的景点集中在同一 area」是明确规则，这里核验它。
+  //
+  //    只在拿不到通勤信号时才报（AMAP_MOCK 或该天通勤估算失败）：
+  //    接了高德 key 时，通勤预警是更直接的绕路证据，两者同时报是噪声。
+  //    这也正是 MOCK 模式下唯一的绕路信号——没配 key 时通勤完全不估算。
+  if (AMAP_MOCK || transitUnknown) {
+    const sights = day.spots.filter((s) => s.type === "sight");
+    const regions = new Set(sights.map((s) => areaRegion(s.area)));
+    if (regions.size >= AREA_SPREAD_WARN) {
+      warnings.push(
+        `第 ${day.day} 天的 ${sights.length} 个景点分散在 ${regions.size} 个不同区域（${[...regions].join("、")}），通勤与折返可能明显增加，建议合并同区域景点或拆分到多天`,
+      );
+    }
+  }
+
+  // 5) 当天人均花费
   day.dailyCostCny = day.spots.reduce((s, x) => s + x.costCny, 0);
 
   return { warnings, unverified, transitUnknown };

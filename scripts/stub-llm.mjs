@@ -85,6 +85,29 @@ function dayForRequested(userMsg) {
   return { day: dayNum, theme: src.theme, spots };
 }
 
+// 高区域分散的一天：5 个景点分属 5 个不同区县，确定触发区域分散度预警（阈值 4）。
+// fixture 每天最多 3 个景点，靠现有数据到不了阈值，所以这里直接构造。
+// 区县前缀必须真的不同——预警是按归一化后的区县计数的。
+function scatteredDayForRequested(userMsg) {
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  const wards = ["东城区", "西城区", "南港区", "北屯区", "和平区"];
+  const periods = ["morning", "morning", "lunch", "afternoon", "evening"];
+  const spots = wards.map((w, i) => ({
+    period: periods[i],
+    time: `${9 + i * 2}:00-${10 + i * 2}:00`,
+    type: "sight",
+    name: `分散景点${i + 1}`,
+    area: `${w}测试地段`,
+    durationMin: 90,
+    costCny: 50,
+    reason: "区域分散度测试用景点",
+    rainBackup: "室内备选",
+  }));
+  return { day: dayNum, theme: src.theme, spots };
+}
+
 // 单日响应的延迟（毫秒）：分日流式的核心价值是「逐天出现」，桩若秒回，
 // 整个任务瞬间完成，e2e 根本无法观测中间状态。测试编排器通过环境变量
 // 注入延迟，让渐进式交付可被断言。
@@ -161,6 +184,9 @@ const server = createServer((req, res) => {
     // 「乱序完成」：让后面的天比前面的天更早返回，专门考验并发下的前缀发布。
     // 触发词用「逆序」而非「乱序」——后者含「序」会和上面的「编号乱序」冲突。
     else if (isDayCall && userMsg.includes("逆序完成")) mode = "reversed";
+    // 「区域散」：当天的景点跨 5 个不同区县，确定触发区域分散度预警。
+    // fixture 每天最多 3 个景点，到不了阈值 4，所以这里直接构造。
+    else if (isDayCall && userMsg.includes("区域散")) mode = "scattered";
     console.log(`[stub] ${mode}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
@@ -201,6 +227,7 @@ const server = createServer((req, res) => {
       // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
       : mode === "wrongdays" ? JSON.stringify(CANNED_PLAN)
       : isOutlineCall ? JSON.stringify(outlineForRequestedDays(userMsg))
+      : mode === "scattered" ? JSON.stringify(scatteredDayForRequested(userMsg))
       : isDayCall ? JSON.stringify(dayForRequested(userMsg))
       : JSON.stringify(planForRequestedDays(userMsg));
 

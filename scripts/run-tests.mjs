@@ -491,6 +491,30 @@ async function phaseA(api) {
     prefixOk20, JSON.stringify(seen20));
   check("逆序完成：daysReady 单调不减",
     seen20.every((v, i) => i === 0 || v >= seen20[i - 1]), JSON.stringify(seen20));
+
+  // 用例 21：区域分散度预警——MOCK 模式下唯一的绕路信号。
+  // 没配高德 key 时通勤完全不估算，「景点集中在同一区域」这条 prompt 规则
+  // 有没有被遵守，用户此前得不到任何信号。阈值 4 是用真实数据校准的
+  // （京都 5 天归一到区县后是 1/1/1/2/3，全部正常），所以 fixture 的
+  // 归一 2/2/1 绝不该误报——先证伪，再证真。
+  const pNeg = await submitAndWait(api, { city: "苏州", days: 3, budget: 2500, preferences: [] }, "区域分散负例");
+  check("区域分散：fixture（归一 2/2/1 个区县）不误报",
+    !(pNeg.warnings ?? []).some((w) => w.includes("个不同区域")),
+    JSON.stringify(pNeg.warnings));
+
+  const r21 = await api.post({ city: "区域散测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-05T18:00", budget: 5000 });
+  check("区域分散：提交 202", r21.status === 202, `got ${r21.status}`);
+  const j21 = await api.waitJob(r21.body.jobId, 90000);
+  check("区域分散：任务 done", j21.status === "done", JSON.stringify(j21).slice(0, 120));
+  const spreadWarnings = (j21.plan?.warnings ?? []).filter((w) => w.includes("个不同区域"));
+  check("区域分散：高分散行程触发预警（5 景点跨 5 区县）",
+    spreadWarnings.length > 0, JSON.stringify(j21.plan?.warnings));
+  check("区域分散：预警点明第几天、景点数与区域数",
+    /第 \d+ 天的 \d+ 个景点分散在 \d+ 个不同区域/.test(spreadWarnings[0] ?? ""),
+    spreadWarnings[0]);
+  check("区域分散：文案给出可行动建议",
+    (spreadWarnings[0] ?? "").includes("合并同区域景点"), spreadWarnings[0]);
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------

@@ -125,7 +125,7 @@ Base URL：`/api`（与前端同源）
   }>;
   totalCostCny: number;
   tips: string[];
-  warnings: string[];                 // 体检预警：绕路/节奏/预算（超预算与宽松都报）/未验真/必游地漏排/住所未体现
+  warnings: string[];                 // 体检预警：绕路/节奏/预算（超预算与宽松都报）/区域分散/未验真/必游地漏排/住所未体现
   verified: boolean;                  // true = 走高德真实验证；false = MOCK 模式
   verification?: "mock" | "ok" | "partial" | "pending";
                                      // 验真完成度。pending 仅出现在分日流式的 running 响应里

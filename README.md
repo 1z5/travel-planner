@@ -12,7 +12,7 @@ AI 智能旅游规划 v1：输入目的地/起止时间/预算/偏好/节奏/住
 
 1. **LLM 只产结构化 JSON**（按天分时段：POI/时长/花费/雨天备选），前端渲染，模型没有自由发挥的空间
 2. **幻觉治理是命门**：每个景点/餐厅过高德 POI 搜索验真，站点间用距离矩阵估算真实通勤——排一个已关门的店用户就流失
-3. **体检而非改写**：v1 不改写 LLM 行程，只把风险（绕路/节奏/预算/未验真）全部摊开告诉用户
+3. **体检而非改写**：v1 不改写 LLM 行程，只把风险（绕路/节奏/预算/区域分散/未验真）全部摊开告诉用户
 
 ## 测试
 
@@ -88,7 +88,7 @@ lib/store/                  存储抽象层：JobStore/QuotaStore/CodeStore 接�
                              DATA_STORE 切换，两实现共享契约测试
 lib/amap.ts                 POI 验真 + 通勤估算，三态结果 hit/miss/error（MOCK 兜底）
 lib/concurrency.ts          有界并发 mapLimit：验真提速又不打满个人 key 的 QPS
-lib/validate.ts             幻觉治理 + 体检：绕路/节奏/预算/未验真（validateDay 单日体检 + finalizePlan 收尾，两条路径共用）
+lib/validate.ts             幻觉治理 + 体检：绕路/节奏/预算/区域分散/未验真（validateDay 单日体检 + finalizePlan 收尾，两条路径共用）
 lib/ics.ts                  行程 → iCalendar（RFC5545：字节折叠/跨零点/UID 唯一）
 lib/ratelimit.ts            配额与限流（每日双轨 + 小时桶防轰炸），经 Store 门面
 ```
