@@ -1,7 +1,7 @@
 import "server-only";
 import { AMAP_MOCK, lookupPoi, transitMinutes } from "./amap";
 import { mapLimit } from "./concurrency";
-import type { Plan, PlanInput } from "./types";
+import type { Plan, PlanDay, PlanInput } from "./types";
 
 // 幻觉治理 + 行程体检。
 // 定位：不改写 LLM 的行程（那是下一版的事），只做「标记 + 预警」——
@@ -13,6 +13,11 @@ import type { Plan, PlanInput } from "./types";
 //   error → 网络抖动 / key 失效 / QPS 超限 → **不能**进 warnings。
 //           把「服务不可用」说成「景点不存在」是预警系统在撒谎，
 //           只会汇总成一条系统提示，并跳过依赖该数据的判定。
+//
+// 两条路径共用同一套体检逻辑：
+//   validatePlan  单次调用路径（≤4 天）：逐天调 validateDay，最后统一收尾
+//   validateDay   分日流式路径（≥5 天）：每生成一天就体检一天，
+//                 预警随天数一起出现，不用等全量生成完
 
 const TRANSIT_WARN_MIN = 120;   // 当天通勤超过 2 小时视为疑似绕路
 const LOOSE_DAY_MIN = 5 * 60;   // 每天净时长低于 5h 视为过松
@@ -28,8 +33,7 @@ const PACE_LABEL: Record<NonNullable<PlanInput["pace"]>, string> = {
   packed: "紧凑",
 };
 const BUDGET_OVER = 1.05;       // 总花费超预算 5% 预警
-// POI 验真/通勤估算的并发上限：一次 4 天行程约 25 个 POI + 20 段通勤，
-// 串行要多等十几秒；个人高德 key 有 QPS 限制，5 路是速度与配额的安全档
+// POI 验真/通勤估算的并发上限：个人高德 key 有 QPS 限制，5 路是速度与配额的安全档
 const VERIFY_CONCURRENCY = 5;
 
 function fmtMin(min: number): string {
@@ -38,20 +42,31 @@ function fmtMin(min: number): string {
   return h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
 }
 
-export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> {
+/** 单日体检结果 */
+export interface DayCheck {
+  warnings: string[];       // 当天的预警（POI 未命中 / 通勤 / 节奏）
+  unverified: string[];     // 因上游异常未能验真的 POI（≠不存在）
+  transitUnknown: boolean;  // 当天通勤是否无法估算
+}
+
+/**
+ * 体检单独一天：POI 验真 + 通勤估算 + 节奏判定，
+ * 并回填该天的 transitMin / transitKnown / dailyCostCny。
+ *
+ * 注意：不改 plan 级字段（totalCostCny / warnings / verified），
+ * 那些由调用方在收尾时统一处理——分日路径要逐天累积，不能每次覆盖。
+ */
+export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): Promise<DayCheck> {
   const warnings: string[] = [];
-  const unverified: string[] = [];      // 因上游异常未能验真的 POI（≠不存在）
-  const transitUnknownDays: number[] = []; // 通勤无法估算的天
-  let grandTotal = 0;
+  const unverified: string[] = [];
+  let transitUnknown = false;
 
   // 1) POI 验真：景点和餐厅必须真实存在。
-  //    有界并发 + 保序：warning 仍按「天 → 当天顺序」输出，与串行版一致。
+  //    有界并发 + 保序：warning 仍按当天顺序输出。
   if (!AMAP_MOCK) {
-    const targets = plan.days.flatMap((d) =>
-      d.spots
-        .filter((s) => s.type === "sight" || s.type === "food")
-        .map((s) => ({ name: s.name, day: d.day })),
-    );
+    const targets = day.spots
+      .filter((s) => s.type === "sight" || s.type === "food")
+      .map((s) => ({ name: s.name, day: day.day }));
     const results = await mapLimit(targets, VERIFY_CONCURRENCY, async (t) => ({
       t,
       r: await lookupPoi(plan.city, t.name),
@@ -67,54 +82,66 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
     }
   }
 
-  for (const day of plan.days) {
-    // 2) 通勤：相邻站点间估算，有界并发（段与段互不依赖）。
-    //    MOCK 模式下不估算——哈希假数据只会制造「疑似绕路」的虚假预警，
-    //    节奏判定也退化为纯停留时长（avoids 假数据污染两个指标）。
-    let transit = 0;
-    let transitUnknown = false;
-    if (!AMAP_MOCK) {
-      const segments: Array<{ from: string; to: string }> = [];
-      for (let i = 0; i < day.spots.length - 1; i++) {
-        segments.push({ from: day.spots[i].name, to: day.spots[i + 1].name });
-      }
-      const segResults = await mapLimit(segments, VERIFY_CONCURRENCY, async (seg) => ({
-        seg,
-        r: await transitMinutes(plan.city, seg.from, seg.to),
-      }));
-      for (const { r } of segResults) {
-        if (r.state === "unknown") transitUnknown = true;
-        else transit += r.minutes;
-      }
-      if (transitUnknown) {
-        transitUnknownDays.push(day.day);
-      } else if (transit > TRANSIT_WARN_MIN) {
-        warnings.push(
-          `第 ${day.day} 天站点间通勤约 ${fmtMin(transit)}，偏长，可能存在绕路，建议合并同区域景点`,
-        );
-      }
+  // 2) 通勤：相邻站点间估算，有界并发（段与段互不依赖）。
+  //    MOCK 模式下不估算——哈希假数据只会制造「疑似绕路」的虚假预警，
+  //    节奏判定也退化为纯停留时长（avoids 假数据污染两个指标）。
+  let transit = 0;
+  if (!AMAP_MOCK) {
+    const segments: Array<{ from: string; to: string }> = [];
+    for (let i = 0; i < day.spots.length - 1; i++) {
+      segments.push({ from: day.spots[i].name, to: day.spots[i + 1].name });
     }
-    day.transitMin = transit;
-    day.transitKnown = !transitUnknown;
-
-    // 3) 节奏：停留 + 通勤。
-    //    通勤未知时跳过——只算停留会把「偏松」误报给用户。
-    const active = day.spots.reduce((s, x) => s + x.durationMin, 0) + transit;
-    const pace = input.pace ?? "balanced";
-    if (!transitUnknown) {
-      if (active > PACE_DAY_MIN[pace]) {
-        warnings.push(
-          `第 ${day.day} 天安排约 ${fmtMin(active)}，超出${PACE_LABEL[pace]}节奏上限（${PACE_DAY_MIN[pace] / 60} 小时），可删减 1 个景点或改选更紧凑节奏`,
-        );
-      } else if (active < LOOSE_DAY_MIN) {
-        warnings.push(`第 ${day.day} 天安排约 ${fmtMin(active)}，偏松，可加一个景点或放慢节奏`);
-      }
+    const segResults = await mapLimit(segments, VERIFY_CONCURRENCY, async (seg) => ({
+      seg,
+      r: await transitMinutes(plan.city, seg.from, seg.to),
+    }));
+    for (const { r } of segResults) {
+      if (r.state === "unknown") transitUnknown = true;
+      else transit += r.minutes;
     }
-
-    // 4) 预算
-    day.dailyCostCny = day.spots.reduce((s, x) => s + x.costCny, 0);
-    grandTotal += day.dailyCostCny;
+    if (!transitUnknown && transit > TRANSIT_WARN_MIN) {
+      warnings.push(
+        `第 ${day.day} 天站点间通勤约 ${fmtMin(transit)}，偏长，可能存在绕路，建议合并同区域景点`,
+      );
+    }
   }
+  day.transitMin = transit;
+  day.transitKnown = !transitUnknown;
+
+  // 3) 节奏：停留 + 通勤。
+  //    通勤未知时跳过——只算停留会把「偏松」误报给用户。
+  const active = day.spots.reduce((s, x) => s + x.durationMin, 0) + transit;
+  const pace = input.pace ?? "balanced";
+  if (!transitUnknown) {
+    if (active > PACE_DAY_MIN[pace]) {
+      warnings.push(
+        `第 ${day.day} 天安排约 ${fmtMin(active)}，超出${PACE_LABEL[pace]}节奏上限（${PACE_DAY_MIN[pace] / 60} 小时），可删减 1 个景点或改选更紧凑节奏`,
+      );
+    } else if (active < LOOSE_DAY_MIN) {
+      warnings.push(`第 ${day.day} 天安排约 ${fmtMin(active)}，偏松，可加一个景点或放慢节奏`);
+    }
+  }
+
+  // 4) 当天人均花费
+  day.dailyCostCny = day.spots.reduce((s, x) => s + x.costCny, 0);
+
+  return { warnings, unverified, transitUnknown };
+}
+
+/** plan 级收尾所需的上下文（由调用方逐天累积而来） */
+export interface FinalizeCtx {
+  warnings: string[];
+  unverified: string[];
+  transitUnknownDays: number[];
+  grandTotal: number;
+}
+
+/**
+ * plan 级收尾：预算核对 + 用户硬约束核验 + 验真完成度 + 系统提示。
+ * 分日路径在所有天生成完后调用一次；单次路径在 validatePlan 末尾调用。
+ */
+export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): void {
+  const { warnings, unverified, transitUnknownDays, grandTotal } = ctx;
 
   if (grandTotal > input.budget * BUDGET_OVER) {
     warnings.push(
@@ -122,7 +149,7 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
     );
   }
 
-  // 5) 用户硬约束核验：prompt 要求了，这里验证承诺是否兑现
+  // 用户硬约束核验：prompt 要求了，这里验证承诺是否兑现
   const allSpotNames = plan.days.flatMap((d) => d.spots.map((s) => s.name)).join("\n");
   for (const mv of input.mustVisit ?? []) {
     if (!allSpotNames.includes(mv)) {
@@ -166,5 +193,23 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
       `第 ${transitUnknownDays.join("、")} 天通勤估算失败（高德服务波动），当天的通勤与节奏体检已跳过，未按估算值判定`,
     );
   }
+}
+
+/** 单次调用路径（≤4 天）：逐天体检 + 统一收尾 */
+export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> {
+  const warnings: string[] = [];
+  const unverified: string[] = [];
+  const transitUnknownDays: number[] = [];
+  let grandTotal = 0;
+
+  for (const day of plan.days) {
+    const check = await validateDay(plan, day, input);
+    warnings.push(...check.warnings);
+    unverified.push(...check.unverified);
+    if (check.transitUnknown) transitUnknownDays.push(day.day);
+    grandTotal += day.dailyCostCny;
+  }
+
+  finalizePlan(plan, input, { warnings, unverified, transitUnknownDays, grandTotal });
   return plan;
 }

@@ -20,5 +20,14 @@ export async function GET(req: NextRequest) {
   if (job.status === "error") {
     return NextResponse.json({ status: "error", error: job.error, remaining });
   }
-  return NextResponse.json({ status: "running", elapsedMs: Date.now() - job.createdAt });
+  // running：分日流式路径会增量写入 job.plan（已生成的天 + 骨架）。
+  // 带出去前端就能渐进渲染，不必等全量生成完。
+  // daysReady/daysTotal 让前端能显示「已生成 N/M 天」。
+  const daysReady = job.plan?.days.length ?? 0;
+  return NextResponse.json({
+    status: "running",
+    elapsedMs: Date.now() - job.createdAt,
+    plan: job.plan,
+    daysReady,
+  });
 }

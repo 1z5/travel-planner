@@ -4,13 +4,61 @@ import { z } from "zod";
 import type { Plan, PlanInput, PlanSpot } from "./types";
 
 // ============================================================
-// 单次调用生成完整行程。
+// 行程生成。两条路径，按天数分流：
 //
-// 演进记录：曾改为「大纲 + 分日并行」（约 320s），实测比单次
-// （约 253s）更慢——推理模型的单日调用继承了大部分复杂度，
-// 且 16000 token 的单日额度偏紧会触发空返回重试。故回退单次调用，
-// 慢的问题用「异步任务 + 进度轮询」的 UX 方案解决（见 lib/jobs.ts）。
+// 1) ≤4 天：单次调用生成完整行程（下方 generatePlan）。
+//    这是被 124 条 e2e + 多个真实 case 验证过的路径，质量最稳，
+//    不动它——避免为长行程改架构时把短行程的质量搞回归。
+//
+// 2) ≥5 天：大纲 + 分日流式（下方 generateOutline / generateDay）。
+//    单次调用在这个长度必爆 token（实测 5 天跑满 16 分钟仍超时），
+//    所以拆成「一次小大纲 + 每天一次小调用」。附带收益是渐进式交付：
+//    用户不用盯着转圈 8 分钟，天数逐天出现。
+//
+// 演进记录：曾试过「大纲 + 分日并行」替代单次调用，实测 320s 比单次
+// 253s 更慢（推理模型的单日调用继承了大部分复杂度），已回退。所以这里
+// 不是「哪个更快用哪个」，而是「单次能扛的用单次，扛不动的才拆分」。
 // ============================================================
+
+// ---------- 路径 2 的 schema：大纲与单日 ----------
+
+const OutlineSchema = z.object({
+  city: z.string(),
+  summary: z.string(),
+  // 每天只给主题与区域分配——刻意保持小输出，让这次调用几秒内返回
+  days: z.array(
+    z.object({
+      day: z.number(),
+      theme: z.string(),
+      area: z.string(),        // 当天主战场，如 "姑苏区古城带"
+      focus: z.string(),       // 一句话说明这天怎么安排，如 "以园林为主，午后转平江路"
+    }),
+  ),
+  tips: z.array(z.string()),
+});
+
+const DaySchema = z.object({
+  day: z.number(),
+  theme: z.string(),
+  spots: z.array(
+    z.object({
+      period: z.enum(["morning", "lunch", "afternoon", "dinner", "evening"]),
+      time: z.string(),
+      type: z.enum(["sight", "food", "hotel", "transport", "shopping", "activity"]),
+      name: z.string(),
+      area: z.string(),
+      durationMin: z.number(),
+      costCny: z.number(),
+      reason: z.string(),
+      rainBackup: z.string().optional(),
+    }),
+  ),
+});
+
+export type Outline = z.infer<typeof OutlineSchema>;
+export type DayPlan = z.infer<typeof DaySchema>;
+
+// ---------- 路径 1 的 schema：≤4 天单次调用输出完整行程 ----------
 
 const PlanSchema = z.object({
   city: z.string(),
@@ -80,6 +128,67 @@ const SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为单人旅行
 - 期望必游地：列出的地点**必须全部出现**在行程中（按所在区域分配到各天，与你的推荐融合排期）。不得以任何理由静默丢弃；若某必游地你判断不存在或明显无法安排（如闭馆），放在 tips 里显式说明，不要假装安排了。
 `;
 
+// ---------- 路径 2 的提示词 ----------
+
+// 大纲：刻意只输出「主题 + 区域 + 思路」，不排时刻表。
+// 输出小 → 这次调用几秒内返回，用户立刻能看到行程骨架。
+const OUTLINE_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为多日旅行先做「行程大纲」。
+
+输出要求（严格遵守）：
+1. 只输出一个合法 JSON 对象，不要输出任何解释文字，不要 markdown 代码围栏。
+2. 结构：
+{
+  "city": "城市",
+  "summary": "一句话行程概览",
+  "days": [{
+    "day": 1,
+    "theme": "当天主题，4-6 字，天与天之间要有明显差异",
+    "area": "当天主战场区域，要具体到可执行，如 姑苏区古城带",
+    "focus": "这天怎么安排，一两句，如 以园林为主，午后转平江路步行街"
+  }],
+  "tips": ["覆盖整个行程的预约/避坑提示"]
+}
+
+规划规则：
+- 天数必须严格等于用户要求的天数，day 从 1 连续编号，一天都不能少。
+- 相邻两天不要安排在同一区域，按地理顺序推进，减少跨区折返。
+- 用户列出的期望必游地要分配到具体某几天，不要全堆在一天，也不要漏。
+- 行程较长时注意收尾：最后一天不要安排需要长时间游览的景点（要考虑离开时间）。
+`;
+
+// 单日：只生成一天的时刻表。当天景点必须落在大纲指定的区域内。
+const DAY_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，现在生成多日行程中某一天的时刻表。
+
+输出要求（严格遵守）：
+1. 只输出一个合法 JSON 对象，不要输出任何解释文字，不要 markdown 代码围栏。
+2. 结构：
+{
+  "day": 天数序号,
+  "theme": "当天主题（使用给定主题，不要自创）",
+  "spots": [{
+    "period": "morning|lunch|afternoon|dinner|evening",
+    "time": "HH:MM-HH:MM",
+    "type": "sight|food|hotel|transport|shopping|activity",
+    "name": "POI 名称（必须真实存在）",
+    "area": "所在商圈/区域",
+    "durationMin": 120,
+    "costCny": 0,
+    "reason": "为什么去这里，一两句人话",
+    "rainBackup": "雨天备选（室外景点必填，室内可省略）"
+  }]
+}
+
+规划规则：
+- 当天景点必须落在大纲指定的主战场区域内，不要跨区折返。
+- 每天 2~4 个主景点 + 午餐 + 晚餐；每天 21:00 前结束。
+- 室外景点（公园、古镇、步行街类）必须给室内 rainBackup。
+- 餐饮选本地人常去、有代表性的店，避开"XX 小吃一条街"这类游客陷阱。
+- 每个景点给真实合理的人均花费（含门票），没有门票填 0。
+- 每天净游玩时间（景点停留 + 通勤）不超过用户选定节奏的上限；宁松勿满。
+- 住宿只在这一天安排：行程第一天，且只此一次（type=hotel，用具体酒店名）。
+- 不要输出 totalCostCny 和 tips——那是整个行程层面的，由大纲负责。
+`;
+
 function client(): OpenAI {
   if (!process.env.LLM_API_KEY) throw new Error("缺少 LLM_API_KEY，请配置 .env");
   return new OpenAI({
@@ -92,6 +201,55 @@ function client(): OpenAI {
     // 且 generatePlan 已有 attempt 2，重试交给它
     maxRetries: 0,
   });
+}
+
+/**
+ * 一次流式调用，返回拼接后的正文与 token 统计。
+ *
+ * 为什么必须流式：推理模型生成要 3-5 分钟，非流式会撞上 Node fetch 的
+ * undici headersTimeout（默认 300s，比我们配的 420s SDK 超时先炸）——
+ * 响应头迟迟不来就被静默掐断。流式下 header 立即返回、chunk 持续流动，
+ * 300 秒天花板消失，顺带拿到真实 usage。
+ *
+ * 三条生成路径（单次/大纲/分日）共用，避免同一套流式逻辑写三份。
+ */
+async function streamChat(
+  llm: OpenAI,
+  system: string,
+  user: string,
+  city: string,
+  tag = "",
+): Promise<{ content: string; tokens: number }> {
+  let content = "";
+  let totalTokens = 0;
+  try {
+    const stream = await llm.chat.completions.create({
+      model: process.env.LLM_MODEL || "step-5-preview",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
+      reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) content += delta;
+      if (chunk.usage) totalTokens = chunk.usage.total_tokens ?? 0;
+    }
+  } catch (e) {
+    const msg = (e as Error).message ?? "";
+    console.log(`[llm] ${city} ${tag}异常: ${msg}`);
+    if (/timed out|timeout/i.test(msg)) {
+      // 流式下 SDK 超时约束的是「chunk 间隔」而非总时长（实测 496s 的任务
+      // 也未被 420s 掐断），所以这里触发时是断流/连接问题，不是"到点没返回"
+      throw new Error("生成中断或连接超时，请稍后重试（可减少天数或换个城市）");
+    }
+    throw e;
+  }
+  return { content, tokens: totalTokens };
 }
 
 function fmtRange(startAt: string, endAt: string): string {
@@ -109,9 +267,13 @@ const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
   packed: "紧凑：每天 3~5 个主景点 + 午餐 + 晚餐，能看则看，当天净游玩时间不超过 13 小时。",
 };
 
-function buildUserPrompt(input: PlanInput, correction?: string): string {
+/**
+ * 用户约束的公共描述：三条生成路径（单次 / 大纲 / 分日）共用。
+ * 抽出来是为了避免同一份约束在三处各写一遍——曾经踩过「改了一处漏两处」
+ * 导致 prompt 与实际行为漂移的坑。
+ */
+function baseLines(input: PlanInput): string[] {
   const lines = [
-    "请规划行程：",
     `- 目的地：${input.city}`,
     `- 天数：${input.days} 天`,
     `- 人均预算：${input.budget} 元（不含往返大交通，含当地吃住行玩）`,
@@ -132,12 +294,81 @@ function buildUserPrompt(input: PlanInput, correction?: string): string {
   if (input.mustVisit?.length) {
     lines.push(`- 期望必游地（必须全部安排进行程）：${input.mustVisit.join("、")}`);
   }
+  return lines;
+}
+
+function buildUserPrompt(input: PlanInput, correction?: string): string {
+  const lines = [
+    "请规划行程：",
+    ...baseLines(input),
+  ];
   if (correction) {
     lines.push(
       `- 上一次输出不符合要求：${correction}。本次必须严格输出 ${input.days} 天，day 字段从 1 连续编号，每天至少 1 个行程点。`,
     );
   }
   return lines.join("\n");
+}
+
+// ---------- 路径 2 的用户提示词 ----------
+
+// 大纲：强调「只出骨架不排时刻表」，并说明分日生成会随后进行
+function buildOutlinePrompt(input: PlanInput, correction?: string): string {
+  const lines = [
+    "请为这次旅行输出行程大纲（只定主题/区域/思路，不排时刻表）：",
+    ...baseLines(input),
+  ];
+  if (correction) {
+    lines.push(
+      `- 上一次输出不符合要求：${correction}。本次必须严格输出 ${input.days} 天，day 从 1 连续编号，每天都要有主题和区域。`,
+    );
+  } else {
+    lines.push(`- 必须严格输出 ${input.days} 天，day 从 1 连续编号。`);
+  }
+  return lines.join("\n");
+}
+
+// 单日：注入大纲上下文（当天主题/区域/思路 + 其他天主题供错开），
+// 以及当天预算提示（总额按天分摊，首日另含全程住宿）
+function buildDayPrompt(
+  input: PlanInput,
+  outline: Outline,
+  dayIdx: number,
+  correction?: string,
+): string {
+  const day = outline.days[dayIdx];
+  const others = outline.days
+    .filter((_, i) => i !== dayIdx)
+    .map((d) => `第 ${d.day} 天：${d.theme}（${d.area}）`)
+    .join("；");
+  const perDay = Math.max(1, Math.round(input.budget / input.days));
+  const hotelNote =
+    input.hotel?.trim() && dayIdx === 0
+      ? `；第一天的酒店 spot 必须直接使用用户住所「${input.hotel.trim()}」`
+      : "";
+  const budgetHint =
+    dayIdx === 0 && input.days > 1
+      ? `当天人均花费建议约 ${perDay} 元；住宿总价（晚均价 250-500 元 × ${input.days - 1} 晚）计入第一天酒店 spot 的 costCny${hotelNote}`
+      : `当天人均花费建议约 ${perDay} 元（不含住宿）`;
+
+  const lines = [
+    `现在生成行程中第 ${day.day} 天的时刻表（共 ${input.days} 天，这是第 ${dayIdx + 1} 天）。`,
+    "",
+    `【整个行程的概览】${outline.summary}`,
+    `【当天的安排思路】${day.theme} —— ${day.focus}`,
+    `【当天的主战场区域】${day.area}（当天景点必须落在这个区域，不要跨区折返）`,
+    others ? `【其他天的主题，供你错开安排，不要重复】${others}` : "",
+    "",
+    "【本次请求的约束】",
+    ...baseLines(input),
+    `- ${budgetHint}`,
+  ];
+  if (correction) {
+    lines.push(
+      `- 上一次输出不符合要求：${correction}。本次必须输出第 ${day.day} 天，day 字段为 ${day.day}，且至少 1 个行程点。`,
+    );
+  }
+  return lines.filter((l) => l !== "").join("\n");
 }
 
 function extractJson(text: string): unknown {
@@ -200,38 +431,13 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
 
   // 两次机会：空返回 / JSON 不合法 / 结构不符，都带原因重试一次
   for (let attempt = 1; attempt <= 2; attempt++) {
-    let content = "";
-    let totalTokens = 0;
-    try {
-      // 流式：推理模型生成要 3-5 分钟，非流式会撞上 Node fetch 的
-      // undici headersTimeout（默认 300s，响应头迟迟不来就被掐断，
-      // 比我们的 420s 超时先炸）。流式下 header 立即返回、chunk 持续流动。
-      const stream = await llm.chat.completions.create({
-        model: process.env.LLM_MODEL || "step-5-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildUserPrompt(input, correction) },
-        ],
-        max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
-        reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
-        stream: true,
-        stream_options: { include_usage: true },
-      });
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content;
-        if (delta) content += delta;
-        if (chunk.usage) totalTokens = chunk.usage.total_tokens ?? 0;
-      }
-    } catch (e) {
-      const msg = (e as Error).message ?? "";
-      console.log(`[llm] ${input.city} 第${attempt}次异常: ${msg}`);
-      if (/timed out|timeout/i.test(msg)) {
-        // 流式下 SDK 超时约束的是「chunk 间隔」而非总时长（实测 496s 的任务
-        // 也未被 420s 掐断），所以这里触发时是断流/连接问题，不是“到点没返回”
-        throw new Error("生成中断或连接超时，请稍后重试（可减少天数或换个城市）");
-      }
-      throw e;
-    }
+    const { content, tokens: totalTokens } = await streamChat(
+      llm,
+      SYSTEM_PROMPT,
+      buildUserPrompt(input, correction),
+      input.city,
+      `第${attempt}次`,
+    );
 
     if (!content.trim()) {
       if (attempt === 2) {
@@ -263,6 +469,128 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
       continue;
     }
     return plan;
+  }
+  throw new Error("unreachable");
+}
+
+// ============================================================
+// 路径 2：大纲 + 分日（≥5 天）。
+// 单次调用在这个长度必爆 token，所以拆成「一次小大纲 + 每天一次小调用」。
+// 每次调用都做与路径 1 同规格的保护：空返回重试、JSON 不合法重试、
+// 结构不符带纠正指令重试。
+// ============================================================
+
+/** 大纲结构核对：天数必须等于请求天数，每天要有主题和区域 */
+function outlineProblem(outline: Outline, input: PlanInput): string | null {
+  if (outline.days.length !== input.days) {
+    return `输出 ${outline.days.length} 天，请求 ${input.days} 天`;
+  }
+  const bad = outline.days.filter((d) => !d.theme.trim() || !d.area.trim()).map((d) => d.day);
+  if (bad.length) return `第 ${bad.join("、")} 天缺少主题或区域`;
+  return null;
+}
+
+/**
+ * 生成行程大纲。输出刻意保持小（只有主题/区域/思路），所以这次调用
+ * 几秒内就能返回——调用方拿到后即可把骨架展示给用户，不用等全量生成。
+ */
+export async function generateOutline(input: PlanInput): Promise<Outline> {
+  const llm = client();
+  let correction: string | undefined;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { content, tokens } = await streamChat(
+      llm,
+      OUTLINE_SYSTEM_PROMPT,
+      buildOutlinePrompt(input, correction),
+      input.city,
+      `大纲 第${attempt}次`,
+    );
+    if (!content.trim()) {
+      if (attempt === 2) throw new Error("LLM 大纲返回为空，请稍后重试");
+      continue;
+    }
+    console.log(`[llm] ${input.city} 大纲 第${attempt}次 tokens=${tokens || "?"}`);
+
+    let outline: Outline;
+    try {
+      const parsed = OutlineSchema.parse(extractJson(content));
+      // 归一化：按 day 排序 + 重编号为连续 1..N（与路径 1 同规格）
+      outline = {
+        ...parsed,
+        days: [...parsed.days]
+          .sort((a, b) => a.day - b.day)
+          .map((d, i) => ({ ...d, day: i + 1 })),
+      };
+    } catch (e) {
+      if (attempt === 2) throw new Error(`LLM 大纲不是合法 JSON（${(e as Error).message}）`);
+      continue;
+    }
+
+    const problem = outlineProblem(outline, input);
+    if (problem) {
+      if (attempt === 2) throw new Error(`LLM 大纲结构与请求不符（${problem}）`);
+      correction = problem;
+      console.log(`[llm] ${input.city} 大纲结构不符（${problem}），带纠正指令重试`);
+      continue;
+    }
+    return outline;
+  }
+  throw new Error("unreachable");
+}
+
+/** 单日结构核对：必须有景点点，且 theme 非空 */
+function dayProblem(day: DayPlan, expectedDay: number): string | null {
+  if (day.spots.length === 0) return "这一天没有行程点";
+  if (!day.theme.trim()) return "缺少当天主题";
+  if (day.day !== expectedDay) return `day 字段应为 ${expectedDay}，实际 ${day.day}`;
+  return null;
+}
+
+/**
+ * 生成某一天的时刻表。dayIdx 是 0 基索引。
+ * 单日调用比整次调用小得多，通常几十秒内完成——调用方每拿到一天就
+ * 更新一次任务状态，实现渐进式交付。
+ */
+export async function generateDay(
+  input: PlanInput,
+  outline: Outline,
+  dayIdx: number,
+): Promise<DayPlan> {
+  const llm = client();
+  const expectedDay = dayIdx + 1;
+  let correction: string | undefined;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { content, tokens } = await streamChat(
+      llm,
+      DAY_SYSTEM_PROMPT,
+      buildDayPrompt(input, outline, dayIdx, correction),
+      input.city,
+      `第${expectedDay}天 第${attempt}次`,
+    );
+    if (!content.trim()) {
+      if (attempt === 2) throw new Error(`第 ${expectedDay} 天生成返回为空，请稍后重试`);
+      continue;
+    }
+    console.log(`[llm] ${input.city} 第${expectedDay}天 第${attempt}次 tokens=${tokens || "?"}`);
+
+    let day: DayPlan;
+    try {
+      day = DaySchema.parse(extractJson(content));
+    } catch (e) {
+      if (attempt === 2) throw new Error(`第 ${expectedDay} 天输出不是合法 JSON（${(e as Error).message}）`);
+      continue;
+    }
+
+    const problem = dayProblem(day, expectedDay);
+    if (problem) {
+      if (attempt === 2) throw new Error(`第 ${expectedDay} 天生成结果不符（${problem}）`);
+      correction = problem;
+      console.log(`[llm] ${input.city} 第${expectedDay}天 结构不符（${problem}），带纠正指令重试`);
+      continue;
+    }
+    return day;
   }
   throw new Error("unreachable");
 }

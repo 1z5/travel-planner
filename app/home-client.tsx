@@ -67,6 +67,8 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [mvInput, setMvInput] = useState("");
   // 行程节奏：轻松/适中/紧凑
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
+  // 本次提交的总天数：分日流式路径下用于显示「已生成 N/M 天」
+  const [submittedDays, setSubmittedDays] = useState<number | null>(null);
 
   // 卸载标记：轮询是长任务（分钟级），用户离开页面后必须停止，
   // 否则既白烧请求又可能在卸载后 setState
@@ -194,6 +196,11 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         setLoading(false);
         return;
       }
+      // running：分日流式路径（≥5 天）会增量回传已生成的天。
+      // 立即渲染，让用户逐天看到结果，而不是干等一个总 deadline。
+      // 注意此时不设 jobId——分享页只认 status=done 的任务，
+      // 中途把链接给出去只会看到「链接已失效」。
+      if (data.plan) setPlan(data.plan);
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       return poll();
     };
@@ -215,6 +222,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     setLoading(true);
     setError("");
     setPlan(null);
+    setSubmittedDays(derivedDays); // 记录本次提交的总天数，供「已生成 N/M 天」使用
     try {
       const res = await fetch("/api/plan", {
         method: "POST",
@@ -292,7 +300,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
                 </span>
               ))}
             </div>
-            <p className="helper">目前支持国内城市，1-4 天</p>
+            <p className="helper">目前支持国内城市，1-7 天</p>
           </div>
           <div>
             <label htmlFor="budget">人均预算（元，不含大交通）</label>
@@ -315,7 +323,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         </div>
         {derivedDays !== null && (
           <p className="muted" style={{ marginTop: 4 }}>
-            共 {derivedDays} 天{derivedDays > 4 ? "（超过 4 天的部分暂不支持）" : ""}
+            共 {derivedDays} 天{derivedDays > 7 ? "（超过 7 天的部分暂不支持）" : ""}
             {derivedDays === 1 ? "（当天往返）" : ""}
           </p>
         )}
@@ -464,6 +472,13 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           <p className="muted" style={{ marginTop: 8 }}>
             推理模型做约束规划通常 2-4 分钟，跨境目的地（如香港）可能 8 分钟以上，
             可以放着等，页面上方会实时显示进度。
+          </p>
+        )}
+        {/* 分日流式进度：≥5 天的行程会逐天生成，这里告诉用户进度，
+            避免长任务下只看到一个总 deadline 干等 */}
+        {loading && submittedDays !== null && submittedDays >= 5 && plan && plan.days.length > 0 && (
+          <p className="muted" role="status" style={{ marginTop: 4 }}>
+            已生成 {plan.days.length}/{submittedDays} 天——下方行程随生成进度逐天出现
           </p>
         )}
         {remaining !== null && (

@@ -53,6 +53,44 @@ function scrambledPlan() {
   };
 }
 
+// ---------- 分日流式（≥5 天）的桩响应 ----------
+// 两次调用靠 system prompt 区分：大纲调用含「行程大纲」，单日调用含
+// 「某一天的时刻表」。天数同样按请求适配（见 planForRequestedDays 注释）。
+
+function outlineForRequestedDays(userMsg) {
+  const m = userMsg.match(/天数：(\d+)\s*天/);
+  const n = m ? Number(m[1]) : CANNED_PLAN.days.length;
+  const days = [];
+  for (let i = 0; i < n; i++) {
+    const src = CANNED_PLAN.days[Math.min(i, CANNED_PLAN.days.length - 1)];
+    days.push({
+      day: i + 1,
+      theme: src.theme,
+      area: src.spots[0]?.area ?? "测试区",
+      focus: `第 ${i + 1} 天的安排思路（桩数据）`,
+    });
+  }
+  return { city: CANNED_PLAN.city, summary: CANNED_PLAN.summary, days, tips: CANNED_PLAN.tips ?? [] };
+}
+
+function dayForRequested(userMsg) {
+  // day prompt 形如「现在生成行程中第 N 天的时刻表（共 M 天，这是第 K 天）」
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  let spots = src.spots.map((s) => ({ ...s }));
+  // 住宿只应出现在第一天：循环补齐时第 4/5 天会复用 fixture 的第 1 天，
+  // 把酒店 spot 剔掉，避免桩数据自相矛盾
+  if (dayNum > 1) spots = spots.filter((s) => s.type !== "hotel");
+  return { day: dayNum, theme: src.theme, spots };
+}
+
+// 单日响应的延迟（毫秒）：分日流式的核心价值是「逐天出现」，桩若秒回，
+// 整个任务瞬间完成，e2e 根本无法观测中间状态。测试编排器通过环境变量
+// 注入延迟，让渐进式交付可被断言。
+const DAY_DELAY_MS = Number(process.env.STUB_DAY_DELAY_MS || 0);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
@@ -69,15 +107,21 @@ const server = createServer((req, res) => {
   }
   let body = "";
   req.on("data", (c) => (body += c));
-  req.on("end", () => {
+  req.on("end", async () => {
     let userMsg = "";
+    let systemMsg = "";
     let isStream = false;
     try {
       const parsed = JSON.parse(body);
       userMsg = parsed.messages?.filter((m) => m.role === "user").map((m) => m.content).join("\n") ?? "";
+      systemMsg = parsed.messages?.filter((m) => m.role === "system").map((m) => m.content).join("\n") ?? "";
       lastUserMsg = userMsg;
       isStream = parsed.stream === true;
     } catch { /* 空 body 按 valid 处理 */ }
+
+    // 分日流式的两次调用靠 system prompt 区分
+    const isOutlineCall = systemMsg.includes("行程大纲");
+    const isDayCall = systemMsg.includes("某一天的时刻表");
 
     let mode = "valid";
     if (userMsg.includes("垃圾")) mode = "garbage";
@@ -85,7 +129,14 @@ const server = createServer((req, res) => {
     else if (userMsg.includes("故障")) mode = "http500";
     else if (userMsg.includes("编号乱序")) mode = "scrambled";
     else if (userMsg.includes("天数错")) mode = "wrongdays";
-    console.log(`[stub] ${mode}${isStream ? " (stream)" : ""}`);
+    // 单日阶段故障：第 2 天起返回垃圾（测「已生成几天后中途失败 → 任务 error + 退还配额」）。
+    // 触发词刻意避开「故障」——那个词会被上面的 http500 模式先截走，
+    // 导致大纲阶段就失败，测不到「中途」失败。
+    else if (isDayCall && userMsg.includes("单日坏")) {
+      const dm = userMsg.match(/第 (\d+) 天的时刻表/);
+      if (dm && Number(dm[1]) >= 2) mode = "garbage";
+    }
+    console.log(`[stub] ${mode}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -93,12 +144,17 @@ const server = createServer((req, res) => {
       return;
     }
 
+    // 单日响应走延迟：让渐进式交付在 e2e 里可被观测（见 DAY_DELAY_MS 注释）
+    if (isDayCall && DAY_DELAY_MS > 0 && mode !== "garbage") await sleep(DAY_DELAY_MS);
+
     const content =
       mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
       : mode === "empty" ? ""
       : mode === "scrambled" ? JSON.stringify(scrambledPlan())
       // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
       : mode === "wrongdays" ? JSON.stringify(CANNED_PLAN)
+      : isOutlineCall ? JSON.stringify(outlineForRequestedDays(userMsg))
+      : isDayCall ? JSON.stringify(dayForRequested(userMsg))
       : JSON.stringify(planForRequestedDays(userMsg));
 
     if (isStream) {

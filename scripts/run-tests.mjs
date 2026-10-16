@@ -135,7 +135,7 @@ async function phaseA(api) {
     ["空 body", {}],
     ["城市太短", { city: "北", days: 3, budget: 2500 }],
     ["结束早于开始", { city: "成都", startAt: "2026-10-10T10:00", endAt: "2026-10-09T18:00", budget: 2500 }],
-    ["5 天跨度（超上限）", { city: "成都", startAt: "2026-10-01T10:00", endAt: "2026-10-05T18:00", budget: 2500 }],
+    ["8 天跨度（超上限）", { city: "成都", startAt: "2026-10-01T10:00", endAt: "2026-10-08T18:00", budget: 2500 }],
     ["起始时间格式畸形", { city: "成都", startAt: "2026/10/10 10:00", endAt: "2026-10-12T18:00", budget: 2500 }],
     ["预算过低", { city: "成都", days: 3, budget: 100 }],
     ["预算=0", { city: "成都", days: 3, budget: 0 }],
@@ -329,6 +329,68 @@ async function phaseA(api) {
     (lastUser13.user ?? "").includes("上一次输出不符合要求")
     && (lastUser13.user ?? "").includes("输出 3 天，请求 4 天"),
     lastUser13.user?.slice(-120));
+
+  // 用例 14：分日流式（≥5 天）——M6 新架构的核心行为验证。
+  // 以前 5 天起就被拒（单次生成必爆 token），现在走「大纲 → 逐日生成」。
+  // 关键断言是「渐进式交付」：轮询过程中 daysReady 必须逐日递增，
+  // 而不是一直 0 然后突然 5——后者说明退化成了等全量完成。
+  const r14 = await api.post({ city: "流式测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-05T18:00", budget: 5000, preferences: ["美食"] });
+  check("分日流式：5 天提交 202", r14.status === 202, `got ${r14.status}`);
+  const seenDays = [];
+  let final14 = {};
+  {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 90000) {
+      const d = await (await fetch(`${api.baseUrl}/api/plan/status?id=${r14.body.jobId}`)).json();
+      if (d.status === "done" || d.status === "error") { final14 = d; break; }
+      // 记录观测到的中间进度（只记变化，避免同一值重复入栈）
+      if (typeof d.daysReady === "number" && seenDays[seenDays.length - 1] !== d.daysReady) {
+        seenDays.push(d.daysReady);
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  check("分日流式：任务最终 done", final14.status === "done",
+    JSON.stringify(final14).slice(0, 120));
+  check("分日流式：最终 5 天齐全", (final14.plan?.days ?? []).length === 5,
+    `got ${(final14.plan?.days ?? []).length}`);
+  check("分日流式：daysReady 逐日递增（渐进式交付，非等全量）",
+    seenDays.length >= 3 && seenDays.every((v, i) => i === 0 || v > seenDays[i - 1]),
+    JSON.stringify(seenDays));
+  check("分日流式：递增过程覆盖中段（观测到 2 天以上）",
+    seenDays.some((v) => v >= 2), JSON.stringify(seenDays));
+  check("分日流式：天数连续编号 1..5",
+    (final14.plan?.days ?? []).map((d) => d.day).join(",") === "1,2,3,4,5",
+    JSON.stringify((final14.plan?.days ?? []).map((d) => d.day)));
+  check("分日流式：大纲的概览落进了最终 plan",
+    typeof final14.plan?.summary === "string" && final14.plan.summary.length > 0);
+  check("分日流式：住宿只出现在第一天（分日 prompt 的约束兑现）",
+    (final14.plan?.days ?? []).every((d, i) =>
+      i === 0 || !d.spots.some((s) => s.type === "hotel")),
+    JSON.stringify((final14.plan?.days ?? []).map((d) =>
+      d.spots.filter((s) => s.type === "hotel").length)));
+
+  // 用例 15：分日中途失败——第 2 天起返回垃圾 → 任务 error + 退还配额，
+  // 且不把「只生成了一部分」的行程当成功交付
+  const rBase15 = await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] });
+  const jBase15 = await api.waitJob(rBase15.body.jobId);
+  const before15 = jBase15.remaining;
+  const r15 = await api.post({ city: "单日坏测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-05T18:00", budget: 5000 });
+  check("分日故障：提交 202", r15.status === 202, `got ${r15.status}`);
+  const j15 = await api.waitJob(r15.body.jobId, 90000);
+  check("分日故障：任务 error（不交付半成品）", j15.status === "error",
+    JSON.stringify(j15).slice(0, 150));
+  check("分日故障：配额已退还", j15.remaining === before15,
+    `before=${before15} got=${j15.remaining}`);
+
+  // 用例 16：分日 prompt 接线——单日提示词必须带上当天的区域约束
+  // （这是「不绕路」的关键：模型只在大纲指定的区域内排点）
+  const lastUser16 = await (await fetch(`http://127.0.0.1:${STUB_PORT}/_last_user`)).json();
+  check("分日 prompt：单日请求含当天主战场区域约束",
+    (lastUser16.user ?? "").includes("主战场区域"),
+    lastUser16.user?.slice(0, 200));
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------
@@ -537,7 +599,11 @@ async function phaseP(api) {
 
 async function main() {
   console.log("启动桩服务与两台测试服务器（MOCK 3103 / 真实 3104）……");
-  spawnCmd("node", ["scripts/stub-llm.mjs", String(STUB_PORT)]);
+  // 单日响应加延迟：分日流式的核心价值是「逐天出现」，桩若秒回则整个任务
+  // 瞬间完成，e2e 无法观测中间状态。注入 1500ms/天，5 天约 7.5 秒——
+  // 留足余量是因为 dev server 首次请求要现编译路由，会吃掉几百毫秒，
+  // 延迟太窄会让「渐进」观测退化成「只看到 1 或直接 done」。
+  spawnCmd("node", ["scripts/stub-llm.mjs", String(STUB_PORT)], { STUB_DAY_DELAY_MS: "1500" });
   spawnCmd("node", ["scripts/amap-stub.mjs", String(AMAP_STUB_PORT)]);
   spawnCmd("node", ["scripts/wechat-stub.mjs", String(WECHAT_STUB_PORT)]);
   spawnCmd("node", ["scripts/sms-stub.mjs", String(SMS_STUB_PORT)]);

@@ -48,5 +48,5 @@ export interface Plan {
   tips: string[];          // 预约/避坑提示
   warnings: string[];      // 体检结果：未验真 POI / 通勤偏长 / 节奏 / 预算
   verified: boolean;       // 是否走了真实高德数据（false = mock 模式）
-  verification?: "mock" | "ok" | "partial"; // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动导致部分未核
+  verification?: "mock" | "ok" | "partial" | "pending"; // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动部分未核 / pending=流式生成中尚未收尾
 }

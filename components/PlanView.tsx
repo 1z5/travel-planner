@@ -77,6 +77,7 @@ export function PlanView({
     mock: "MOCK 模式：未接高德，POI 未验真",
     ok: "✓ POI 已通过高德验真",
     partial: "⚠ 高德服务波动，部分 POI 未能验真",
+    pending: "POI 验真进行中…",
   };
 
   return (

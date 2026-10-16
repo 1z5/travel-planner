@@ -39,8 +39,8 @@ const InputSchema = z.object({
   pace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
 })
   .refine((d) => d.endAt > d.startAt, { message: "结束时间必须晚于开始时间" })
-  .refine((d) => deriveDays(d.startAt, d.endAt) <= 4, {
-    message: "目前支持 1-4 天行程：5 天及以上的单次生成会超时（架构升级后开放）",
+  .refine((d) => deriveDays(d.startAt, d.endAt) <= 7, {
+    message: "目前支持 1-7 天行程：更长的行程请拆成多段分别规划",
   });
 
 // 配额双轨：登录用户按手机号计数（默认 10 次/天），陌生人按 IP（默认 3 次/天）
