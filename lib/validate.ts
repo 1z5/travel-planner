@@ -51,7 +51,7 @@ const VERIFY_CONCURRENCY = 5;
  * 行程误报成一团散沙——实测某天全量 10 个区域，但景点只占 3 个且同属
  * 东山区。无区县前缀的（如「春熙路」「东福寺一带」）原样返回，不与别处合并。
  */
-function areaRegion(area: string): string {
+export function areaRegion(area: string): string {
   const m = String(area).match(/^(.{1,3}?(?:区|县|市|镇|乡))/);
   return m ? m[1] : String(area);
 }
