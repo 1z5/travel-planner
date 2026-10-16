@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Plan } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope } from "lucide-react";
+import { AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
@@ -69,6 +69,11 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
   // 本次提交的总天数：分日流式路径下用于显示「已生成 N/M 天」
   const [submittedDays, setSubmittedDays] = useState<number | null>(null);
+  // 实时定位：把「我在哪」变成默认起点。定位是增强不是门槛，
+  // 所有失败路径都降级为「请手动输入」，绝不阻塞主流程。
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState("");
+  const [locatedCity, setLocatedCity] = useState("");
 
   // 卸载标记：轮询是长任务（分钟级），用户离开页面后必须停止，
   // 否则既白烧请求又可能在卸载后 setState
@@ -150,6 +155,56 @@ export function HomeClient({ children }: { children?: ReactNode }) {
 
   function togglePref(p: string) {
     setPrefs((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
+  }
+
+  // 实时定位：浏览器拿坐标 → 服务端逆地理编码换城市名 → 自动填入输入框。
+  //
+  // 设计原则：定位是增强不是门槛，所有失败路径都降级为「请手动输入」，
+  // 绝不阻塞主流程。三个必须处理的现实约束：
+  // 1. geolocation 只在安全上下文（HTTPS 或 localhost）可用——http 部署
+  //    时浏览器直接不给位置，提前判断并给明确提示
+  // 2. 用户可能拒绝授权、或迟迟不给位置（超时）——都要能降级
+  // 3. 坐标可能落在海上/荒野，归属不到城市——服务端返回 422，同样降级
+  async function locateMe() {
+    setLocateError("");
+    setLocatedCity("");
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocateError("当前浏览器不支持定位，请手动输入城市");
+      return;
+    }
+    if (!window.isSecureContext) {
+      setLocateError("定位需要 HTTPS 环境，请手动输入城市");
+      return;
+    }
+    setLocating(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 10_000,
+          maximumAge: 60_000, // 复用 1 分钟内的旧位置，少弹一次授权确认
+          enableHighAccuracy: false, // 城市级精度足够，省电且更快
+        }),
+      );
+      const { longitude, latitude } = pos.coords;
+      const r = await fetch(`/api/geocode/reverse?lng=${longitude}&lat=${latitude}`);
+      const d = await r.json();
+      if (!r.ok) {
+        setLocateError(d.error || "定位失败，请手动输入城市");
+        return;
+      }
+      setCity(d.city);
+      setLocatedCity(d.formatted || d.city);
+    } catch (e) {
+      // 1=拒绝授权 2=位置不可用 3=超时；其余归为未知失败
+      const code = (e as GeolocationPositionError)?.code;
+      setLocateError(
+        code === 1 ? "定位权限被拒绝，请手动输入城市"
+        : code === 3 ? "定位超时，请手动输入城市"
+        : "定位失败，请手动输入城市",
+      );
+    } finally {
+      setLocating(false);
+    }
   }
 
   async function pollJob(jobId: string): Promise<void> {
@@ -286,6 +341,20 @@ export function HomeClient({ children }: { children?: ReactNode }) {
             <label htmlFor="city">目的地城市</label>
             <input id="city" type="text" value={city} onChange={(e) => setCity(e.target.value)}
                    placeholder="如：成都" maxLength={20} required />
+            {/* 实时定位：一键把当前位置设为起点。按钮用 type="button"——
+                放在 form 里若误用默认类型会触发提交 */}
+            <div className="locate-row">
+              <button type="button" className="btn btn-locate" onClick={locateMe}
+                      disabled={locating} aria-busy={locating}>
+                <MapPin size={14} />{locating ? "定位中…" : "用我当前的位置"}
+              </button>
+              {locatedCity && (
+                <span className="helper" style={{ margin: 0 }}>已定位到 {locatedCity}</span>
+              )}
+            </div>
+            {locateError && (
+              <p className="helper" style={{ margin: 0, color: "var(--err-ink)" }}>{locateError}</p>
+            )}
             <div className="chips" style={{ marginTop: 8 }}>
               {["成都", "西安", "杭州", "厦门", "重庆", "苏州"].map((c) => (
                 <span key={c} className={`chip ${city === c ? "on" : ""}`}

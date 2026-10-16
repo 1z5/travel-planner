@@ -50,6 +50,28 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (path === "/v3/geocode/regeo") {
+    // 逆地理编码（实时定位用）。按坐标区分两种**真实形态**（均已用真实 key 验证）：
+    //   坐标以 116.4 开头 → 直辖市：addressComponent.city 是空数组
+    //                       （高德把 city 与 province 合一，实测天安门如此）
+    //   其他               → 普通城市：city 带「市」后缀
+    const location = url.searchParams.get("location") ?? "";
+    const isMunicipality = location.startsWith("116.4");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: "1", info: "OK",
+      regeocode: {
+        addressComponent: isMunicipality
+          ? { city: [], province: "北京市", district: "朝阳区" }
+          : { city: "成都市", province: "四川省", district: "武侯区" },
+        formatted_address: isMunicipality
+          ? "北京市朝阳区望京街道方恒国际中心"
+          : "四川省成都市武侯区武侯祠大街",
+      },
+    }));
+    return;
+  }
+
   res.writeHead(404).end("not found");
 });
 

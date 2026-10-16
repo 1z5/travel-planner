@@ -165,6 +165,8 @@ input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input { -moz-appearance: textfield; appearance: textfield; }
 .helper { font-size: var(--fs-caption); color: var(--ink-4); margin-top: var(--sp-1); }
+/* 实时定位行：按钮 + 定位结果/错误提示。flex-wrap 防止窄屏下文字把按钮挤变形 */
+.locate-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
 
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
 .row-form { grid-template-columns: 2fr 1fr; }

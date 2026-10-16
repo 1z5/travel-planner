@@ -543,6 +543,29 @@ async function phaseB(api) {
   check("命中项不误报（拙政园不在未命中预警里）",
     !(plan.warnings ?? []).some((w) => w.includes("拙政园") && w.includes("未在高德")),
     JSON.stringify(plan.warnings));
+
+  // ---- 实时定位（逆地理编码）----
+  // 真实模式下才跑：MOCK 模式没有高德 key，reverseGeocode 直接返回 null。
+  // 覆盖两个实测坑：普通城市的「市」后缀剥离、直辖市的 city 空数组回退。
+  const geoNormal = await fetch(`${api.baseUrl}/api/geocode/reverse?lng=104.06&lat=30.57`);
+  const gNormal = await geoNormal.json();
+  check("定位：普通城市返回裸城市名（剥离「市」后缀）",
+    geoNormal.status === 200 && gNormal.city === "成都",
+    JSON.stringify(gNormal));
+  check("定位：附带区县与完整地址（用于向用户展示定位结果）",
+    gNormal.district === "武侯区" && (gNormal.formatted ?? "").includes("成都"),
+    JSON.stringify(gNormal));
+
+  const geoMuni = await fetch(`${api.baseUrl}/api/geocode/reverse?lng=116.40&lat=39.90`);
+  const gMuni = await geoMuni.json();
+  check("定位：直辖市 city 是空数组，回退 province（不能返回空城市名）",
+    geoMuni.status === 200 && gMuni.city === "北京",
+    JSON.stringify(gMuni));
+
+  const geoBad = await fetch(`${api.baseUrl}/api/geocode/reverse?lng=abc&lat=30`);
+  check("定位：非法坐标 → 400", geoBad.status === 400, `got ${geoBad.status}`);
+  const geoRange = await fetch(`${api.baseUrl}/api/geocode/reverse?lng=999&lat=30`);
+  check("定位：坐标越界 → 400", geoRange.status === 400, `got ${geoRange.status}`);
 }
 
 // ---------------- 阶段 C：登录体系（dev provider） ----------------

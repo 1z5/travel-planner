@@ -265,3 +265,67 @@ export async function transitMinutes(
   }
   return { state: "ok", minutes: Math.round(meters / 1000 / 22 * 60 + 8) };
 }
+
+/**
+ * 从逆地理编码的 addressComponent 里提取城市裸名（无「市」后缀）。
+ *
+ * 两个实测坑（真实高德 key 验证过）：
+ * 1. **直辖市的 city 是空数组**——北京/上海/天津/重庆的 city 与 province
+ *    被高德合一，实测天安门坐标返回 `city: []`、`province: "北京市"`。
+ *    直接取 city 会得到空字符串，必须回退 province。
+ * 2. 普通城市的 city 带「市」后缀（"成都市"），而应用内城市名约定是裸名
+ *    （CITY_IMAGES 的键、快捷选择 chip 都是「成都」「北京」），必须剥离。
+ *
+ * 已知局限：自治区会得到「广西壮族」这类名字（只剥了「自治区」没剥民族名），
+ * 极少见且不影响主流程，接受。
+ */
+export function pickCityName(ac: { city?: unknown; province?: unknown }): string | null {
+  const norm = (v: unknown): string => {
+    if (Array.isArray(v)) return ""; // 直辖市的 city 是 []
+    const s = String(v ?? "").trim();
+    // 剥掉行政级别后缀留裸名：「成都市」→「成都」、「北京市」→「北京」
+    return s.replace(/(省|市|自治区|自治州|地区|盟|县)$/, "") || s;
+  };
+  const city = norm(ac.city);
+  if (city) return city;
+  const province = norm(ac.province);
+  return province || null;
+}
+
+/** 逆地理编码结果 */
+export interface ReverseGeo {
+  city: string;      // 城市裸名（已归一化，如「北京」「成都」）
+  district: string;  // 区县（如「朝阳区」），仅用于展示
+  formatted: string; // 完整地址（如「北京市朝阳区望京街道…」），仅用于展示
+}
+
+/**
+ * 逆地理编码：坐标 → 城市。失败返回 null，由调用方降级为手动输入城市。
+ *
+ * MOCK 模式（未配 key）直接返回 null——定位功能依赖高德，没有 key 时
+ * 不应假装能用；前端会提示手动输入。
+ */
+export async function reverseGeocode(lng: number, lat: number): Promise<ReverseGeo | null> {
+  if (AMAP_MOCK) return null;
+
+  const r = await amapGetRetry("/v3/geocode/regeo", {
+    location: `${lng},${lat}`,
+    extensions: "base",
+  });
+  if (!r.ok) return null;
+
+  const regeo = (r.data as {
+    regeocode?: {
+      addressComponent?: { city?: unknown; province?: unknown; district?: unknown };
+      formatted_address?: unknown;
+    };
+  })?.regeocode;
+  const city = pickCityName(regeo?.addressComponent ?? {});
+  if (!city) return null;
+
+  return {
+    city,
+    district: String(regeo?.addressComponent?.district ?? ""),
+    formatted: String(regeo?.formatted_address ?? ""),
+  };
+}
