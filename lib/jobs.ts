@@ -24,6 +24,40 @@ function newId(): string {
   return `job_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+/**
+ * 构造「某一天失败」的错误信息。
+ *
+ * phase 必须是真实失败阶段（生成/体检/进度保存）。实测踩过的教训：早期把三段
+ * 操作（生成 → 体检 → 落库）的失败一律说成「生成失败」，用户据此判断"模型没
+ * 产出，重试试试"——但如果是体检或落库失败，重试毫无用处（数据库抖动重试
+ * 一百次也不会好）。错误信息要能指导用户的下一步动作。
+ *
+ * 抽成独立函数是为了可单测：这三个阶段在 MOCK 模式下都无法通过桩触发
+ * （DaySchema 挡住畸形数据、内存 store 不会失败），e2e 覆盖不到。
+ */
+export function dayFailureError(
+  dayIdx: number,
+  phase: string,
+  e: unknown,
+  published: number,
+): Error {
+  const reason = reasonOf(e);
+  return new Error(
+    `第 ${dayIdx + 1} 天${phase}失败：${reason}（已成功生成 ${published} 天，配额已退还，可重试）`,
+  );
+}
+
+/** 从任意抛出值里提取可读原因：Error 取 message，字符串原样，其余转 JSON */
+function reasonOf(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  try {
+    return JSON.stringify(e) ?? String(e);
+  } catch {
+    return String(e); // 循环引用等 JSON.stringify 会抛的情况
+  }
+}
+
 /** 深拷贝 plan：memory store 存的是引用，不拷贝的话前端会读到半成品状态 */
 function clonePlan(plan: Plan): Plan {
   return { ...plan, days: plan.days.map((d) => ({ ...d, spots: d.spots.map((s) => ({ ...s })) })) };
@@ -159,6 +193,11 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
     DAY_CONCURRENCY,
     async (i) => {
       const tDay = Date.now();
+      // phase 标记当前阶段：失败信息必须说清「哪一步」失败，不能一律说
+      // 「生成失败」。实测踩过的教训——用户看到「生成失败」会判断"模型没
+      // 产出，重试试试"，但如果是体检或落库失败，重试毫无用处（数据库抖动
+      // 重试一百次也不会好）。错误信息要能指导用户的下一步动作。
+      let phase = "生成";
       try {
         const raw = await generateDay(input, outline, i);
         const day: PlanDay = {
@@ -167,21 +206,18 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
           transitMin: 0,
           dailyCostCny: 0,
         };
+        phase = "体检";
         // 单日体检：预警随天数一起出现，不用等全量生成完
         const check = await validateDay(plan, day, input);
         dayResults[i] = { day, check };
+        phase = "进度保存";
         await publishReady();
         console.log(
-          `[job] ${jobId} 第 ${day.day} 天生成完 ${((Date.now() - tDay) / 1000).toFixed(1)}s（已发布 ${published}/${outline.days.length} 天）`,
+          `[job] ${jobId} 第 ${day.day} 天${phase}完 ${((Date.now() - tDay) / 1000).toFixed(1)}s（已发布 ${published}/${outline.days.length} 天）`,
         );
       } catch (e) {
-        // 失败信息必须带上进度。实测踩过：第 4 天连接被掐断时只抛出一个
-        // "terminated"，用户等了 14 分钟却完全无法行动——不知道成了几天、
-        // 不知道该不该重试。这里把进度与「配额已退还」说清楚。
-        const reason = e instanceof Error ? e.message : "生成失败";
-        throw new Error(
-          `第 ${i + 1} 天生成失败：${reason}（已成功生成 ${published} 天，配额已退还，可重试）`,
-        );
+        // 失败信息必须带上进度与阶段（见 dayFailureError 的注释）
+        throw dayFailureError(i, phase, e, published);
       }
     },
   );
