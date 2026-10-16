@@ -1,6 +1,7 @@
 import "server-only";
 import { generatePlan, generateOutline, generateDay } from "./planner";
-import { validatePlan, validateDay, finalizePlan } from "./validate";
+import { validatePlan, validateDay, finalizePlan, type DayCheck } from "./validate";
+import { mapLimit } from "./concurrency";
 import { AMAP_MOCK } from "./amap";
 import { getStore } from "./store";
 import type { Plan, PlanDay, PlanInput, PlanSpot } from "./types";
@@ -112,39 +113,78 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
   const transitUnknownDays: number[] = [];
   let grandTotal = 0;
 
-  for (let i = 0; i < outline.days.length; i++) {
-    const tDay = Date.now();
-    try {
-      const raw = await generateDay(input, outline, i);
-      const day: PlanDay = {
-        ...raw,
-        spots: raw.spots as PlanSpot[],
-        transitMin: 0,
-        dailyCostCny: 0,
-      };
-      // 单日体检：预警随天数一起出现，不用等全量生成完
-      const check = await validateDay(plan, day, input);
-      plan.days.push(day);
-      warnings.push(...check.warnings);
-      unverified.push(...check.unverified);
-      if (check.transitUnknown) transitUnknownDays.push(day.day);
-      grandTotal += day.dailyCostCny;
-      plan.warnings = [...warnings];
+  // 有界并发生成多天。已实测 LLM 网关的并发能力（3 路并发总耗时 2.8s ≈
+  // 单次 1.8s，远小于 3×单次），取 3 路：5-7 天的串行 5-7 波可压到 2-3 波，
+  // 把总等待从 10-15 分钟降到约一半。不取更高是不想逼近限流阈值。
+  const DAY_CONCURRENCY = 3;
 
-      await store.jobs.update(jobId, { plan: clonePlan(plan) });
-      console.log(
-        `[job] ${jobId} 第 ${day.day} 天完成 ${((Date.now() - tDay) / 1000).toFixed(1)}s（累计 ${plan.days.length}/${outline.days.length} 天）`,
-      );
-    } catch (e) {
-      // 失败信息必须带上进度。实测踩过：第 4 天连接被掐断时只抛出一个
-      // "terminated"，用户等了 14 分钟却完全无法行动——不知道成了几天、
-      // 不知道该不该重试。这里把进度与「配额已退还」说清楚。
-      const reason = e instanceof Error ? e.message : "生成失败";
-      throw new Error(
-        `第 ${i + 1} 天生成失败：${reason}（已成功生成 ${plan.days.length} 天，配额已退还，可重试）`,
-      );
+  // 结果按下标存放（不是 push）——并发出场顺序不固定，必须靠下标还原天数顺序
+  const dayResults: Array<{ day: PlanDay; check: DayCheck } | null> = [];
+  let published = 0; // 已发布给用户的天数（只增不减，保证前端看到的天数连续）
+  // 写库串行化链：保证 plan 快照的落地顺序与发布顺序一致（见 publishReady 注释）
+  let updateChain: Promise<void> = Promise.resolve();
+
+  const publishReady = async () => {
+    // 前缀发布：从 published 起把「连续已完成」的天一次性推出去。
+    // 关键在「连续」——第 3 天可能比第 2 天先完成，但用户不能看到乱序行程，
+    // 所以未就绪的天会挡住它后面的所有天。
+    // 注意 while 循环内没有 await，整个循环是原子的，不会被打断。
+    let advanced = false;
+    while (published < outline.days.length && dayResults[published]) {
+      const r = dayResults[published]!;
+      plan.days.push(r.day);
+      warnings.push(...r.check.warnings);
+      unverified.push(...r.check.unverified);
+      if (r.check.transitUnknown) transitUnknownDays.push(r.day.day);
+      grandTotal += r.day.dailyCostCny;
+      published += 1;
+      advanced = true;
     }
-  }
+    // 没有新发布的天就不写库：plan 未变，写了也是浪费（并发下很常见——
+    // 某一天生成完了但它前面的天还没好，前缀推不动）
+    if (!advanced) return;
+
+    plan.warnings = [...warnings];
+    // 快照必须在同步阶段取：此时 plan.days 已是本次发布的最终状态
+    const snapshot = clonePlan(plan);
+    // 串行化写库。并发下多个 worker 可能几乎同时发布，若两次 update 乱序
+    // 落地（旧快照晚于新快照写入），前端会看到天数回退、daysReady 非单调。
+    // 链式等待保证落地顺序与发布顺序一致。
+    updateChain = updateChain.then(() => store.jobs.update(jobId, { plan: snapshot }));
+    await updateChain;
+  };
+
+  await mapLimit(
+    outline.days.map((_, i) => i),
+    DAY_CONCURRENCY,
+    async (i) => {
+      const tDay = Date.now();
+      try {
+        const raw = await generateDay(input, outline, i);
+        const day: PlanDay = {
+          ...raw,
+          spots: raw.spots as PlanSpot[],
+          transitMin: 0,
+          dailyCostCny: 0,
+        };
+        // 单日体检：预警随天数一起出现，不用等全量生成完
+        const check = await validateDay(plan, day, input);
+        dayResults[i] = { day, check };
+        await publishReady();
+        console.log(
+          `[job] ${jobId} 第 ${day.day} 天生成完 ${((Date.now() - tDay) / 1000).toFixed(1)}s（已发布 ${published}/${outline.days.length} 天）`,
+        );
+      } catch (e) {
+        // 失败信息必须带上进度。实测踩过：第 4 天连接被掐断时只抛出一个
+        // "terminated"，用户等了 14 分钟却完全无法行动——不知道成了几天、
+        // 不知道该不该重试。这里把进度与「配额已退还」说清楚。
+        const reason = e instanceof Error ? e.message : "生成失败";
+        throw new Error(
+          `第 ${i + 1} 天生成失败：${reason}（已成功生成 ${published} 天，配额已退还，可重试）`,
+        );
+      }
+    },
+  );
 
   // 收尾：预算核对 + 必游地/住所核验 + 验真完成度 + 系统提示
   finalizePlan(plan, input, { warnings, unverified, transitUnknownDays, grandTotal });

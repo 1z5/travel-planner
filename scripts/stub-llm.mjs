@@ -94,6 +94,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // 用来验证「瞬时故障重试一次」真的能救回长任务
 let terminateHits = 0;
 
+// 「乱序完成」模式：让后面的天比前面的天更早返回（延迟按天数倒数递减）。
+// 真实并发下这完全可能发生——第 3 天可能比第 2 天先生成完。这是「前缀发布」
+// 必须处理的场景：用户不能看到乱序或跳号的行程。串行时代不可能出现，
+// 所以这是本轮并发改造最需要的专项覆盖。
+function reversedDayDelayMs(dayNum, totalDays, base) {
+  if (base <= 0 || totalDays <= 1) return 0;
+  // 第 1 天等最久（totalDays×base），最后一天几乎立即返回（1×base）
+  return Math.max(1, (totalDays - dayNum + 1) * base);
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
@@ -148,6 +158,9 @@ const server = createServer((req, res) => {
       const dm = userMsg.match(/第 (\d+) 天的时刻表/);
       if (dm && Number(dm[1]) >= 2) mode = "terminate";
     }
+    // 「乱序完成」：让后面的天比前面的天更早返回，专门考验并发下的前缀发布。
+    // 触发词用「逆序」而非「乱序」——后者含「序」会和上面的「编号乱序」冲突。
+    else if (isDayCall && userMsg.includes("逆序完成")) mode = "reversed";
     console.log(`[stub] ${mode}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
@@ -170,9 +183,17 @@ const server = createServer((req, res) => {
       console.log(`[stub] terminate 第 ${terminateHits} 次：放行（重试已生效）`);
     }
 
-    // 单日响应走延迟：让渐进式交付在 e2e 里可被观测（见 DAY_DELAY_MS 注释）
-    if (isDayCall && DAY_DELAY_MS > 0 && mode !== "garbage") await sleep(DAY_DELAY_MS);
-
+    // 单日响应走延迟：让渐进式交付在 e2e 里可被观测（见 DAY_DELAY_MS 注释）。
+    // 「reversed」模式按天数倒数设延迟（第 1 天最慢、最后一天最快），人为制造
+    // 「后面的天先完成」——真实并发下完全可能，专门考验前缀发布不乱序。
+    if (isDayCall && DAY_DELAY_MS > 0 && mode !== "garbage") {
+      let delay = DAY_DELAY_MS;
+      if (mode === "reversed") {
+        const dm = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+        if (dm) delay = reversedDayDelayMs(Number(dm[1]), Number(dm[2]), DAY_DELAY_MS);
+      }
+      await sleep(delay);
+    }
     const content =
       mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
       : mode === "empty" ? ""

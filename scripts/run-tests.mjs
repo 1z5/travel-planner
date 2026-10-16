@@ -339,6 +339,10 @@ async function phaseA(api) {
   check("分日流式：5 天提交 202", r14.status === 202, `got ${r14.status}`);
   const seenDays = [];
   let final14 = {};
+  // 前缀发布的核心不变式：任何时候看到的部分行程，天数必须是 1..k 的连续前缀。
+  // 并发下第 3 天可能比第 2 天先生成完，但绝不能让用户看到乱序或跳号——
+  // 这是「前缀发布」要保证的东西，也是本轮并发改造最该守的性质。
+  let prefixOk = true;
   {
     const t0 = Date.now();
     while (Date.now() - t0 < 90000) {
@@ -348,6 +352,13 @@ async function phaseA(api) {
       if (typeof d.daysReady === "number" && seenDays[seenDays.length - 1] !== d.daysReady) {
         seenDays.push(d.daysReady);
       }
+      // 校验部分行程是天数连续前缀
+      const partial = d.plan?.days;
+      if (Array.isArray(partial) && partial.length > 0) {
+        const nums = partial.map((x) => x.day).join(",");
+        const expect = Array.from({ length: partial.length }, (_, i) => i + 1).join(",");
+        if (nums !== expect) prefixOk = false;
+      }
       await new Promise((r) => setTimeout(r, 250));
     }
   }
@@ -355,11 +366,13 @@ async function phaseA(api) {
     JSON.stringify(final14).slice(0, 120));
   check("分日流式：最终 5 天齐全", (final14.plan?.days ?? []).length === 5,
     `got ${(final14.plan?.days ?? []).length}`);
-  check("分日流式：daysReady 逐日递增（渐进式交付，非等全量）",
-    seenDays.length >= 3 && seenDays.every((v, i) => i === 0 || v > seenDays[i - 1]),
+  check("分日流式：daysReady 单调不减（无回退）",
+    seenDays.every((v, i) => i === 0 || v >= seenDays[i - 1]),
     JSON.stringify(seenDays));
-  check("分日流式：递增过程覆盖中段（观测到 2 天以上）",
-    seenDays.some((v) => v >= 2), JSON.stringify(seenDays));
+  check("分日流式：观测到至少一个中间态（非等全量）",
+    seenDays.some((v) => v > 0), JSON.stringify(seenDays));
+  check("分日流式：部分行程始终是天数连续前缀（并发不乱序）",
+    prefixOk, JSON.stringify(seenDays));
   check("分日流式：天数连续编号 1..5",
     (final14.plan?.days ?? []).map((d) => d.day).join(",") === "1,2,3,4,5",
     JSON.stringify((final14.plan?.days ?? []).map((d) => d.day)));
@@ -441,6 +454,43 @@ async function phaseA(api) {
     /第 \d+ 天生成失败/.test(j19.error ?? ""), j19.error);
   check("持续断流：配额已退还", j19.remaining === before19,
     `before=${before19} got=${j19.remaining}`);
+
+  // 用例 20：逆序完成——桩让后面的天比前面的天更早返回，人为制造
+  // 「第 3 天比第 1 天先生成完」。串行时代不可能出现这种出场顺序，所以这是
+  // 本轮并发改造最需要的专项覆盖：此时用户绝不能看到乱序或跳号的行程，
+  // 未就绪的天必须挡住它后面的所有天（前缀发布）。
+  const r20 = await api.post({ city: "逆序完成测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-05T18:00", budget: 5000 });
+  check("逆序完成：提交 202", r20.status === 202, `got ${r20.status}`);
+  const seen20 = [];
+  let final20 = {};
+  let prefixOk20 = true;
+  {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 90000) {
+      const d = await (await fetch(`${api.baseUrl}/api/plan/status?id=${r20.body.jobId}`)).json();
+      if (d.status === "done" || d.status === "error") { final20 = d; break; }
+      if (typeof d.daysReady === "number" && seen20[seen20.length - 1] !== d.daysReady) {
+        seen20.push(d.daysReady);
+      }
+      // 前缀不变式：任何时刻看到的部分行程，天数必须是 1..k 连续前缀
+      const partial = d.plan?.days;
+      if (Array.isArray(partial) && partial.length > 0) {
+        const nums = partial.map((x) => x.day).join(",");
+        const expect = Array.from({ length: partial.length }, (_, i) => i + 1).join(",");
+        if (nums !== expect) prefixOk20 = false;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  check("逆序完成：任务最终 done", final20.status === "done", JSON.stringify(final20).slice(0, 150));
+  check("逆序完成：最终 5 天且顺序 1..5",
+    (final20.plan?.days ?? []).map((d) => d.day).join(",") === "1,2,3,4,5",
+    JSON.stringify((final20.plan?.days ?? []).map((d) => d.day)));
+  check("逆序完成：部分行程始终是连续前缀（并发不乱序/不跳号）",
+    prefixOk20, JSON.stringify(seen20));
+  check("逆序完成：daysReady 单调不减",
+    seen20.every((v, i) => i === 0 || v >= seen20[i - 1]), JSON.stringify(seen20));
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------
