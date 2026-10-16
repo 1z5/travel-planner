@@ -1,6 +1,8 @@
 # 部署指南
 
-前置认知：**生成一次行程要 3-5 分钟且任务状态在服务端内存**，所以本项目不能用「纯 serverless 函数」部署（函数响应后会被冻结，后台任务中断、轮询 404）。必须用**常驻 Node 服务**。
+前置认知：**生成一次行程要 3-15 分钟且任务状态在服务端内存**（1-4 天约 3-5 分钟；5-7 天走分日流式，约 10-15 分钟），所以本项目不能用「纯 serverless 函数」部署（函数响应后会被冻结，后台任务中断、轮询 404）。必须用**常驻 Node 服务**。
+
+> **Node ≥ 22**（package.json engines 已约束；openai SDK v7 起要求 22）。Dockerfile 与 CI 均基于 node:22。
 
 ## 方案对比
 
@@ -28,12 +30,17 @@ docker run -d -p 3000:3000 \
 
 镜像基于 `output: "standalone"` 构建，体积约 150MB。健康检查可打 `GET /api/health`（返回 `status:ok` 与配置自检，不泄露密钥）。
 
+> **Prisma 7 注意**：`@prisma/client` 已无 postinstall，`npm ci` **不会**自动生成 client。Dockerfile 已在构建层加 `npx prisma generate`（只读 schema，不连库，无需 DATABASE_URL）；若改用其他构建方式，务必确认 `.prisma/client` 已生成，否则 `DATA_STORE=postgres` 路径一跑就崩。`npm run preflight` 有 BLOCK 级检查兜底。
+
 ## 方式二：裸机 / 虚拟机（standalone 直跑，无需 Docker）
 
 ```bash
 npm ci && npm run build
-# ⚠️ 两个必须注意的点（都实测踩过）：
-# 1) output:standalone 下 npm start 不可用，必须直接跑 standalone 产物：
+# ⚠️ 三个必须注意的点（都实测踩过）：
+# 1) Prisma 7 起 @prisma/client 无 postinstall，npm ci 不生成 client，
+#    缺 .prisma/client 会让 import 了 store 的路由在运行时崩：
+npx prisma generate
+# 2) output:standalone 下 npm start 不可用，必须直接跑 standalone 产物：
 cp -r .next/static .next/standalone/.next/static   # 构建不会自动放进 standalone
 mkdir -p .next/standalone/public && cp -r public/* .next/standalone/public/ 2>/dev/null
 # 2) standalone 不读 .env，环境变量必须显式注入：
@@ -110,10 +117,10 @@ DATABASE_URL=postgres://...
 # 3. 验证：/api/health 应返回 "store":"postgres"
 ```
 
-契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径 113 断言不受影响）。
+契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径 151 断言不受影响）。
 
 ## 上线后必须跟进的事项
 
 1. ~~配额换存储~~ / ~~任务态换存储~~：✅ 本轮已由 Store 抽象 + Postgres 实现解决（DATA_STORE=postgres）
 3. ~~登录体系~~（M3 已完成，剩厂商凭据）：选短信（填 SMS_APP_ID/SIGN/TEMPLATE_ID，`AUTH_PROVIDER=sms`）或微信（填 WECHAT_APPID/SECRET + 备案回调域名，`AUTH_PROVIDER=wechat`）
-4. **监控**：生成失败率 / 超时率 / 平均耗时（当前基线 3-5 分钟）
+4. **监控**：生成失败率 / 超时率 / 平均耗时（基线：1-4 天 3-5 分钟，5-7 天 10-15 分钟）
