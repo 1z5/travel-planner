@@ -40,8 +40,10 @@ const BUDGET_UNDER = 0.8;
 // 阈值用真实数据校准过（京都 5 天实测归一到区县后是 1/1/1/2/3，全部正常），
 // 取 4 是宁可漏报不要误报——预警变成噪声比没有预警更糟。
 const AREA_SPREAD_WARN = 4;
-// POI 验真/通勤估算的并发上限：个人高德 key 有 QPS 限制，5 路是速度与配额的安全档
-const VERIFY_CONCURRENCY = 5;
+// POI 验真/通勤估算的并发上限。原本取 5，真机接真实高德 key 复测时发现
+// 个人 key 的 QPS 比预期低——日志里频繁出现 10021 CUQPS_HAS_EXCEEDED_THE_LIMIT，
+// 每次都靠重试到第 3 次才成功（既拖慢又刷日志）。降到 3 降低峰值 QPS。
+const VERIFY_CONCURRENCY = 3;
 
 /**
  * 把 area 归一到「区县」粒度：「北区金阁寺」→「北区」。

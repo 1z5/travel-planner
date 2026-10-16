@@ -46,6 +46,10 @@ export type TransitResult =
 const CACHE_TTL_MS = 30 * 60_000;
 const ERROR_CACHE_TTL_MS = 10_000;
 const CACHE_MAX = 500;
+// 单段通勤的距离合理性上限（米）。超过即认为 POI 匹配错误（典型：境外地名
+// 被匹配到国内同名 POI），返回 unknown 让调用方跳过该天判定，避免输出
+// 「98 小时通勤」这类荒唐预警。详见 transitMinutes 里的实测说明。
+const MAX_TRANSIT_METERS = 150_000;
 const poiCache = new Map<string, { t: number; v: PoiLookup }>();
 
 function ttlFor(v: PoiLookup): number {
@@ -243,6 +247,21 @@ export async function transitMinutes(
   const meters = Number((r.data as { route?: { paths?: Array<{ distance?: string }> } })?.route?.paths?.[0]?.distance);
   if (!Number.isFinite(meters) || meters <= 0) {
     return { state: "unknown", reason: "距离接口未返回有效数据" };
+  }
+  // 距离合理性上限：超过视为 POI 匹配错误，返回 unknown（让调用方跳过该天
+  // 的判定）而不是硬算一个荒谬值。
+  //
+  // 实测踩过：高德对**境外地名**会误匹配到国内同名 POI——「清水寺」返回的是
+  // 山西坐标（114.5E,37.0N）而非京都（135.8E,35.0N），于是「京都市内通勤」
+  // 用两个山西坐标算出 2000+ 公里 → 98 小时的荒唐预警，节奏判定跟着全崩。
+  //
+  // 阈值 150km：合法的跨城当日游（成都→都江津 ~60km、北京→天津 ~120km）
+  // 都覆盖得到；而 150km 折算约 7 小时车程，本就远超城市行程的合理范围。
+  if (meters > MAX_TRANSIT_METERS) {
+    return {
+      state: "unknown",
+      reason: `站点间距离 ${Math.round(meters / 1000)}km 超出合理范围，POI 可能匹配到了同名的其他城市`,
+    };
   }
   return { state: "ok", minutes: Math.round(meters / 1000 / 22 * 60 + 8) };
 }

@@ -737,6 +737,10 @@ async function main() {
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
     DAILY_FREE_LIMIT: "50",
+    // 显式清空：Next dev 会自动加载项目根的 .env，若开发机 .env 里配了真实
+    // 高德 key，这台本该跑 MOCK 模式的服务器会悄悄进入 live 模式，导致
+    // 「MOCK 模式 verified=false」等断言失败。显式空值优先于 .env（已验证）。
+    AMAP_WEB_SERVICE_KEY: "",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.real)], {
     NEXT_DIST_DIR: `.next-t-real`,
@@ -751,6 +755,7 @@ async function main() {
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
+    AMAP_WEB_SERVICE_KEY: "", // 隔离 .env 里的真实 key，见上方 mock 服务器的注释
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.wx)], {
     NEXT_DIST_DIR: `.next-t-wx`,
@@ -762,6 +767,7 @@ async function main() {
     WECHAT_SECRET: "stub_secret",
     WECHAT_API_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
     WECHAT_AUTH_BASE: `http://127.0.0.1:${WECHAT_STUB_PORT}`,
+    AMAP_WEB_SERVICE_KEY: "", // 隔离 .env 里的真实 key，见上方 mock 服务器的注释
   });
   if (HAS_PG) {
     // Postgres 实现契约测试（需 DATABASE_URL；表结构由 prisma migrate deploy 建好）
@@ -773,6 +779,7 @@ async function main() {
       LLM_API_KEY: "stub-key",
       LLM_MODEL: "step-5-preview",
       DAILY_FREE_LIMIT: "2",
+      AMAP_WEB_SERVICE_KEY: "", // 隔离 .env 里的真实 key，见上方 mock 服务器的注释
     });
   }
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.sms)], {
@@ -787,6 +794,7 @@ async function main() {
     SMS_APP_ID: "1400000000",
     SMS_SIGN: "测试签名",
     SMS_TEMPLATE_ID: "1000000",
+    AMAP_WEB_SERVICE_KEY: "", // 隔离 .env 里的真实 key，见上方 mock 服务器的注释
   });
 
   const [upA, upB, upC, upD, upE] = await Promise.all([
