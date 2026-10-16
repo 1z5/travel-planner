@@ -51,7 +51,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.container { max-width: 720px; margin: 0 auto; padding: 0 var(--sp-4) var(--sp-8); }
+/* 容器：max-width 保证桌面端可读宽度，流体 padding + 安全区适配刘海屏
+   （viewportFit: "cover" 下内容会延伸到刘海区域，需用 env(safe-area-inset-*)
+   把边缘内容推回安全区内） */
+.container {
+  max-width: 720px; margin: 0 auto;
+  padding: 0 max(var(--sp-4), env(safe-area-inset-left)) max(var(--sp-8), env(safe-area-inset-bottom));
+}
 
 /* ---------- 全屏封面 Hero（电影级） ---------- */
 
@@ -336,16 +342,43 @@ input { -moz-appearance: textfield; appearance: textfield; }
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 640px) {
+  /* ---- 布局：栅格全部堆叠 ---- */
   .row, .row-form { grid-template-columns: 1fr; }
+  .segmented { grid-template-columns: 1fr; }
+  .how-grid { grid-template-columns: 1fr; gap: var(--sp-4); }
+  .stats { grid-template-columns: 1fr; }
+  .stat { border-right: none; border-bottom: 1px solid var(--line); }
+  .stat:last-child { border-bottom: none; }
+  .cap-grid { grid-template-columns: 1fr; }
+
+  /* ---- 首屏 ---- */
   .masthead { min-height: 460px; }
   .masthead h1 { font-size: 42px; }
   .masthead-sub { font-size: 15px; }
   .masthead-points { gap: var(--sp-3); }
   .panel { padding: var(--sp-4); margin-top: -64px; }
+
+  /* ---- 时间线压缩 ---- */
   .spot { grid-template-columns: 52px 26px 1fr; gap: 0 var(--sp-2); }
-  .segmented { grid-template-columns: 1fr; }
   .day-num { font-size: 36px; }
-  .how-grid { grid-template-columns: 1fr; gap: var(--sp-4); }
+
+  /* ---- 输入框字号 16px 是硬要求 ----
+     iOS Safari 对 font-size < 16px 的输入框在聚焦时会自动放大整个页面，
+     用户得手动缩小才能继续操作——移动端最经典的坑之一。桌面端保持 14px，
+     这里只在移动端覆写，不动桌面设计。 */
+  input, textarea, select { font-size: 16px; height: 44px; }
+
+  /* ---- 触控目标：主操作 44px（Apple HIG / Material 最小可点击区域）；
+        密集的 chip 行取 40px——偏好标签有 10 个，全按 44px 表单会过高 ---- */
+  .btn { min-height: 44px; }
+  .btn-primary { min-height: 48px; }
+  .segmented button { min-height: 44px; padding: 10px 8px; }
+  .chip { min-height: 40px; padding: 8px 14px; display: inline-flex; align-items: center; }
+
+  /* ---- 点按优化：touch-action 消掉 300ms 点击延迟；
+        用项目强调色的淡色替换各浏览器默认的蓝色高亮 ---- */
+  a, button, .chip, summary, label { touch-action: manipulation; }
+  a, button, .chip, summary { -webkit-tap-highlight-color: rgba(251, 146, 60, 0.15); }
 }
 
 /* ---------- 打印（纸质行程，强制浅色） ---------- */
@@ -399,13 +432,6 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .faq-chevron { margin-left: auto; color: var(--ink-4); transition: transform 0.2s; }
 .faq details[open] .faq-chevron { transform: rotate(180deg); }
 .faq details p { font-size: var(--fs-small); color: var(--ink-3); margin: var(--sp-2) 0 var(--sp-1); padding-left: 23px; line-height: 1.75; }
-
-@media (max-width: 640px) {
-  .stats { grid-template-columns: 1fr; }
-  .stat { border-right: none; border-bottom: 1px solid var(--line); }
-  .stat:last-child { border-bottom: none; }
-  .cap-grid { grid-template-columns: 1fr; }
-}
 
 /* ---------- 预算图表 ---------- */
 
