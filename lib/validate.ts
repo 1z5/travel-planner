@@ -91,7 +91,7 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
       .map((s) => ({ name: s.name, day: day.day }));
     const results = await mapLimit(targets, VERIFY_CONCURRENCY, async (t) => ({
       t,
-      r: await lookupPoi(plan.city, t.name),
+      r: await lookupPoi(plan.city, t.name, input.scope),
     }));
     for (const { t, r } of results) {
       if (r.state === "miss") {
@@ -115,7 +115,7 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
     }
     const segResults = await mapLimit(segments, VERIFY_CONCURRENCY, async (seg) => ({
       seg,
-      r: await transitMinutes(plan.city, seg.from, seg.to),
+      r: await transitMinutes(plan.city, seg.from, seg.to, input.scope),
     }));
     for (const { r } of segResults) {
       if (r.state === "unknown") transitUnknown = true;

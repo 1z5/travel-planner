@@ -9,6 +9,7 @@ export interface PlanInput {
   hotel?: string;          // 用户指定住所（酒店名/区域），如 "全季酒店(春熙路店)" 或 "住春熙路附近"
   mustVisit?: string[];    // 期望必游地（硬约束，必须全部出现在行程中）
   pace?: "relaxed" | "balanced" | "packed"; // 行程节奏：轻松/适中/紧凑（默认适中）
+  scope?: "city" | "region"; // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）
 }
 
 // ---------- 行程结构（LLM 按此 schema 输出） ----------

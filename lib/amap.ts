@@ -152,8 +152,17 @@ function cacheSet(key: string, v: PoiLookup): void {
 /**
  * POI 验真：在高德里按「城市 + 名称」搜。
  * 三态语义见 PoiLookup——error 表示「不知道」，调用方不得据此下任何结论。
+ *
+ * scope=region 时**不带 citylimit**：区域的 POI 分散在多个行政区
+ * （川西环线跨成都/阿坝/甘孜），而高德不认识「川西环线」这个 city，
+ * 带 citylimit 会把结果全部滤空。放开后按关键词搜，靠 miss/error
+ * 三态与 transitMinutes 的距离上限兜底误匹配。
  */
-export async function lookupPoi(city: string, name: string): Promise<PoiLookup> {
+export async function lookupPoi(
+  city: string,
+  name: string,
+  scope: "city" | "region" = "city",
+): Promise<PoiLookup> {
   if (AMAP_MOCK) {
     const h = hash(city + name);
     return {
@@ -168,7 +177,7 @@ export async function lookupPoi(city: string, name: string): Promise<PoiLookup> 
     };
   }
 
-  const cacheKey = `${city}|${name}`;
+  const cacheKey = `${city}|${scope}|${name}`;
   const hit = poiCache.get(cacheKey);
   if (hit && Date.now() - hit.t < ttlFor(hit.v)) return hit.v;
 
@@ -176,13 +185,18 @@ export async function lookupPoi(city: string, name: string): Promise<PoiLookup> 
   if (running) return running;
 
   const task = (async (): Promise<PoiLookup> => {
-    const r = await amapGetRetry("/v3/place/text", {
+    // 区域模式不传 city/citylimit：高德按关键词全局搜，否则会被
+    // 「川西环线」这个不存在的 city 滤成空结果
+    const params: Record<string, string> = {
       keywords: name,
-      city,
-      citylimit: "true",
       offset: "1",
       extensions: "base",
-    });
+    };
+    if (scope === "city") {
+      params.city = city;
+      params.citylimit = "true";
+    }
+    const r = await amapGetRetry("/v3/place/text", params);
     let lookup: PoiLookup;
     if (!r.ok) {
       lookup = { state: "error", reason: r.detail };
@@ -226,14 +240,15 @@ export async function transitMinutes(
   city: string,
   from: string,
   to: string,
+  scope: "city" | "region" = "city",
 ): Promise<TransitResult> {
   if (AMAP_MOCK) {
     return { state: "ok", minutes: 15 + (hash(city + from + to) % 30) }; // 15~44 分钟
   }
 
   // 关键：距离接口只收坐标，先把两个地名解析成坐标
-  const a = await lookupPoi(city, from);
-  const b = await lookupPoi(city, to);
+  const a = await lookupPoi(city, from, scope);
+  const b = await lookupPoi(city, to, scope);
   if (a.state === "error") return { state: "unknown", reason: `「${from}」解析失败：${a.reason}` };
   if (b.state === "error") return { state: "unknown", reason: `「${to}」解析失败：${b.reason}` };
   if (a.state === "miss" || b.state === "miss") return { state: "ok", minutes: 30 };

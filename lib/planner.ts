@@ -128,6 +128,20 @@ const SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为单人旅行
 - 期望必游地：列出的地点**必须全部出现**在行程中（按所在区域分配到各天，与你的推荐融合排期）。不得以任何理由静默丢弃；若某必游地你判断不存在或明显无法安排（如闭馆），放在 tips 里显式说明，不要假装安排了。
 `;
 
+// 区域（环线）模式的追加规则。与城市模式的关键差异：
+// - 「同一天集中在同一 area」升级为「同一天集中在同一子区域」，但**跨天必须换宿**——
+//   环线是边走边住，不是每天回同一个酒店
+// - 跨城交通要显式排（type=transport），否则模型会把 300km 当成市内通勤
+// - POI 分散在多个行政区，验真时不能按单一城市框定（见 lib/amap.ts 的 scope）
+const REGION_RULES = `
+本次规划的目的地是一个**区域/环线**（如川西环线、关西），不是单一城市。请遵守：
+- 按地理顺序推进：每天的景点集中在同一个子区域，跨天切换到相邻子区域，不要来回折返。
+- 城际/跨区域转移必须显式排一个 spot（type=transport，name 如「成都→四姑娘山」），并给出合理的路上耗时与人均车费；不要把几百公里的跨城移动当成市内通勤。
+- 住宿随线路迁移：除第一天外，允许在当天所在的城镇安排酒店 spot（type=hotel，用具体酒店名）。若用户指定了住所，则仍以其为全程基地，不要迁移。
+- 行程天数较长，注意收尾：最后一天不要安排需要长时间游览的景点，要留出返回出发地的时间。
+- 预算要覆盖跨城交通与多点住宿，不要只按单城市标准估。
+`;
+
 // ---------- 路径 2 的提示词 ----------
 
 // 大纲：刻意只输出「主题 + 区域 + 思路」，不排时刻表。
@@ -516,7 +530,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     const { content, tokens: totalTokens } = await streamChatRetry(
       llm,
-      SYSTEM_PROMPT,
+      input.scope === "region" ? `${SYSTEM_PROMPT}\n${REGION_RULES}` : SYSTEM_PROMPT,
       buildUserPrompt(input, correction),
       input.city,
       `第${attempt}次`,
@@ -584,7 +598,7 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     const { content, tokens } = await streamChatRetry(
       llm,
-      OUTLINE_SYSTEM_PROMPT,
+      input.scope === "region" ? `${OUTLINE_SYSTEM_PROMPT}\n${REGION_RULES}` : OUTLINE_SYSTEM_PROMPT,
       buildOutlinePrompt(input, correction),
       input.city,
       `大纲 第${attempt}次`,
@@ -647,7 +661,7 @@ export async function generateDay(
   for (let attempt = 1; attempt <= 2; attempt++) {
     const { content, tokens } = await streamChatRetry(
       llm,
-      DAY_SYSTEM_PROMPT,
+      input.scope === "region" ? `${DAY_SYSTEM_PROMPT}\n${REGION_RULES}` : DAY_SYSTEM_PROMPT,
       buildDayPrompt(input, outline, dayIdx, correction),
       input.city,
       `第${expectedDay}天 第${attempt}次`,

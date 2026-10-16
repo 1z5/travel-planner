@@ -37,10 +37,13 @@ const InputSchema = z.object({
   ),
   // 行程节奏：轻松/适中/紧凑（影响 prompt 密度与体检阈值）
   pace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
+  // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）。
+  // 区域游天数更长，上限放宽到 10（单城市保持 7）。
+  scope: z.enum(["city", "region"]).default("city"),
 })
   .refine((d) => d.endAt > d.startAt, { message: "结束时间必须晚于开始时间" })
-  .refine((d) => deriveDays(d.startAt, d.endAt) <= 7, {
-    message: "目前支持 1-7 天行程：更长的行程请拆成多段分别规划",
+  .refine((d) => deriveDays(d.startAt, d.endAt) <= (d.scope === "region" ? 10 : 7), {
+    message: "城市行程支持 1-7 天，区域行程支持 1-10 天；更长的请拆成多段分别规划",
   });
 
 // 配额双轨：登录用户按手机号计数（默认 10 次/天），陌生人按 IP（默认 3 次/天）

@@ -67,6 +67,8 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [mvInput, setMvInput] = useState("");
   // 行程节奏：轻松/适中/紧凑
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
+  // 规划范围：单城市 / 区域环线（影响 prompt、POI 验真方式与天数上限）
+  const [scope, setScope] = useState<"city" | "region">("city");
   // 本次提交的总天数：分日流式路径下用于显示「已生成 N/M 天」
   const [submittedDays, setSubmittedDays] = useState<number | null>(null);
   // 实时定位：把「我在哪」变成默认起点。定位是增强不是门槛，
@@ -291,6 +293,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           hotel: hotel.trim() || undefined,
           mustVisit,
           pace,
+          scope,
         }),
       });
       const data = await res.json();
@@ -396,6 +399,26 @@ export function HomeClient({ children }: { children?: ReactNode }) {
             {derivedDays === 1 ? "（当天往返）" : ""}
           </p>
         )}
+
+          <label id="scope-label">规划范围</label>
+          <div className="segmented" role="group" aria-labelledby="scope-label">
+            {([
+              ["city", "单城市", "如：成都、京都"],
+              ["region", "区域环线", "如：川西环线、关西"],
+            ] as const).map(([value, label, desc]) => (
+              <button type="button" key={value}
+                className={scope === value ? "on" : ""}
+                aria-pressed={scope === value}
+                onClick={() => setScope(value)}>
+                {label}<small>{desc}</small>
+              </button>
+            ))}
+          </div>
+          <p className="helper">
+            {scope === "city"
+              ? "目前支持国内城市，1-7 天"
+              : "区域环线跨多个城市/景区，住宿随线路迁移，支持 1-10 天"}
+          </p>
 
           <label id="pace-label">行程节奏</label>
           <div className="segmented" role="group" aria-labelledby="pace-label">
