@@ -129,8 +129,8 @@ async function amapGet(path: string, params: Record<string, string>): Promise<Am
   }
 }
 
-/** 带退避重试的请求：只在 transient 失败时重试 */
-async function amapGetRetry(path: string, params: Record<string, string>): Promise<AmapResult> {
+/** 带退避重试的请求：只在 transient 失败时重试。导出供 weather.ts 复用。 */
+export async function amapGetRetry(path: string, params: Record<string, string>): Promise<AmapResult> {
   let last: AmapResult = { ok: false, kind: "network", detail: "未发起请求", transient: false };
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (attempt > 1) await sleep(BACKOFF_MS[attempt - 2]);

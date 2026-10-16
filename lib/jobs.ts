@@ -4,6 +4,7 @@ import { validatePlan, validateDay, finalizePlan, type DayCheck } from "./valida
 import { mapLimit } from "./concurrency";
 import { AMAP_MOCK } from "./amap";
 import { getStore } from "./store";
+import { fetchWeather, buildWeatherAdvice } from "./weather";
 import type { Plan, PlanDay, PlanInput, PlanSpot } from "./types";
 import type { Store } from "./store";
 
@@ -22,6 +23,28 @@ const STREAMING_MIN_DAYS = 5;
 
 function newId(): string {
   return `job_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/**
+ * 收尾并标记完成：追加天气风险提示，然后落库为 done。
+ *
+ * 天气是增强不是门槛——查询失败（无 key / 超出预报窗口 / 上游异常）时
+ * 静默跳过，绝不让整个任务失败。用户拿到的是「没有天气提示的行程」，
+ * 而不是「生成失败」。
+ */
+async function completeWithWeather(store: Store, jobId: string, plan: Plan): Promise<void> {
+  try {
+    const advice = await buildWeatherAdvice(plan, await fetchWeather(plan.city));
+    if (advice.warnings.length) {
+      plan.warnings.push(...advice.warnings);
+      console.log(
+        `[job] ${jobId} 天气提示 ${advice.warnings.length} 条（预报覆盖 ${advice.coveredDays}/${plan.days.length} 天）`,
+      );
+    }
+  } catch (e) {
+    console.log(`[job] ${jobId} 天气查询失败（已跳过）: ${(e as Error).message}`);
+  }
+  await store.jobs.update(jobId, { status: "done", plan: clonePlan(plan) });
 }
 
 /**
@@ -92,7 +115,7 @@ export async function createJob(
         await runStreaming(store, job.id, input);
       } else {
         const plan = await validatePlan(await generatePlan(input), input);
-        await store.jobs.update(job.id, { status: "done", plan });
+        await completeWithWeather(store, job.id, plan);
       }
       console.log(
         `[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`,
@@ -224,5 +247,6 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
 
   // 收尾：预算核对 + 必游地/住所核验 + 验真完成度 + 系统提示
   finalizePlan(plan, input, { warnings, unverified, transitUnknownDays, grandTotal });
-  await store.jobs.update(jobId, { status: "done", plan: clonePlan(plan) });
+  // 天气提示 + 标记完成（共用逻辑，与单次路径一致）
+  await completeWithWeather(store, jobId, plan);
 }

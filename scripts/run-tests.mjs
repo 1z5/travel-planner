@@ -586,6 +586,23 @@ async function phaseB(api) {
   check("定位：非法坐标 → 400", geoBad.status === 400, `got ${geoBad.status}`);
   const geoRange = await fetch(`${api.baseUrl}/api/geocode/reverse?lng=999&lat=30`);
   check("定位：坐标越界 → 400", geoRange.status === 400, `got ${geoRange.status}`);
+
+  // ---- 天气提示（live 模式）----
+  // 桩返回 2026-10-10「小雨」的预报，fixture 行程 Day1（10-10）有室外景点
+  // → 应触发天气提示。这验证的是完整接线：jobs.ts → fetchWeather → 高德 → warnings。
+  const jWx = await api.waitJob(
+    (await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] })).body.jobId,
+  );
+  const wxWarnings = (jWx.plan?.warnings ?? []).filter((w) => w.includes("预报"));
+  check("天气：坏天气 + 室外景点 → 生成提示", wxWarnings.length > 0,
+    JSON.stringify(jWx.plan?.warnings));
+  check("天气：提示点明日期与天气",
+    (wxWarnings[0] ?? "").includes("2026-10-10") && (wxWarnings[0] ?? "").includes("小雨"),
+    wxWarnings[0]);
+  check("天气：提示列出当天室外景点",
+    /室外景点/.test(wxWarnings[0] ?? ""), wxWarnings[0]);
+  check("天气：只提示不改写（行程结构不变）",
+    (jWx.plan?.days ?? []).length === 3, `days=${(jWx.plan?.days ?? []).length}`);
 }
 
 // ---------------- 阶段 C：登录体系（dev provider） ----------------

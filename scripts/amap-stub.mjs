@@ -50,6 +50,25 @@ const server = createServer((req, res) => {
     return;
   }
 
+  if (path === "/v3/weather/weatherInfo") {
+    // 天气预报（实时定位后的天气提示用）。返回 fixture 行程所在日期
+    // （2026-10-10 ~ 10-12）的预报，其中 10-10 刻意设为「小雨」——
+    // 这样 phaseB 的行程（Day1 有室外景点）应触发天气提示，可精确断言。
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: "1", info: "OK",
+      forecasts: [{
+        city: "成都市",
+        casts: [
+          { date: "2026-10-10", week: "6", dayweather: "小雨", nightweather: "多云", daytemp: "24", nighttemp: "18", daywind: "北", nightwind: "北", daypower: "1-3", nightpower: "1-3" },
+          { date: "2026-10-11", week: "7", dayweather: "晴", nightweather: "晴", daytemp: "26", nighttemp: "19", daywind: "北", nightwind: "北", daypower: "1-3", nightpower: "1-3" },
+          { date: "2026-10-12", week: "1", dayweather: "多云", nightweather: "晴", daytemp: "25", nighttemp: "18", daywind: "北", nightwind: "北", daypower: "1-3", nightpower: "1-3" },
+        ],
+      }],
+    }));
+    return;
+  }
+
   if (path === "/v3/geocode/regeo") {
     // 逆地理编码（实时定位用）。按坐标区分两种**真实形态**（均已用真实 key 验证）：
     //   坐标以 116.4 开头 → 直辖市：addressComponent.city 是空数组
