@@ -204,6 +204,37 @@ function client(): OpenAI {
 }
 
 /**
+ * LLM 调用失败。retryable 标记「瞬时故障」——连接层中断值得重试一次，
+ * 而超时/内容问题各有自己的处理路径（见 streamChatRetry 与各生成函数）。
+ */
+export class LlmError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+    this.name = "LlmError";
+  }
+}
+
+/** 连接层瞬时故障判定：undici socket 销毁 / 连接重置 / fetch 失败。
+ *
+ * 必须看 cause 链，不能只看顶层 message——实测两种面世方式：
+ *   流式中途被掐 → 顶层 "terminated"
+ *   连接建立失败 → 顶层 "Connection error."，真正的 "fetch failed" 在 cause 里
+ * 只匹配顶层会漏掉后者（第一版就栽在这，被 e2e 的桩抓出来）。 */
+function isTransientConnectionError(err: unknown): boolean {
+  const PATTERN =
+    /terminated|aborted|ECONNRESET|EPIPE|socket hang up|fetch failed|Connection error|UND_ERR_SOCKET|network/i;
+  const messages: string[] = [];
+  let cur: unknown = err;
+  // cause 链最多追 5 层，够了（SDK 包装通常只有一两层）
+  for (let depth = 0; depth < 5 && cur; depth++) {
+    const msg = cur instanceof Error ? cur.message : String(cur);
+    if (msg) messages.push(msg);
+    cur = cur instanceof Error ? cur.cause : undefined;
+  }
+  return messages.some((m) => PATTERN.test(m));
+}
+
+/**
  * 一次流式调用，返回拼接后的正文与 token 统计。
  *
  * 为什么必须流式：推理模型生成要 3-5 分钟，非流式会撞上 Node fetch 的
@@ -245,11 +276,47 @@ async function streamChat(
     if (/timed out|timeout/i.test(msg)) {
       // 流式下 SDK 超时约束的是「chunk 间隔」而非总时长（实测 496s 的任务
       // 也未被 420s 掐断），所以这里触发时是断流/连接问题，不是"到点没返回"
-      throw new Error("生成中断或连接超时，请稍后重试（可减少天数或换个城市）");
+      throw new LlmError("生成中断或连接超时，请稍后重试（可减少天数或换个城市）", false);
+    }
+    if (isTransientConnectionError(e)) {
+      // 连接被上游掐断。这类是瞬时故障：标为可重试，由 streamChatRetry 兜一次。
+      // 原样透出 "terminated"/"Connection error." 对用户完全不可行动。
+      throw new LlmError("生成连接被中断", true);
     }
     throw e;
   }
   return { content, tokens: totalTokens };
+}
+
+/**
+ * 带瞬时故障重试的流式调用。
+ *
+ * 为什么需要：分日路径下一个任务要跑十几分钟，第 4 天时一次连接抖动
+ * （实测 undici "terminated"）就会让已成功的 3 天全部作废、用户只看到
+ * 一个无法行动的词。连接层中断重试一次的成本远小于重跑整个任务。
+ *
+ * 与各生成函数里的 attempt 循环分工：这里管「连接层瞬时故障」，
+ * 那里管「空返回 / JSON 不合法 / 结构不符」这类内容问题。
+ */
+async function streamChatRetry(
+  llm: OpenAI,
+  system: string,
+  user: string,
+  city: string,
+  tag = "",
+): Promise<{ content: string; tokens: number }> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await streamChat(llm, system, user, city, tag);
+    } catch (e) {
+      if (attempt < 2 && e instanceof LlmError && e.retryable) {
+        console.log(`[llm] ${city} ${tag} 连接中断，重试（${attempt}/2）`);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("unreachable");
 }
 
 function fmtRange(startAt: string, endAt: string): string {
@@ -325,6 +392,13 @@ function buildOutlinePrompt(input: PlanInput, correction?: string): string {
   } else {
     lines.push(`- 必须严格输出 ${input.days} 天，day 从 1 连续编号。`);
   }
+  // 预算目标：把「贴近预算」落成具体数值区间，与单日提示词的锚点区间同源。
+  // 这是分日锚点的上游——大纲不定调，后面每天只能各自为政。
+  // 同样只用锚点（区间），不让模型做算术题（见 buildDayPrompt 的教训注释）。
+  const totalLow = Math.max(1, Math.round(input.budget * 0.8));
+  lines.push(
+    `- 全程人均总花费应落在 ${totalLow}-${input.budget} 元之间：不要大幅低于预算（低于 ${totalLow} 元说明体验排得太省），也不要超出 ${input.budget} 元。`,
+  );
   return lines.join("\n");
 }
 
@@ -341,15 +415,24 @@ function buildDayPrompt(
     .filter((_, i) => i !== dayIdx)
     .map((d) => `第 ${d.day} 天：${d.theme}（${d.area}）`)
     .join("；");
+  // 锚点区间而非单一点值：给模型花掉预算的空间，对齐 prompt 的
+  // 「至少用掉 80%、不超过 105%」契约。严格遵守 CHANGELOG 的教训——
+  // 约束用锚点（具体数值区间），不让模型做算术题（百分比分配曾让
+  // reasoning 从 1.3 万涨到 4 万+、生成从 250s 恶化到 600s+ 连续超时）。
   const perDay = Math.max(1, Math.round(input.budget / input.days));
+  const low = Math.max(1, Math.round(perDay * 0.8));
+  const high = Math.max(low + 1, Math.round(perDay * 1.05));
   const hotelNote =
     input.hotel?.trim() && dayIdx === 0
       ? `；第一天的酒店 spot 必须直接使用用户住所「${input.hotel.trim()}」`
       : "";
+  // 首日区间明确标注「含全程住宿总价」——否则模型会理解成 perDay 之外
+  // 再加住宿，各天累计起来超出预算（原提示词的「约 X 元；住宿另计入」
+  // 就有这个歧义）。
   const budgetHint =
     dayIdx === 0 && input.days > 1
-      ? `当天人均花费建议约 ${perDay} 元；住宿总价（晚均价 250-500 元 × ${input.days - 1} 晚）计入第一天酒店 spot 的 costCny${hotelNote}`
-      : `当天人均花费建议约 ${perDay} 元（不含住宿）`;
+      ? `当天人均总花费建议落在 ${low}-${high} 元（含全程住宿总价：晚均价 250-500 元 × ${input.days - 1} 晚，计入酒店 spot 的 costCny${hotelNote}）`
+      : `当天人均总花费建议落在 ${low}-${high} 元（不含住宿）`;
 
   const lines = [
     `现在生成行程中第 ${day.day} 天的时刻表（共 ${input.days} 天，这是第 ${dayIdx + 1} 天）。`,
@@ -431,7 +514,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
 
   // 两次机会：空返回 / JSON 不合法 / 结构不符，都带原因重试一次
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const { content, tokens: totalTokens } = await streamChat(
+    const { content, tokens: totalTokens } = await streamChatRetry(
       llm,
       SYSTEM_PROMPT,
       buildUserPrompt(input, correction),
@@ -499,7 +582,7 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
   let correction: string | undefined;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const { content, tokens } = await streamChat(
+    const { content, tokens } = await streamChatRetry(
       llm,
       OUTLINE_SYSTEM_PROMPT,
       buildOutlinePrompt(input, correction),
@@ -562,7 +645,7 @@ export async function generateDay(
   let correction: string | undefined;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const { content, tokens } = await streamChat(
+    const { content, tokens } = await streamChatRetry(
       llm,
       DAY_SYSTEM_PROMPT,
       buildDayPrompt(input, outline, dayIdx, correction),

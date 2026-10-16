@@ -90,6 +90,9 @@ function dayForRequested(userMsg) {
 // 注入延迟，让渐进式交付可被断言。
 const DAY_DELAY_MS = Number(process.env.STUB_DAY_DELAY_MS || 0);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 连接中断模式的命中次数（进程级）：「断流」只掐第 1 次，之后放行，
+// 用来验证「瞬时故障重试一次」真的能救回长任务
+let terminateHits = 0;
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
@@ -136,12 +139,35 @@ const server = createServer((req, res) => {
       const dm = userMsg.match(/第 (\d+) 天的时刻表/);
       if (dm && Number(dm[1]) >= 2) mode = "garbage";
     }
+    // 连接中断两种（测 LlmError 的瞬时故障重试）：
+    //   「持续断流」每次都掐 → 重试也救不回来，验证失败信息带进度
+    //   「断流」只掐第一次   → 重试后恢复，验证长任务不被一次抖动全废
+    // 注意「持续断流」含「断流」，必须先判断，否则被后者截走。
+    else if (isDayCall && userMsg.includes("持续断流")) mode = "terminate-forever";
+    else if (isDayCall && userMsg.includes("断流")) {
+      const dm = userMsg.match(/第 (\d+) 天的时刻表/);
+      if (dm && Number(dm[1]) >= 2) mode = "terminate";
+    }
     console.log(`[stub] ${mode}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: { message: "stub internal error" } }));
       return;
+    }
+
+    // 连接中断：直接销毁 socket，不写任何响应——fetch 会抛 "terminated"，
+    // 与真实上游掐连接的行为一致。「terminate」只掐第一次（之后放行），
+    // 用来验证重试能救回来；「terminate-forever」每次都掐。
+    if (mode === "terminate" || mode === "terminate-forever") {
+      terminateHits += 1;
+      const shouldCut = mode === "terminate-forever" || terminateHits === 1;
+      if (shouldCut) {
+        console.log(`[stub] terminate（销毁 socket，第 ${terminateHits} 次）`);
+        res.socket.destroy();
+        return;
+      }
+      console.log(`[stub] terminate 第 ${terminateHits} 次：放行（重试已生效）`);
     }
 
     // 单日响应走延迟：让渐进式交付在 e2e 里可被观测（见 DAY_DELAY_MS 注释）

@@ -114,26 +114,36 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
 
   for (let i = 0; i < outline.days.length; i++) {
     const tDay = Date.now();
-    const raw = await generateDay(input, outline, i);
-    const day: PlanDay = {
-      ...raw,
-      spots: raw.spots as PlanSpot[],
-      transitMin: 0,
-      dailyCostCny: 0,
-    };
-    // 单日体检：预警随天数一起出现，不用等全量生成完
-    const check = await validateDay(plan, day, input);
-    plan.days.push(day);
-    warnings.push(...check.warnings);
-    unverified.push(...check.unverified);
-    if (check.transitUnknown) transitUnknownDays.push(day.day);
-    grandTotal += day.dailyCostCny;
-    plan.warnings = [...warnings];
+    try {
+      const raw = await generateDay(input, outline, i);
+      const day: PlanDay = {
+        ...raw,
+        spots: raw.spots as PlanSpot[],
+        transitMin: 0,
+        dailyCostCny: 0,
+      };
+      // 单日体检：预警随天数一起出现，不用等全量生成完
+      const check = await validateDay(plan, day, input);
+      plan.days.push(day);
+      warnings.push(...check.warnings);
+      unverified.push(...check.unverified);
+      if (check.transitUnknown) transitUnknownDays.push(day.day);
+      grandTotal += day.dailyCostCny;
+      plan.warnings = [...warnings];
 
-    await store.jobs.update(jobId, { plan: clonePlan(plan) });
-    console.log(
-      `[job] ${jobId} 第 ${day.day} 天完成 ${((Date.now() - tDay) / 1000).toFixed(1)}s（累计 ${plan.days.length}/${outline.days.length} 天）`,
-    );
+      await store.jobs.update(jobId, { plan: clonePlan(plan) });
+      console.log(
+        `[job] ${jobId} 第 ${day.day} 天完成 ${((Date.now() - tDay) / 1000).toFixed(1)}s（累计 ${plan.days.length}/${outline.days.length} 天）`,
+      );
+    } catch (e) {
+      // 失败信息必须带上进度。实测踩过：第 4 天连接被掐断时只抛出一个
+      // "terminated"，用户等了 14 分钟却完全无法行动——不知道成了几天、
+      // 不知道该不该重试。这里把进度与「配额已退还」说清楚。
+      const reason = e instanceof Error ? e.message : "生成失败";
+      throw new Error(
+        `第 ${i + 1} 天生成失败：${reason}（已成功生成 ${plan.days.length} 天，配额已退还，可重试）`,
+      );
+    }
   }
 
   // 收尾：预算核对 + 必游地/住所核验 + 验真完成度 + 系统提示

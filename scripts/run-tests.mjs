@@ -391,6 +391,56 @@ async function phaseA(api) {
   check("分日 prompt：单日请求含当天主战场区域约束",
     (lastUser16.user ?? "").includes("主战场区域"),
     lastUser16.user?.slice(0, 200));
+
+  // 用例 17：预算体检的对称性——以前只查「超预算 105%」，对「远低于预算」
+  // 完全沉默，而 prompt 承诺「至少用掉 80%」。fixture 总价恒为 1925，
+  // 可以精确构造两个场景来锁住这条契约。
+  // 放在 phaseA 末尾：前面有用例依赖精确的 remaining 账目，加提交会打乱。
+  const pLoose = await submitAndWait(api, { city: "苏州", days: 3, budget: 2500, preferences: [] }, "预算宽松");
+  check("预算宽松：低于 80% 触发提示（1925/2500=77%）",
+    (pLoose.warnings ?? []).some((w) => w.includes("预算较为宽松")),
+    JSON.stringify(pLoose.warnings));
+  const pFit = await submitAndWait(api, { city: "苏州", days: 3, budget: 2200, preferences: [] }, "预算贴合");
+  check("预算贴合：达到 80% 不误报宽松提示（1925/2200=88%）",
+    !(pFit.warnings ?? []).some((w) => w.includes("预算较为宽松")),
+    JSON.stringify(pFit.warnings));
+  check("预算贴合：落在契约区间内也不误报超预算",
+    !(pFit.warnings ?? []).some((w) => w.includes("超出预算")),
+    JSON.stringify(pFit.warnings));
+
+  // 用例 18/19：LLM 连接中断（terminated）的健壮性。
+  // 真机冒烟实测踩过：京都 5 天跑到第 4 天时连接被上游掐断，已成功生成 3 天、
+  // 跑了 828 秒的任务整体废掉，用户只看到一个无法行动的 "terminated"。
+  // 修了两件事：瞬时连接故障重试一次；失败信息带「已生成 N 天」进度。
+
+  // 场景 A「断流」：只掐第 2 天的第一次调用，重试后应恢复。
+  // 核心断言：长任务不该被一次连接抖动全废。
+  const r18 = await api.post({ city: "断流测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-05T18:00", budget: 5000 });
+  check("连接中断：提交 202", r18.status === 202, `got ${r18.status}`);
+  const j18 = await api.waitJob(r18.body.jobId, 90000);
+  check("连接中断重试：瞬时故障后恢复，任务 done", j18.status === "done",
+    JSON.stringify(j18).slice(0, 150));
+  check("连接中断重试：5 天齐全（重试救回了长任务）",
+    (j18.plan?.days ?? []).length === 5, `got ${(j18.plan?.days ?? []).length}`);
+
+  // 场景 B「持续断流」：每次都掐，重试也救不回来 → 必须失败（不假装成功），
+  // 且错误信息要带进度——用户等了十几分钟，至少该知道成了几天、该不该重试
+  const rBase19 = await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] });
+  const jBase19 = await api.waitJob(rBase19.body.jobId);
+  const before19 = jBase19.remaining;
+  const r19 = await api.post({ city: "持续断流测试城市", startAt: "2026-10-01T10:00",
+    endAt: "2026-10-05T18:00", budget: 5000 });
+  check("持续断流：提交 202", r19.status === 202, `got ${r19.status}`);
+  const j19 = await api.waitJob(r19.body.jobId, 90000);
+  check("持续断流：任务 error（重试也救不回时不假装成功）", j19.status === "error",
+    JSON.stringify(j19).slice(0, 200));
+  check("持续断流：错误信息带「已成功生成 N 天」进度",
+    /已成功生成 \d+ 天/.test(j19.error ?? ""), j19.error);
+  check("持续断流：错误信息指明第几天失败",
+    /第 \d+ 天生成失败/.test(j19.error ?? ""), j19.error);
+  check("持续断流：配额已退还", j19.remaining === before19,
+    `before=${before19} got=${j19.remaining}`);
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------

@@ -33,6 +33,9 @@ const PACE_LABEL: Record<NonNullable<PlanInput["pace"]>, string> = {
   packed: "紧凑",
 };
 const BUDGET_OVER = 1.05;       // 总花费超预算 5% 预警
+// 总花费低于预算 80% 给提示——阈值与 prompt 的「至少用掉 80%」契约严格对齐：
+// 模型没兑现自己承诺的规则时，用户应该得到信号（以前只查上限，是 asymmetric 的）
+const BUDGET_UNDER = 0.8;
 // POI 验真/通勤估算的并发上限：个人高德 key 有 QPS 限制，5 路是速度与配额的安全档
 const VERIFY_CONCURRENCY = 5;
 
@@ -146,6 +149,13 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   if (grandTotal > input.budget * BUDGET_OVER) {
     warnings.push(
       `行程合计人均约 ${grandTotal} 元，超出预算 ${input.budget} 元 ${Math.round((grandTotal / input.budget - 1) * 100)}%，注意控制`,
+    );
+  } else if (grandTotal < input.budget * BUDGET_UNDER) {
+    // 与超预算对称的提示。定位是「信息性」而非风险——钱没花完不是坏事，
+    // 但意味着可能漏掉了预算本可覆盖的体验（住得更好/多一个项目），
+    // 或者用户的预算估值本身偏高。给可行动的建议，不做价值判断。
+    warnings.push(
+      `预算较为宽松：合计人均约 ${grandTotal} 元，用掉预算 ${input.budget} 元的 ${Math.round((grandTotal / input.budget) * 100)}%。可提高住宿档次或增加体验项目，也可以调低预算让规划更聚焦`,
     );
   }
 
