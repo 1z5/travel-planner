@@ -7,6 +7,7 @@ import { AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope, MapPin } from
 import { motion } from "framer-motion";
 import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
+import { AddressInput } from "@/components/AddressInput";
 
 const PREF_OPTIONS = [
   "美食", "历史文化", "自然风光", "Citywalk", "博物馆",
@@ -157,6 +158,15 @@ export function HomeClient({ children }: { children?: ReactNode }) {
 
   function togglePref(p: string) {
     setPrefs((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
+  }
+
+  // 添加期望必游地：回车与点「添加」按钮共用。上限 5 个、去重、忽略空白。
+  function addMustVisit() {
+    const v = mvInput.trim();
+    if (v && mustVisit.length < 5 && !mustVisit.includes(v)) {
+      setMustVisit((cur) => [...cur, v]);
+      setMvInput("");
+    }
   }
 
   // 实时定位：浏览器拿坐标 → 服务端逆地理编码换城市名 → 自动填入输入框。
@@ -342,8 +352,8 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           <div className="row row-form">
           <div>
             <label htmlFor="city">目的地城市</label>
-            <input id="city" type="text" value={city} onChange={(e) => setCity(e.target.value)}
-                   placeholder="如：成都" maxLength={20} required />
+            <AddressInput id="city" label="目的地城市" scope="city"
+              value={city} onChange={setCity} placeholder="如：成都" maxLength={20} />
             {/* 实时定位：一键把当前位置设为起点。按钮用 type="button"——
                 放在 form 里若误用默认类型会触发提交 */}
             <div className="locate-row">
@@ -440,8 +450,9 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         <div className="field-group">
           <div className="legend">你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span></div>
           <label htmlFor="hotel">我的住所</label>
-        <input id="hotel" type="text" value={hotel} onChange={(e) => setHotel(e.target.value)}
-               placeholder='如：全季酒店(春熙路店)，或"住春熙路附近"' maxLength={40} />
+        <AddressInput id="hotel" label="我的住所" scope="poi" city={city}
+          value={hotel} onChange={setHotel}
+          placeholder='如：全季酒店(春熙路店)' maxLength={40} />
 
           <label htmlFor="must-visit-input">期望必游地<span className="optional-tag">最多 5 个，必须全部安排</span></label>
         <div className="chips">
@@ -461,26 +472,11 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           ))}
         </div>
         <div className="row" style={{ marginTop: 6 }}>
-          <input id="must-visit-input" type="text" value={mvInput} onChange={(e) => setMvInput(e.target.value)}
-                 placeholder="输入地名后点添加，或回车" maxLength={20}
-                 onKeyDown={(e) => {
-                   if (e.key === "Enter") {
-                     e.preventDefault();
-                     const v = mvInput.trim();
-                     if (v && mustVisit.length < 5 && !mustVisit.includes(v)) {
-                       setMustVisit((cur) => [...cur, v]);
-                       setMvInput("");
-                     }
-                   }
-                 }} />
-          <button type="button"
-            onClick={() => {
-              const v = mvInput.trim();
-              if (v && mustVisit.length < 5 && !mustVisit.includes(v)) {
-                setMustVisit((cur) => [...cur, v]);
-                setMvInput("");
-              }
-            }}
+          <AddressInput id="must-visit-input" label="期望必游地" scope="poi" city={city}
+            value={mvInput} onChange={setMvInput}
+            placeholder="输入地名后点添加，或回车" maxLength={20}
+            onSubmit={addMustVisit} />
+          <button type="button" onClick={addMustVisit}
             style={{ flex: "0 0 auto" }} className="btn btn-tall">
             添加
           </button>

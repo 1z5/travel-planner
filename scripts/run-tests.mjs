@@ -603,6 +603,26 @@ async function phaseB(api) {
     /室外景点/.test(wxWarnings[0] ?? ""), wxWarnings[0]);
   check("天气：只提示不改写（行程结构不变）",
     (jWx.plan?.days ?? []).length === 3, `days=${(jWx.plan?.days ?? []).length}`);
+
+  // ---- 地址自动补全（live 模式走桩）----
+  // 验证完整接线：/api/places/suggest → suggestPlaces → 高德 → 多条建议
+  const sugCity = await fetch(`${api.baseUrl}/api/places/suggest?q=${encodeURIComponent("成都")}&scope=city`);
+  const sugCityBody = await sugCity.json();
+  check("补全：城市模式返回多条建议", sugCity.status === 200
+    && (sugCityBody.suggestions ?? []).length >= 2,
+    JSON.stringify(sugCityBody).slice(0, 120));
+  check("补全：建议含名称与详情（展示用）",
+    (sugCityBody.suggestions ?? []).every((x) => typeof x.name === "string" && x.name.length > 0),
+    JSON.stringify(sugCityBody.suggestions?.[0]));
+
+  const sugPoi = await fetch(`${api.baseUrl}/api/places/suggest?q=${encodeURIComponent("全季")}&scope=poi&city=${encodeURIComponent("成都")}`);
+  const sugPoiBody = await sugPoi.json();
+  check("补全：POI 模式返回具体地点建议", sugPoi.status === 200
+    && (sugPoiBody.suggestions ?? []).length >= 2,
+    JSON.stringify(sugPoiBody).slice(0, 120));
+
+  const sugBad = await fetch(`${api.baseUrl}/api/places/suggest?q=`);
+  check("补全：空关键词 → 400（不打无谓请求）", sugBad.status === 400, `got ${sugBad.status}`);
 }
 
 // ---------------- 阶段 C：登录体系（dev provider） ----------------

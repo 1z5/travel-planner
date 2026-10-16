@@ -165,6 +165,40 @@ input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input { -moz-appearance: textfield; appearance: textfield; }
 .helper { font-size: var(--fs-caption); color: var(--ink-4); margin-top: var(--sp-1); }
+
+/* ---------- 地址自动补全（combobox） ---------- */
+.addr-box { position: relative; }
+.addr-field { position: relative; display: flex; align-items: center; }
+.addr-icon {
+  position: absolute; left: 10px; color: var(--ink-4);
+  pointer-events: none; flex-shrink: 0;
+}
+.addr-field input { padding-left: 30px; }
+.addr-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  margin: 0; padding: var(--sp-1); list-style: none;
+  background: var(--surface-solid); border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm); box-shadow: var(--shadow-md);
+  max-height: 260px; overflow-y: auto;
+}
+.addr-option {
+  display: flex; align-items: baseline; gap: var(--sp-2);
+  padding: 7px 10px; border-radius: 6px; cursor: pointer;
+  font-size: var(--fs-small); color: var(--ink-2);
+}
+.addr-option.active,
+.addr-option:hover { background: var(--accent-soft); color: var(--ink); }
+.addr-option-name { font-weight: 600; flex-shrink: 0; }
+.addr-option-detail {
+  color: var(--ink-4); font-size: var(--fs-caption);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 移动端：触控目标放大，下拉不遮挡输入框 */
+@media (max-width: 640px) {
+  .addr-option { padding: 11px 10px; min-height: 44px; }
+  .addr-list { max-height: 220px; }
+}
+
 /* 实时定位行：按钮 + 定位结果/错误提示。flex-wrap 防止窄屏下文字把按钮挤变形 */
 .locate-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
 

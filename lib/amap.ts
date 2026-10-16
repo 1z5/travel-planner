@@ -344,3 +344,85 @@ export async function reverseGeocode(lng: number, lat: number): Promise<ReverseG
     formatted: String(regeo?.formatted_address ?? ""),
   };
 }
+
+// ============================================================
+// 地点建议（地址输入自动补全）。
+//
+// 与 lookupPoi 的分工：lookupPoi 验真「这一个名字存不存在」（单发、三态），
+// suggestPlaces 回答「用户输入的字前缀对应哪些真实地点」（多发、给下拉用）。
+// 两者都走 /v3/place/text，但返回条数与用途不同。
+//
+// 产品动机：地址字段原本是自由填写，用户打错一个字（「武侯祠」→「武候祠」）
+// 就会让 POI 验真失败、行程质量下降。补全把输入约束在真实地点内，
+// 且不需要额外 key——复用已有的 Web 服务 key。
+// ============================================================
+
+/** 一条地点建议 */
+export interface PlaceSuggestion {
+  name: string;      // 地点名（填入输入框的值）
+  detail: string;    // 附属说明（区县/地址），展示用
+  city: string;      // 所属城市（裸名，如「成都」）——城市字段据此判断是否城市级
+  isCity: boolean;   // 是否为城市级结果（决定建议归属「城市」还是「具体地点」）
+}
+
+/** 建议查询结果。error 时返回空列表而非抛错——补全失败应降级为自由输入 */
+export interface SuggestResult {
+  suggestions: PlaceSuggestion[];
+  /** 失败原因（仅用于日志；前端不展示，避免把技术问题暴露给用户） */
+  error?: string;
+}
+
+/**
+ * 按关键词查地点建议。
+ *
+ * @param scope city    —— 城市字段用：优先返回城市级结果（「成都」→「成都市」）
+ *              poi     —— 住所/必游地用：返回具体地点（酒店/景点）
+ * @param city  可选，收窄到某城市内（POI 模式建议传，避免全国重名干扰）
+ */
+export async function suggestPlaces(
+  keywords: string,
+  scope: "city" | "poi" = "poi",
+  city?: string,
+): Promise<SuggestResult> {
+  const q = keywords.trim();
+  if (q.length < 1) return { suggestions: [] };
+  if (AMAP_MOCK) return { suggestions: [], error: "未配置高德 key（MOCK 模式）" };
+
+  const params: Record<string, string> = {
+    keywords: q,
+    offset: "8", // 一次多取一些，前端过滤后仍够 5 条
+    extensions: "base",
+  };
+  // 城市模式不限定 city——否则搜「成都」时被 citylimit 框住反而找不到城市本身
+  if (scope === "poi" && city) {
+    params.city = city;
+    params.citylimit = "true";
+  }
+
+  const r = await amapGetRetry("/v3/place/text", params);
+  if (!r.ok) return { suggestions: [], error: r.detail };
+
+  const pois = (r.data as { pois?: Array<Record<string, unknown>> })?.pois ?? [];
+  const suggestions: PlaceSuggestion[] = [];
+  const seen = new Set<string>();
+
+  for (const p of pois) {
+    const name = String(p.name ?? "").trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+
+    const rawCity = String(p.city ?? p.pname ?? "");
+    const cityName = pickCityName({ city: rawCity, province: String(p.pname ?? "") }) || "";
+    const isCity = scope === "city" && (name === cityName || name.replace(/市$/, "") === cityName);
+    const detail = [p.adname, p.address].filter((x) => typeof x === "string" && x).join(" · ");
+
+    suggestions.push({ name, detail: String(detail), city: cityName, isCity });
+    if (suggestions.length >= 5) break;
+  }
+
+  // 城市模式：把城市级结果提到最前（用户搜「成都」时「成都市」应排第一）
+  if (scope === "city") {
+    suggestions.sort((a, b) => Number(b.isCity) - Number(a.isCity));
+  }
+  return { suggestions };
+}

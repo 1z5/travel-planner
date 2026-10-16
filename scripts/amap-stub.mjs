@@ -28,16 +28,27 @@ const server = createServer((req, res) => {
       res.end(JSON.stringify({ status: "1", info: "OK", count: "0", pois: [] }));
       return;
     }
+    // offset>1 时（补全接口）返回多条建议，让 suggest 的下游逻辑可测
+    const offset = Number(url.searchParams.get("offset") ?? "1");
+    const pois = offset > 1
+      ? [1, 2, 3].map((n) => ({
+          name: `${keywords}建议${n}`,
+          address: `测试地址${n}`,
+          location: "116.400000,39.900000",
+          adname: "测试区",
+          city: "成都市",
+          pname: "四川省",
+        }))
+      : [{
+          name: keywords,
+          address: "测试地址",
+          location: "116.400000,39.900000",
+          adname: "测试区",
+          city: "成都市",
+          pname: "四川省",
+        }];
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "1", info: "OK", count: "1",
-      pois: [{
-        name: keywords,
-        address: "测试地址",
-        location: "116.400000,39.900000",
-        adname: "测试区",
-      }],
-    }));
+    res.end(JSON.stringify({ status: "1", info: "OK", count: String(pois.length), pois }));
     return;
   }
 
