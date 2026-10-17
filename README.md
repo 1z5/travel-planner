@@ -103,7 +103,7 @@ lib/ratelimit.ts            配额与限流（每日双轨 + 小时桶防轰炸�
 
 - [x] **M1 骨架**：表单 → API → LLM 结构化输出 → MOCK 体检 → 渲染（端到端已验证）
 - [x] **异步化**：POST 202 + 任务轮询 + 已耗时显示 + 失败退还配额（实测：提交 0s、苏州 3 天 237s 完成、西安 4 天 253s）
-- [ ] **M2 真实数据**：⏳ 待接高德 key 关掉 MOCK，跑 20 个真实 case 评估验真率/绕路误报率
+- [x] **M2 真实数据**：✅ 高德 key 已接入，live 模式经真机多次验证（POI 验真 / 通勤估算 / 天气预报均走真实数据，`/api/health` 报 `amapMode: live`）。⏳ 仍待：跑 20 个真实 case 量化评估验真率/绕路误报率/预算贴合度（`npm run eval:cases`，约 30 分钟、消耗真实 token）
 - [ ] **M3 登录体系**：✅ 完成并测试覆盖——三种 provider（none 开发 / sms 短信 / wechat 微信 OAuth2 全流程）、自签 HMAC session cookie（7 天/无 DB）、双轨配额（未登录 IP 3 次/天，登录用户 10 次/天，IP 限流不影响已登录用户）、短信防轰炸（单号 5 条/小时、单 IP 20 条/小时）、微信回调 CSRF 防护（state+cookie 比对）。⏳ 待接入真实服务商（接 `SmsProvider` 或填微信 appid/secret + 备案回调域名）
 - [ ] **M4 部署上线**：✅ 预制完成（`output: standalone` + Dockerfile 150MB 镜像 + DEPLOY.md 三方案对比）；⏳ 待定目标平台（CloudBase 云托管推荐）与域名备案
 - [x] **M5 体验**：行程可分享链接、Markdown/日历导出、地图可视化
