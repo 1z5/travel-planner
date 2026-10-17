@@ -447,7 +447,12 @@ function buildDayPrompt(
   // 约束用锚点（具体数值区间），不让模型做算术题（百分比分配曾让
   // reasoning 从 1.3 万涨到 4 万+、生成从 250s 恶化到 600s+ 连续超时）。
   const perDay = Math.max(1, Math.round(input.budget / input.days));
-  const low = Math.max(1, Math.round(perDay * 0.8));
+  // 下限从 0.8 抬到 0.85：实测原 0.8 让模型可以「合规地保守」——取下限
+  // 就达标，而分日路径下某天塌方（京都 5 天 D2 只花 ¥210，另一轮同参数
+  // 是 ¥1520）没有跨天机制兜底，直接把全局利用率拉到 58%。
+  // 0.85 仍留有余量（不是卡着 100% 逼模型凑数），但显著压缩「合规保守」
+  // 的空间。严格遵守 CHANGELOG 的教训：只给数值区间，不让模型做算术题。
+  const low = Math.max(1, Math.round(perDay * 0.85));
   const high = Math.max(low + 1, Math.round(perDay * 1.05));
   const hotelNote =
     input.hotel?.trim() && dayIdx === 0
@@ -460,6 +465,11 @@ function buildDayPrompt(
     dayIdx === 0 && input.days > 1
       ? `当天人均总花费建议落在 ${low}-${high} 元（含全程住宿总价：晚均价 250-500 元 × ${input.days - 1} 晚，计入酒店 spot 的 costCny${hotelNote}）`
       : `当天人均总花费建议落在 ${low}-${high} 元（不含住宿）`;
+  // 分日路径的跨天兜底：每天独立生成，某天保守（实测京都 D2 只花 ¥210，
+  // 另一轮同参数 ¥1520）会直接拉低全局利用率，而没有任何机制会发现。
+  // 在每天提示词里明确「不要显著低于下限」，并给出可执行的补齐方向
+  // （加体验项目/提高餐饮住宿档次），而不是让模型自己意会。
+  const budgetFloorHint = `当天花费不要显著低于 ${low} 元——预算没用完往往意味着漏掉了本可安排的体验（多一个景点、更好的餐厅、一场演出）。若确实没有值得加的项目，也不必凑数。`;
 
   const lines = [
     `现在生成行程中第 ${day.day} 天的时刻表（共 ${input.days} 天，这是第 ${dayIdx + 1} 天）。`,
@@ -472,6 +482,7 @@ function buildDayPrompt(
     "【本次请求的约束】",
     ...baseLines(input),
     `- ${budgetHint}`,
+    `- ${budgetFloorHint}`,
   ];
   if (correction) {
     lines.push(
