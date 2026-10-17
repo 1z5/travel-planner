@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaRegion, nameCovered } from "@/lib/validate";
+import { addDays, areaRegion, isRealDate, nameCovered } from "@/lib/validate";
 
 // areaRegion 是区域分散度预警的地基：归一化错一格，预警就会误报或漏报
 // （误合并 → 漏报分散；误拆分 → 把正常行程报成散沙）。它的行为必须钉死。
@@ -120,5 +120,54 @@ describe("nameCovered 名称匹配", () => {
     expect(nameCovered("", FIXTURE_SPOTS)).toBe(false);
     expect(nameCovered("  ", FIXTURE_SPOTS)).toBe(false);
     expect(nameCovered("拙政园", [])).toBe(false);
+  });
+});
+
+// isRealDate 是活动日期校验的地基：API 的 DT_RE 只查格式，"2026-02-30T09:00"
+// 能过 schema。拿这种值做日期运算会抛 RangeError，而 finalizePlan 没有
+// try/catch 兜底——这个 guard 漏了就是把崩溃路径引进主流程。
+describe("isRealDate 日历合法性", () => {
+  it("正常日期通过", () => {
+    expect(isRealDate("2026-10-18")).toBe(true);
+    expect(isRealDate("2024-02-29")).toBe(true); // 闰年
+    expect(isRealDate("2026-01-01")).toBe(true);
+  });
+
+  it("格式对但日历非法的日期必须判 false（round-trip 对不上）", () => {
+    // new Date("2026-02-30") 会静默规范成 3 月 2 日——这正是要挡的
+    expect(isRealDate("2026-02-30")).toBe(false);
+    expect(isRealDate("2026-13-01")).toBe(false);
+    expect(isRealDate("2026-04-31")).toBe(false);
+    expect(isRealDate("2026-00-10")).toBe(false);
+  });
+
+  it("平年 2 月 29 日非法（闰年规则）", () => {
+    expect(isRealDate("2026-02-29")).toBe(false); // 2026 不是闰年
+    expect(isRealDate("2024-02-29")).toBe(true);  // 2024 是闰年
+  });
+
+  it("格式不符直接 false（不抛错）", () => {
+    expect(isRealDate("10月18日")).toBe(false);
+    expect(isRealDate("2026-1-1")).toBe(false);
+    expect(isRealDate("")).toBe(false);
+  });
+});
+
+describe("addDays 日期算术", () => {
+  it("常规递增", () => {
+    expect(addDays("2026-10-18", 0)).toBe("2026-10-18");
+    expect(addDays("2026-10-18", 1)).toBe("2026-10-19");
+    expect(addDays("2026-10-18", 3)).toBe("2026-10-21");
+  });
+
+  it("跨月/跨年正确滚动", () => {
+    expect(addDays("2026-10-30", 3)).toBe("2026-11-02");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addDays("2024-02-28", 1)).toBe("2024-02-29"); // 闰年
+  });
+
+  it("用 UTC 算术，不受运行时本地时区影响", () => {
+    // 若用本地时间构造，在 UTC+X 时区可能算出前一天
+    expect(addDays("2026-01-01", 1)).toBe("2026-01-02");
   });
 });

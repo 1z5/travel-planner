@@ -75,6 +75,12 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
   // 规划范围：单城市 / 区域环线（影响 prompt、POI 验真方式与天数上限）
   const [scope, setScope] = useState<"city" | "region">("city");
+  // POI 补全的城市收窄口径：区域模式下目的地是「川西环线」这类区域名而不是
+  // 城市，传给高德会被静默忽略（实测 infocode 10000 / count 1000，直接返回
+  // 全国结果）——既收窄不到，还可能把恰好同名的真实城市误当成约束、排掉
+  // 区域里其他城市的 POI（如「大理」既是城市也可指大理州）。所以区域模式下
+  // 不收窄，补全按关键词全国搜，诚实优于假装精准。
+  const poiCity = scope === "region" ? undefined : city;
   // 本次提交的总天数：分日流式路径下用于显示「已生成 N/M 天」
   const [submittedDays, setSubmittedDays] = useState<number | null>(null);
   // 实时定位：把「我在哪」变成默认起点。定位是增强不是门槛，
@@ -456,7 +462,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         <div className="field-group">
           <div className="legend">你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span></div>
           <label htmlFor="hotel">我的住所</label>
-        <AddressInput id="hotel" label="我的住所" scope="poi" city={city}
+        <AddressInput id="hotel" label="我的住所" scope="poi" city={poiCity}
           value={hotel} onChange={setHotel}
           placeholder='如：全季酒店(春熙路店)' maxLength={40} />
 
@@ -478,7 +484,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           ))}
         </div>
         <div className="row" style={{ marginTop: 6 }}>
-          <AddressInput id="must-visit-input" label="期望必游地" scope="poi" city={city}
+          <AddressInput id="must-visit-input" label="期望必游地" scope="poi" city={poiCity}
             value={mvInput} onChange={setMvInput}
             placeholder="输入地名后点添加，或回车" maxLength={20}
             onSubmit={addMustVisit} />
@@ -493,7 +499,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
 
           <label htmlFor="event-name">重点活动<span className="optional-tag">选填 · 演唱会/赛事/展览，AI 围着它编排当天动线</span></label>
           <div className="row" style={{ marginTop: 6 }}>
-            <AddressInput id="event-name" label="重点活动名称" scope="poi" city={city}
+            <AddressInput id="event-name" label="重点活动名称" scope="poi" city={poiCity}
               value={evName} onChange={setEvName}
               placeholder="如：周杰伦演唱会（名称需真实存在）" maxLength={30} />
             <input id="event-date" type="date" aria-label="活动日期（可选）"

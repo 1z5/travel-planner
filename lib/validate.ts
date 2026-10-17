@@ -230,6 +230,32 @@ export interface FinalizeCtx {
 }
 
 /**
+ * 合法日历日期判断：格式对 **且** 能 round-trip。
+ *
+ * 只查格式不够——API 的 DT_RE 是纯格式正则，"2026-02-30T09:00" 能过 schema，
+ * 而 `new Date("2026-02-30")` 会静默规范成 3 月 2 日。拿这种值去做日期运算
+ * （toISOString）会抛 RangeError，而 finalizePlan 没有 try/catch 兜底。
+ * round-trip 对不上就判定非法，调用方据此跳过而不是崩。
+ */
+export function isRealDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  // 必须先挡 NaN：月越界（"2026-13-01"）时 V8 给的是 Invalid Date，
+  // 直接 toISOString() 会抛 RangeError——guard 自己就成了崩溃源。
+  // 日越界（"2026-02-30"）则会被静默滚动成 3 月 2 日，靠下面的
+  // round-trip 对不上来判伪。
+  if (Number.isNaN(d.getTime())) return false;
+  return d.toISOString().slice(0, 10) === s;
+}
+
+/** "YYYY-MM-DD" + n 天 → "YYYY-MM-DD"（UTC 算术避免时区漂移；与 weather/ics 同口径） */
+export function addDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * plan 级收尾：预算核对 + 用户硬约束核验 + 验真完成度 + 系统提示。
  * 分日路径在所有天生成完后调用一次；单次路径在 validatePlan 末尾调用。
  */
@@ -283,28 +309,48 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
       );
     }
   }
-  // 重点活动核验：与必游地同为硬约束（漏排告警），另加时间合理性检查——
-  // 活动 spot 排在开始时间之后 = 用户错过开场，这是比漏排更隐蔽的问题
+  // 重点活动核验：与必游地同为硬约束（漏排告警），另加日期与时间合理性检查——
+  // 排错天 / 排在开始时间之后 = 用户错过开场，都是比漏排更隐蔽的问题
   const daySpots = plan.days.flatMap((d) => d.spots.map((s) => ({ s, day: d.day })));
+  // 能把「第 N 天」换算成具体日期，才谈得上校验日期。startDate 要存在且是
+  // 合法日历日期（isRealDate 已挡掉 2026-02-30 这类）。推算不了就不猜——
+  // 与天气模块同一立场：没有依据就不下判断，而不是编一个
+  const canDate = !!plan.startDate && isRealDate(plan.startDate);
   for (const ev of input.events ?? []) {
     // 承载活动的 spot：用名称匹配找（用户写「成都川剧变脸演出」、模型落成
-    // 「蜀风雅韵川剧变脸演出(琴台路店)」也要能对上）
-    const spot = daySpots.find((x) => nameCovered(ev.name, [x.s.name]));
-    if (!spot) {
+    // 「蜀风雅韵川剧变脸演出(琴台路店)」也要能对上）。用 filter 而非 find：
+    // 多日活动（连展/多场次）可能落在多天，日期校验要看有没有任一天对得上
+    const matches = daySpots.filter((x) => nameCovered(ev.name, [x.s.name]));
+    if (!matches.length) {
       warnings.push(
         `重点活动「${ev.name}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
       );
       continue;
     }
+    // 日期校验：用户指定了 date，就必须有匹配的 spot 落在对应那天。
+    // 此前 date 只喂给 prompt 和 UI 展示，校验完全没看它——排在错天会无声
+    // 通过，而「活动在错的一天」对用户是硬伤（演唱会/赛事日期买定离手）
+    if (ev.date && canDate && isRealDate(ev.date)) {
+      const onRightDay = matches.some((x) => addDays(plan.startDate!, x.day - 1) === ev.date);
+      if (!onRightDay) {
+        const placed = matches.map((x) => `第 ${x.day} 天`).join("、");
+        warnings.push(
+          `重点活动「${ev.name}」被排在${placed}，但你指定的日期是 ${ev.date}——对不上，建议核对`,
+        );
+      }
+    }
     if (!ev.time) continue;
-    const spotStart = spot?.s.time.match(/^(\d{1,2}):(\d{2})/);
-    if (!spot || !spotStart) continue;
+    // 时间校验用第一个匹配的 spot（与既有行为一致）
+    const spotStart = matches[0].s.time.match(/^(\d{1,2}):(\d{2})/);
+    if (!spotStart) continue;
     const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);
     const startMin = toMin(spotStart[1], spotStart[2]);
     const evMin = toMin(ev.time.slice(0, 2), ev.time.slice(3, 5));
     if (startMin > evMin) {
+      // 用匹配到的时分而不是 time.slice(0,5)：单位数小时（"9:30-…"）时
+      // slice 会切出 "9:30-" 这种残缺串
       warnings.push(
-        `重点活动「${ev.name}」被排在 ${spot.s.time.slice(0, 5)} 开始，晚于活动时间 ${ev.time}，可能错过开场——建议提前到场`,
+        `重点活动「${ev.name}」被排在 ${spotStart[1]}:${spotStart[2]} 开始，晚于活动时间 ${ev.time}，可能错过开场——建议提前到场`,
       );
     }
   }
