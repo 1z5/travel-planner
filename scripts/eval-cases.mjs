@@ -41,14 +41,32 @@ const CASES = [
   { city: "哈尔滨", days: 4, budget: 3800, preferences: ["自然风光", "美食"] },
 ].slice(0, CASES_TOTAL);
 
+// API 从起止时间推导天数（不再接受 days 字段），且 startAt/endAt 是必填。
+// 评测脚本早期直接传 days，从未跑过；schema 演进后这里必须补日期区间。
+// 取「明天」起、跨 days 天，保证 deriveDays 算出的天数与 case 意图一致，
+// 日期也不在过去（天气等实时数据可用）。
+function dateRangeFor(days) {
+  const start = new Date(Date.now() + 86400000);
+  const end = new Date(start.getTime() + (days - 1) * 86400000);
+  const fmt = (d, hhmm) => {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    return `${y}-${mo}-${da}T${hhmm}`;
+  };
+  return { startAt: fmt(start, "10:00"), endAt: fmt(end, "18:00") };
+}
+
 async function runCase(c, index) {
   const t0 = Date.now();
   const tag = `[${index + 1}/${CASES.length}] ${c.city}`;
+  // 补上 API 必填的起止时间（天数由日期区间推导），并去掉 API 不认的 days
+  const { days, ...rest } = c;
   try {
     const r = await fetch(`${BASE}/api/plan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(c),
+      body: JSON.stringify({ ...rest, ...dateRangeFor(days) }),
     });
     if (r.status !== 202) {
       const body = await r.json().catch(() => ({}));
@@ -79,17 +97,18 @@ async function runCase(c, index) {
     const misses = (p.warnings ?? []).filter((w) => w.includes("未在高德")).length;
     const transitWarn = (p.warnings ?? []).filter((w) => w.includes("通勤")).length;
     const rhythmWarn = (p.warnings ?? []).filter((w) => w.includes("偏满") || w.includes("偏松")).length;
-    const budgetWarn = (p.warnings ?? []).some((w) => w.includes("超出预算"));
+    const budgetOver = (p.warnings ?? []).some((w) => w.includes("超出预算"));
+    const budgetUnder = (p.warnings ?? []).some((w) => w.includes("预算较为宽松"));
     const durationSec = Math.round((Date.now() - t0) / 1000);
 
     console.log(
       `${tag} ✅ ${durationSec}s | 验真 ${poisChecked - misses}/${poisChecked}` +
       ` | 预算 ${Math.round((p.totalCostCny / c.budget) * 100)}%` +
-      ` | 预警 ${p.warnings.length}（通勤${transitWarn}/节奏${rhythmWarn}/预算${budgetWarn ? 1 : 0}）`,
+      ` | 预警 ${p.warnings.length}（通勤${transitWarn}/节奏${rhythmWarn}/超支${budgetOver ? 1 : 0}/宽松${budgetUnder ? 1 : 0}）`,
     );
     return {
       case: c, success: true, durationSec,
-      verified: p.verified, poisChecked, misses, transitWarn, rhythmWarn, budgetWarn,
+      verified: p.verified, poisChecked, misses, transitWarn, rhythmWarn, budgetOver, budgetUnder,
       totalCostCny: p.totalCostCny, warnings: p.warnings.length,
     };
   } catch (e) {
@@ -130,7 +149,7 @@ console.log(`POI 验真率:    ${poisTotal ? Math.round(((poisTotal - missesTota
 console.log(`通勤预警率:    ${ok.length ? Math.round((ok.filter((r) => r.transitWarn > 0).length / ok.length) * 100) : 0}% 的行程被标记疑似绕路`);
 console.log(`预算贴合度:    中位 ${median(budgetRatios)}%（预算的百分之多少被用掉；>105% 为超支）`);
 console.log(`耗时:          中位 ${median(durations)}s，最快 ${durations[0] ?? "-"}s，最慢 ${durations[durations.length - 1] ?? "-"}s`);
-console.log(`超支 case:      ${ok.filter((r) => r.budgetWarn).length} 个`);
+console.log(`预算预警:       超支 ${ok.filter((r) => r.budgetOver).length} 个 / 宽松 ${ok.filter((r) => r.budgetUnder).length} 个`);
 
 const outDir = "eval-results";
 mkdirSync(outDir, { recursive: true });
