@@ -19,9 +19,17 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   const path = url.pathname;
   const keywords = url.searchParams.get("keywords") ?? "";
+  const city = url.searchParams.get("city") ?? "";
   console.log(`[amap-stub] ${path} keywords=${keywords || "-"}`);
 
   if (path === "/v3/place/text") {
+    // 境外/无覆盖目的地：按 city 参数判断（桩约定 city 含「境外」即境外场景）。
+    // 高德仅覆盖国内，境外城市的 POI 全部搜不到——实测京都 case。
+    if (city.includes("境外")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "1", info: "OK", count: "0", pois: [] }));
+      return;
+    }
     // 「桃花源记」故意搜不到：验证 POI 未命中预警（fixture 中 Day1 的真实 POI）
     if (keywords.includes("桃花源记")) {
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -53,6 +61,8 @@ const server = createServer((req, res) => {
   }
 
   if (path === "/v5/direction/driving") {
+    const origin = url.searchParams.get("origin") ?? "";
+    const dest = url.searchParams.get("destination") ?? "";
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       status: "1", info: "OK",

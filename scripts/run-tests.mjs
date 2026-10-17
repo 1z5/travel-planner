@@ -690,6 +690,33 @@ async function phaseB(api) {
   check("天气：只提示不改写（行程结构不变）",
     (jWx.plan?.days ?? []).length === 3, `days=${(jWx.plan?.days ?? []).length}`);
 
+  // ---- 境外/无覆盖目的地（真机京都 case 暴露）----
+  // 桩对含「境外」的 POI 全部返回空、通勤也失败——模拟高德只覆盖国内。
+  // 期望：给出一条明确的「无覆盖区域」产品级提示（而不是让用户从一堆
+  // 「未检索到」里自己猜），且逐条预警仍在（不隐瞒数据缺失）。
+  const rOv = await api.post({ city: "境外城市", days: 3, budget: 4000 });
+  check("境外：提交 202", rOv.status === 202, `got ${rOv.status}`);
+  const jOv = await api.waitJob(rOv.body.jobId);
+  const ovWarnings = jOv.plan?.warnings ?? [];
+  check("境外：提示无覆盖区域（明确告知数据边界）",
+    ovWarnings.some((w) => w.includes("无 POI 覆盖") || w.includes("境外")),
+    JSON.stringify(ovWarnings.slice(0, 3)));
+  check("境外：提示说明逐条未检索到的原因（不是名称打错）",
+    ovWarnings.some((w) => w.includes("不是名称打错") || w.includes("均覆盖国内")),
+    JSON.stringify(ovWarnings.slice(0, 3)));
+  check("境外：逐条未检索到预警仍在（不隐瞒数据缺失）",
+    ovWarnings.some((w) => w.includes("未在高德检索到")),
+    JSON.stringify(ovWarnings.slice(0, 3)));
+  // 注意：POI 全 miss 时通勤走 30 分钟兜底（既有设计），不会报「通勤失败」，
+  // 所以不断言那条。改为断言「无覆盖提示里说清了通勤也是兜底值」。
+  check("境外：提示说明通勤为估算兜底值（不把兜底当真数据）",
+    ovWarnings.some((w) => w.includes("通勤为估算兜底值") || w.includes("兜底")),
+    JSON.stringify(ovWarnings.slice(0, 3)));
+  // 对照：国内正常场景**不能**触发无覆盖提示（防误报）
+  check("对照：国内场景不误报无覆盖",
+    !(plan.warnings ?? []).some((w) => w.includes("无 POI 覆盖")),
+    JSON.stringify((plan.warnings ?? []).filter((w) => w.includes("覆盖"))));
+
   // ---- 地址自动补全（live 模式走桩）----
   // 验证完整接线：/api/places/suggest → suggestPlaces → 高德 → 多条建议
   const sugCity = await fetch(`${api.baseUrl}/api/places/suggest?q=${encodeURIComponent("成都")}&scope=city`);

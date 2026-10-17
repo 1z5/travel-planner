@@ -27,16 +27,29 @@ let lastUserMsg = "";
 // planner 现在会核对「输出天数 === 请求天数」，桩不能再一律返回 3 天
 // fixture——否则 1 天/4 天的请求会被判结构不符而失败。
 // 少于 fixture 天数取前 N 天；多于则循环补齐（桩只测结构，内容复用无妨）。
+//
+// 同时透传用户请求的城市：fixture 的 city 固定是「苏州」，但 validate 是拿
+// **plan.city** 去查高德的——不覆盖的话，请求「境外城市」时高德收到的是
+// city=苏州，境外分支永远不命中（实测踩过：预警里只有「桃花源记」miss，
+// 看不到无覆盖提示）。真实 LLM 会回应用户请求的城市，桩也要照做。
+function requestedCity(userMsg) {
+  const m = userMsg.match(/目的地：(\S+)/);
+  return m ? m[1] : CANNED_PLAN.city;
+}
+
 function planForRequestedDays(userMsg) {
+  const city = requestedCity(userMsg);
   const m = userMsg.match(/天数：(\d+)\s*天/);
   const n = m ? Number(m[1]) : CANNED_PLAN.days.length;
-  if (!Number.isInteger(n) || n < 1 || n === CANNED_PLAN.days.length) return CANNED_PLAN;
+  if (!Number.isInteger(n) || n < 1 || n === CANNED_PLAN.days.length) {
+    return city === CANNED_PLAN.city ? CANNED_PLAN : { ...CANNED_PLAN, city };
+  }
   const days = [];
   for (let i = 0; i < n; i++) {
     const src = CANNED_PLAN.days[Math.min(i, CANNED_PLAN.days.length - 1)];
     days.push({ ...src, day: i + 1, spots: src.spots.map((s) => ({ ...s })) });
   }
-  return { ...CANNED_PLAN, days };
+  return { ...CANNED_PLAN, city, days };
 }
 
 // 乱序 + 跳号响应：数组顺序 [Day2, Day3, Day1]，day 字段 [5, 9, 2]。
@@ -70,7 +83,7 @@ function outlineForRequestedDays(userMsg) {
       focus: `第 ${i + 1} 天的安排思路（桩数据）`,
     });
   }
-  return { city: CANNED_PLAN.city, summary: CANNED_PLAN.summary, days, tips: CANNED_PLAN.tips ?? [] };
+  return { city: requestedCity(userMsg), summary: CANNED_PLAN.summary, days, tips: CANNED_PLAN.tips ?? [] };
 }
 
 function dayForRequested(userMsg) {

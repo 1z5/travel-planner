@@ -114,6 +114,7 @@ export interface DayCheck {
   warnings: string[];       // 当天的预警（POI 未命中 / 通勤 / 节奏）
   unverified: string[];     // 因上游异常未能验真的 POI（≠不存在）
   transitUnknown: boolean;  // 当天通勤是否无法估算
+  missCount: number;        // 当天「未在高德检索到」的 POI 数（境外场景汇总用）
 }
 
 /**
@@ -127,6 +128,10 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
   const warnings: string[] = [];
   const unverified: string[] = [];
   let transitUnknown = false;
+  let missCount = 0;
+  // 境外/无覆盖目的地由 finalizePlan 按**全局数据**判断（见 coverageNotice）：
+  // 所有 POI 全 miss + 通勤全失败 = 高德不覆盖该区域。不在单日层面用城市名
+  // 硬编码名单判断——不可维护，且用户可输入任何境外城市。
 
   // 1) POI 验真：景点和餐厅必须真实存在。
   //    有界并发 + 保序：warning 仍按当天顺序输出。
@@ -140,6 +145,7 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
     }));
     for (const { t, r } of results) {
       if (r.state === "miss") {
+        missCount += 1;
         warnings.push(
           `第 ${t.day} 天「${t.name}」未在高德检索到，可能名称有误或已关闭，出发前请自行确认`,
         );
@@ -208,7 +214,7 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
   // 5) 当天人均花费
   day.dailyCostCny = day.spots.reduce((s, x) => s + x.costCny, 0);
 
-  return { warnings, unverified, transitUnknown };
+  return { warnings, unverified, transitUnknown, missCount };
 }
 
 /** plan 级收尾所需的上下文（由调用方逐天累积而来） */
@@ -217,6 +223,10 @@ export interface FinalizeCtx {
   unverified: string[];
   transitUnknownDays: number[];
   grandTotal: number;
+  /** 全天「未在高德检索到」的 POI 总数 */
+  missCount: number;
+  /** 全天参与验真的 POI 总数（sight + food） */
+  poiTotal: number;
 }
 
 /**
@@ -224,7 +234,30 @@ export interface FinalizeCtx {
  * 分日路径在所有天生成完后调用一次；单次路径在 validatePlan 末尾调用。
  */
 export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): void {
-  const { warnings, unverified, transitUnknownDays, grandTotal } = ctx;
+  const { warnings, unverified, transitUnknownDays, grandTotal, missCount, poiTotal } = ctx;
+
+  // 无覆盖区域（典型：境外目的地）：高德只覆盖国内 POI，境外地点**全部**搜不到。
+  // 此时逐条「未在高德检索到」是把产品的数据边界说成用户的问题（文案还暗示
+  // 「可能名称有误或已关闭」），看着一片红却不知道真正原因。
+  //
+  // 判断只用可靠信号「所有 POI 都 miss」，**不**叠加「通勤也全部失败」——
+  // 后者取决于 QPS 是否抖动（瞬时错误），把瞬时故障误判成「无覆盖」会冤枉
+  // 一个本该正常的国内行程。同理也不用城市名硬编码名单（不可维护，且用户可
+  // 输入任何境外城市）。poiTotal>=4 防止小行程偶发全 miss 的误报。
+  const uncovered = !AMAP_MOCK && poiTotal >= 4 && missCount === poiTotal;
+  if (uncovered) {
+    const names = plan.days
+      .flatMap((d) => d.spots.filter((x) => x.type === "sight" || x.type === "food"))
+      .slice(0, 3)
+      .map((x) => x.name)
+      .join("、");
+    warnings.push(
+      `「${plan.city}」疑似境外或无 POI 覆盖的目的地：${poiTotal} 个景点/餐厅全部未在高德检索到。本产品的 POI 验真与通勤估算依赖高德（仅覆盖国内），因此这份行程的**景点真实性未经核查、站点间通勤为估算兜底值**，都需要你自行核实——下方逐条「未检索到」是这个原因，不是名称打错`,
+    );
+    if (names) {
+      warnings.push(`未检索到的地点包括：${names} 等 ${poiTotal} 个，均为境外/无覆盖数据所致`);
+    }
+  }
 
   if (grandTotal > input.budget * BUDGET_OVER) {
     warnings.push(
@@ -319,14 +352,20 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
   const transitUnknownDays: number[] = [];
   let grandTotal = 0;
 
+  let missCount = 0;
+  let poiTotal = 0;
   for (const day of plan.days) {
     const check = await validateDay(plan, day, input);
     warnings.push(...check.warnings);
     unverified.push(...check.unverified);
     if (check.transitUnknown) transitUnknownDays.push(day.day);
     grandTotal += day.dailyCostCny;
+    missCount += check.missCount;
+    poiTotal += day.spots.filter((s) => s.type === "sight" || s.type === "food").length;
   }
 
-  finalizePlan(plan, input, { warnings, unverified, transitUnknownDays, grandTotal });
+  finalizePlan(plan, input, {
+    warnings, unverified, transitUnknownDays, grandTotal, missCount, poiTotal,
+  });
   return plan;
 }

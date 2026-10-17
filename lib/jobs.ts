@@ -245,8 +245,17 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
     },
   );
 
-  // 收尾：预算核对 + 必游地/住所核验 + 验真完成度 + 系统提示
-  finalizePlan(plan, input, { warnings, unverified, transitUnknownDays, grandTotal });
+  // 收尾：预算核对 + 必游地/住所核验 + 验真完成度 + 系统提示。
+  // missCount / poiTotal 供 finalizePlan 判断「无覆盖区域」（境外目的地）：
+  // 逐条 warning 里已含当天 miss 信息，这里按全局汇总即可。
+  const poiTotal = plan.days.reduce(
+    (n, d) => n + d.spots.filter((s) => s.type === "sight" || s.type === "food").length,
+    0,
+  );
+  const missCount = warnings.filter((w) => w.includes("未在高德检索到")).length;
+  finalizePlan(plan, input, {
+    warnings, unverified, transitUnknownDays, grandTotal, missCount, poiTotal,
+  });
   // 天气提示 + 标记完成（共用逻辑，与单次路径一致）
   await completeWithWeather(store, jobId, plan);
 }
