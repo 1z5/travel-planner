@@ -10,6 +10,14 @@ export interface PlanInput {
   mustVisit?: string[];    // 期望必游地（硬约束，必须全部出现在行程中）
   pace?: "relaxed" | "balanced" | "packed"; // 行程节奏：轻松/适中/紧凑（默认适中）
   scope?: "city" | "region"; // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）
+  events?: PlanEvent[];      // 用户指定的重点活动（演唱会/赛事/展览等，需编进行程）
+}
+
+/** 用户指定的重点活动。时间可选——给了就围绕它倒推动线，没给则由 AI 建议 */
+export interface PlanEvent {
+  name: string;              // 活动名称，如 "周杰伦演唱会" 或 "莫奈特展"
+  date?: string;             // "YYYY-MM-DD"（可选）
+  time?: string;             // "HH:mm"（可选，开始时间）
 }
 
 // ---------- 行程结构（LLM 按此 schema 输出） ----------

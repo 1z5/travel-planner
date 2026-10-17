@@ -112,6 +112,89 @@ function scatteredDayForRequested(userMsg) {
 // 整个任务瞬间完成，e2e 根本无法观测中间状态。测试编排器通过环境变量
 // 注入延迟，让渐进式交付可被断言。
 const DAY_DELAY_MS = Number(process.env.STUB_DAY_DELAY_MS || 0);
+// 活动编排（正常路径）：在 fixture Day1 插入 activity spot，时间排在活动
+// 开始之前（19:00 开始 → 18:30 入场）→ 应入行程且不误报
+function eventOkDay(userMsg) {
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  const spots = src.spots.map((x) => ({ ...x }));
+  spots.push({
+    period: "evening",
+    time: "18:30-21:30",
+    type: "activity",
+    name: "测试音乐会",
+    area: src.spots[0]?.area ?? "测试区",
+    durationMin: 180,
+    costCny: 380,
+    reason: "用户指定的重点活动（桩数据），提前 30 分钟入场",
+  });
+  return { day: dayNum, theme: src.theme, spots };
+}
+
+// 活动晚点：在 fixture Day1 插入 activity spot，时间排在活动开始之后
+// （活动 19:00 开始，spot 排 21:00）→ 应触发「错过开场」告警
+function eventLateDay(userMsg) {
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  const spots = src.spots.map((x) => ({ ...x }));
+  spots.push({
+    period: "evening",
+    time: "21:00-22:30",
+    type: "activity",
+    name: "测试音乐会",
+    area: src.spots[0]?.area ?? "测试区",
+    durationMin: 90,
+    costCny: 380,
+    reason: "用户指定的重点活动（桩数据）",
+  });
+  return { day: dayNum, theme: src.theme, spots };
+}
+
+// 活动漏排：fixture 原样返回（不含用户指定的活动）→ 应触发漏排告警
+function eventMissingDay(userMsg) {
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  let spots = src.spots.map((x) => ({ ...x }));
+  if (dayNum > 1) spots = spots.filter((x) => x.type !== "hotel");
+  return { day: dayNum, theme: src.theme, spots };
+}
+
+// ---- plan 级包装：单次调用路径（days<5）返回完整 plan ----
+// 活动功能与天数无关，两条生成路径都要覆盖。day 级函数返回单日；
+// plan 级基于 planForRequestedDays 的完整行程，把活动 spot 插进 Day1。
+
+function withEventSpot(basePlan, time, durationMin, reason) {
+  const days = basePlan.days.map((d) => ({ ...d, spots: d.spots.map((x) => ({ ...x })) }));
+  if (days.length > 0) {
+    days[0].spots.push({
+      period: "evening",
+      time,
+      type: "activity",
+      name: "测试音乐会",
+      area: days[0].spots[0]?.area ?? "测试区",
+      durationMin,
+      costCny: 380,
+      reason,
+    });
+  }
+  return { ...basePlan, days };
+}
+
+function eventResponse(userMsg, isDayCall, time, durationMin, reason) {
+  if (isDayCall) {
+    return time === "21:00-22:30" ? eventLateDay(userMsg) : eventOkDay(userMsg);
+  }
+  return withEventSpot(planForRequestedDays(userMsg), time, durationMin, reason);
+}
+
+// 漏排：day 级返回单日，plan 级返回完整行程（两者都不含活动名）
+function eventMissingResponse(userMsg, isDayCall) {
+  return isDayCall ? eventMissingDay(userMsg) : planForRequestedDays(userMsg);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // 连接中断模式的命中次数（进程级）：「断流」只掐第 1 次，之后放行，
 // 用来验证「瞬时故障重试一次」真的能救回长任务
@@ -187,6 +270,11 @@ const server = createServer((req, res) => {
     // 「区域散」：当天的景点跨 5 个不同区县，确定触发区域分散度预警。
     // fixture 每天最多 3 个景点，到不了阈值 4，所以这里直接构造。
     else if (isDayCall && userMsg.includes("区域散")) mode = "scattered";
+    // 活动晚点：把活动排在开始时间之后（测「错过开场」告警）
+    else if (userMsg.includes("活动编排")) mode = "event-ok";
+    else if (userMsg.includes("活动晚点")) mode = "event-late";
+    // 活动漏排：整个行程不含该活动（测漏排告警）
+    else if (userMsg.includes("活动漏排")) mode = "event-missing";
     console.log(`[stub] ${mode}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
@@ -228,6 +316,9 @@ const server = createServer((req, res) => {
       : mode === "wrongdays" ? JSON.stringify(CANNED_PLAN)
       : isOutlineCall ? JSON.stringify(outlineForRequestedDays(userMsg))
       : mode === "scattered" ? JSON.stringify(scatteredDayForRequested(userMsg))
+      : mode === "event-ok" ? JSON.stringify(eventResponse(userMsg, isDayCall, "18:30-21:30", 180, "用户指定的重点活动（桩数据），提前 30 分钟入场"))
+      : mode === "event-late" ? JSON.stringify(eventResponse(userMsg, isDayCall, "21:00-22:30", 90, "用户指定的重点活动（桩数据）"))
+      : mode === "event-missing" ? JSON.stringify(eventMissingResponse(userMsg, isDayCall))
       : isDayCall ? JSON.stringify(dayForRequested(userMsg))
       : JSON.stringify(planForRequestedDays(userMsg));
 

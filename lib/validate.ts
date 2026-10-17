@@ -203,6 +203,31 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
       );
     }
   }
+  // 重点活动核验：与必游地同为硬约束（漏排告警），另加时间合理性检查——
+  // 活动 spot 排在开始时间之后 = 用户错过开场，这是比漏排更隐蔽的问题
+  for (const ev of input.events ?? []) {
+    if (!allSpotNames.includes(ev.name)) {
+      warnings.push(
+        `重点活动「${ev.name}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
+      );
+      continue;
+    }
+    if (!ev.time) continue;
+    // 找到承载该活动的 spot，比较其开始时间与活动开始时间
+    const spot = plan.days
+      .flatMap((d) => d.spots.map((s) => ({ s, day: d.day })))
+      .find((x) => x.s.name.includes(ev.name));
+    const spotStart = spot?.s.time.match(/^(\d{1,2}):(\d{2})/);
+    if (!spot || !spotStart) continue;
+    const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);
+    const startMin = toMin(spotStart[1], spotStart[2]);
+    const evMin = toMin(ev.time.slice(0, 2), ev.time.slice(3, 5));
+    if (startMin > evMin) {
+      warnings.push(
+        `重点活动「${ev.name}」被排在 ${spot.s.time.slice(0, 5)} 开始，晚于活动时间 ${ev.time}，可能错过开场——建议提前到场`,
+      );
+    }
+  }
   const hotel = input.hotel?.trim();
   if (hotel) {
     // 用户可能给模糊描述（"住春熙路附近"），模型会合理转化成具体酒店

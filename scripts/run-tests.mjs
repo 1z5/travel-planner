@@ -535,6 +535,56 @@ async function phaseA(api) {
   check("区域 8 天：任务 done 且 8 天齐全", jRegion8.status === "done"
     && (jRegion8.plan?.days ?? []).length === 8,
     `status=${jRegion8.status} days=${(jRegion8.plan?.days ?? []).length}`);
+
+  // 用例 23-25：重点活动（用户提供、AI 编排）
+  // 活动与必游地同为硬约束：漏排告警；另加时间合理性——spot 排在活动
+  // 开始之后 = 用户错过开场，这是比漏排更隐蔽的问题。
+  // 注意：这些用例会消耗配额，必须放在 phaseA 末尾（前面有精确 remaining 断言）。
+
+  // 23：正常编排——活动出现在行程里，且不误报
+  const r23 = await api.post({ city: "活动编排测试", days: 3, budget: 3000,
+    events: [{ name: "测试音乐会", date: "2026-10-10", time: "19:00" }] });
+  check("活动：提交 202", r23.status === 202, `got ${r23.status}`);
+  const j23 = await api.waitJob(r23.body.jobId);
+  const evSpots = (j23.plan?.days ?? []).flatMap((d) => d.spots)
+    .filter((sp) => sp.name.includes("测试音乐会"));
+  check("活动：编排进行程（出现 activity spot）", evSpots.length > 0,
+    JSON.stringify((j23.plan?.days ?? []).flatMap((d) => d.spots.map((s) => s.name))));
+  check("活动：spot 类型为 activity",
+    evSpots.length > 0 && evSpots.every((sp) => sp.type === "activity"),
+    JSON.stringify(evSpots.map((s) => s.type)));
+  check("活动：正常编排不误报漏排",
+    !(j23.plan?.warnings ?? []).some((w) => w.includes("测试音乐会") && w.includes("未出现")),
+    JSON.stringify(j23.plan?.warnings));
+
+  // 24：活动 spot 排在开始时间之后 → 「错过开场」告警
+  const r24 = await api.post({ city: "活动晚点测试", days: 3, budget: 3000,
+    events: [{ name: "测试音乐会", date: "2026-10-10", time: "19:00" }] });
+  check("活动晚点：提交 202", r24.status === 202, `got ${r24.status}`);
+  const j24 = await api.waitJob(r24.body.jobId);
+  check("活动晚点：提示可能错过开场",
+    (j24.plan?.warnings ?? []).some((w) => w.includes("测试音乐会") && w.includes("错过开场")),
+    JSON.stringify(j24.plan?.warnings));
+
+  // 25：活动漏排 → 告警（与必游地同级的硬约束）
+  const r25 = await api.post({ city: "活动漏排测试", days: 3, budget: 3000,
+    events: [{ name: "不存在的演出" }] });
+  check("活动漏排：提交 202", r25.status === 202, `got ${r25.status}`);
+  const j25 = await api.waitJob(r25.body.jobId);
+  check("活动漏排：告警未出现在行程中",
+    (j25.plan?.warnings ?? []).some((w) => w.includes("不存在的演出") && w.includes("未出现在行程中")),
+    JSON.stringify(j25.plan?.warnings));
+
+  // 26：events 超限/非法值 → 400（与 mustVisit 同级的输入防护）
+  const r26 = await api.post({ city: "成都", days: 3, budget: 2500,
+    events: [{ name: "甲" }, { name: "乙" }, { name: "丙" }, { name: "丁" }] });
+  check("活动：超过 3 个 → 400", r26.status === 400, `got ${r26.status}`);
+  const r26b = await api.post({ city: "成都", days: 3, budget: 2500,
+    events: [{ name: "演出<script>" }] });
+  check("活动：名称含特殊字符（防注入）→ 400", r26b.status === 400, `got ${r26b.status}`);
+  const r26c = await api.post({ city: "成都", days: 3, budget: 2500,
+    events: [{ name: "演出", time: "25:99" }] });
+  check("活动：时间格式非法 → 400", r26c.status === 400, `got ${r26c.status}`);
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------

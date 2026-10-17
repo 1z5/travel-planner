@@ -40,6 +40,19 @@ const InputSchema = z.object({
   // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）。
   // 区域游天数更长，上限放宽到 10（单城市保持 7）。
   scope: z.enum(["city", "region"]).default("city"),
+  // 重点活动（选填，最多 3 个）：用户提供的演唱会/赛事/展览等，需编进行程。
+  // 时间可选——给了就围绕它倒推动线，没给则由 AI 建议。名称会拼进 prompt，
+  // 因此与 city/hotel 同等防注入（字符白名单 + 长度上限）。
+  events: z.preprocess(
+    (v) => (v === "" || v == null ? [] : v),
+    z.array(
+      z.object({
+        name: z.string().trim().max(30).regex(/^[\u4e00-\u9fa5A-Za-z0-9·（）()\s]{2,30}$/),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+      }),
+    ).max(3).default([]),
+  ),
 })
   .refine((d) => d.endAt > d.startAt, { message: "结束时间必须晚于开始时间" })
   .refine((d) => deriveDays(d.startAt, d.endAt) <= (d.scope === "region" ? 10 : 7), {

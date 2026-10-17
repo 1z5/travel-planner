@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Plan } from "@/lib/types";
+import type { Plan, PlanEvent } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
@@ -66,6 +66,11 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [hotel, setHotel] = useState("");
   const [mustVisit, setMustVisit] = useState<string[]>([]);
   const [mvInput, setMvInput] = useState("");
+  // 重点活动：用户提供的演唱会/赛事/展览等（名称必填，日期时间可选）
+  const [events, setEvents] = useState<PlanEvent[]>([]);
+  const [evName, setEvName] = useState("");
+  const [evDate, setEvDate] = useState("");
+  const [evTime, setEvTime] = useState("");
   // 行程节奏：轻松/适中/紧凑
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
   // 规划范围：单城市 / 区域环线（影响 prompt、POI 验真方式与天数上限）
@@ -304,6 +309,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           mustVisit,
           pace,
           scope,
+          events,
         }),
       });
       const data = await res.json();
@@ -484,6 +490,59 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         {mustVisit.length >= 5 && (
           <p className="muted" style={{ marginTop: 4 }}>最多 5 个必游地</p>
         )}
+
+          <label htmlFor="event-name">重点活动<span className="optional-tag">选填 · 演唱会/赛事/展览，AI 围着它编排当天动线</span></label>
+          <div className="row" style={{ marginTop: 6 }}>
+            <AddressInput id="event-name" label="重点活动名称" scope="poi" city={city}
+              value={evName} onChange={setEvName}
+              placeholder="如：周杰伦演唱会（名称需真实存在）" maxLength={30} />
+            <input id="event-date" type="date" aria-label="活动日期（可选）"
+              value={evDate} onChange={(e) => setEvDate(e.target.value)} style={{ maxWidth: 150 }} />
+            <input id="event-time" type="time" aria-label="活动开始时间（可选）"
+              value={evTime} onChange={(e) => setEvTime(e.target.value)} style={{ maxWidth: 130 }} />
+          </div>
+          <button type="button" className="btn" style={{ marginTop: 6 }}
+            disabled={!evName.trim() || events.length >= 3}
+            onClick={() => {
+              const name = evName.trim();
+              if (!name || events.length >= 3) return;
+              if (events.some((e) => e.name === name)) return; // 去重
+              setEvents((cur) => [...cur, {
+                name,
+                date: evDate || undefined,
+                time: evTime || undefined,
+              }]);
+              setEvName("");
+              setEvDate("");
+              setEvTime("");
+            }}>
+            添加活动
+          </button>
+          {events.length > 0 && (
+            <div className="chips" style={{ marginTop: 8 }}>
+              {events.map((ev, i) => (
+                <span key={`${ev.name}-${i}`} className="chip on">
+                  {ev.name}
+                  {ev.date && <small style={{ marginLeft: 6, opacity: 0.75 }}>{ev.date}{ev.time ? ` ${ev.time}` : ""}</small>}
+                  <span role="button" tabIndex={0} aria-label={`删除活动 ${ev.name}`}
+                    onClick={() => setEvents((cur) => cur.filter((_, j) => j !== i))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setEvents((cur) => cur.filter((_, j) => j !== i));
+                      }
+                    }}
+                    style={{ marginLeft: 6, cursor: "pointer" }}>×</span>
+                </span>
+              ))}
+            </div>
+          )}
+          {events.length >= 3 && (
+            <p className="muted" style={{ marginTop: 4 }}>最多 3 个重点活动</p>
+          )}
+          <p className="helper">
+            名称会用高德验真（不存在会告警）；给了开始时间就会围绕它倒推动线，并预留提前到场
+          </p>
 
         </div>
 
