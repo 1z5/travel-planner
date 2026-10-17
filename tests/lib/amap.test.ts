@@ -216,3 +216,53 @@ describe("transitMinutes 两态语义", () => {
     expect(r.reason).toContain("未返回有效数据");
   });
 });
+
+// 退避策略的回归（真机日志踩坑后补）：
+// 高德 QPS 是秒级窗口，限流类失败若用短退避（150ms/400ms），三次尝试
+// 全落在同一秒内、必然连续超限——真机实测 driving 接口 3 次重试全失败，
+// 导致当天通勤估算失败、节奏体检被跳过。限流类必须跨过秒级窗口。
+describe("QPS 限流的退避策略", () => {
+  it("限流类失败：重试间隔跨过秒级窗口（≥1s），不是 150ms 短退避", async () => {
+    process.env.AMAP_WEB_SERVICE_KEY = "test-key";
+    vi.resetModules();
+    const timestamps: number[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        timestamps.push(Date.now());
+        return res({ status: "0", info: "CUQPS_HAS_EXCEEDED_THE_LIMIT", infocode: "10021" });
+      }),
+    );
+    const { lookupPoi } = await import("@/lib/amap");
+    await lookupPoi("成都", "限流退避测试");
+
+    expect(timestamps).toHaveLength(3); // 三次尝试都发生了
+    const gap1 = timestamps[1] - timestamps[0];
+    const gap2 = timestamps[2] - timestamps[1];
+    // 关键断言：两次间隔都必须跨过秒级窗口（远大于原来的 150ms/400ms）
+    expect(gap1).toBeGreaterThanOrEqual(900);
+    expect(gap2).toBeGreaterThanOrEqual(1800);
+  });
+
+  it("网络类失败：仍用短退避（不等 1 秒，避免无谓拖慢）", async () => {
+    process.env.AMAP_WEB_SERVICE_KEY = "test-key";
+    vi.resetModules();
+    const timestamps: number[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        timestamps.push(Date.now());
+        throw new Error("network down");
+      }),
+    );
+    const { lookupPoi } = await import("@/lib/amap");
+    await lookupPoi("成都", "网络退避测试");
+
+    expect(timestamps).toHaveLength(3);
+    const gap1 = timestamps[1] - timestamps[0];
+    const gap2 = timestamps[2] - timestamps[1];
+    // 网络异常是瞬时恢复，退避应远小于限流类
+    expect(gap1).toBeLessThan(900);
+    expect(gap2).toBeLessThan(1800);
+  });
+});

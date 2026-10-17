@@ -63,7 +63,14 @@ const inflight = new Map<string, Promise<PoiLookup>>();
 // ---- 瞬时失败重试：网络异常 + QPS/频率类上游错误。
 // key 无效、平台不匹配这类重试无意义，直接进入 error 态 ----
 const MAX_ATTEMPTS = 3;
-const BACKOFF_MS = [150, 400];
+// 退避分两类，因为两类失败的「恢复时间尺度」完全不同：
+// - 网络异常（连接重置 / fetch failed）：通常瞬时恢复，短退避足够
+// - 上游限流（QPS/频率类）：高德的 QPS 是**秒级窗口**，150ms/400ms 的
+//   重试全落在同一秒内，几乎必然再次超限。真机日志实测：driving 接口
+//   3 次重试全失败，导致当天通勤估算失败、节奏体检被跳过。必须退避到
+//   跨过秒级窗口（≥1s），否则重试只是把失败重复三遍。
+const BACKOFF_NETWORK_MS = [150, 400];
+const BACKOFF_RATELIMIT_MS = [1000, 2000];
 const FETCH_TIMEOUT_MS = 10_000;
 // 高德 infocode 里属于「稍后重试即可」的：QPS/频率/日配额类
 const TRANSIENT_INFOCODES = new Set(["10003", "10004", "10019", "10020", "10021", "10022"]);
@@ -129,11 +136,23 @@ async function amapGet(path: string, params: Record<string, string>): Promise<Am
   }
 }
 
-/** 带退避重试的请求：只在 transient 失败时重试。导出供 weather.ts 复用。 */
+/**
+ * 带退避重试的请求：只在 transient 失败时重试。导出供 weather.ts 复用。
+ *
+ * 退避按「上一次失败的原因」选择：限流类（QPS/频率/HTTP 429）必须跨过
+ * 秒级窗口才重试，否则三次尝试全落在同一秒内、必然连续超限；网络异常
+ * 用短退避（通常是瞬时恢复，等 1 秒反而拖慢）。
+ */
 export async function amapGetRetry(path: string, params: Record<string, string>): Promise<AmapResult> {
   let last: AmapResult = { ok: false, kind: "network", detail: "未发起请求", transient: false };
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (attempt > 1) await sleep(BACKOFF_MS[attempt - 2]);
+    if (attempt > 1) {
+      const backoff =
+        last.kind === "upstream" || /HTTP 429/.test(last.detail)
+          ? BACKOFF_RATELIMIT_MS
+          : BACKOFF_NETWORK_MS;
+      await sleep(backoff[attempt - 2]);
+    }
     last = await amapGet(path, params);
     if (last.ok || !last.transient) return last;
     logOnce(`[amap] ${path} 第 ${attempt}/${MAX_ATTEMPTS} 次失败（${last.detail}），将重试`);
