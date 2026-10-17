@@ -575,6 +575,42 @@ async function phaseA(api) {
     (j25.plan?.warnings ?? []).some((w) => w.includes("不存在的演出") && w.includes("未出现在行程中")),
     JSON.stringify(j25.plan?.warnings));
 
+  // 26b：活动别名场景（真机踩过的假预警，本轮的回归）
+  // 用户写「成都川剧变脸演出」，模型正确落成具体场馆「蜀风雅韵川剧变脸演出
+  // (琴台路店)」。全字符串 includes 匹配不上就会误报「未出现在行程中」——
+  // 预警系统说谎。nameCovered 的双路匹配（完整包含 + 最长公共子串≥3）
+  // 必须识别出这是正确执行。
+  const rAliasEv = await api.post({ city: "活动别名测试", days: 3, budget: 3000,
+    events: [{ name: "成都川剧变脸演出", date: "2026-10-10", time: "19:00" }] });
+  check("活动别名：提交 202", rAliasEv.status === 202, `got ${rAliasEv.status}`);
+  const j26b = await api.waitJob(rAliasEv.body.jobId);
+  const aliasSpots = (j26b.plan?.days ?? []).flatMap((d) => d.spots)
+    .filter((sp) => sp.name.includes("川剧变脸"));
+  check("活动别名：场馆全称已编入行程", aliasSpots.length > 0,
+    JSON.stringify((j26b.plan?.days ?? []).flatMap((d) => d.spots.map((x) => x.name))));
+  check("活动别名：不误报漏排（简称→场馆全称是正确执行）",
+    !(j26b.plan?.warnings ?? []).some((w) => w.includes("成都川剧变脸演出") && w.includes("未出现在行程中")),
+    JSON.stringify(j26b.plan?.warnings));
+  check("活动别名：时间合理也不误报错过开场",
+    !(j26b.plan?.warnings ?? []).some((w) => w.includes("成都川剧变脸演出") && w.includes("错过开场")),
+    JSON.stringify(j26b.plan?.warnings));
+
+  // 26c：必游地别名场景（同一类坑的另一处：用户写简称、模型落成规范全称）
+  // 用户写「成都大熊猫基地」，模型落成「成都大熊猫繁育研究基地」——
+  // 全字符串 includes 匹配不上会误报漏排，nameCovered 的最长公共子串
+  // （「成都大熊猫」5 字）必须识别出这是正确执行。
+  const rAliasMv = await api.post({ city: "必游地别名测试", days: 3, budget: 3000,
+    mustVisit: ["成都大熊猫基地"] });
+  check("必游地别名：提交 202", rAliasMv.status === 202, `got ${rAliasMv.status}`);
+  const j26c = await api.waitJob(rAliasMv.body.jobId);
+  const mvSpots = (j26c.plan?.days ?? []).flatMap((d) => d.spots)
+    .filter((sp) => sp.name.includes("大熊猫"));
+  check("必游地别名：规范全称已编入行程", mvSpots.length > 0,
+    JSON.stringify((j26c.plan?.days ?? []).flatMap((d) => d.spots.map((x) => x.name))));
+  check("必游地别名：不误报漏排（简称→规范全称是正确执行）",
+    !(j26c.plan?.warnings ?? []).some((w) => w.includes("成都大熊猫基地") && w.includes("未出现在行程中")),
+    JSON.stringify(j26c.plan?.warnings));
+
   // 26：events 超限/非法值 → 400（与 mustVisit 同级的输入防护）
   const r26 = await api.post({ city: "成都", days: 3, budget: 2500,
     events: [{ name: "甲" }, { name: "乙" }, { name: "丙" }, { name: "丁" }] });

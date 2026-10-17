@@ -190,9 +190,72 @@ function eventResponse(userMsg, isDayCall, time, durationMin, reason) {
   return withEventSpot(planForRequestedDays(userMsg), time, durationMin, reason);
 }
 
+// 必游地别名：模拟真实场景——用户写「成都大熊猫基地」（简称），模型落成
+// 规范全称「成都大熊猫繁育研究基地」。全字符串 includes 匹配不上会误报
+// 漏排；nameCovered 的最长公共子串（「成都大熊猫」5 字）要能识别。
+const ALIASED_MV_NAME = "成都大熊猫繁育研究基地";
+
+function mvAliasResponse(userMsg, isDayCall) {
+  const mk = (dayNum, src) => ({
+    day: dayNum,
+    theme: src.theme,
+    spots: [...src.spots.map((x) => ({ ...x })), {
+      period: "morning",
+      time: "09:00-12:00",
+      type: "sight",
+      name: ALIASED_MV_NAME,
+      area: "成华区",
+      durationMin: 180,
+      costCny: 55,
+      reason: "用户指定的必游地（桩数据），已落成规范全称",
+      rainBackup: "成都动物园",
+    }],
+  });
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  if (isDayCall) return mk(dayNum, src);
+  const base = planForRequestedDays(userMsg);
+  const days = base.days.map((d) => ({ ...d, spots: d.spots.map((x) => ({ ...x })) }));
+  if (days.length > 0) days[0] = mk(1, CANNED_PLAN.days[0]);
+  return { ...base, days };
+}
+
 // 漏排：day 级返回单日，plan 级返回完整行程（两者都不含活动名）
 function eventMissingResponse(userMsg, isDayCall) {
   return isDayCall ? eventMissingDay(userMsg) : planForRequestedDays(userMsg);
+}
+
+// 活动别名：模拟真机场景——用户写「成都川剧变脸演出」，模型正确落成具体
+// 场馆「蜀风雅韵川剧变脸演出(琴台路店)」。全字符串匹配会误报漏排，
+// nameCovered 的最长公共子串要能识别这是正确执行。
+const ALIASED_EVENT_NAME = "蜀风雅韵川剧变脸演出(琴台路店)";
+
+function eventAliasResponse(userMsg, isDayCall, time) {
+  const mk = (dayNum, src) => ({
+    day: dayNum,
+    theme: src.theme,
+    spots: [...src.spots.map((x) => ({ ...x })), {
+      period: "evening",
+      time,
+      type: "activity",
+      name: ALIASED_EVENT_NAME,
+      area: src.spots[0]?.area ?? "琴台路",
+      durationMin: 90,
+      costCny: 380,
+      reason: "用户指定的重点活动（桩数据），已落成具体场馆",
+    }],
+  });
+  const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
+  const dayNum = m ? Number(m[1]) : 1;
+  const src = CANNED_PLAN.days[Math.min(dayNum - 1, CANNED_PLAN.days.length - 1)];
+  if (isDayCall) return mk(dayNum, src);
+  const base = planForRequestedDays(userMsg);
+  const days = base.days.map((d) => ({ ...d, spots: d.spots.map((x) => ({ ...x })) }));
+  if (days.length > 0) {
+    days[0] = mk(1, CANNED_PLAN.days[0]);
+  }
+  return { ...base, days };
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -272,6 +335,10 @@ const server = createServer((req, res) => {
     else if (isDayCall && userMsg.includes("区域散")) mode = "scattered";
     // 活动晚点：把活动排在开始时间之后（测「错过开场」告警）
     else if (userMsg.includes("活动编排")) mode = "event-ok";
+    // 活动别名：用户写简称，模型落成场馆全称（真机踩过的假预警场景）
+    else if (userMsg.includes("活动别名")) mode = "event-alias";
+    // 必游地别名：同一类坑的另一处（用户写简称、模型落成规范全称）
+    else if (userMsg.includes("必游地别名")) mode = "mv-alias";
     else if (userMsg.includes("活动晚点")) mode = "event-late";
     // 活动漏排：整个行程不含该活动（测漏排告警）
     else if (userMsg.includes("活动漏排")) mode = "event-missing";
@@ -319,6 +386,8 @@ const server = createServer((req, res) => {
       : mode === "event-ok" ? JSON.stringify(eventResponse(userMsg, isDayCall, "18:30-21:30", 180, "用户指定的重点活动（桩数据），提前 30 分钟入场"))
       : mode === "event-late" ? JSON.stringify(eventResponse(userMsg, isDayCall, "21:00-22:30", 90, "用户指定的重点活动（桩数据）"))
       : mode === "event-missing" ? JSON.stringify(eventMissingResponse(userMsg, isDayCall))
+      : mode === "event-alias" ? JSON.stringify(eventAliasResponse(userMsg, isDayCall, "18:30-20:00"))
+      : mode === "mv-alias" ? JSON.stringify(mvAliasResponse(userMsg, isDayCall))
       : isDayCall ? JSON.stringify(dayForRequested(userMsg))
       : JSON.stringify(planForRequestedDays(userMsg));
 

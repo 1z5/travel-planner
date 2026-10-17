@@ -64,6 +64,51 @@ function fmtMin(min: number): string {
   return h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
 }
 
+/**
+ * 两个字符串的最长公共子串长度（字符级，动态规划）。
+ * 地名/活动名都在 30 字内，短串足够快，不需要后缀自动机那类复杂结构。
+ */
+function longestCommonSubstring(a: string, b: string): number {
+  if (!a || !b) return 0;
+  let prev = new Array<number>(b.length + 1).fill(0);
+  let best = 0;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = new Array<number>(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        cur[j] = prev[j - 1] + 1;
+        if (cur[j] > best) best = cur[j];
+      }
+    }
+    prev = cur;
+  }
+  return best;
+}
+
+/**
+ * 名称匹配：用户写的名字是否已被行程覆盖。
+ *
+ * 为什么不能只用全字符串 includes：用户写「成都川剧变脸演出」，模型会**正确**
+ * 落成具体场馆「蜀风雅韵川剧变脸演出(琴台路店)」——全串匹配不上就把正确执行
+ * 误报成「未出现在行程中」，预警系统说谎（与住所字段当年踩的是同一个坑，
+ * 见 CHANGELOG「住所/必游地 + 误报修复」）。必游地同样：「成都大熊猫基地」
+ * vs 模型落成的「成都大熊猫繁育研究基地」。
+ *
+ * 匹配规则（任一命中即算覆盖）：
+ * 1. 双向完整包含——用户给了确切名称，或模型用了更短的规范名
+ * 2. 最长公共子串 ≥3 字——用户写简称/别称，模型补全了场馆或全称
+ *    （3 字是校准值：「武侯祠」这类三字地名要能命中，而「测试必游地X」与
+ *     fixture 各 POI 的公共子串仅 1 字，不会把漏排误放过）
+ */
+export function nameCovered(name: string, candidates: readonly string[]): boolean {
+  const n = name.trim();
+  if (!n) return false;
+  return candidates.some((c) => {
+    if (c.includes(n) || n.includes(c)) return true;
+    return longestCommonSubstring(n, c) >= 3;
+  });
+}
+
 /** 单日体检结果 */
 export interface DayCheck {
   warnings: string[];       // 当天的预警（POI 未命中 / 通勤 / 节奏）
@@ -194,10 +239,12 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
     );
   }
 
-  // 用户硬约束核验：prompt 要求了，这里验证承诺是否兑现
-  const allSpotNames = plan.days.flatMap((d) => d.spots.map((s) => s.name)).join("\n");
+  // 用户硬约束核验：prompt 要求了，这里验证承诺是否兑现。
+  // 名称匹配用 nameCovered（见其注释）——用户写简称、模型落成场馆全称是
+  // 正确执行，全字符串匹配会把它误报成漏排。
+  const spotNames = plan.days.flatMap((d) => d.spots.map((s) => s.name));
   for (const mv of input.mustVisit ?? []) {
-    if (!allSpotNames.includes(mv)) {
+    if (!nameCovered(mv, spotNames)) {
       warnings.push(
         `必游地「${mv}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
       );
@@ -205,18 +252,18 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   }
   // 重点活动核验：与必游地同为硬约束（漏排告警），另加时间合理性检查——
   // 活动 spot 排在开始时间之后 = 用户错过开场，这是比漏排更隐蔽的问题
+  const daySpots = plan.days.flatMap((d) => d.spots.map((s) => ({ s, day: d.day })));
   for (const ev of input.events ?? []) {
-    if (!allSpotNames.includes(ev.name)) {
+    // 承载活动的 spot：用名称匹配找（用户写「成都川剧变脸演出」、模型落成
+    // 「蜀风雅韵川剧变脸演出(琴台路店)」也要能对上）
+    const spot = daySpots.find((x) => nameCovered(ev.name, [x.s.name]));
+    if (!spot) {
       warnings.push(
         `重点活动「${ev.name}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
       );
       continue;
     }
     if (!ev.time) continue;
-    // 找到承载该活动的 spot，比较其开始时间与活动开始时间
-    const spot = plan.days
-      .flatMap((d) => d.spots.map((s) => ({ s, day: d.day })))
-      .find((x) => x.s.name.includes(ev.name));
     const spotStart = spot?.s.time.match(/^(\d{1,2}):(\d{2})/);
     if (!spot || !spotStart) continue;
     const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);

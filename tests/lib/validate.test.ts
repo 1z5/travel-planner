@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaRegion } from "@/lib/validate";
+import { areaRegion, nameCovered } from "@/lib/validate";
 
 // areaRegion 是区域分散度预警的地基：归一化错一格，预警就会误报或漏报
 // （误合并 → 漏报分散；误拆分 → 把正常行程报成散沙）。它的行为必须钉死。
@@ -73,5 +73,52 @@ describe("areaRegion 归一化", () => {
     expect(areaRegion("大理市古城")).toBe("大理市");
     expect(areaRegion("婺源县江湾")).toBe("婺源县");
     expect(areaRegion("乌镇")).toBe("乌镇"); // 镇在后面，不在开头，不切
+  });
+});
+
+// nameCovered 的边界值（真机踩坑后补的回归）：
+// 用户写简称、模型落成场馆全称是**正确执行**，不能误报漏排；
+// 但 genuinely 没排的也不能被最长公共子串误放过。
+describe("nameCovered 名称匹配", () => {
+  const FIXTURE_SPOTS = [
+    "拙政园", "姑苏桥·文人苏式面馆", "苏州博物馆", "平江历史街区",
+    "桃花源记", "七里山塘", "苏州书香府邸·平江府", "天平山风景名胜区",
+    "石家饭店", "木渎古镇", "协和菜馆", "十全街", "同里古镇",
+    "同里状元居", "同里国家湿地公园", "老苏州茶酒楼",
+  ];
+
+  it("完整包含：用户写了确切名称", () => {
+    expect(nameCovered("拙政园", FIXTURE_SPOTS)).toBe(true);
+  });
+
+  it("双向包含：模型用了更短的规范名", () => {
+    expect(nameCovered("苏州博物馆", ["苏州博物馆"])).toBe(true);
+    expect(nameCovered("拙政园与狮子林", ["拙政园"])).toBe(true);
+  });
+
+  it("别名/简称：最长公共子串 ≥3 即算覆盖", () => {
+    // 真机 case：用户写简称，模型落成场馆全称
+    expect(nameCovered("成都川剧变脸演出", ["蜀风雅韵川剧变脸演出(琴台路店)"])).toBe(true);
+    expect(nameCovered("成都大熊猫基地", ["成都大熊猫繁育研究基地"])).toBe(true);
+    expect(nameCovered("武侯祠", ["成都武侯祠博物馆"])).toBe(true);
+  });
+
+  it("不相关的名字不能被子串误放过", () => {
+    expect(nameCovered("测试必游地X", FIXTURE_SPOTS)).toBe(false);
+    expect(nameCovered("不存在的演出", FIXTURE_SPOTS)).toBe(false);
+    expect(nameCovered("周杰伦演唱会", FIXTURE_SPOTS)).toBe(false);
+  });
+
+  it("公共子串只有 1-2 字时不算覆盖（防止误放过）", () => {
+    // 「园」字相同但完全不是一回事
+    expect(nameCovered("中华恐龙园", FIXTURE_SPOTS)).toBe(false);
+    // 「古镇」2 字相同，仍不足 3 字阈值
+    expect(nameCovered("丽江古城", FIXTURE_SPOTS)).toBe(false);
+  });
+
+  it("空名与空候选的安全处理", () => {
+    expect(nameCovered("", FIXTURE_SPOTS)).toBe(false);
+    expect(nameCovered("  ", FIXTURE_SPOTS)).toBe(false);
+    expect(nameCovered("拙政园", [])).toBe(false);
   });
 });
