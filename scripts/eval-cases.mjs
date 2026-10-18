@@ -95,7 +95,12 @@ async function runCase(c, index) {
     const spots = p.days.flatMap((d) => d.spots);
     const poisChecked = spots.filter((s) => s.type === "sight" || s.type === "food").length;
     const misses = (p.warnings ?? []).filter((w) => w.includes("未在高德")).length;
-    const transitWarn = (p.warnings ?? []).filter((w) => w.includes("通勤")).length;
+    // 「通勤」相关预警有三类，混成一个数会误导（M2 报的 79% 不是绕路率）：
+    // ① 疑似绕路（当天通勤 >120 分钟）② 区域分散（拿不到通勤信号时的兜底，
+    //    live 模式仅对通勤估算失败的天触发）③ 通勤估算失败（高德波动）。
+    const detourWarn = (p.warnings ?? []).filter((w) => w.includes("可能存在绕路")).length;
+    const spreadWarn = (p.warnings ?? []).filter((w) => w.includes("个不同区域")).length;
+    const transitFailWarn = (p.warnings ?? []).filter((w) => w.includes("通勤估算失败")).length;
     const rhythmWarn = (p.warnings ?? []).filter((w) => w.includes("偏满") || w.includes("偏松")).length;
     const budgetOver = (p.warnings ?? []).some((w) => w.includes("超出预算"));
     const budgetUnder = (p.warnings ?? []).some((w) => w.includes("预算较为宽松"));
@@ -104,11 +109,11 @@ async function runCase(c, index) {
     console.log(
       `${tag} ✅ ${durationSec}s | 验真 ${poisChecked - misses}/${poisChecked}` +
       ` | 预算 ${Math.round((p.totalCostCny / c.budget) * 100)}%` +
-      ` | 预警 ${p.warnings.length}（通勤${transitWarn}/节奏${rhythmWarn}/超支${budgetOver ? 1 : 0}/宽松${budgetUnder ? 1 : 0}）`,
+      ` | 预警 ${p.warnings.length}（绕路${detourWarn}/分散${spreadWarn}/通勤败${transitFailWarn}/节奏${rhythmWarn}/超支${budgetOver ? 1 : 0}/宽松${budgetUnder ? 1 : 0}）`,
     );
     return {
       case: c, success: true, durationSec,
-      verified: p.verified, poisChecked, misses, transitWarn, rhythmWarn, budgetOver, budgetUnder,
+      verified: p.verified, poisChecked, misses, detourWarn, spreadWarn, transitFailWarn, rhythmWarn, budgetOver, budgetUnder,
       totalCostCny: p.totalCostCny, warnings: p.warnings.length,
     };
   } catch (e) {
@@ -146,7 +151,8 @@ console.log("\n================ 评测报告 ================");
 console.log(`成功率:        ${ok.length}/${results.length}`);
 console.log(`验真模式覆盖:  ${withVerified.length}/${ok.length}（verified=true 的 case）`);
 console.log(`POI 验真率:    ${poisTotal ? Math.round(((poisTotal - missesTotal) / poisTotal) * 1000) / 10 : "-"}%（${poisTotal - missesTotal}/${poisTotal}）`);
-console.log(`通勤预警率:    ${ok.length ? Math.round((ok.filter((r) => r.transitWarn > 0).length / ok.length) * 100) : 0}% 的行程被标记疑似绕路`);
+console.log(`绕路预警率:    ${ok.length ? Math.round((ok.filter((r) => r.detourWarn > 0).length / ok.length) * 100) : 0}% 的行程有当天通勤 >2 小时（疑似绕路）`);
+console.log(`通勤估算失败:  ${ok.length ? Math.round((ok.filter((r) => r.transitFailWarn > 0).length / ok.length) * 100) : 0}% 的行程有高德波动导致的天级体检跳过`);
 console.log(`预算贴合度:    中位 ${median(budgetRatios)}%（预算的百分之多少被用掉；>105% 为超支）`);
 console.log(`耗时:          中位 ${median(durations)}s，最快 ${durations[0] ?? "-"}s，最慢 ${durations[durations.length - 1] ?? "-"}s`);
 console.log(`预算预警:       超支 ${ok.filter((r) => r.budgetOver).length} 个 / 宽松 ${ok.filter((r) => r.budgetUnder).length} 个`);
