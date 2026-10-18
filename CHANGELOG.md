@@ -2,6 +2,17 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 UI 优化：重点活动输入行重排 + 去 inline style
+
+「重点活动」输入区和上一轮修过的登录面板是同款问题：
+
+1. **布局错乱**：`<div className="row">` 定死 2 列 grid，却放了 3 个元素（活动名 AddressInput + 日期 + 时间）——活动名只占一半宽，时间还会单独掉到第二行、右侧空着。改用 `.event-row`（flex + flex-wrap）：活动名 `.addr-box` flex:1 min-width 220px 拿满剩余宽度，日期/时间 input 定宽（150/130px）不伸缩，窄屏自然换行
+2. **inline style 清理**：`maxWidth`/`marginTop`/`marginLeft`/`opacity` 全改 class（`.event-add`/`.event-chip-meta`）。删除 × 按钮必游地和活动 chip 本就用同一款 inline style，两处统一换成 `.chip-remove`
+
+保留了 aria-label、id、placeholder、按钮文字；已确认无测试依赖（Home.test.tsx 不碰活动 UI，e2e 活动全走 API 载荷）。
+
+验证：typecheck / 196 单测 / 212 e2e / 生产构建全绿。
+
 ## 2026-10 移除硬编码的 6 个预选城市 chip
 
 用户反馈：背景图改成「任意城市都能生成」之后，首页却还摆着「成都、西安、杭州、厦门、重庆、苏州」6 个预选城市 chip——这 6 个正是 `CITY_IMAGES` 里有真图的城市，和新机制自相矛盾，还在显眼处暗示「就支持这些」。

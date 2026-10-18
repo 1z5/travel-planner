@@ -473,7 +473,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
                     setMustVisit((cur) => cur.filter((x) => x !== m));
                   }
                 }}
-                style={{ marginLeft: 6, cursor: "pointer" }}>×</span>
+                className="chip-remove">×</span>
             </span>
           ))}
         </div>
@@ -492,16 +492,16 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         )}
 
           <label htmlFor="event-name">重点活动<span className="optional-tag">选填 · 演唱会/赛事/展览，AI 围着它编排当天动线</span></label>
-          <div className="row" style={{ marginTop: 6 }}>
+          <div className="event-row">
             <AddressInput id="event-name" label="重点活动名称" scope="poi" city={poiCity}
               value={evName} onChange={setEvName}
               placeholder="如：周杰伦演唱会（名称需真实存在）" maxLength={30} />
             <input id="event-date" type="date" aria-label="活动日期（可选）"
-              value={evDate} onChange={(e) => setEvDate(e.target.value)} style={{ maxWidth: 150 }} />
+              value={evDate} onChange={(e) => setEvDate(e.target.value)} />
             <input id="event-time" type="time" aria-label="活动开始时间（可选）"
-              value={evTime} onChange={(e) => setEvTime(e.target.value)} style={{ maxWidth: 130 }} />
+              value={evTime} onChange={(e) => setEvTime(e.target.value)} />
           </div>
-          <button type="button" className="btn" style={{ marginTop: 6 }}
+          <button type="button" className="btn event-add"
             disabled={!evName.trim() || events.length >= 3}
             onClick={() => {
               const name = evName.trim();
@@ -523,7 +523,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
               {events.map((ev, i) => (
                 <span key={`${ev.name}-${i}`} className="chip on">
                   {ev.name}
-                  {ev.date && <small style={{ marginLeft: 6, opacity: 0.75 }}>{ev.date}{ev.time ? ` ${ev.time}` : ""}</small>}
+                  {ev.date && <small className="event-chip-meta">{ev.date}{ev.time ? ` ${ev.time}` : ""}</small>}
                   <span role="button" tabIndex={0} aria-label={`删除活动 ${ev.name}`}
                     onClick={() => setEvents((cur) => cur.filter((_, j) => j !== i))}
                     onKeyDown={(e) => {
@@ -532,7 +532,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
                         setEvents((cur) => cur.filter((_, j) => j !== i));
                       }
                     }}
-                    style={{ marginLeft: 6, cursor: "pointer" }}>×</span>
+                    className="chip-remove">×</span>
                 </span>
               ))}
             </div>

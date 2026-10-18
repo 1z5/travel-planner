@@ -473,6 +473,16 @@ input { -moz-appearance: textfield; appearance: textfield; }
 a.btn-link-wechat { color: #07c160; }
 .optional-tag { font-size: var(--fs-caption); color: var(--ink-4); font-weight: 400; margin-left: 8px; }
 
+/* 重点活动输入行：活动名 flex 占满剩余宽度，日期/时间定宽不伸缩（窄屏自然换行）。
+   替代原来定死 2 列的 .row——3 个元素挤 2 列会让名称只占一半、时间掉第二行。 */
+.event-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+.event-row .addr-box { flex: 1; min-width: 220px; }
+.event-row input[type="date"] { width: 150px; flex: none; }
+.event-row input[type="time"] { width: 130px; flex: none; }
+.event-add { margin-top: var(--sp-2); }
+.event-chip-meta { margin-left: 6px; opacity: 0.75; font-size: var(--fs-caption); }
+.chip-remove { margin-left: 6px; cursor: pointer; }
+
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 640px) {
