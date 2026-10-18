@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { localTodayIso, nowMinutes, spotNow, tripToday, distMeters, fmtDist, type SpotNow, type TripToday } from "@/lib/trip-day";
+import { warnTag } from "@/lib/warn-tag";
 import { cityImage } from "@/lib/city-images";
 import { RouteMap } from "./RouteMap";
 import { CostChart } from "./CostChart";
@@ -301,8 +302,16 @@ export function PlanView({
           <AlertTriangle size={18} style={{ marginTop: 2, flexShrink: 0 }} />
           <div>
             <div className="alert-title">行程体检发现 {plan.warnings.length} 个问题</div>
-            <ul>
-              {plan.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            <ul className="warn-list">
+              {plan.warnings.map((w, i) => {
+                const tag = warnTag(w);
+                return (
+                  <li key={i}>
+                    {tag && <span className="warn-tag">{tag}</span>}
+                    <span>{w}</span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>

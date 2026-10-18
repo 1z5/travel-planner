@@ -424,8 +424,17 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .alert-warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-ink); }
 .alert-error { background: var(--err-bg); border-color: var(--err-line); color: var(--err-ink); }
 .alert-title { font-weight: 700; font-size: var(--fs-small); }
-.alert ul { margin: var(--sp-1) 0 0; padding-left: 20px; font-size: var(--fs-small); }
-.alert li { margin-bottom: 2px; }
+/* 体检预警列表：每条带分类标签（绕路/预算/未验真…），flex 行 + 行间分隔线，
+   长文本预警也能扫读。替代原来的扁平 bullet 列表。 */
+.warn-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; }
+.warn-list li { display: flex; gap: var(--sp-2); align-items: baseline; padding: var(--sp-2) 0; font-size: var(--fs-small); line-height: 1.6; }
+.warn-list li + li { border-top: 1px solid var(--warn-line); }
+.warn-tag {
+  flex-shrink: 0; padding: 1px 8px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22); border: 1px solid var(--warn-line);
+  font-size: var(--fs-caption); font-weight: 700; color: var(--warn-ink);
+  white-space: nowrap; transform: translateY(-1px);
+}
 
 .tips { list-style: none; margin: 0; padding: 0; }
 .tips li { display: flex; gap: var(--sp-2); align-items: flex-start; padding: var(--sp-2) 0; border-top: 1px solid var(--line); font-size: var(--fs-small); color: var(--ink-2); }
