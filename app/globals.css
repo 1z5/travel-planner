@@ -461,6 +461,16 @@ input { -moz-appearance: textfield; appearance: textfield; }
 
 .muted { color: var(--ink-4); font-size: var(--fs-small); }
 .login-panel { border-top: 1px solid var(--line); margin-top: var(--sp-4); padding-top: var(--sp-3); }
+.login-logged { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.login-logout { border: none; background: none; color: var(--ink-4); cursor: pointer; text-decoration: underline; font-size: var(--fs-small); padding: 0; }
+.login-logout:hover { color: var(--ink-2); }
+.login-form { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-2); }
+.login-row { display: flex; gap: var(--sp-2); }
+.login-row input { flex: 1; min-width: 0; }
+.login-row .btn { white-space: nowrap; }
+.login-error { margin-top: var(--sp-2); margin-bottom: 0; }
+.login-links { display: flex; gap: var(--sp-4); align-items: center; flex-wrap: wrap; }
+a.btn-link-wechat { color: #07c160; }
 .optional-tag { font-size: var(--fs-caption); color: var(--ink-4); font-weight: 400; margin-left: 8px; }
 
 /* ---------- 响应式 ---------- */

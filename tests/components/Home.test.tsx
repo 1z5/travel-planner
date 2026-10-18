@@ -110,4 +110,15 @@ describe("Home 表单", () => {
     await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), { timeout: 3000 });
     expect((calls.find((c) => c.url === "/api/plan")?.body as { pace: string }).pace).toBe("balanced");
   });
+
+  it("点「手机号登录」展开登录表单（手机号 + 验证码 + 获取验证码/登录）", async () => {
+    mockFetchSequence();
+    render(<Home />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.click(screen.getByText(/手机号登录/));
+    expect(screen.getByPlaceholderText("手机号")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("验证码")).toBeInTheDocument();
+    expect(screen.getByText("获取验证码")).toBeInTheDocument();
+    expect(screen.getByText("登录")).toBeInTheDocument();
+  });
 });

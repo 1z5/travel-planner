@@ -577,51 +577,49 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         {/* 登录区：可选增强，未登录 3 次/天，登录后 10 次/天 */}
         <div className="login-panel">
           {me?.loggedIn ? (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="login-logged">
               <span className="muted">
                 已登录：{me.phone?.startsWith("wx:") ? "微信用户" : me.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
                 {me.remaining !== null && ` · 今日剩余 ${me.remaining} 次`}
               </span>
               <button type="button" onClick={logout}
-                style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", textDecoration: "underline", fontSize: 13 }}>
+                className="login-logout">
                 退出登录
               </button>
             </div>
           ) : loginOpen ? (
-            <>
-              <div className="row">
+            <div className="login-form">
+              <div className="login-row">
                 <input type="text" placeholder="手机号" aria-label="手机号" value={phone} maxLength={11}
                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
-                <div className="row">
-                  <input type="text" placeholder="验证码" aria-label="验证码" value={code} maxLength={6}
-                         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
-                  <button type="button" onClick={sendCode} disabled={cooldown > 0 || phone.length !== 11}
-                    style={{ whiteSpace: "nowrap" }} className="btn">
-                    {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
-                  </button>
-                </div>
-                <button type="button" onClick={login} disabled={phone.length !== 11 || code.length < 4}
-                  style={{ whiteSpace: "nowrap" }} className="btn">
+                <button type="button" onClick={sendCode} disabled={cooldown > 0 || phone.length !== 11} className="btn">
+                  {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+                </button>
+              </div>
+              <div className="login-row">
+                <input type="text" placeholder="验证码" aria-label="验证码" value={code} maxLength={6}
+                       onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+                <button type="button" onClick={login} disabled={phone.length !== 11 || code.length < 4} className="btn">
                   登录
                 </button>
               </div>
               {me?.provider === "none" && (
-                <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>开发模式（未接短信服务），验证码固定为 123456</p>
+                <p className="muted">开发模式（未接短信服务），验证码固定为 123456</p>
               )}
-            </>
+            </div>
           ) : (
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div className="login-links">
               <button type="button" onClick={() => setLoginOpen(true)} className="btn-link">
                 手机号登录：未登录每天 3 次，登录后 10 次 →
               </button>
               {me?.provider === "wechat" && (
-                <a href="/api/auth/wechat/login?redirect=/" className="btn-link" style={{ color: "#07c160" }}>
+                <a href="/api/auth/wechat/login?redirect=/" className="btn-link btn-link-wechat">
                   微信一键登录 →
                 </a>
               )}
             </div>
           )}
-          {authError && <p className="error" style={{ marginTop: 8, marginBottom: 0 }}>{authError}</p>}
+          {authError && <p className="error login-error">{authError}</p>}
         </div>
 
         <button className="btn-primary" disabled={loading}>
