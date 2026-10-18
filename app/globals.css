@@ -317,6 +317,24 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .day-num small { font-size: var(--fs-caption); color: var(--ink-4); font-family: sans-serif; font-weight: 600; letter-spacing: 0.14em; display: block; margin-bottom: 2px; }
 .day-theme { color: var(--ink-3); font-size: var(--fs-small); font-family: var(--font-serif); }
 
+/* ---- 行中：今天在行程的哪个位置 ---- */
+.trip-status {
+  margin: var(--sp-3) 0; padding: var(--sp-3);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small); font-weight: 600; color: var(--ink-2);
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.trip-status-during { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.today-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  background: var(--accent); color: #fff;
+  font-size: var(--fs-caption); font-weight: 700; letter-spacing: 0.08em;
+  align-self: center; flex-shrink: 0;
+}
+.card-today { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 .route-map-wrap { margin: var(--sp-4) 0 var(--sp-2); border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); }
 
 .timeline { margin-top: var(--sp-2); }

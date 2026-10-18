@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanView } from "@/components/PlanView";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { localTodayIso } from "@/lib/trip-day";
 
 describe("PlanView", () => {
   it("渲染行程头部：城市/天数/总价/验真状态", () => {
@@ -89,5 +90,42 @@ describe("PlanView", () => {
     expect(screen.getByText("示例横幅")).toBeInTheDocument();
     await userEvent.click(screen.getByText("收起示例"));
     expect(onDismiss).toHaveBeenCalled();
+  });
+});
+
+// 行中能力：旅行途中打开行程，标出「今天」并显示在行程的哪个位置。
+// 组件在 useEffect 里算「今天」（避开 SSR 时区差异），所以用 findBy* 等状态落地。
+describe("PlanView 行中高亮（今天）", () => {
+  it("无 startDate → 完全不高亮（没有依据就不猜，与天气/活动同一立场）", () => {
+    const { container } = render(<PlanView plan={{ ...SAMPLE_PLAN, startDate: undefined }} />);
+    expect(screen.queryByText("今天")).not.toBeInTheDocument();
+    // 用行中功能专属的 class 断言，避免撞上 SAMPLE_PLAN 预警文案里的「第 N 天」等字样
+    expect(container.querySelector(".trip-status")).not.toBeInTheDocument();
+    expect(container.querySelector(".today-badge")).not.toBeInTheDocument();
+    expect(container.querySelector(".card-today")).not.toBeInTheDocument();
+  });
+
+  it("出发前 → 显示「还有 N 天出发」，无「今天」徽章", async () => {
+    render(<PlanView plan={{ ...SAMPLE_PLAN, startDate: "2099-01-01" }} />);
+    expect(await screen.findByText(/还有 \d+ 天出发/)).toBeInTheDocument();
+    expect(screen.queryByText("今天")).not.toBeInTheDocument();
+  });
+
+  it("已结束 → 显示「行程已结束」", async () => {
+    render(<PlanView plan={{ ...SAMPLE_PLAN, startDate: "2000-01-01" }} />);
+    expect(await screen.findByText(/行程已结束/)).toBeInTheDocument();
+  });
+
+  it("今天在行程中 → 当天卡片有「今天」徽章 + card-today 高亮 + 「第 N 天」状态行", async () => {
+    const today = localTodayIso();
+    const { container } = render(<PlanView plan={{ ...SAMPLE_PLAN, startDate: today }} />);
+    // 徽章是单个文本节点「今天」，精确匹配不会撞上状态行里的「…今天…」
+    expect(await screen.findByText("今天")).toBeInTheDocument();
+    // 状态行文本用专属 class 取，避免撞上预警文案里的「第 1 天…」
+    const status = container.querySelector(".trip-status-during");
+    expect(status).toBeInTheDocument();
+    expect(status?.textContent).toMatch(/第 1 天/);
+    expect(container.querySelector(".today-badge")).toBeInTheDocument();
+    expect(container.querySelector(".card-today")).toBeInTheDocument();
   });
 });

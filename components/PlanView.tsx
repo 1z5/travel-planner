@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import {
   Landmark, Utensils, BedDouble, TrainFront, ShoppingBag, Compass,
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
+import { localTodayIso, tripToday, type TripToday } from "@/lib/trip-day";
 import { cityImage } from "@/lib/city-images";
 import { RouteMap } from "./RouteMap";
 import { CostChart } from "./CostChart";
@@ -79,6 +80,21 @@ export function PlanView({
     partial: "⚠ 高德服务波动，部分 POI 未能验真",
     pending: "POI 验真进行中…",
   };
+
+  // 「行中」：今天是行程第几天。只在客户端挂载后算——SSR 用服务端的「今天」
+  // 会和客户端时区有偏差，避免 hydration 不匹配。首屏渲染 unknown（无高亮），
+  // 挂载后补上，对「旅行途中打开」的场景无感。
+  const [today, setToday] = useState<TripToday>({ kind: "unknown" });
+  const todayRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    setToday(tripToday(plan.startDate, localTodayIso(), plan.days.length));
+  }, [plan.startDate, plan.days.length]);
+  // 「今天」就绪后自动滚动到当天（依赖 today，等重渲染把 ref 挂上再滚）
+  useEffect(() => {
+    if (today.kind === "during") {
+      todayRef.current?.scrollIntoView?.({ block: "start" });
+    }
+  }, [today]);
 
   return (
     <>
@@ -170,15 +186,28 @@ export function PlanView({
         </div>
       )}
 
+      {/* ===== 行中状态：今天在行程的哪个位置 ===== */}
+      {today.kind !== "unknown" && (
+        <div className={`trip-status trip-status-${today.kind}`}>
+          {today.kind === "before" && `🗓 还有 ${today.daysUntil} 天出发`}
+          {today.kind === "during" && `📍 今天 · 第 ${today.dayIndex + 1} 天`}
+          {today.kind === "after" && "✓ 行程已结束"}
+        </div>
+      )}
+
       {/* ===== 分天时间线 ===== */}
-      {plan.days.map((day, dayIdx) => (
-        <motion.div className="card" key={day.day}
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: Math.min(dayIdx * 0.06, 0.3) }}>
-          <div className="day-head">
-            <div className="day-num"><small>DAY</small>{day.day}</div>
-            <span className="day-theme">{day.theme}</span>
-          </div>
+      {plan.days.map((day, dayIdx) => {
+        const isToday = today.kind === "during" && dayIdx === today.dayIndex;
+        return (
+          <motion.div className={`card${isToday ? " card-today" : ""}`} key={day.day}
+            ref={isToday ? todayRef : undefined}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: Math.min(dayIdx * 0.06, 0.3) }}>
+            <div className="day-head">
+              <div className="day-num"><small>DAY</small>{day.day}</div>
+              {isToday && <span className="today-badge">今天</span>}
+              <span className="day-theme">{day.theme}</span>
+            </div>
 
           <div className="route-map-wrap">
             <RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />
@@ -225,7 +254,8 @@ export function PlanView({
             <span>人均 ¥{day.dailyCostCny.toLocaleString()}</span>
           </p>
         </motion.div>
-      ))}
+        );
+      })}
 
       {/* ===== 出行提示 ===== */}
       {plan.tips.length > 0 && (
