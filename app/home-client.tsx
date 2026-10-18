@@ -388,20 +388,6 @@ export function HomeClient({ children }: { children?: ReactNode }) {
             {locateError && (
               <p className="helper" style={{ margin: 0, color: "var(--err-ink)" }}>{locateError}</p>
             )}
-            <div className="chips" style={{ marginTop: 8 }}>
-              {["成都", "西安", "杭州", "厦门", "重庆", "苏州"].map((c) => (
-                <span key={c} className={`chip ${city === c ? "on" : ""}`}
-                      role="button" tabIndex={0} aria-pressed={city === c}
-                      onClick={() => setCity(c)}
-                      onKeyDown={(e) => {
-                        // chip 是 span+role=button（保留 .chip 视觉）：必须自己接住
-                        // Enter/Space，否则键盘用户完全无法选择城市/偏好
-                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCity(c); }
-                      }}>
-                  {c}
-                </span>
-              ))}
-            </div>
             <p className="helper">目前支持国内城市，1-7 天</p>
           </div>
           <div>
