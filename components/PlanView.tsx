@@ -441,12 +441,12 @@ export function PlanView({
           </div>
 
           <p className="day-foot">
-            <span>
+            <span className="day-foot-item"><TrainFront size={13} />
               {day.transitKnown === false
                 ? "当天通勤未能估算（高德服务波动）"
                 : `当天通勤约 ${Math.round(day.transitMin / 6) / 10} 小时`}
             </span>
-            <span>人均 ¥{day.dailyCostCny.toLocaleString()}</span>
+            <span className="day-foot-item"><Wallet size={13} />人均 ¥{day.dailyCostCny.toLocaleString()}</span>
           </p>
         </motion.div>
         );
