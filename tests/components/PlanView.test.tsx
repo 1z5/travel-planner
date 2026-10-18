@@ -55,6 +55,15 @@ describe("PlanView", () => {
     expect(screen.getByText(/未接高德/)).toBeInTheDocument();
   });
 
+  it("KPI 三张统计卡：人均总花费 / 行程天数 / 景点餐点，各带图标", () => {
+    const { container } = render(<PlanView plan={SAMPLE_PLAN} />);
+    expect(screen.getByText("人均总花费")).toBeInTheDocument();
+    expect(screen.getByText("行程天数")).toBeInTheDocument();
+    expect(screen.getByText("景点 / 餐点")).toBeInTheDocument();
+    expect(container.querySelectorAll(".kpi").length).toBe(3);
+    expect(container.querySelectorAll(".kpi-icon").length).toBe(3);
+  });
+
   it("渲染分天卡片与景点明细（时间/名称/区域/花费）", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     expect(screen.getAllByText("DAY").length).toBe(SAMPLE_PLAN.days.length); // 杂志式日序

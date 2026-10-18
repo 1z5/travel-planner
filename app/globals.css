@@ -326,8 +326,14 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .verified-badge.warn { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-line); }
 .verified-badge.mock { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
 
-.kpi-row { display: flex; gap: var(--sp-6); margin-top: var(--sp-5); }
-.kpi-value { font-family: var(--font-serif); font-size: 34px; font-weight: 700; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); margin-top: var(--sp-5); }
+.kpi {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.kpi-icon { color: var(--accent); }
+.kpi-value { font-family: var(--font-serif); font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1.15; font-variant-numeric: tabular-nums; }
 .kpi-label { font-size: var(--fs-caption); color: var(--ink-4); margin-top: 2px; }
 
 /* ---------- 分天 ---------- */

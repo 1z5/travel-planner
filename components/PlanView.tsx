@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import {
   Landmark, Utensils, BedDouble, TrainFront, ShoppingBag, Compass,
-  Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin,
+  Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin, Wallet,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { localTodayIso, nowMinutes, spotNow, tripToday, distMeters, fmtDist, type SpotNow, type TripToday } from "@/lib/trip-day";
@@ -246,12 +246,19 @@ export function PlanView({
 
         <div className="kpi-row">
           <div className="kpi">
+            <Wallet size={15} className="kpi-icon" />
             <span className="kpi-value">¥{plan.totalCostCny.toLocaleString()}</span>
-            <span className="kpi-label">人均总花费（含当地吃住行玩）</span>
+            <span className="kpi-label">人均总花费</span>
           </div>
           <div className="kpi">
+            <CalendarDays size={15} className="kpi-icon" />
             <span className="kpi-value">{plan.days.length} 天</span>
-            <span className="kpi-label">{plan.days.reduce((n, d) => n + d.spots.length, 0)} 个行程点</span>
+            <span className="kpi-label">行程天数</span>
+          </div>
+          <div className="kpi">
+            <MapPin size={15} className="kpi-icon" />
+            <span className="kpi-value">{plan.days.reduce((n, d) => n + d.spots.length, 0)} 个</span>
+            <span className="kpi-label">景点 / 餐点</span>
           </div>
         </div>
 
