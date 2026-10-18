@@ -66,3 +66,58 @@ export function localTodayIso(now: Date = new Date()): string {
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+/** 本地时间的分钟数（0-1439）——与 spot 的本地时间同口径 */
+export function nowMinutes(now: Date = new Date()): number {
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+/** 解析 "HH:mm-HH:mm" → { start, end }（分钟）；解析不了返回 null */
+function parseRange(time: string): { start: number; end: number } | null {
+  const m = time.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const start = Number(m[1]) * 60 + Number(m[2]);
+  const end = Number(m[3]) * 60 + Number(m[4]);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (start < 0 || start >= 1440 || end < 0 || end >= 1440) return null;
+  // 跨零点（如 23:00-01:00）：end<=start 时按零长处理——不参与「现在」判定，
+  // 但其 start 仍参与「下一站」。记录为已知局限：行程里的点几乎都是白天时段。
+  return { start, end: end > start ? end : start };
+}
+
+export type SpotNow =
+  | { kind: "now"; index: number }    // 现在在进行第 index 个点
+  | { kind: "next"; index: number }   // 下一站是第 index 个点
+  | { kind: "done" }                  // 今天的点都结束了
+  | { kind: "none" };                 // 没有可解析的时间（不猜）
+
+/**
+ * 算「现在」在进行哪个行程点 / 下一站是哪个。
+ * @param spots  当天的行程点（读 time 字段）
+ * @param nowMin 当前时间的分钟数（0-1439，调用方按本地时分给出）
+ */
+export function spotNow(
+  spots: readonly { time: string }[],
+  nowMin: number,
+): SpotNow {
+  const parsed: Array<{ i: number; r: { start: number; end: number } }> = [];
+  spots.forEach((s, i) => {
+    const r = parseRange(s.time);
+    if (r) parsed.push({ i, r });
+  });
+  if (!parsed.length) return { kind: "none" };
+  // 现在：now 落在 [start, end)
+  const cur = parsed.find((x) => nowMin >= x.r.start && nowMin < x.r.end);
+  if (cur) return { kind: "now", index: cur.i };
+  // 下一站：start 严格大于 now 的最早一个
+  let nextIdx = -1;
+  let nextStart = Infinity;
+  for (const x of parsed) {
+    if (x.r.start > nowMin && x.r.start < nextStart) {
+      nextStart = x.r.start;
+      nextIdx = x.i;
+    }
+  }
+  if (nextIdx >= 0) return { kind: "next", index: nextIdx };
+  return { kind: "done" };
+}

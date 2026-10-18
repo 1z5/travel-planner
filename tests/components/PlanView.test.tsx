@@ -1,9 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanView } from "@/components/PlanView";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { localTodayIso } from "@/lib/trip-day";
+
+// 控制「现在」：只 mock 两个读时钟的函数，tripToday/spotNow 保持真实（已被单测
+// 覆盖）——测的是真实逻辑 + 可控时钟输入。mockClock 前缀 + vi.hoisted 是 vitest
+// 让工厂引用外层变量的规矩（否则 vi.mock 提升到顶部会撞上暂时性死区）。
+const mockClock = vi.hoisted(() => ({ today: "2026-10-18", minutes: 9 * 60 + 30 }));
+vi.mock("@/lib/trip-day", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trip-day")>();
+  return { ...actual, localTodayIso: () => mockClock.today, nowMinutes: () => mockClock.minutes };
+});
+
+// 第一天 spot 时间已知的行程，供「现在/下一站」确定断言
+const mkSpot = (name: string, time: string, type: "sight" | "food") => ({
+  ...SAMPLE_PLAN.days[0].spots[0], name, time, type,
+});
+const duringPlan = () => ({
+  ...SAMPLE_PLAN,
+  startDate: mockClock.today,
+  days: [
+    { ...SAMPLE_PLAN.days[0], spots: [
+      mkSpot("上午景点", "08:00-10:00", "sight"),
+      mkSpot("中午餐厅", "10:15-11:15", "food"),
+      mkSpot("下午景点", "11:30-12:50", "sight"),
+    ] },
+    ...SAMPLE_PLAN.days.slice(1),
+  ],
+});
 
 describe("PlanView", () => {
   it("渲染行程头部：城市/天数/总价/验真状态", () => {
@@ -96,6 +122,11 @@ describe("PlanView", () => {
 // 行中能力：旅行途中打开行程，标出「今天」并显示在行程的哪个位置。
 // 组件在 useEffect 里算「今天」（避开 SSR 时区差异），所以用 findBy* 等状态落地。
 describe("PlanView 行中高亮（今天）", () => {
+  beforeEach(() => {
+    mockClock.today = "2026-10-18";
+    mockClock.minutes = 9 * 60 + 30; // 09:30，落在上午景点 08:00-10:00 内
+  });
+
   it("无 startDate → 完全不高亮（没有依据就不猜，与天气/活动同一立场）", () => {
     const { container } = render(<PlanView plan={{ ...SAMPLE_PLAN, startDate: undefined }} />);
     expect(screen.queryByText("今天")).not.toBeInTheDocument();
@@ -127,5 +158,24 @@ describe("PlanView 行中高亮（今天）", () => {
     expect(status?.textContent).toMatch(/第 1 天/);
     expect(container.querySelector(".today-badge")).toBeInTheDocument();
     expect(container.querySelector(".card-today")).toBeInTheDocument();
+  });
+
+  it("今天在行程中，当前落在某点时段 → 该点标「现在」+ 状态行说现在在哪", async () => {
+    mockClock.minutes = 9 * 60 + 30; // 09:30，落在上午景点 08:00-10:00 内
+    const { container } = render(<PlanView plan={duringPlan()} />);
+    // 徽章是单个文本节点「现在」，精确匹配不撞状态行里的「…现在：X」
+    expect(await screen.findByText("现在")).toBeInTheDocument();
+    expect(container.querySelector(".spot-now-badge")).toBeInTheDocument();
+    expect(container.querySelector(".spot-now")).toBeInTheDocument();
+    expect(container.querySelector(".trip-status-during")?.textContent).toMatch(/现在：上午景点/);
+  });
+
+  it("当前落在两站之间的空隙 → 下一站标「下一站」+ 状态行说下一站", async () => {
+    mockClock.minutes = 10 * 60 + 5; // 10:05，上午景点 10:00 已结束、中午餐厅 10:15 未开始
+    const { container } = render(<PlanView plan={duringPlan()} />);
+    expect(await screen.findByText("下一站")).toBeInTheDocument();
+    expect(container.querySelector(".spot-next-badge")).toBeInTheDocument();
+    expect(container.querySelector(".spot-next")).toBeInTheDocument();
+    expect(container.querySelector(".trip-status-during")?.textContent).toMatch(/下一站：中午餐厅/);
   });
 });

@@ -6,7 +6,7 @@ import {
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { localTodayIso, tripToday, type TripToday } from "@/lib/trip-day";
+import { localTodayIso, nowMinutes, spotNow, tripToday, type SpotNow, type TripToday } from "@/lib/trip-day";
 import { cityImage } from "@/lib/city-images";
 import { RouteMap } from "./RouteMap";
 import { CostChart } from "./CostChart";
@@ -95,6 +95,36 @@ export function PlanView({
       todayRef.current?.scrollIntoView?.({ block: "start" });
     }
   }, [today]);
+
+  // 「行中」第二步：今天在行程内时，算「现在在进行哪个点 / 下一站是哪个」。
+  // 每分钟刷新——旅途中页面可能长开，一次算完会过期。仅在 during 时跑。
+  const duringIdx = today.kind === "during" ? today.dayIndex : -1;
+  const [spotStatus, setSpotStatus] = useState<SpotNow | null>(null);
+  useEffect(() => {
+    if (duringIdx < 0) {
+      setSpotStatus(null);
+      return;
+    }
+    const spots = plan.days[duringIdx].spots;
+    const compute = () => setSpotStatus(spotNow(spots, nowMinutes()));
+    compute();
+    const timer = setInterval(compute, 60000);
+    return () => clearInterval(timer);
+  }, [duringIdx, plan.days]);
+
+  // 行中状态行文案：今天在哪个位置 +（during 时）现在/下一站。单文本节点，便于测试。
+  const tripStatusText = (() => {
+    if (today.kind === "before") return `🗓 还有 ${today.daysUntil} 天出发`;
+    if (today.kind === "after") return "✓ 行程已结束";
+    if (today.kind !== "during") return null;
+    const base = `📍 今天 · 第 ${today.dayIndex + 1} 天`;
+    if (spotStatus?.kind === "done") return `${base} · 今日行程已结束`;
+    if (spotStatus && (spotStatus.kind === "now" || spotStatus.kind === "next")) {
+      const spot = plan.days[today.dayIndex].spots[spotStatus.index];
+      return `${base} · ${spotStatus.kind === "now" ? "现在" : "下一站"}：${spot.name}`;
+    }
+    return base;
+  })();
 
   return (
     <>
@@ -186,12 +216,10 @@ export function PlanView({
         </div>
       )}
 
-      {/* ===== 行中状态：今天在行程的哪个位置 ===== */}
-      {today.kind !== "unknown" && (
+      {/* ===== 行中状态：今天在哪个位置 + 现在/下一站 ===== */}
+      {tripStatusText && (
         <div className={`trip-status trip-status-${today.kind}`}>
-          {today.kind === "before" && `🗓 还有 ${today.daysUntil} 天出发`}
-          {today.kind === "during" && `📍 今天 · 第 ${today.dayIndex + 1} 天`}
-          {today.kind === "after" && "✓ 行程已结束"}
+          {tripStatusText}
         </div>
       )}
 
@@ -216,8 +244,13 @@ export function PlanView({
           <div className="timeline">
             {day.spots.map((s, i) => {
               const Icon = TYPE_ICON[s.type] ?? Landmark;
+              // 仅「今天」的卡片标现在/下一站；spotStatus 只在 during 时非空
+              const spotMark =
+                isToday && spotStatus && (spotStatus.kind === "now" || spotStatus.kind === "next") && i === spotStatus.index
+                  ? spotStatus.kind
+                  : null;
               return (
-                <div className="spot" key={i}>
+                <div className={`spot${spotMark ? ` spot-${spotMark}` : ""}`} key={i}>
                   <div className="spot-time">{s.time.replace("-", "\n")}</div>
                   <div className="spot-rail">
                     <div className="spot-dot">
@@ -231,6 +264,11 @@ export function PlanView({
                         <Icon size={11} />{TYPE_LABEL[s.type] ?? s.type}
                       </span>
                       {s.name}
+                      {spotMark && (
+                        <span className={`spot-${spotMark}-badge`}>
+                          {spotMark === "now" ? "现在" : "下一站"}
+                        </span>
+                      )}
                     </div>
                     <div className="spot-meta">
                       {s.area} · {Math.round(s.durationMin / 60 * 10) / 10} 小时 · 人均 ¥{s.costCny}

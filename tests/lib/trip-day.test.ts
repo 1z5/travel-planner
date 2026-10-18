@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localTodayIso, tripToday } from "@/lib/trip-day";
+import { localTodayIso, nowMinutes, spotNow, tripToday } from "@/lib/trip-day";
 
 // tripToday 是「行中」高亮的地基：算错一天，用户打开 App 就看到错的「今天」。
 // 边界（出发前/最后一天/结束后/缺日期）必须钉死。
@@ -78,5 +78,62 @@ describe("localTodayIso", () => {
     // 关键：UTC+8 的清晨若用 toISOString 会退回前一天，这里必须给本地日
     const d = new Date(2026, 9, 18, 1, 30); // 本地 10/18 凌晨 1:30
     expect(localTodayIso(d)).toBe("2026-10-18");
+  });
+});
+
+describe("spotNow 现在/下一站", () => {
+  const s = (times: string[]) => times.map((time) => ({ time }));
+  const DAY = ["08:00-10:00", "10:15-11:15", "11:30-12:50"];
+
+  it("now 落在某点区间内 → now 该点", () => {
+    expect(spotNow(s(DAY), 9 * 60)).toEqual({ kind: "now", index: 0 });       // 09:00
+    expect(spotNow(s(DAY), 10 * 60 + 30)).toEqual({ kind: "now", index: 1 }); // 10:30
+    expect(spotNow(s(DAY), 11 * 60 + 40)).toEqual({ kind: "now", index: 2 }); // 11:40
+  });
+
+  it("区间右端开边界：正好在某点结束时刻 → 不算该点 now，落到下一站", () => {
+    expect(spotNow(s(DAY), 10 * 60)).toEqual({ kind: "next", index: 1 }); // 10:00 是第 0 点结束（开区间）
+  });
+
+  it("两站之间的空隙 → next 下一站", () => {
+    expect(spotNow(s(DAY), 10 * 60 + 5)).toEqual({ kind: "next", index: 1 }); // 10:05
+  });
+
+  it("首站之前 → next 第一站", () => {
+    expect(spotNow(s(DAY), 6 * 60 + 40)).toEqual({ kind: "next", index: 0 }); // 06:40
+  });
+
+  it("全部结束 → done", () => {
+    expect(spotNow(s(DAY), 13 * 60)).toEqual({ kind: "done" }); // 13:00
+  });
+
+  it("无可解析时间 → none（不猜）", () => {
+    expect(spotNow(s(["上午", "下午"]), 10 * 60)).toEqual({ kind: "none" });
+    expect(spotNow([], 10 * 60)).toEqual({ kind: "none" });
+  });
+
+  it("混入不可解析的点：跳过它，其余照常判定", () => {
+    const mixed = ["上午", "10:15-11:15"];
+    expect(spotNow(s(mixed), 10 * 60 + 30)).toEqual({ kind: "now", index: 1 });
+    expect(spotNow(s(mixed), 9 * 60)).toEqual({ kind: "next", index: 1 }); // 唯一可解析的点还没开始
+  });
+
+  it("跨零点时段按零长：不参与 now，仅参与 next（已知局限）", () => {
+    const night = ["23:00-01:00"];
+    expect(spotNow(s(night), 13 * 60)).toEqual({ kind: "next", index: 0 }); // 今晚 23 点那场是下一站
+    expect(spotNow(s(night), 23 * 60 + 30)).toEqual({ kind: "done" });      // 23:30 已过 start，零长不算 now
+  });
+
+  it("乱序的时间也按 start 找最近的下一站", () => {
+    const messy = ["15:30-16:30", "09:00-10:00"];
+    expect(spotNow(s(messy), 8 * 60)).toEqual({ kind: "next", index: 1 }); // 最近的 start 是 09:00（index 1）
+  });
+});
+
+describe("nowMinutes", () => {
+  it("时分转分钟（0-1439）", () => {
+    expect(nowMinutes(new Date(2026, 0, 1, 9, 30))).toBe(570);
+    expect(nowMinutes(new Date(2026, 0, 1, 0, 0))).toBe(0);
+    expect(nowMinutes(new Date(2026, 0, 1, 23, 59))).toBe(1439);
   });
 });
