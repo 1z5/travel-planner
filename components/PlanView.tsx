@@ -59,6 +59,17 @@ function toMarkdown(plan: Plan): string {
   return lines.join("\n");
 }
 
+/** 行中天气实查状态：idle 未查 / loading 查中 / done 查完（有今天天气或降级原因） */
+type WeatherCheck =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; day?: { date: string; dayWeather: string; nightWeather: string; dayTemp: string; nightTemp: string }; reason?: string };
+
+/** 坏天气判定（与 lib/weather.ts 同口径；那边 server-only，客户端内联这一条正则） */
+function isBadWeatherText(w: string): boolean {
+  return /雨|雪|雹|沙|尘|雾|霾/.test(w);
+}
+
 /** 行程展示：结果区与分享页（/p/[id]）共用。 */
 export function PlanView({
   plan,
@@ -124,6 +135,47 @@ export function PlanView({
       return `${base} · ${spotStatus.kind === "now" ? "现在" : "下一站"}：${spot.name}`;
     }
     return base;
+  })();
+
+  // 「行中」第三步：旅途中重查今天天气（行程出发前按预报排，当天可能变了）。
+  // 用户主动点击才拉取——不 on-load 打高德。仅 during 时显示入口。
+  const [weather, setWeather] = useState<WeatherCheck>({ status: "idle" });
+  const todayOutdoorSpots =
+    today.kind === "during"
+      ? plan.days[today.dayIndex].spots.filter((s) => s.type === "sight" || s.type === "activity")
+      : [];
+  const checkWeather = async () => {
+    setWeather({ status: "loading" });
+    try {
+      const r = await fetch(`/api/weather?city=${encodeURIComponent(plan.city)}`);
+      const d = await r.json();
+      if (d.state !== "ok" || !Array.isArray(d.days)) {
+        setWeather({ status: "done", reason: d.reason ?? "暂查不到天气" });
+        return;
+      }
+      // 只取「今天」那份预报；超出预报窗口（约 4 天）就明说，不猜
+      const cast = d.days.find((x: { date: string }) => x.date === localTodayIso());
+      if (!cast) {
+        setWeather({ status: "done", reason: "今天的预报暂未覆盖（高德预报窗口约 4 天）" });
+        return;
+      }
+      setWeather({ status: "done", day: cast });
+    } catch {
+      setWeather({ status: "done", reason: "天气查询失败，请稍后重试" });
+    }
+  };
+  const weatherBad = weather.status === "done" && weather.day
+    ? isBadWeatherText(weather.day.dayWeather + weather.day.nightWeather)
+    : false;
+  const weatherAdvice = (() => {
+    if (weather.status !== "done" || !weather.day) return null;
+    if (weatherBad && todayOutdoorSpots.length > 0) {
+      const withBackup = todayOutdoorSpots.filter((s) => s.rainBackup).length;
+      return `今天有 ${todayOutdoorSpots.length} 个室外景点，其中 ${withBackup} 个备有雨天备选——天气不佳，建议参考雨天备选或改室内。`;
+    }
+    if (weatherBad) return "今天天气不佳，但行程以室内/餐饮为主，影响有限。";
+    if (todayOutdoorSpots.length > 0) return `今天天气不错，可放心安排 ${todayOutdoorSpots.length} 个室外景点。`;
+    return null;
   })();
 
   return (
@@ -220,6 +272,33 @@ export function PlanView({
       {tripStatusText && (
         <div className={`trip-status trip-status-${today.kind}`}>
           {tripStatusText}
+        </div>
+      )}
+
+      {/* ===== 行中：重查今天天气（仅旅途中显示，用户主动点击才拉取）===== */}
+      {today.kind === "during" && (
+        <div className="weather-check">
+          {weather.status === "idle" && (
+            <button type="button" className="btn" onClick={checkWeather}>
+              <CloudRain size={14} />查看今天天气
+            </button>
+          )}
+          {weather.status === "loading" && <span className="helper">天气查询中…</span>}
+          {weather.status === "done" && weather.day && (
+            <div className="weather-now">
+              <div className="weather-now-head">
+                <CloudRain size={15} />
+                <span>今天白天 {weather.day.dayWeather} · 夜间 {weather.day.nightWeather}</span>
+                <span className="weather-temp">{weather.day.nightTemp}–{weather.day.dayTemp}°C</span>
+              </div>
+              {weatherAdvice && (
+                <div className={weatherBad ? "weather-warn" : "helper"}>{weatherAdvice}</div>
+              )}
+            </div>
+          )}
+          {weather.status === "done" && !weather.day && weather.reason && (
+            <span className="helper">{weather.reason}</span>
+          )}
         </div>
       )}
 

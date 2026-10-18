@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanView } from "@/components/PlanView";
@@ -126,6 +126,7 @@ describe("PlanView 行中高亮（今天）", () => {
     mockClock.today = "2026-10-18";
     mockClock.minutes = 9 * 60 + 30; // 09:30，落在上午景点 08:00-10:00 内
   });
+  afterEach(() => vi.restoreAllMocks()); // 复位各测试里 spy 的 global.fetch 等
 
   it("无 startDate → 完全不高亮（没有依据就不猜，与天气/活动同一立场）", () => {
     const { container } = render(<PlanView plan={{ ...SAMPLE_PLAN, startDate: undefined }} />);
@@ -177,5 +178,36 @@ describe("PlanView 行中高亮（今天）", () => {
     expect(container.querySelector(".spot-next-badge")).toBeInTheDocument();
     expect(container.querySelector(".spot-next")).toBeInTheDocument();
     expect(container.querySelector(".trip-status-during")?.textContent).toMatch(/下一站：中午餐厅/);
+  });
+
+  it("旅途中点「查看今天天气」→ 展示今天天气 + 坏天气对室外景点的提示", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ state: "ok", days: [
+        // 注意：组件消费的是端点响应（fetchWeather 转换后的 camelCase DayWeather），
+        // 不是高德原始的小写字段——用错字段名会让展示全空（实测踩过）
+        { date: mockClock.today, dayWeather: "小雨", nightWeather: "多云", dayTemp: "24", nightTemp: "18" },
+      ] }),
+    } as unknown as Response);
+    const { container } = render(<PlanView plan={duringPlan()} />);
+    await userEvent.click(screen.getByText("查看今天天气"));
+    expect(await screen.findByText(/小雨/)).toBeInTheDocument();
+    // 天气建议限定在 .weather-warn 里断言——「雨天备选」也会出现在景点卡自带的
+    // 「雨天备选：…」标签上，用 getByText 会撞成 multiple elements（实测踩过）
+    const warn = container.querySelector(".weather-warn");
+    expect(warn?.textContent).toMatch(/个室外景点/);
+    expect(warn?.textContent).toMatch(/雨天备选/);
+  });
+
+  it("天气查不到 → 降级提示原因，不编造天气", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ state: "unavailable", reason: "未配置高德 key" }),
+    } as unknown as Response);
+    render(<PlanView plan={duringPlan()} />);
+    await userEvent.click(screen.getByText("查看今天天气"));
+    expect(await screen.findByText("未配置高德 key")).toBeInTheDocument();
+    // 查不到时不展示天气详情（没有「个室外景点」的天气建议）
+    expect(screen.queryByText(/个室外景点/)).not.toBeInTheDocument();
   });
 });

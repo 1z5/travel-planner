@@ -690,6 +690,24 @@ async function phaseB(api) {
   check("天气：只提示不改写（行程结构不变）",
     (jWx.plan?.days ?? []).length === 3, `days=${(jWx.plan?.days ?? []).length}`);
 
+  // ---- 天气实查端点（行中：旅途中重查今天天气）----
+  // GET /api/weather?city=X 复用 fetchWeather 打高德桩，返回转换后的 DayWeather。
+  // PlanView「查看今天天气」按钮消费它——字段是 camelCase（dayWeather/dayTemp），
+  // 不是高德原始小写（组件端实测踩过用错字段名导致展示全空，这里钉住契约）。
+  const wxRes = await fetch(`${api.baseUrl}/api/weather?city=${encodeURIComponent("成都")}`);
+  const wxBody = await wxRes.json();
+  check("天气端点：ok + 返回多天预报",
+    wxRes.status === 200 && wxBody.state === "ok" && Array.isArray(wxBody.days) && wxBody.days.length >= 1,
+    JSON.stringify(wxBody).slice(0, 120));
+  check("天气端点：字段是转换后的 camelCase（dayWeather/dayTemp）",
+    wxBody.days?.[0]?.dayWeather !== undefined && wxBody.days?.[0]?.dayTemp !== undefined,
+    JSON.stringify(wxBody.days?.[0]));
+  check("天气端点：含桩里的小雨预报（10-10）",
+    (wxBody.days ?? []).some((d) => d.date === "2026-10-10" && d.dayWeather === "小雨"),
+    JSON.stringify((wxBody.days ?? []).map((d) => `${d.date}:${d.dayWeather}`)));
+  const wxBad = await fetch(`${api.baseUrl}/api/weather?city=x`);
+  check("天气端点：非法城市名 → 400", wxBad.status === 400, `got ${wxBad.status}`);
+
   // ---- 境外/无覆盖目的地（真机京都 case 暴露）----
   // 桩对含「境外」的 POI 全部返回空、通勤也失败——模拟高德只覆盖国内。
   // 期望：给出一条明确的「无覆盖区域」产品级提示（而不是让用户从一堆
