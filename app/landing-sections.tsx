@@ -1,6 +1,6 @@
 import {
   ListChecks, MapPinned, Route, Timer, CalendarPlus, Share2,
-  HelpCircle, ChevronDown,
+  HelpCircle, ChevronDown, Navigation,
 } from "lucide-react";
 
 // ============================================================
@@ -50,6 +50,7 @@ export function LandingSections() {
           <div className="cap-item"><Timer size={18} /><h3>节奏体检</h3><p>按你选的轻松/适中/紧凑分档核对每日负荷，超标即预警。</p></div>
           <div className="cap-item"><CalendarPlus size={18} /><h3>日历一键导出</h3><p>.ics 文件导入手机日历，每个行程点都是带时间的日程。</p></div>
           <div className="cap-item"><Share2 size={18} /><h3>分享与导出</h3><p>一个链接分享整份行程，或复制 Markdown 存进笔记。</p></div>
+          <div className="cap-item"><Navigation size={18} /><h3>行中陪同</h3><p>旅途中打开行程：自动定位「今天」、按时间标出「现在/下一站」、重查今天天气、定位算你离各景点多远。</p></div>
         </div>
       </section>
 
