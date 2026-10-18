@@ -138,7 +138,7 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
   if (!AMAP_MOCK) {
     const targets = day.spots
       .filter((s) => s.type === "sight" || s.type === "food")
-      .map((s) => ({ name: s.name, day: day.day }));
+      .map((s) => ({ spot: s, name: s.name, day: day.day }));
     const results = await mapLimit(targets, VERIFY_CONCURRENCY, async (t) => ({
       t,
       r: await lookupPoi(plan.city, t.name, input.scope),
@@ -151,6 +151,11 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
         );
       } else if (r.state === "error") {
         unverified.push(t.name);
+      } else if (r.poi.location) {
+        // 命中时把坐标存回 spot——「行中」定位要算「我离这站多远」，而验真是
+        // 唯一拿到真实坐标的时机（LLM 不输出坐标）。MOCK 模式整个块不跑，
+        // 所以不会存入假坐标。
+        t.spot.location = r.poi.location;
       }
     }
   }

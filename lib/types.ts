@@ -34,6 +34,7 @@ export interface PlanSpot {
   costCny: number;         // 人均花费
   reason: string;          // 为什么去这里
   rainBackup?: string;     // 雨天备选（室外景点必填）
+  location?: string;       // "经度,纬度"（验真命中时由高德回填，「行中」定位算「我离这站多远」用）
 }
 
 export interface PlanDay {

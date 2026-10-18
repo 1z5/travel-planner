@@ -708,6 +708,15 @@ async function phaseB(api) {
   const wxBad = await fetch(`${api.baseUrl}/api/weather?city=x`);
   check("天气端点：非法城市名 → 400", wxBad.status === 400, `got ${wxBad.status}`);
 
+  // ---- 「行中」定位地基：验真命中时把高德坐标回填到 spot.location ----
+  // lib/validate.ts 在 POI 命中时存坐标（LLM 不输出坐标，验真是唯一拿到真实
+  // 坐标的时机）。桩的 POI 搜索固定返回 location "116.400000,39.900000"——
+  // 验证端到端：验真 → 回填 → 落库，前端「定位我在哪」才能算距离。
+  const locSpots = (jWx.plan?.days ?? []).flatMap((d) => d.spots).filter((s) => s.location);
+  check("定位地基：验真命中的 spot 回填了坐标（location）",
+    locSpots.length > 0 && locSpots.every((s) => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(s.location ?? "")),
+    JSON.stringify((jWx.plan?.days ?? []).flatMap((d) => d.spots.map((s) => `${s.name}:${s.location ?? "无"}`))));
+
   // ---- 境外/无覆盖目的地（真机京都 case 暴露）----
   // 桩对含「境外」的 POI 全部返回空、通勤也失败——模拟高德只覆盖国内。
   // 期望：给出一条明确的「无覆盖区域」产品级提示（而不是让用户从一堆

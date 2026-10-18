@@ -15,8 +15,8 @@ vi.mock("@/lib/trip-day", async (importOriginal) => {
 });
 
 // 第一天 spot 时间已知的行程，供「现在/下一站」确定断言
-const mkSpot = (name: string, time: string, type: "sight" | "food") => ({
-  ...SAMPLE_PLAN.days[0].spots[0], name, time, type,
+const mkSpot = (name: string, time: string, type: "sight" | "food", location?: string) => ({
+  ...SAMPLE_PLAN.days[0].spots[0], name, time, type, ...(location ? { location } : {}),
 });
 const duringPlan = () => ({
   ...SAMPLE_PLAN,
@@ -30,6 +30,21 @@ const duringPlan = () => ({
     ...SAMPLE_PLAN.days.slice(1),
   ],
 });
+
+// 第一天 spot 带坐标的行程，供「定位我在哪」断言距离排序
+const duringPlanLocated = () => {
+  const base = duringPlan();
+  return {
+    ...base,
+    days: [
+      { ...base.days[0], spots: [
+        mkSpot("近景点", "08:00-10:00", "sight", "104.07,30.58"),
+        mkSpot("远景点", "10:15-11:15", "sight", "104.20,30.80"),
+      ] },
+      ...base.days.slice(1),
+    ],
+  };
+};
 
 describe("PlanView", () => {
   it("渲染行程头部：城市/天数/总价/验真状态", () => {
@@ -125,6 +140,14 @@ describe("PlanView 行中高亮（今天）", () => {
   beforeEach(() => {
     mockClock.today = "2026-10-18";
     mockClock.minutes = 9 * 60 + 30; // 09:30，落在上午景点 08:00-10:00 内
+    // 定位 mock：getCurrentPosition 直接以固定坐标（成都附近）回调 success
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: (success: PositionCallback) =>
+          success({ coords: { longitude: 104.06, latitude: 30.57 } } as unknown as GeolocationPosition),
+      },
+    });
   });
   afterEach(() => vi.restoreAllMocks()); // 复位各测试里 spy 的 global.fetch 等
 
@@ -209,5 +232,23 @@ describe("PlanView 行中高亮（今天）", () => {
     expect(await screen.findByText("未配置高德 key")).toBeInTheDocument();
     // 查不到时不展示天气详情（没有「个室外景点」的天气建议）
     expect(screen.queryByText(/个室外景点/)).not.toBeInTheDocument();
+  });
+
+  it("定位我在哪 → 按距离列出今天各景点（近→远）", async () => {
+    const { container } = render(<PlanView plan={duringPlanLocated()} />);
+    await userEvent.click(screen.getByText("定位我在哪"));
+    const list = container.querySelector(".locate-list");
+    expect(list).toBeInTheDocument();
+    const items = list?.querySelectorAll("li");
+    expect(items?.length).toBe(2);
+    expect(items?.[0]?.textContent).toContain("近景点"); // 更近，排第一
+    expect(items?.[1]?.textContent).toContain("远景点");
+    expect(items?.[0]?.textContent).toMatch(/公里|米/); // 距离已格式化
+  });
+
+  it("定位但今天的景点都没坐标 → 明确降级，不编距离", async () => {
+    render(<PlanView plan={duringPlan()} />); // duringPlan 的 spot 无 location
+    await userEvent.click(screen.getByText("定位我在哪"));
+    expect(await screen.findByText(/都没有坐标/)).toBeInTheDocument();
   });
 });

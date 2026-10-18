@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localTodayIso, nowMinutes, spotNow, tripToday } from "@/lib/trip-day";
+import { distMeters, fmtDist, localTodayIso, nowMinutes, spotNow, tripToday } from "@/lib/trip-day";
 
 // tripToday 是「行中」高亮的地基：算错一天，用户打开 App 就看到错的「今天」。
 // 边界（出发前/最后一天/结束后/缺日期）必须钉死。
@@ -135,5 +135,50 @@ describe("nowMinutes", () => {
     expect(nowMinutes(new Date(2026, 0, 1, 9, 30))).toBe(570);
     expect(nowMinutes(new Date(2026, 0, 1, 0, 0))).toBe(0);
     expect(nowMinutes(new Date(2026, 0, 1, 23, 59))).toBe(1439);
+  });
+});
+
+describe("distMeters 地表距离（haversine）", () => {
+  it("同一点 → 0", () => {
+    expect(distMeters("104.06,30.57", "104.06,30.57")).toBe(0);
+  });
+
+  it("短距离为正且量级合理（成都两点约 1-2 公里）", () => {
+    const d = distMeters("104.06,30.57", "104.07,30.58");
+    expect(d).not.toBeNull();
+    expect(d!).toBeGreaterThan(500);
+    expect(d!).toBeLessThan(3000);
+  });
+
+  it("对称：distMeters(a,b) === distMeters(b,a)", () => {
+    expect(distMeters("104.06,30.57", "104.20,30.80")).toBe(distMeters("104.20,30.80", "104.06,30.57"));
+  });
+
+  it("越远的点距离越大", () => {
+    const near = distMeters("104.06,30.57", "104.07,30.58")!;
+    const far = distMeters("104.06,30.57", "104.20,30.80")!;
+    expect(far).toBeGreaterThan(near);
+  });
+
+  it("解析失败（空/格式错/缺段/多段）→ null，不编距离", () => {
+    expect(distMeters(undefined, "104.06,30.57")).toBeNull();
+    expect(distMeters("104.06,30.57", undefined)).toBeNull();
+    expect(distMeters("abc", "104.06,30.57")).toBeNull();
+    expect(distMeters("104.06", "104.06,30.57")).toBeNull(); // 缺纬度
+    expect(distMeters("104.06,30.57,99", "104.06,30.57")).toBeNull(); // 多一段
+  });
+});
+
+describe("fmtDist 距离格式化", () => {
+  it("小于 1 公里用米", () => {
+    expect(fmtDist(0)).toBe("0 米");
+    expect(fmtDist(500)).toBe("500 米");
+    expect(fmtDist(999)).toBe("999 米");
+  });
+
+  it("满 1 公里用公里（一位小数）", () => {
+    expect(fmtDist(1000)).toBe("1.0 公里");
+    expect(fmtDist(1500)).toBe("1.5 公里");
+    expect(fmtDist(28500)).toBe("28.5 公里");
   });
 });

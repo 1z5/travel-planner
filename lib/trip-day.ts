@@ -121,3 +121,39 @@ export function spotNow(
   if (nextIdx >= 0) return { kind: "next", index: nextIdx };
   return { kind: "done" };
 }
+
+/** 解析 "lng,lat" → [lng, lat]；空/格式错/非有限数返回 null */
+function parseLoc(s: string | undefined): [number, number] | null {
+  if (!s) return null;
+  const m = s.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!m) return null;
+  const lng = Number(m[1]);
+  const lat = Number(m[2]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  return [lng, lat];
+}
+
+/**
+ * 两个 "lng,lat" 坐标间的地表距离（米，haversine 公式）。解析失败返回 null——
+ * 未验真的景点没有坐标，此时算不出距离，调用方据此降级而不是编一个数。
+ */
+export function distMeters(a: string | undefined, b: string | undefined): number | null {
+  const pa = parseLoc(a);
+  const pb = parseLoc(b);
+  if (!pa || !pb) return null;
+  const R = 6371000; // 地球半径（米）
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const [lng1, lat1] = pa;
+  const [lng2, lat2] = pb;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+}
+
+/** 距离格式化：<1km 用米，否则用公里（一位小数） */
+export function fmtDist(meters: number): string {
+  return meters < 1000 ? `${meters} 米` : `${(meters / 1000).toFixed(1)} 公里`;
+}

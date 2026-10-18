@@ -6,7 +6,7 @@ import {
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { localTodayIso, nowMinutes, spotNow, tripToday, type SpotNow, type TripToday } from "@/lib/trip-day";
+import { localTodayIso, nowMinutes, spotNow, tripToday, distMeters, fmtDist, type SpotNow, type TripToday } from "@/lib/trip-day";
 import { cityImage } from "@/lib/city-images";
 import { RouteMap } from "./RouteMap";
 import { CostChart } from "./CostChart";
@@ -167,6 +167,39 @@ export function PlanView({
   const weatherBad = weather.status === "done" && weather.day
     ? isBadWeatherText(weather.day.dayWeather + weather.day.nightWeather)
     : false;
+  // 「行中」定位：算我离今天各景点多远。只有带坐标的景点才算（未验真的没坐标，
+  // distMeters 返回 null 被过滤）——算不出就少列几个，不编距离。
+  const [locate, setLocate] = useState<
+    | { status: "idle" }
+    | { status: "locating" }
+    | { status: "done"; items: Array<{ name: string; meters: number }> }
+    | { status: "error"; reason: string }
+  >({ status: "idle" });
+  const locateMe = () => {
+    if (!navigator.geolocation) {
+      setLocate({ status: "error", reason: "当前浏览器不支持定位" });
+      return;
+    }
+    setLocate({ status: "locating" });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const me = `${pos.coords.longitude},${pos.coords.latitude}`;
+        const spots = today.kind === "during" ? plan.days[today.dayIndex].spots : [];
+        const items = spots
+          .map((s) => ({ name: s.name, meters: distMeters(me, s.location) }))
+          .filter((x): x is { name: string; meters: number } => x.meters !== null)
+          .sort((a, b) => a.meters - b.meters);
+        setLocate({ status: "done", items });
+      },
+      (err) => {
+        setLocate({
+          status: "error",
+          reason: err.code === err.PERMISSION_DENIED ? "定位权限被拒绝，可在浏览器设置里开启" : "定位失败，请重试",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+    );
+  };
   const weatherAdvice = (() => {
     if (weather.status !== "done" || !weather.day) return null;
     if (weatherBad && todayOutdoorSpots.length > 0) {
@@ -298,6 +331,35 @@ export function PlanView({
           )}
           {weather.status === "done" && !weather.day && weather.reason && (
             <span className="helper">{weather.reason}</span>
+          )}
+        </div>
+      )}
+
+      {/* ===== 行中：定位我在哪（仅旅途中，用户主动点击，算离各景点多远）===== */}
+      {today.kind === "during" && (
+        <div className="locate-check">
+          {(locate.status === "idle" || locate.status === "error") && (
+            <button type="button" className="btn" onClick={locateMe}>
+              <MapPin size={14} />定位我在哪
+            </button>
+          )}
+          {locate.status === "locating" && <span className="helper">定位中…</span>}
+          {locate.status === "error" && <span className="helper">{locate.reason}</span>}
+          {locate.status === "done" && (
+            locate.items.length === 0 ? (
+              <span className="helper">今天的景点都没有坐标，算不出距离（未验真的景点无坐标）</span>
+            ) : (
+              <div className="locate-now">
+                <div className="locate-now-head"><MapPin size={15} />今天各景点离你的距离（近→远）</div>
+                <ul className="locate-list">
+                  {locate.items.slice(0, 6).map((x) => (
+                    <li key={x.name} className="locate-nearest-first">
+                      {x.name}<span className="locate-dist">{fmtDist(x.meters)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
           )}
         </div>
       )}

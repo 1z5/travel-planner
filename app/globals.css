@@ -350,6 +350,17 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .weather-now-head { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-small); font-weight: 600; color: var(--ink-2); }
 .weather-temp { margin-left: auto; color: var(--ink-3); font-weight: 500; }
 .weather-warn { margin-top: var(--sp-2); color: var(--accent); font-size: var(--fs-small); }
+.locate-check { margin: var(--sp-3) 0; }
+.locate-now {
+  margin-top: var(--sp-2); padding: var(--sp-3);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.locate-now-head { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-small); font-weight: 600; color: var(--ink-2); }
+.locate-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; }
+.locate-list li { display: flex; justify-content: space-between; padding: 4px 0; font-size: var(--fs-small); color: var(--ink-2); border-bottom: 1px solid var(--line); }
+.locate-list li:last-child { border-bottom: none; }
+.locate-list li:first-child { font-weight: 700; color: var(--ink); }
+.locate-dist { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .route-map-wrap { margin: var(--sp-4) 0 var(--sp-2); border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); }
 
