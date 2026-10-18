@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
+import { WaitProgress } from "@/components/WaitProgress";
 
 const PREF_OPTIONS = [
   "美食", "历史文化", "自然风光", "Citywalk", "博物馆",
@@ -331,6 +332,13 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     }
   }
 
+  // 等待进度：流式路径（≥5 天）有真实增量数据（已生成天数/总天数），画确定性
+  // 进度条；单次路径拿不到增量，waitPct=null → 不确定动画条（不假装百分比）。
+  const waitPct =
+    loading && submittedDays !== null && submittedDays >= 5 && plan && plan.days.length > 0
+      ? Math.round((plan.days.length / submittedDays) * 100)
+      : null;
+
   return (
     <main>
       <header className="masthead">
@@ -617,21 +625,21 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         </div>
 
         <button className="btn-primary" disabled={loading}>
-          {loading ? `生成中…已等待 ${fmtElapsed(elapsed)}` : "生成行程"}
+          {loading ? "生成中…" : "生成行程"}
         </button>
+        {loading && (
+          <WaitProgress
+            pct={waitPct}
+            elapsed={fmtElapsed(elapsed)}
+            detail={waitPct !== null ? `已生成 ${plan?.days.length ?? 0}/${submittedDays} 天` : undefined}
+          />
+        )}
         {loading ? (
           <p className="muted" role="status" style={{ marginTop: 8 }}>{WAITING_TIPS[tipIndex]}</p>
         ) : (
           <p className="muted" style={{ marginTop: 8 }}>
             推理模型做约束规划通常 2-4 分钟，跨境目的地（如香港）可能 8 分钟以上，
             可以放着等，页面上方会实时显示进度。
-          </p>
-        )}
-        {/* 分日流式进度：≥5 天的行程会逐天生成，这里告诉用户进度，
-            避免长任务下只看到一个总 deadline 干等 */}
-        {loading && submittedDays !== null && submittedDays >= 5 && plan && plan.days.length > 0 && (
-          <p className="muted" role="status" style={{ marginTop: 4 }}>
-            已生成 {plan.days.length}/{submittedDays} 天——下方行程随生成进度逐天出现
           </p>
         )}
         {remaining !== null && (

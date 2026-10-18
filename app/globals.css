@@ -250,6 +250,30 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
 .btn-primary:disabled { opacity: 0.6; cursor: wait; transform: none; }
 
+/* ---- 生成等待进度条（诚实：确定进度才画宽度，否则不确定动画，不假装百分比）---- */
+.wait-progress { margin: var(--sp-3) 0; }
+.wait-bar {
+  height: 6px; border-radius: 999px; overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.wait-bar-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  transition: width 0.6s ease;
+}
+.wait-bar-fill.indeterminate {
+  width: 40%;
+  animation: wait-slide 1.4s ease-in-out infinite;
+}
+@keyframes wait-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+.wait-meta {
+  display: flex; justify-content: space-between; gap: var(--sp-3);
+  margin-top: var(--sp-2); font-size: var(--fs-caption); color: var(--ink-3);
+}
+
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 36px; padding: 0 14px;
