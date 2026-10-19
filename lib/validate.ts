@@ -135,17 +135,19 @@ export interface DayCheck {
  * 注意：不改 plan 级字段（totalCostCny / warnings / verified），
  * 那些由调用方在收尾时统一处理——分日路径要逐天累积，不能每次覆盖。
  *
- * recomputeLegs=false 时跳过 legs 重算（保留 day.legs 原值）。这是给
- * refine 用的：改行程只动一天，其余天的 spot 是原对象引用、坐标没变，
- * legs 重算结果不会变，却要为此各打一次无缓存的 direction 接口（5 天行程
- * 20+ 次，全阻塞在同步的「换一个」响应里）。首生成/流式路径不传这个参数，
- * 默认全算，行为不变。
+ * recomputeRoutes=false 时跳过「无缓存的路线类网络调用」——通勤估算与 legs
+ * 都跳过，直接沿用 day.transitMin / transitKnown / legs 的旧值。这是给 refine
+ * 用的：改行程只动一天，其余天的 spot 是原对象引用、坐标没变，重算结果不会
+ * 变，却要为每天各打若干次 driving/direction 接口（5 天行程未改的 4 天约 16
+ * 次 driving + 若干 direction，全阻塞在同步的「换一个」响应里）。POI 验真不在
+ * 此列——它有 poiCache，未改天会命中缓存，本就近乎零成本。首生成/流式路径
+ * 不传这个参数，默认全算，行为不变。
  */
 export async function validateDay(
   plan: Plan,
   day: PlanDay,
   input: PlanInput,
-  recomputeLegs = true,
+  recomputeRoutes = true,
 ): Promise<DayCheck> {
   const warnings: string[] = [];
   const unverified: string[] = [];
@@ -206,17 +208,25 @@ export async function validateDay(
   //    节奏判定也退化为纯停留时长（avoids 假数据污染两个指标）。
   let transit = 0;
   if (!AMAP_MOCK) {
-    const segments: Array<{ from: string; to: string }> = [];
-    for (let i = 0; i < day.spots.length - 1; i++) {
-      segments.push({ from: day.spots[i].name, to: day.spots[i + 1].name });
-    }
-    const segResults = await mapLimit(segments, VERIFY_CONCURRENCY, async (seg) => ({
-      seg,
-      r: await transitMinutes(plan.city, seg.from, seg.to, input.scope),
-    }));
-    for (const { r } of segResults) {
-      if (r.state === "unknown") transitUnknown = true;
-      else transit += r.minutes;
+    if (recomputeRoutes) {
+      const segments: Array<{ from: string; to: string }> = [];
+      for (let i = 0; i < day.spots.length - 1; i++) {
+        segments.push({ from: day.spots[i].name, to: day.spots[i + 1].name });
+      }
+      const segResults = await mapLimit(segments, VERIFY_CONCURRENCY, async (seg) => ({
+        seg,
+        r: await transitMinutes(plan.city, seg.from, seg.to, input.scope),
+      }));
+      for (const { r } of segResults) {
+        if (r.state === "unknown") transitUnknown = true;
+        else transit += r.minutes;
+      }
+    } else {
+      // refine 未改的天：spot 是原对象引用、坐标没变，沿用已算好的通勤值，
+      // 跳过无缓存的 driving 调用（未改几天各 spots-1 次，全阻塞在同步的
+      // 「换一个」响应里）。下面用旧值继续算绕路预警与节奏，结论不变。
+      transit = day.transitMin;
+      transitUnknown = day.transitKnown === false;
     }
     if (!transitUnknown && transit > TRANSIT_WARN_MIN) {
       warnings.push(
@@ -234,11 +244,11 @@ export async function validateDay(
   //     与上面的 transit 是两件事：transit 喂「绕路预警/节奏体检」（驾车距离代理），
   //     legs 是给用户看的完整路段，按真实所选方式算。
   //
-  //     recomputeLegs=false（refine 未改的天）：直接保留 day.legs 原值。那些天
+  //     recomputeRoutes=false（refine 未改的天）：直接保留 day.legs 原值。那些天
   //     的 spot 是原对象引用、坐标没变，重算结果不会变，跳过可省掉每天 N-1 次
   //     无缓存的 direction 调用。
   const mode = input.transportMode;
-  if (mode && !AMAP_MOCK && recomputeLegs) {
+  if (mode && !AMAP_MOCK && recomputeRoutes) {
     const pairs: Array<{ from: string; to: string; origin: string; destination: string }> = [];
     for (let i = 0; i < day.spots.length - 1; i++) {
       const a = day.spots[i];
@@ -497,8 +507,8 @@ export async function validatePlan(
   let missCount = 0;
   let poiTotal = 0;
   for (const day of plan.days) {
-    const recomputeLegs = !recomputeDays || recomputeDays.includes(day.day);
-    const check = await validateDay(plan, day, input, recomputeLegs);
+    const recomputeRoutes = !recomputeDays || recomputeDays.includes(day.day);
+    const check = await validateDay(plan, day, input, recomputeRoutes);
     warnings.push(...check.warnings);
     unverified.push(...check.unverified);
     if (check.transitUnknown) transitUnknownDays.push(day.day);

@@ -416,3 +416,52 @@ describe("validatePlan 的 legs 收窄", () => {
     expect(p.days[2].legs).toBe(kept);
   });
 });
+
+// 通勤估算的收窄（refine 未改的天不该白打 driving 接口）。transitMinutes 只有
+// poiCache 缓存地名→坐标，driving 调用本身无缓存——未改的天 spot 没变、transitMin
+// 已在对象上，重算纯属浪费，且阻塞在同步的「换一个」响应里。
+describe("validatePlan 的通勤收窄", () => {
+  const input = { city: "杭州", days: 3, budget: 3000, transportMode: "driving" } as unknown as PlanInput;
+  const spot = (name: string, location: string) => ({
+    period: "morning", time: "09:00-10:00", type: "sight", name, area: "西湖",
+    durationMin: 60, costCny: 0, reason: "测试", location,
+  });
+  const day = (n: number, transitMin = 0, transitKnown?: boolean) => ({
+    day: n, theme: `第${n}天`, transitMin, transitKnown, dailyCostCny: 0,
+    spots: [spot(`${n}-甲`, "120.10,30.10"), spot(`${n}-乙`, "120.20,30.20")],
+  });
+  const plan = () => ({
+    city: "杭州", summary: "测试", totalCostCny: 0, tips: [], warnings: [],
+    verified: true, days: [day(1, 148, true), day(2), day(3, 90, true)],
+  }) as unknown as Plan;
+
+  it("不传 recomputeDays：所有天都重算通勤（首生成路径不变）", async () => {
+    useRouter();
+    const p = plan();
+    await validatePlan(p, input);
+    // driving 无时长 → 每段折算 5000/1000/22*60+8 = 22 分钟；每天 1 段
+    expect(p.days[0].transitMin).toBe(22);
+    expect(p.days[1].transitMin).toBe(22);
+    expect(p.days[2].transitMin).toBe(22);
+  });
+
+  it("recomputeDays=[2]：未改天沿用旧 transitMin，只有第 2 天重算", async () => {
+    useRouter();
+    const p = plan();
+    await validatePlan(p, input, [2]);
+    expect(p.days[0].transitMin).toBe(148); // 原值保留，没重算
+    expect(p.days[3 - 1].transitMin).toBe(90); // 第 3 天原值 90 保留
+    expect(p.days[1].transitMin).toBe(22);   // 第 2 天重算（driving 折算）
+  });
+
+  it("未改天的 transitKnown=false 被沿用（不把旧失败结论改成成功）", async () => {
+    useRouter();
+    const p = plan();
+    p.days[0].transitKnown = false; // 原来这天通勤估算失败
+    p.days[0].transitMin = 0;
+    await validatePlan(p, input, [2]);
+    // 未改的第 1 天：transitKnown 仍是 false，不因跳过重算而被“洗白”
+    expect(p.days[0].transitKnown).toBe(false);
+    expect(p.days[0].transitMin).toBe(0);
+  });
+});

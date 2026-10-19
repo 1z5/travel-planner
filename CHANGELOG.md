@@ -2,6 +2,23 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 refine 未改的天也不再重算通勤：堵第二路白算
+
+上一轮（plan-107）给 validateDay 加了 recomputeLegs，refine 改一天时不再白算未改天的 legs。但同一个病根还有第二路没堵：validateDay 第 2 步的通勤估算（transitMinutes → /v5/direction/driving）不受那个参数控制，未改的天仍在重算。
+
+已查实：transitMinutes 只有 poiCache 缓存地名→坐标，driving 调用本身无缓存；而 refine 候选行程里未改的天是原对象引用（d.day === action.day ? newDay : d），transitMin/transitKnown 都带着旧值，重算结果不会变。所以未改几天各打 spots-1 次 driving，纯属浪费，且阻塞在同步的「换一个」响应里。
+
+修复：把上一轮的 recomputeLegs 参数推广成 recomputeRoutes——现在通勤估算与 legs 两路无缓存路线调用都受它控制。refine 侧（validatePlan 的 recomputeDays）不变，仍只传被改的那天；未改的天走 else 分支，transit = day.transitMin、transitUnknown = day.transitKnown === false，沿用旧值继续算绕路预警与节奏，结论不变。POI 验真刻意不纳入——它有 poiCache，未改天命中缓存，本就近乎零成本。
+
+三个必须守住的诚实点：
+1. 未改天沿用旧 transitMin 的前提是其 spot 没变——原对象引用，成立
+2. 未改天的 transitKnown=false（旧估算失败）必须被沿用，不能被跳过重算“洗白”成成功——这是既有结论，改了就是篡改
+3. 首生成/流式路径不传参，默认全算，行为不变（两个调用方 jobs.ts:202、jobs.ts:326 都不传）
+
+测试：单测 373 → **376**（通勤收窄 3 条：不传参全算 / recomputeDays=[2] 时未改天 transitMin 保持 148、90 原值而第 2 天重算 / 未改天 transitKnown=false 被沿用不被洗白）。加上一轮的 legs 收窄 3 条，两条路线类网络调用都有回归保护。
+
+验证：typecheck / 376 单测 / 251 e2e / 生产构建全绿。
+
 ## 2026-10 refine 不再白算全天 legs：改一天只重算那天的路线
 
 顺着「refine 后 legs 是否重算」查下去，确认了 legs 会随 `validatePlan` 重算（`input.transportMode` 从 schema 默认 driving 起就带着，无缺陷），但发现一个实在的性能浪费：`revalidate` 调 `validatePlan(candidate, input)` 会遍历**所有天**重算 legs，而 refine 只改一天——其余天的 spot 是原对象引用、坐标没变，legs 重算结果不会变，却要各打一次 direction 接口。而 `routeSegment` 走的是 `amapGetRetry`，**没有缓存层**（只有 POI 查询有 `poiCache`），所以 5 天行程就是 20+ 次无谓的真实 HTTP 调用，全阻塞在同步的「换一个」响应里，用户白等。
