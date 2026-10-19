@@ -8,6 +8,24 @@
  *   含"故障" -> 直接 HTTP 500（测上游错误路径）
  *   其他     -> 返回构造好的合法行程（测正常链路 + 体检阈值）
  *
+ * 改行程（refine，lib/refine.ts）请求另走一套分支，**先于**上面这些城市名分支判断：
+ *   system prompt 含「行程微调」即判定为改行程请求，再按「【任务类型】单点替换 /
+ *   单日重排」分流。需与 lib/refine.ts 的 prompt 格式保持同步（那边有注释指向这里）。
+ *   从 user prompt 解析：
+ *     - 目标：第 N 天                     -> 改哪一天
+ *     - 【被替换点】序号 K｜类型 T｜时段 P｜时间 HH:MM-HH:MM｜区域 A｜名称 N
+ *                                         -> swap 返回什么 type/period/time/area
+ *     - 【用户指令】「...」               -> 用户指令（也承载下面的测试开关）
+ *     - 【当天必须保留】X、Y              -> day 模式响应必须原样保留的点
+ *   swap 响应：{"spot":{...}}（type/period/time/area 与被替换点一致，名称固定为「替换景点（桩）K」）
+ *   day 响应：{"day":{"day":N,"theme":原主题,"spots":[3-4 个合法点]}}（含必须保留的点）
+ *   失败/约束路径开关（指令里含这些词时生效，供 e2e 断言错误码）：
+ *     - 「故意失败」      -> 返回非 JSON 文本（内容层重试两次后 → 422）
+ *     - 「故意删硬约束」  -> day 响应故意漏掉「当天必须保留」的点（→ 422，原行程不变）
+ *   以上分支只对「行程微调」请求生效，不影响现有生成链路的分支。
+ *   注：swap 的「类型必须延续」纠正重试由单测覆盖（tests/lib/refine.test.ts）；
+ *   swap 契约上不带指令，桩无法用指令触发错误类型，故不在 e2e 里造这条路径。
+ *
  * 用法：node scripts/stub-llm.mjs [port]   （默认 8898）
  */
 import { createServer } from "node:http";
@@ -286,6 +304,124 @@ function reversedDayDelayMs(dayNum, totalDays, base) {
   return Math.max(1, (totalDays - dayNum + 1) * base);
 }
 
+// ---------------- 改行程（refine）的桩响应 ----------------
+// 约定见文件头注释；prompt 格式的定义方在 lib/refine.ts，两处必须同步。
+
+function refineTargetDay(userMsg) {
+  const m = userMsg.match(/目标：第 (\d+) 天/);
+  return m ? Number(m[1]) : 1;
+}
+
+function refineInstruction(userMsg) {
+  const m = userMsg.match(/【用户指令】「([^」]*)」/);
+  return m ? m[1] : "";
+}
+
+function refineSwapBase(userMsg) {
+  const m = userMsg.match(
+    /【被替换点】序号 (\d+)｜类型 (\w+)｜时段 (\w+)｜时间 ([\d:]+-[\d:]+)｜区域 ([^｜\n]+)｜名称 ([^\n]+)/,
+  );
+  if (!m) return { index: 1, type: "sight", period: "morning", time: "09:00-11:00", area: "测试区", name: "原景点" };
+  return { index: Number(m[1]), type: m[2], period: m[3], time: m[4], area: m[5].trim(), name: m[6].trim() };
+}
+
+function refineKeeps(userMsg) {
+  const m = userMsg.match(/【当天必须保留】([^\n]+)/);
+  if (!m) return [];
+  return m[1]
+    .split("、")
+    .map((s) => s.trim())
+    .filter((s) => s && s !== "（无）");
+}
+
+/** 单点替换响应：类型/时段/时间/区域沿用被替换点（refine 会核对这些字段） */
+function refineSwapContent(userMsg) {
+  const base = refineSwapBase(userMsg);
+  const spot = {
+    period: base.period,
+    time: base.time,
+    type: base.type,
+    name: `替换景点（桩）${base.index}`,
+    area: base.area,
+    durationMin: 120,
+    costCny: 60,
+    reason: "桩数据：改行程单点替换，与原安排同区域同类型",
+    rainBackup: "室内备选（桩数据）",
+  };
+  return JSON.stringify({ spot });
+}
+
+/** 单日重排响应：保留「当天必须保留」的点 + 补 2 个桩点，凑够 3-4 个合法点 */
+function refineDayContent(userMsg) {
+  const day = refineTargetDay(userMsg);
+  const instruction = refineInstruction(userMsg);
+  const keeps = refineKeeps(userMsg);
+  const themeMatch = userMsg.match(/【当天现状】第 \d+ 天 · 主题「([^」]*)」/);
+  const theme = themeMatch ? themeMatch[1] : `第 ${day} 天（桩数据）`;
+  const spots = [];
+  // 「故意删硬约束」：故意漏掉必须保留的点（验证 refine 的硬约束拒绝路径）
+  if (!instruction.includes("故意删硬约束")) {
+    keeps.slice(0, 2).forEach((name, i) => {
+      spots.push({
+        period: i === 0 ? "morning" : "afternoon",
+        time: `${9 + i * 3}:00-${11 + i * 3}:00`,
+        type: "sight",
+        name,
+        area: "测试区",
+        durationMin: 120,
+        costCny: 60,
+        reason: "桩数据：保留原硬约束",
+        rainBackup: "室内备选（桩数据）",
+      });
+    });
+  }
+  spots.push({
+    period: "afternoon",
+    time: "14:00-16:00",
+    type: "sight",
+    name: `重排新景点（桩）${day}`,
+    area: "测试区",
+    durationMin: 100,
+    costCny: 40,
+    reason: "桩数据：改行程单日重排",
+    rainBackup: "室内备选（桩数据）",
+  });
+  spots.push({
+    period: "dinner",
+    time: "18:00-19:30",
+    type: "food",
+    name: `重排新餐厅（桩）${day}`,
+    area: "测试区",
+    durationMin: 90,
+    costCny: 80,
+    reason: "桩数据：改行程单日重排的晚餐",
+  });
+  // 目标 3-4 个点：上面只有 2 个时补一个上午景点（prompt 要求完整一天，不是补丁）
+  if (!instruction.includes("故意删硬约束") && spots.length < 3) {
+    spots.unshift({
+      period: "morning",
+      time: "09:00-11:00",
+      type: "sight",
+      name: `重排上午景点（桩）${day}`,
+      area: "测试区",
+      durationMin: 120,
+      costCny: 50,
+      reason: "桩数据：改行程单日重排的上午安排",
+      rainBackup: "室内备选（桩数据）",
+    });
+  }
+  return JSON.stringify({ day: { day, theme, spots } });
+}
+
+/** 改行程请求的总入口：按 system prompt 里的任务类型分流 */
+function refineContent(userMsg, systemMsg) {
+  if (refineInstruction(userMsg).includes("故意失败")) {
+    return "抱歉，我不太明白你的意思。";
+  }
+  if (systemMsg.includes("单点替换")) return refineSwapContent(userMsg);
+  return refineDayContent(userMsg);
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
@@ -314,12 +450,16 @@ const server = createServer((req, res) => {
       isStream = parsed.stream === true;
     } catch { /* 空 body 按 valid 处理 */ }
 
-    // 分日流式的两次调用靠 system prompt 区分
-    const isOutlineCall = systemMsg.includes("行程大纲");
-    const isDayCall = systemMsg.includes("某一天的时刻表");
+    // 三类调用靠 system prompt 区分：改行程 / 大纲 / 单日。
+    // 改行程先判断：它的 system prompt 含「行程微调」标记，且不应落入下面按
+    // 城市名切换的生成分支（那些分支都是为整份生成准备的）。
+    const isRefineCall = systemMsg.includes("行程微调");
+    const isOutlineCall = !isRefineCall && systemMsg.includes("行程大纲");
+    const isDayCall = !isRefineCall && systemMsg.includes("某一天的时刻表");
 
     let mode = "valid";
-    if (userMsg.includes("垃圾")) mode = "garbage";
+    if (isRefineCall) mode = "refine";
+    else if (userMsg.includes("垃圾")) mode = "garbage";
     else if (userMsg.includes("空")) mode = "empty";
     else if (userMsg.includes("故障")) mode = "http500";
     else if (userMsg.includes("编号乱序")) mode = "scrambled";
@@ -355,7 +495,10 @@ const server = createServer((req, res) => {
     else if (userMsg.includes("活动晚点")) mode = "event-late";
     // 活动漏排：整个行程不含该活动（测漏排告警）
     else if (userMsg.includes("活动漏排")) mode = "event-missing";
-    console.log(`[stub] ${mode}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
+    const refineKind = isRefineCall
+      ? systemMsg.includes("单点替换") ? " (swap)" : " (day)"
+      : "";
+    console.log(`[stub] ${mode}${refineKind}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
 
     if (mode === "http500") {
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -389,7 +532,9 @@ const server = createServer((req, res) => {
       await sleep(delay);
     }
     const content =
-      mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
+      // 改行程优先：它的响应结构（spot/day）与整份生成完全不同，不能落到下面分支
+      mode === "refine" ? refineContent(userMsg, systemMsg)
+      : mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
       : mode === "empty" ? ""
       : mode === "scrambled" ? JSON.stringify(scrambledPlan())
       // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」

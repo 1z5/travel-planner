@@ -1,7 +1,8 @@
 import "server-only";
+import type { Plan, PlanInput } from "../types";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import type { CodeRecord, JobRecord, QuotaRecord, Store } from "./types";
+import type { CodeRecord, JobRecord, PlanRecord, QuotaRecord, Store } from "./types";
 
 // ============================================================
 // PostgreSQL 实现（Prisma）。客户端懒实例化——只有 DATA_STORE=
@@ -27,6 +28,11 @@ function prisma(): PrismaClient {
 }
 
 const TTL_MS = 2 * 3600_000; // 任务保留 2 小时（同 memory 实现）
+// 行程（Plan）不做 TTL 清理：它是用户的产品资产（分享链接/继续编辑的落点），
+// 不像任务那样是一次性执行记录。单份行程 JSON 约 10-25KB，即使每天 100 份、
+// 一年也只有 ~0.9GB——持久保存的收益（链接不会忽然失效）远大于这点存储成本。
+// 需要清理时由运维按业务规则单独处理（例如「用户主动删除」功能），
+// 不在全局 sweep 里按时间静默删用户资产。
 
 const jobStore = {
   async create(record: JobRecord) {
@@ -39,6 +45,7 @@ const jobStore = {
         key: record.key,
         limit: record.limit,
         createdAt: new Date(record.createdAt),
+        shareId: record.shareId,
       },
     });
   },
@@ -53,6 +60,9 @@ const jobStore = {
       key: row.key,
       limit: row.limit,
       createdAt: row.createdAt.getTime(),
+      shareId: row.shareId ?? undefined,
+      // updatedAt 是列上的心跳：status 路由靠它识别服务重启留下的僵尸任务
+      updatedAt: row.updatedAt.getTime(),
     };
   },
   async update(id: string, patch: Partial<JobRecord>) {
@@ -64,8 +74,77 @@ const jobStore = {
           ? { plan: patch.plan ? (patch.plan as unknown as Prisma.InputJsonValue) : Prisma.DbNull }
           : {}),
         ...(patch.error !== undefined ? { error: patch.error } : {}),
+        ...(patch.shareId !== undefined ? { shareId: patch.shareId } : {}),
+        // 显式写 updatedAt：空 patch（纯心跳）也必须让 @updatedAt 刷新，
+        // 否则「每次 update 都是一次心跳」的契约在 PG 实现上不成立
+        updatedAt: new Date(patch.updatedAt ?? Date.now()),
       },
     });
+  },
+};
+
+function mapPlanRecord(row: {
+  id: string;
+  jobId: string | null;
+  ownerKey: string | null;
+  plan: Prisma.JsonValue;
+  input: Prisma.JsonValue;
+  revision: number;
+  createdAt: Date;
+  updatedAt: Date;
+}): PlanRecord {
+  return {
+    id: row.id,
+    jobId: row.jobId ?? undefined,
+    ownerKey: row.ownerKey ?? undefined,
+    plan: row.plan as unknown as Plan,
+    input: row.input as unknown as PlanInput,
+    revision: row.revision,
+    createdAt: row.createdAt.getTime(),
+    updatedAt: row.updatedAt.getTime(),
+  };
+}
+
+const planStore = {
+  async save(record: PlanRecord) {
+    const data = {
+      jobId: record.jobId,
+      ownerKey: record.ownerKey,
+      plan: record.plan as unknown as Prisma.InputJsonValue,
+      input: record.input as unknown as Prisma.InputJsonValue,
+      revision: record.revision,
+      createdAt: new Date(record.createdAt),
+      updatedAt: new Date(record.updatedAt),
+    };
+    // upsert：commitPlan 判重靠 JobRecord.shareId，但进程在「存了 Plan、还没回写
+    // shareId」之间崩溃后重放时，同 id 覆盖比 create 冲突更能自愈
+    await prisma().plan.upsert({
+      where: { id: record.id },
+      create: { id: record.id, ...data },
+      update: data,
+    });
+  },
+  async get(id: string) {
+    const row = await prisma().plan.findUnique({ where: { id } });
+    return row ? mapPlanRecord(row) : null;
+  },
+  async replace(id: string, plan: Plan) {
+    try {
+      // revision 自增交给数据库（原子），避免「读-改-写」在并发改行程时丢更新
+      const row = await prisma().plan.update({
+        where: { id },
+        data: {
+          plan: plan as unknown as Prisma.InputJsonValue,
+          revision: { increment: 1 },
+          updatedAt: new Date(),
+        },
+      });
+      return mapPlanRecord(row);
+    } catch (e) {
+      // P2025 = 目标记录不存在：映射为 null（业务分支），其余错误照常抛出
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") return null;
+      throw e;
+    }
   },
 };
 
@@ -124,8 +203,14 @@ async function sweep() {
   try {
     await prisma().job.deleteMany({ where: { createdAt: { lt: cutoff } } });
     await prisma().smsCode.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+    // 注意：plan 表不在这里清理（见文件顶部注释：行程是资产，不按时间删）
   } catch { /* 清理失败不影响主流程 */ }
 }
 
-export const postgresStore: Store = { jobs: jobStore, quota: quotaStore, codes: codeStore };
+export const postgresStore: Store = {
+  jobs: jobStore,
+  plans: planStore,
+  quota: quotaStore,
+  codes: codeStore,
+};
 export { sweep };

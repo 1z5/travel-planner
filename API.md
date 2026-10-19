@@ -46,7 +46,9 @@ Base URL：`/api`（与前端同源）
 
 ## GET /api/plan/status?id={jobId} — 轮询任务状态
 
-建议轮询间隔 3 秒。任务结果保留 2 小时。
+建议轮询间隔 3 秒。**任务是执行记录**（结果只保留 2 小时，用于轮询拿到结果）；**行程本身是持久化资产**，done 时返回的 `shareId` 指向持久保存的分享 token，不受此 TTL 影响（生产 Postgres 模式行程不设过期；内存模式保留 30 天）。
+
+任务心跳与自愈：服务端每次进度更新都会刷新 `updatedAt`；running 任务超过 `JOB_STALE_MS`（默认 20 分钟）没有心跳时（典型：进程被重启/杀掉），本接口会把它置为 error 并立刻返回，前端不必白轮询到 15 分钟。
 
 ### 响应
 
@@ -66,19 +68,56 @@ Base URL：`/api`（与前端同源）
 {
   "status": "done",
   "remaining": 2,
+  "shareId": "a1b2c3d4e5f6",
   "plan": { "...": "见下方 Plan Schema" }
 }
 ```
+> `shareId` 是**持久分享 token**（本次生成落库后的行程主键，生产环境不设过期）。分享页 `/p/<shareId>`、日历 `/api/plan/ics?id=<shareId>`、修改 `/api/plan/refine` 都用它。落库失败时字段为 `null`——此时仍能看到行程，只是没有持久链接（前端据此隐藏分享入口）。
 
 **error** — 失败（配额已自动退还，remaining 为退还后的实时值）。分日路径的错误信息会带上进度
 ```json
 { "status": "error", "error": "第 4 天生成失败：生成连接被中断（已成功生成 3 天，配额已退还，可重试）", "remaining": 2 }
 ```
+> 服务重启导致任务中断时：`{ "status": "error", "error": "生成已中断（服务重启或长时间无响应），请重新生成" }`。
 
-**404** — 任务不存在（服务重启/超过 2 小时/ID 错误）
+**404** — 任务不存在（超过 2 小时/ID 错误）
 ```json
 { "error": "任务不存在或已过期，请重新生成" }
 ```
+
+## POST /api/plan/refine — 改行程（换一个景点 / 一句话改一天）
+
+对**已持久化**的行程做局部修改，不用整份重新生成、不占每日生成配额。同步接口（单次 LLM 小调用，通常 20-90 秒）。
+
+### 请求体
+
+| 字段 | 类型 | 必填 | 约束 | 说明 |
+|---|---|---|---|---|
+| shareId | string | ✅ | 6-40 位 URL-safe 字符 | 行程的持久分享 token（status done 返回） |
+| action | `"swap"` \| `"day"` | ✅ | | `swap`=换一个景点；`day`=重排这一天 |
+| day | number | ✅ | 1-10 整数 | 目标天（1 基） |
+| spotIndex | number | swap 必填 | 0-20 整数 | 当天第几个行程点（0 基） |
+| instruction | string | | ≤100 字符 | `day` 模式的自然语言要求，如「想轻松点，多安排室内」。字符白名单（CJK/字母数字/常见标点，禁止引号/换行/花括号，防 prompt 注入）。省略则按当天主题重排 |
+
+```json
+{ "shareId": "a1b2c3d4e5f6", "action": "day", "day": 2, "instruction": "这天想轻松点，多安排室内" }
+```
+
+### 响应
+
+**200** — 修改成功（已落库，分享链接同步到新版本）
+```json
+{ "plan": { "...": "完整新行程，见 Plan Schema" }, "revision": 3 }
+```
+> 修改后服务端会**重新跑一遍体检**（POI 验真 + 通勤 + 预算/硬约束），`warnings`/`totalCostCny`/`dailyCostCny` 都是新的。硬约束不可被指令破坏：必游地/重点活动若会被删掉，服务端拒绝并返回 422。
+
+| HTTP | 场景 |
+|---|---|
+| 400 | 参数非法 / day 或 spotIndex 越界 |
+| 404 | shareId 不存在或行程已被删除 |
+| 422 | 指令违反硬约束（如要求删掉必游地）或模型输出经重试仍不合格 |
+| 429 | 修改太频繁（默认 `REFINE_HOURLY_LIMIT`=20 次/小时/IP，失败自动退还） |
+| 502 | LLM 调用失败（error 已经是可行动文案） |
 
 ## 认证接口（M3：可选登录）
 
@@ -93,7 +132,30 @@ Base URL：`/api`（与前端同源）
 
 `AUTH_PROVIDER=sms` 时：验证码由腾讯云短信（TC3 直签，`lib/auth/sms.ts`）下发，服务端存储校验（5 分钟有效、一次性消费），需配 `SMS_SECRET_ID / SMS_SECRET_KEY / SMS_APP_ID / SMS_SIGN / SMS_TEMPLATE_ID`。模板内容形如「您的验证码是 {1}，5 分钟内有效」。
 
-日历导出：`GET /api/plan/ics?id=<jobId>` 返回 `text/calendar`（每个 spot 一个 VEVENT，按 startDate 逐日偏移，本地浮动时间），任务过期返回 404。
+分享与导出（持久化行程）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/p/<shareId>` | 持久分享页（只读 SSR）。追加 `?edit=1` 且本机生成过该行程（localStorage 有 token）时可继续修改 |
+| GET | `/api/plan/ics?id=<shareId>` | 日历导出（`text/calendar`，每个 spot 一个 VEVENT，按 startDate 逐日偏移，本地浮动时间）。**也兼容旧的 `/api/plan/ics?id=<jobId>`** |
+| GET | `/p/<jobId>` | 兼容早期分享链接（任务 TTL 内有效） |
+
+`shareId` 不存在 → 分享页 200 + 「链接已失效」提示（不 500）；`.ics` → 404。
+
+## GET /api/map — 每日真实路线地图（高德静态图代理）
+
+把某天的站点坐标渲染成一张真实地图（底图来自高德静态地图；站点编号与路线连线由前端 SVG 覆盖层自绘——高德 `paths` 参数在当前 key 上不可用，详情见 CHANGELOG）。
+
+`GET /api/map?loc=lng,lat;lng,lat;...&w=720&h=400&scale=2`
+
+| 参数 | 约束 |
+|---|---|
+| `loc` | 1-10 个 `lng,lat`，`;` 分隔；坐标须在合理经纬度范围内 |
+| `w` / `h` | 自动夹取到 320-1024 / 200-640 |
+| `scale` | 1 或 2（2 = 高清，返回 2 倍像素） |
+
+- **200** `image/png`，`Cache-Control: public, max-age=604800, immutable`（服务端另有 LRU 缓存，同一坐标组合不会重复打高德）
+- **400** 参数非法 · **503** 未配置高德 key / `AMAP_MAP_DISABLED=1` · **502** 上游失败（前端回退到示意路线图，绝不显示破图）
 
 微信登录（`AUTH_PROVIDER=wechat`）：`GET /api/auth/wechat/login?redirect=/` 跳转授权页（state+wx_state cookie 防 CSRF）→ 微信回调 `GET /api/auth/wechat/callback?code=&state=` 服务端换 openid → 签发同一套 session（标识为 `wx:<openid>`）。伪造 state → 400。
 
@@ -118,12 +180,14 @@ Base URL：`/api`（与前端同源）
       costCny: number;                // 人均
       reason: string;
       rainBackup?: string;            // 雨天备选
+      location?: string;              // "lng,lat"：高德验真命中时回填，用于真实地图/导航/行中距离
     }>;
     transitMin: number;               // 服务端估算的当天通勤合计（分钟）
     transitKnown?: boolean;           // false = 通勤估算失败（高德波动），该天未做通勤/节奏判定
     dailyCostCny: number;             // 服务端汇总的当天人均花费
   }>;
   totalCostCny: number;
+  budgetCny?: number;                 // 用户输入的人均预算（预算使用率/分类构成用；旧数据可能缺失）
   tips: string[];
   warnings: string[];                 // 体检预警：绕路/节奏/预算（超预算与宽松都报）/区域分散/未验真/必游地漏排/住所未体现
   verified: boolean;                  // true = 走高德真实验证；false = MOCK 模式
@@ -144,9 +208,14 @@ Base URL：`/api`（与前端同源）
 | 202 → error | LLM 输出不合法（重试 1 次后仍失败） | 建议重试 |
 | 202 → error | 上游 API 故障 | 稍后重试 |
 | 404 (status) | 任务过期/服务重启 | 引导重新提交 |
+| 202 → error | 陈旧任务自愈（心跳超时，进程重启/被杀） | 「生成已中断，请重新生成」 |
+| 404 (refine) | shareId 不存在/行程已删除 | 返回首页重新生成 |
+| 422 (refine) | 指令会破坏硬约束，或模型输出不合格 | 换个说法/撤销该要求 |
+| 429 (refine) | 改行程超过每小时上限 | 稍后再试 |
+| 503 (map) | 未配高德 key / 地图被禁用 | 前端自动回退示意图，无需文案 |
 
 ## 契约测试
 
-`fault_test` 套件（`npm test`，自包含：自动起桩 LLM + 隔离端口服务器）覆盖：正常链路、垃圾输出、空 content、上游 500、配额退还算术、参数边界、住所/必游地硬约束、LLM 输出结构核对（乱序归一化/天数不符）、分日流式（渐进交付的 daysReady 递增/中途失败不交付半成品）、预算体检对称性、LLM 连接中断重试——**151/151 通过**（2026-10）。
+`fault_test` 套件（`npm test`，自包含：自动起桩 LLM + 隔离端口服务器）覆盖：正常链路、垃圾输出、空 content、上游 500、配额退还算术、参数边界、住所/必游地硬约束、LLM 输出结构核对（乱序归一化/天数不符）、分日流式（渐进交付的 daysReady 递增/中途失败不交付半成品）、预算体检对称性、LLM 连接中断重试——**247/247 通过**（2026-10）。
 
-另有 50 条 Vitest 单测（`npm run test:unit`）覆盖高德三态语义、通勤两态、`mapLimit` 有界并发、`.ics` 的 RFC5545 细节。
+另有 Vitest 单测（`npm run test:unit`）覆盖高德三态语义、通勤两态、`mapLimit` 有界并发、`.ics` 的 RFC5545 细节、静态地图视野拟合与投影、行程持久化/修订、改行程 prompt 与硬约束、预算汇总、最近行程本地索引等（数量见 README 测试章节）。

@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJob } from "@/lib/jobs";
+import { resolvePlan } from "@/lib/plan-repo";
 import { buildIcs } from "@/lib/ics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/plan/ics?id=job_xxx —— 行程日历订阅文件（与分享页同源，只读）
+// GET /api/plan/ics?id=<share token 或旧 jobId> —— 行程日历订阅文件
+//
+// id 走 resolvePlan：优先持久化 Plan（分享链接长期可用），旧 job 链接在任务
+// 2 小时 TTL 内仍可导出（向后兼容）。这条不用登录态，凭不可猜测 token 访问。
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id") ?? "";
-  const job = await getJob(id);
-  if (!job || job.status !== "done" || !job.plan) {
-    return NextResponse.json({ error: "任务不存在或已过期" }, { status: 404 });
+  const plan = await resolvePlan(id);
+  if (!plan) {
+    return NextResponse.json({ error: "行程不存在或已失效" }, { status: 404 });
   }
-  const ics = buildIcs(job.plan);
-  const filename = encodeURIComponent(`${job.plan.city}${job.plan.days.length}天行程.ics`);
+  const ics = buildIcs(plan);
+  const filename = encodeURIComponent(`${plan.city}${plan.days.length}天行程.ics`);
   return new NextResponse(ics, {
     status: 200,
     headers: {

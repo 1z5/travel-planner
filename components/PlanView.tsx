@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
 import {
   Landmark, Utensils, BedDouble, TrainFront, ShoppingBag, Compass,
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin, Wallet,
+  RefreshCw, Loader2, MessageSquareText, Printer, Navigation, X,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { localTodayIso, nowMinutes, spotNow, tripToday, distMeters, fmtDist, type SpotNow, type TripToday } from "@/lib/trip-day";
 import { warnTag } from "@/lib/warn-tag";
 import { cityImage } from "@/lib/city-images";
+import { ownsRecentTrip } from "@/lib/recent-trips";
 import { RouteMap } from "./RouteMap";
+import { RealMap } from "./RealMap";
+import { BudgetInsight } from "./BudgetInsight";
 import { CostChart } from "./CostChart";
+import { summarizeBudget } from "@/lib/budget";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
 
@@ -18,6 +23,10 @@ const TYPE_LABEL: Record<string, string> = {
   sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
   shopping: "购物", activity: "体验",
 };
+
+/** 可「换一个」的类型：住宿/交通是行程骨架（服务端会拒绝），不给必失败的入口。
+ *  activity 也允许——只有用户指定的重点活动会被服务端按名称拦下并给出明确文案。 */
+const SWAPPABLE_TYPES = new Set(["sight", "food", "shopping", "activity"]);
 
 const TYPE_ICON: Record<string, typeof Landmark> = {
   sight: Landmark, food: Utensils, hotel: BedDouble, transport: TrainFront,
@@ -27,6 +36,18 @@ const TYPE_ICON: Record<string, typeof Landmark> = {
 function fmtDate(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${Number(m)}月${Number(d)}日`;
+}
+
+/**
+ * 「导航到这里」：高德 URI 导航链接（手机浏览器会唤起高德 App，桌面打开高德网页版）。
+ *
+ * 为什么用这个而不是自己画导航：定位/路线规划是高德的本职，浏览器地理能力做不了；
+ * 而行程里每个验真命中的点都带真实坐标（validate 回填），拼一个链接就能把
+ * 「看完行程 → 出发」这一步接上。未验真的点没有坐标，不渲染此入口（不给假地址）。
+ */
+function amapNavUrl(location: string, name: string): string {
+  return `https://uri.amap.com/navigation?to=${location},${encodeURIComponent(name)}`
+    + "&mode=car&policy=1&src=travelplanner&coordinate=gaode&callnative=1";
 }
 
 function toMarkdown(plan: Plan): string {
@@ -71,21 +92,94 @@ function isBadWeatherText(w: string): boolean {
   return /雨|雪|雹|沙|尘|雾|霾/.test(w);
 }
 
-/** 行程展示：结果区与分享页（/p/[id]）共用。 */
+/** 行程修改请求：换一个点 / 重排一天（带一句自然语言指令） */
+type RefineRequest =
+  | { kind: "swap"; day: number; spotIndex: number }
+  | { kind: "day"; day: number; instruction?: string };
+
+/**
+ * 行程展示：结果区与分享页（/p/[id]）共用。
+ *
+ * 三个可选增能（都向后兼容，只读场景不传即无副作用）：
+ * - shareId   持久化分享 token：分享链接/日历导出/继续编辑都靠它（Job 只有 2 小时，不能用）
+ * - editable  允许修改（调 /api/plan/refine）
+ * - ownerCheck 分享页专用：只有本机生成过该行程（localStorage 里有 token）才允许编辑，
+ *              防止「把只读链接里的 ?edit=1 改一下」就能改别人的行程
+ */
 export function PlanView({
   plan,
   banner,
   shareId,
+  editable = false,
+  ownerCheck = false,
+  onPlanChange,
 }: {
   plan: Plan;
   banner?: ReactNode;
   shareId?: string;
+  editable?: boolean;
+  ownerCheck?: boolean;
+  onPlanChange?: (plan: Plan) => void;
 }) {
+  // 本地视图态：修改行程后立刻渲染新版本，不必回源刷新页面。
+  // prop 变更（父组件拿到更新后的 plan / 重新生成）时同步回来。
+  const [viewPlan, setViewPlan] = useState<Plan>(plan);
+  useEffect(() => setViewPlan(plan), [plan]);
+
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // ---- 行程修改（本轮产品跃迁：一次性生成 → 可共编）----
+  // busy 键形如 "swap:2:1" / "day:2"：只禁用编辑入口，不阻塞滚动/其它只读交互。
+  // 全局串行（任一次修改进行中就禁用所有编辑）——服务端是整份 plan 覆盖写，
+  // 并发提交会 last-write-wins 丢掉另一次改动。
+  const [busy, setBusy] = useState<string | null>(null);
+  const [editError, setEditError] = useState("");
+  const [revision, setRevision] = useState<number | null>(null);
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [instruction, setInstruction] = useState("");
+  // 编辑权限：分享页需要「本机生成过」才放行（localStorage 里认领过这个 token）
+  const [editAllowed, setEditAllowed] = useState(!ownerCheck);
+  useEffect(() => {
+    if (!ownerCheck) { setEditAllowed(true); return; }
+    setEditAllowed(!!shareId && ownsRecentTrip(shareId));
+  }, [ownerCheck, shareId]);
+  const canEdit = editable && !!shareId && editAllowed;
+
+  async function refine(req: RefineRequest): Promise<void> {
+    if (!shareId) return;
+    const key = req.kind === "swap" ? `swap:${req.day}:${req.spotIndex}` : `day:${req.day}`;
+    setBusy(key);
+    setEditError("");
+    try {
+      const r = await fetch("/api/plan/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId, action: req.kind, day: req.day, spotIndex: req.kind === "swap" ? req.spotIndex : undefined, instruction: req.kind === "day" ? req.instruction : undefined }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        // 服务端已经给了可行动文案（限流/找不到行程/模型失败），原样展示
+        setEditError(d.error || "改行程失败，请稍后重试");
+        return;
+      }
+      if (d.plan) {
+        setViewPlan(d.plan);
+        onPlanChange?.(d.plan);
+      }
+      setRevision(typeof d.revision === "number" ? d.revision : null);
+      setEditingDay(null);
+      setInstruction("");
+    } catch {
+      setEditError("网络异常，修改未保存，请重试");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动导致部分未核。
   // partial 时不能沿用「已通过验真」的说法——那是把没做完的事说成做完了
-  const verification = plan.verification ?? (plan.verified ? "ok" : "mock");
+  const verification = viewPlan.verification ?? (viewPlan.verified ? "ok" : "mock");
   const VERIFY_LABEL: Record<string, string> = {
     mock: "MOCK 模式：未接高德，POI 未验真",
     ok: "✓ POI 已通过高德验真",
@@ -93,14 +187,18 @@ export function PlanView({
     pending: "POI 验真进行中…",
   };
 
+  // 预算透视：分类构成/使用率/人话结论统一由 lib 汇总（口径只在一处），
+  // 组件只负责画。改完行程 viewPlan 变化时自动重算。
+  const budgetSummary = useMemo(() => summarizeBudget(viewPlan), [viewPlan]);
+
   // 「行中」：今天是行程第几天。只在客户端挂载后算——SSR 用服务端的「今天」
   // 会和客户端时区有偏差，避免 hydration 不匹配。首屏渲染 unknown（无高亮），
   // 挂载后补上，对「旅行途中打开」的场景无感。
   const [today, setToday] = useState<TripToday>({ kind: "unknown" });
   const todayRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    setToday(tripToday(plan.startDate, localTodayIso(), plan.days.length));
-  }, [plan.startDate, plan.days.length]);
+    setToday(tripToday(viewPlan.startDate, localTodayIso(), viewPlan.days.length));
+  }, [viewPlan.startDate, viewPlan.days.length]);
   // 「今天」就绪后自动滚动到当天（依赖 today，等重渲染把 ref 挂上再滚）
   useEffect(() => {
     if (today.kind === "during") {
@@ -117,12 +215,12 @@ export function PlanView({
       setSpotStatus(null);
       return;
     }
-    const spots = plan.days[duringIdx].spots;
+    const spots = viewPlan.days[duringIdx].spots;
     const compute = () => setSpotStatus(spotNow(spots, nowMinutes()));
     compute();
     const timer = setInterval(compute, 60000);
     return () => clearInterval(timer);
-  }, [duringIdx, plan.days]);
+  }, [duringIdx, viewPlan.days]);
 
   // 行中状态行文案：今天在哪个位置 +（during 时）现在/下一站。单文本节点，便于测试。
   const tripStatusText = (() => {
@@ -132,7 +230,7 @@ export function PlanView({
     const base = `📍 今天 · 第 ${today.dayIndex + 1} 天`;
     if (spotStatus?.kind === "done") return `${base} · 今日行程已结束`;
     if (spotStatus && (spotStatus.kind === "now" || spotStatus.kind === "next")) {
-      const spot = plan.days[today.dayIndex].spots[spotStatus.index];
+      const spot = viewPlan.days[today.dayIndex].spots[spotStatus.index];
       return `${base} · ${spotStatus.kind === "now" ? "现在" : "下一站"}：${spot.name}`;
     }
     return base;
@@ -143,12 +241,12 @@ export function PlanView({
   const [weather, setWeather] = useState<WeatherCheck>({ status: "idle" });
   const todayOutdoorSpots =
     today.kind === "during"
-      ? plan.days[today.dayIndex].spots.filter((s) => s.type === "sight" || s.type === "activity")
+      ? viewPlan.days[today.dayIndex].spots.filter((s) => s.type === "sight" || s.type === "activity")
       : [];
   const checkWeather = async () => {
     setWeather({ status: "loading" });
     try {
-      const r = await fetch(`/api/weather?city=${encodeURIComponent(plan.city)}`);
+      const r = await fetch(`/api/weather?city=${encodeURIComponent(viewPlan.city)}`);
       const d = await r.json();
       if (d.state !== "ok" || !Array.isArray(d.days)) {
         setWeather({ status: "done", reason: d.reason ?? "暂查不到天气" });
@@ -185,7 +283,7 @@ export function PlanView({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const me = `${pos.coords.longitude},${pos.coords.latitude}`;
-        const spots = today.kind === "during" ? plan.days[today.dayIndex].spots : [];
+        const spots = today.kind === "during" ? viewPlan.days[today.dayIndex].spots : [];
         const items = spots
           .map((s) => ({ name: s.name, meters: distMeters(me, s.location) }))
           .filter((x): x is { name: string; meters: number } => x.meters !== null)
@@ -212,6 +310,12 @@ export function PlanView({
     return null;
   })();
 
+  const submitInstruction = (day: number) => {
+    const text = instruction.trim();
+    if (!text) return;
+    void refine({ kind: "day", day, instruction: text });
+  };
+
   return (
     <>
       {banner}
@@ -221,16 +325,16 @@ export function PlanView({
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}>
         <div className="result-cover">
-          <img src={cityImage(plan.city)} alt="" />
+          <img src={cityImage(viewPlan.city)} alt="" />
           <div className="result-cover-veil" />
           <div className="result-cover-text">
-            <h2>{plan.city} · {plan.days.length} 天行程</h2>
-            {plan.startDate && (
+            <h2>{viewPlan.city} · {viewPlan.days.length} 天行程</h2>
+            {viewPlan.startDate && (
               <div className="result-cover-dates">
                 <CalendarDays size={14} />
-                {fmtDate(plan.startDate)}
-                {plan.endDate ? ` – ${fmtDate(plan.endDate)}` : ""}
-                {plan.startAt && plan.endAt ? ` · ${plan.startAt.slice(11)} – ${plan.endAt.slice(11)}` : ""}
+                {fmtDate(viewPlan.startDate)}
+                {viewPlan.endDate ? ` – ${fmtDate(viewPlan.endDate)}` : ""}
+                {viewPlan.startAt && viewPlan.endAt ? ` · ${viewPlan.startAt.slice(11)} – ${viewPlan.endAt.slice(11)}` : ""}
               </div>
             )}
           </div>
@@ -241,37 +345,43 @@ export function PlanView({
           <span className={`verified-badge ${verification === "ok" ? "live" : verification === "partial" ? "live warn" : "mock"}`}>
             {VERIFY_LABEL[verification]}
           </span>
+          {revision !== null && (
+            <span className="rev-badge">已更新 · 第 {revision} 版</span>
+          )}
         </div>
 
-        <p className="plan-summary">{plan.summary}</p>
+        <p className="plan-summary">{viewPlan.summary}</p>
 
         <div className="kpi-row">
           <div className="kpi">
             <Wallet size={15} className="kpi-icon" />
-            <span className="kpi-value">¥{plan.totalCostCny.toLocaleString()}</span>
+            <span className="kpi-value">¥{viewPlan.totalCostCny.toLocaleString()}</span>
             <span className="kpi-label">人均总花费</span>
           </div>
           <div className="kpi">
             <CalendarDays size={15} className="kpi-icon" />
-            <span className="kpi-value">{plan.days.length} 天</span>
+            <span className="kpi-value">{viewPlan.days.length} 天</span>
             <span className="kpi-label">行程天数</span>
           </div>
           <div className="kpi">
             <MapPin size={15} className="kpi-icon" />
-            <span className="kpi-value">{plan.days.reduce((n, d) => n + d.spots.length, 0)} 个</span>
+            <span className="kpi-value">{viewPlan.days.reduce((n, d) => n + d.spots.length, 0)} 个</span>
             <span className="kpi-label">景点 / 餐点</span>
           </div>
         </div>
 
+        {/* 预算透视：使用率 + 分类构成（「钱花在哪」第一次可见） */}
+        <BudgetInsight summary={budgetSummary} />
+
         <div className="cost-chart">
           <div className="legend" style={{ marginBottom: 4 }}>每日人均花费</div>
-          <CostChart days={plan.days} />
+          <CostChart days={viewPlan.days} />
         </div>
 
         <div className="plan-actions">
           <button type="button" className="btn"
             onClick={async () => {
-              await navigator.clipboard.writeText(toMarkdown(plan));
+              await navigator.clipboard.writeText(toMarkdown(viewPlan));
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}>
@@ -292,18 +402,35 @@ export function PlanView({
               </a>
             </>
           )}
+          <button type="button" className="btn" onClick={() => window.print()}>
+            <Printer size={14} />打印 / 存 PDF
+          </button>
         </div>
+        {shareId && (
+          <p className="helper plan-share-hint">分享链接长期有效（不会随生成任务过期）——对方打开看到的就是当前这一版，你后续的修改会同步进去。</p>
+        )}
         </div>
       </motion.div>
 
+      {/* ===== 修改失败提示（可行动文案，不吞错）===== */}
+      {editError && (
+        <div className="alert alert-error" role="alert">
+          <AlertTriangle size={16} style={{ marginTop: 2, flexShrink: 0 }} />
+          <span className="edit-error-text">{editError}</span>
+          <button type="button" className="alert-close" aria-label="关闭提示" onClick={() => setEditError("")}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* ===== 体检预警 ===== */}
-      {plan.warnings.length > 0 && (
+      {viewPlan.warnings.length > 0 && (
         <div className="alert alert-warn">
           <AlertTriangle size={18} style={{ marginTop: 2, flexShrink: 0 }} />
           <div>
-            <div className="alert-title">行程体检发现 {plan.warnings.length} 个问题</div>
+            <div className="alert-title">行程体检发现 {viewPlan.warnings.length} 个问题</div>
             <ul className="warn-list">
-              {plan.warnings.map((w, i) => {
+              {viewPlan.warnings.map((w, i) => {
                 const tag = warnTag(w);
                 return (
                   <li key={i}>
@@ -381,8 +508,9 @@ export function PlanView({
       )}
 
       {/* ===== 分天时间线 ===== */}
-      {plan.days.map((day, dayIdx) => {
+      {viewPlan.days.map((day, dayIdx) => {
         const isToday = today.kind === "during" && dayIdx === today.dayIndex;
+        const dayBusy = busy === `day:${day.day}`;
         return (
           <motion.div className={`card${isToday ? " card-today" : ""}`} key={day.day}
             ref={isToday ? todayRef : undefined}
@@ -392,10 +520,56 @@ export function PlanView({
               <div className="day-num"><small>DAY</small>{day.day}</div>
               {isToday && <span className="today-badge">今天</span>}
               <span className="day-theme">{day.theme}</span>
+              {canEdit && (
+                <div className="day-tools">
+                  <button type="button" className="btn btn-mini" disabled={!!busy}
+                    onClick={() => void refine({ kind: "day", day: day.day })}
+                    title="按当天主题重排这一天的所有安排">
+                    {dayBusy ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}重排这天
+                  </button>
+                  <button type="button" className="btn btn-mini" disabled={!!busy}
+                    aria-expanded={editingDay === day.day}
+                    onClick={() => {
+                      setEditError("");
+                      setEditingDay(editingDay === day.day ? null : day.day);
+                      setInstruction("");
+                    }}>
+                    <MessageSquareText size={13} />一句话改
+                  </button>
+                </div>
+              )}
             </div>
 
+          {/* 一句话改：自然语言指令只作用于这一天，服务端会重体检并落库 */}
+          {canEdit && editingDay === day.day && (
+            <div className="day-instruction">
+              <input
+                type="text"
+                value={instruction}
+                maxLength={100}
+                aria-label={`第 ${day.day} 天修改指令`}
+                placeholder="例如：这天想轻松点、多安排室内；或把预算压到 600 以内"
+                onChange={(e) => setInstruction(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); submitInstruction(day.day); }
+                }}
+                disabled={dayBusy}
+              />
+              <button type="button" className="btn" disabled={!instruction.trim() || dayBusy}
+                onClick={() => submitInstruction(day.day)}>
+                {dayBusy ? <Loader2 size={13} className="spin" /> : null}改这一天
+              </button>
+            </div>
+          )}
+
           <div className="route-map-wrap">
-            <RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />
+            {/* 有坐标（验真命中）→ 真实地图；无坐标（MOCK/未验真）→ 降级到示意图。
+                两条路径都在本组件内自处理，PlanView 不需要判断模式。 */}
+            <RealMap
+              points={day.spots.map((s) => ({ name: s.name, type: s.type, location: s.location }))}
+              label={`第 ${day.day} 天`}
+              fallback={<RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />}
+            />
           </div>
 
           <div className="timeline">
@@ -406,6 +580,7 @@ export function PlanView({
                 isToday && spotStatus && (spotStatus.kind === "now" || spotStatus.kind === "next") && i === spotStatus.index
                   ? spotStatus.kind
                   : null;
+              const swapBusy = busy === `swap:${day.day}:${i}`;
               return (
                 <div className={`spot${spotMark ? ` spot-${spotMark}` : ""}`} key={i}>
                   <div className="spot-time">{s.time.replace("-", "\n")}</div>
@@ -434,6 +609,25 @@ export function PlanView({
                     {s.rainBackup && (
                       <div className="spot-backup"><CloudRain size={12} />雨天备选：{s.rainBackup}</div>
                     )}
+                    {(canEdit || s.location) && (
+                      <div className="spot-actions">
+                        {canEdit && SWAPPABLE_TYPES.has(s.type) && (
+                          <button type="button" className="btn-link spot-action"
+                            disabled={!!busy}
+                            onClick={() => void refine({ kind: "swap", day: day.day, spotIndex: i })}
+                            title="保持同一区域与类型，换一个同类去处">
+                            {swapBusy ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />}
+                            {swapBusy ? "换台中…" : "换一个"}
+                          </button>
+                        )}
+                        {s.location && (
+                          <a className="btn-link spot-action" href={amapNavUrl(s.location, s.name)}
+                            target="_blank" rel="noopener noreferrer">
+                            <Navigation size={12} />导航到这里
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -453,13 +647,13 @@ export function PlanView({
       })}
 
       {/* ===== 出行提示 ===== */}
-      {plan.tips.length > 0 && (
+      {viewPlan.tips.length > 0 && (
         <div className="card">
           <h2 style={{ fontSize: 17, margin: "0 0 4px", display: "flex", alignItems: "center", gap: 8 }}>
             <Lightbulb size={16} />出发前提醒
           </h2>
           <ul className="tips">
-            {plan.tips.map((t, i) => (
+            {viewPlan.tips.map((t, i) => (
               <li key={i}><Lightbulb size={14} />{t}</li>
             ))}
           </ul>

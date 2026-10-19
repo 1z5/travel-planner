@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJob } from "@/lib/jobs";
+import { getJob, interruptJob, isJobStale, JOB_INTERRUPTED_ERROR } from "@/lib/jobs";
 import { peek } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -12,10 +12,27 @@ export async function GET(req: NextRequest) {
   if (!job) {
     return NextResponse.json({ error: "任务不存在或已过期，请重新生成" }, { status: 404 });
   }
+
+  // 陈旧任务自愈（本轮新增）：服务重启/进程冻结会让 running 任务永远停在
+  // running，前端按 3s 轮询白等 15 分钟才发现没结果。用「最后一次心跳」判定
+  // 任务是否还活着：超时即置 error 并退还配额，让用户立刻重新生成。
+  // 判定放在计算 remaining 之前——中断会退配额，remaining 必须是退款后的值。
+  if (isJobStale(job)) {
+    await interruptJob(job);
+    const remaining = await peek(job.key, job.limit);
+    return NextResponse.json({ status: "error", error: JOB_INTERRUPTED_ERROR, remaining });
+  }
+
   // 剩余次数实时计算：失败退还后立刻反映，不做快照
   const remaining = await peek(job.key, job.limit);
   if (job.status === "done") {
-    return NextResponse.json({ status: "done", plan: job.plan, remaining });
+    return NextResponse.json({
+      status: "done",
+      plan: job.plan,
+      remaining,
+      // 持久化失败时为 null：前端据此隐藏分享/日历入口（诚实降级，不给打不开的链接）
+      shareId: job.shareId ?? null,
+    });
   }
   if (job.status === "error") {
     return NextResponse.json({ status: "error", error: job.error, remaining });

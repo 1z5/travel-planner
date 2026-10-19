@@ -4,9 +4,11 @@ import { validatePlan, validateDay, finalizePlan, type DayCheck } from "./valida
 import { mapLimit } from "./concurrency";
 import { AMAP_MOCK } from "./amap";
 import { getStore } from "./store";
+import { commitPlan } from "./plan-repo";
+import { refund } from "./ratelimit";
 import { fetchWeather, buildWeatherAdvice } from "./weather";
 import type { Plan, PlanDay, PlanInput, PlanSpot } from "./types";
-import type { Store } from "./store";
+import type { JobRecord, Store } from "./store";
 
 // ============================================================
 // 异步任务：提交即返回 jobId，生成在后台进行，前端轮询进度。
@@ -21,18 +23,90 @@ import type { Store } from "./store";
 /** ≥5 天走分日流式（单次调用在这个长度必爆 token） */
 const STREAMING_MIN_DAYS = 5;
 
+/** 轻量心跳间隔：任务运行期间每 60s 打一次空 update，刷新 JobRecord.updatedAt */
+const HEARTBEAT_MS = 60_000;
+
+/**
+ * 陈旧任务阈值：running 任务超过这么久没有心跳，就认为生成它的进程已经不在了
+ * （服务重启 / 容器被回收 / 进程冻结）。默认 12 分钟，JOB_STALE_MS 可覆盖。
+ *
+ * 为什么 12 分钟够安全：
+ * - 两条生成路径都有 60s 心跳（streaming 的逐日落库本身也是心跳），
+ *   12 分钟 = 连续丢 12 次心跳，正常运行的进程不会发生
+ * - 正常生成时长 2-8 分钟（跨境 8 分钟+），远小于 12 分钟
+ * - 阈值再大（如 20 分钟）会让用户在服务重启后对着僵尸任务白等更久；
+ *   阈值太小则有误杀正常长任务的风险。12 分钟取在两者之间。
+ */
+export function staleJobMs(): number {
+  const raw = Number(process.env.JOB_STALE_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 12 * 60_000;
+}
+
+/** 任务被判定中断时给用户看的错误（写清楚原因与下一步，不假装任务还在跑） */
+export const JOB_INTERRUPTED_ERROR = "生成已中断（服务重启或长时间无响应），请重新生成";
+
+/** running 且超过 staleJobMs 无心跳 → 视为中断（可注入 now 便于测试） */
+export function isJobStale(job: JobRecord, now = Date.now()): boolean {
+  if (job.status !== "running") return false;
+  return now - (job.updatedAt ?? job.createdAt) > staleJobMs();
+}
+
+// 进程内已退配额的 job id：并发轮询请求可能同时发现同一个僵尸任务，
+// 同步登记保证只有第一个请求退配额（多实例 postgres 下仍有极小概率双退，
+// 但代价只是多一次免费生成，不影响正确性，见最终报告的遗留风险）
+const refundedInterrupted = new Set<string>();
+
+/**
+ * 把僵尸 running 任务置为 error 并退还配额。
+ *
+ * 为什么退配额：这次失败不是用户操作造成的（是我们的进程没了），
+ * 和正常失败路径「失败退还配额」保持同一原则——不能因为服务重启吞掉用户的次数。
+ */
+export async function interruptJob(job: JobRecord): Promise<void> {
+  if (refundedInterrupted.has(job.id)) return;
+  refundedInterrupted.add(job.id); // 先同步登记再 await，避免并发双退
+  await getStore().jobs.update(job.id, { status: "error", error: JOB_INTERRUPTED_ERROR });
+  await refund(job.key);
+  console.log(`[job] ${job.id} 判定为中断（超过 ${Math.round(staleJobMs() / 1000)}s 无心跳），已退还配额`);
+}
+
+/**
+ * 心跳：每 60s 打一次空 update（Store 实现保证刷新 updatedAt）。
+ * 返回停止函数，必须在生成结束（成功/失败）时调用，避免定时器泄漏。
+ */
+function startHeartbeat(store: Store, jobId: string): () => void {
+  const timer = setInterval(() => {
+    void store.jobs.update(jobId, {}).catch((e) => {
+      // 心跳失败只记日志：它是保活信号，不该影响生成本身
+      console.log(`[job] ${jobId} 心跳写入失败（忽略）: ${(e as Error).message}`);
+    });
+  }, HEARTBEAT_MS);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
 function newId(): string {
   return `job_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /**
- * 收尾并标记完成：追加天气风险提示，然后落库为 done。
+ * 收尾并标记完成：追加天气风险提示，把行程持久化为 Plan 聚合，然后落库为 done。
  *
  * 天气是增强不是门槛——查询失败（无 key / 超出预报窗口 / 上游异常）时
  * 静默跳过，绝不让整个任务失败。用户拿到的是「没有天气提示的行程」，
  * 而不是「生成失败」。
+ *
+ * 顺序是「先 commitPlan 拿到 shareId，再写 done」：前端第一次轮询到 done 时
+ * 必须同时拿到 shareId（否则会停在「没有分享按钮」——done 之后前端不再轮询，
+ * 迟到的 shareId 永远送不到）。commitPlan 内部失败只降级返回 null，不阻断交付。
  */
-async function completeWithWeather(store: Store, jobId: string, plan: Plan): Promise<void> {
+async function completeWithWeather(
+  store: Store,
+  jobId: string,
+  plan: Plan,
+  input: PlanInput,
+  ownerKey?: string,
+): Promise<void> {
   try {
     const advice = await buildWeatherAdvice(plan, await fetchWeather(plan.city));
     if (advice.warnings.length) {
@@ -44,7 +118,15 @@ async function completeWithWeather(store: Store, jobId: string, plan: Plan): Pro
   } catch (e) {
     console.log(`[job] ${jobId} 天气查询失败（已跳过）: ${(e as Error).message}`);
   }
-  await store.jobs.update(jobId, { status: "done", plan: clonePlan(plan) });
+  const snapshot = clonePlan(plan);
+  // 行程持久化：失败只意味着「这次没有分享链接」，行程本体照常交付
+  const shareId = await commitPlan(jobId, snapshot, input, ownerKey);
+  // 一次写入同时落 done + plan + shareId：轮询到 done 即拿到完整结果
+  await store.jobs.update(jobId, {
+    status: "done",
+    plan: snapshot,
+    ...(shareId ? { shareId } : {}),
+  });
 }
 
 /**
@@ -110,12 +192,15 @@ export async function createJob(
   );
   void (async () => {
     const t0 = Date.now();
+    // 心跳保活：running 任务必须持续刷新 updatedAt，否则服务重启后 status 路由
+    // 的陈旧判定会误杀，或（没心跳时）用户要白等一整段阈值才发现任务已死。
+    const stopHeartbeat = startHeartbeat(store, job.id);
     try {
       if (input.days >= STREAMING_MIN_DAYS) {
-        await runStreaming(store, job.id, input);
+        await runStreaming(store, job.id, input, key);
       } else {
         const plan = await validatePlan(await generatePlan(input), input);
-        await completeWithWeather(store, job.id, plan);
+        await completeWithWeather(store, job.id, plan, input, key);
       }
       console.log(
         `[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`,
@@ -125,6 +210,8 @@ export async function createJob(
       await store.jobs.update(job.id, { status: "error", error });
       onError?.(); // 失败归还配额
       console.log(`[job] ${job.id} 失败 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 原因=${error}`);
+    } finally {
+      stopHeartbeat();
     }
   })();
   return job;
@@ -139,7 +226,12 @@ export async function createJob(
  * 2. 避开 LLM 速率限制（个人 key 并发打满会更慢，甚至触发限流）
  * 3. 5 天约 3-4 分钟，与 4 天单次调用耗时相当，UX 收益已经拿到
  */
-async function runStreaming(store: Store, jobId: string, input: PlanInput): Promise<void> {
+async function runStreaming(
+  store: Store,
+  jobId: string,
+  input: PlanInput,
+  ownerKey?: string,
+): Promise<void> {
   const t0 = Date.now();
   const outline = await generateOutline(input);
 
@@ -256,6 +348,6 @@ async function runStreaming(store: Store, jobId: string, input: PlanInput): Prom
   finalizePlan(plan, input, {
     warnings, unverified, transitUnknownDays, grandTotal, missCount, poiTotal,
   });
-  // 天气提示 + 标记完成（共用逻辑，与单次路径一致）
-  await completeWithWeather(store, jobId, plan);
+  // 天气提示 + 持久化分享 + 标记完成（共用逻辑，与单次路径一致）
+  await completeWithWeather(store, jobId, plan, input, ownerKey);
 }

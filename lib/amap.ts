@@ -18,6 +18,11 @@ import { sleep } from "./concurrency";
 const KEY = process.env.AMAP_WEB_SERVICE_KEY;
 const BASE = process.env.AMAP_BASE_URL || "https://restapi.amap.com";
 export const AMAP_MOCK = !KEY;
+// 静态地图（/v3/staticmap）返回二进制而非 JSON，无法复用 amapGetRetry；
+// 但 key/base 必须与上面的 JSON 请求保持同一份配置（尤其 e2e 用
+// AMAP_BASE_URL 指向桩服务）。只做最小导出，不改任何现有逻辑。
+export const AMAP_KEY = KEY;
+export const AMAP_BASE = BASE;
 
 export interface PoiInfo {
   name: string;
@@ -75,7 +80,9 @@ const FETCH_TIMEOUT_MS = 10_000;
 // 高德 infocode 里属于「稍后重试即可」的：QPS/频率/日配额类
 const TRANSIENT_INFOCODES = new Set(["10003", "10004", "10019", "10020", "10021", "10022"]);
 
-function isTransientUpstream(info: string, infocode: string): boolean {
+// 导出给 staticmap.ts 复用：静态地图接口的限流错误（HTTP 200 + JSON body）
+// 与这里的判定口径必须一致，否则会重试不该重试的错误、或漏掉 QPS 退避。
+export function isTransientUpstream(info: string, infocode: string): boolean {
   if (TRANSIENT_INFOCODES.has(infocode)) return true;
   return /QPS|LIMIT|FREQUEN|BUSY|RETRY|频率|超出|并发|繁忙/i.test(info);
 }

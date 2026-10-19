@@ -55,6 +55,10 @@ export interface Plan {
   summary: string;
   days: PlanDay[];
   totalCostCny: number;
+  // 用户输入的人均预算（由 validate.finalizePlan 从 PlanInput 回填）。
+  // 结果页要算「预算使用率」就必须有它——旧数据 / 示例行程 / 早期分享可能没有，
+  // 所以是可选字段：UI 侧必须按「无预算」优雅降级（只展示实际花费与构成，不猜使用率）。
+  budgetCny?: number;
   tips: string[];          // 预约/避坑提示
   warnings: string[];      // 体检结果：未验真 POI / 通勤偏长 / 节奏 / 预算
   verified: boolean;       // 是否走了真实高德数据（false = mock 模式）

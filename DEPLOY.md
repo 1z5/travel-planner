@@ -1,6 +1,10 @@
 # 部署指南
 
-前置认知：**生成一次行程要 3-10 分钟且任务状态在服务端内存**（1-4 天约 3-5 分钟；5-7 天走分日流式，实测约 7 分钟——多天并发生成），所以本项目不能用「纯 serverless 函数」部署（函数响应后会被冻结，后台任务中断、轮询 404）。必须用**常驻 Node 服务**。
+前置认知：**生成一次行程要 3-10 分钟且任务在服务端进程内执行**（1-4 天约 3-5 分钟；5-7 天走分日流式，实测约 7 分钟——多天并发生成），所以本项目不能用「纯 serverless 函数」部署（函数响应后会被冻结，后台任务中断、轮询 404）。必须用**常驻 Node 服务**。
+
+两层状态要分清：
+- **行程（Plan）是持久化资产**：生成完成即落 Store，带持久分享 token（`/p/<token>`），进程重启不丢、分享链接长期有效。
+- **任务（Job）是执行记录**：仍在进程内跑；进程被杀会中断，靠心跳 + 状态接口的「陈旧任务自愈」（`JOB_STALE_MS`，默认 20 分钟）让前端立刻拿到可行动 error，而不是白轮询 15 分钟。
 
 > **Node ≥ 22**（package.json engines 已约束；openai SDK v7 起要求 22）。Dockerfile 与 CI 均基于 node:22。
 
@@ -67,10 +71,13 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 | `LLM_REASONING_EFFORT` | | 默认 `low`，实测 medium 无收益且更慢 |
 | `AMAP_WEB_SERVICE_KEY` | 建议 | 高德 Web 服务 key；不填则 MOCK 模式（POI 不验真，`verified=false`） |
 | `AMAP_BASE_URL` | | 默认 `https://restapi.amap.com`，一般不用改 |
+| `AMAP_MAP_DISABLED` | | 设 `1` 关闭「真实地图」（静态地图有独立日配额，调试/截图时可临时关） |
 | `DAILY_FREE_LIMIT` | | 默认 3 次/天/IP（未登录） |
 | `AUTH_PROVIDER` | | `none`（开发，验证码固定 123456）/ `sms` / `wechat` |
 | `SESSION_SECRET` | 生产必改 | session cookie HMAC 密钥，换成随机长字符串 |
 | `AUTH_USER_LIMIT` | | 默认 10 次/天（登录用户） |
+| `REFINE_HOURLY_LIMIT` | | 默认 20 次/小时/IP（「换一个 / 一句话改一天」，不占每日生成配额） |
+| `JOB_STALE_MS` | | 默认 1200000（20 分钟）：running 任务超过这么久无心跳即判定中断 |
 | `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信三件套（应用 ID/签名/模板） |
 | `SMS_SECRET_ID` / `SMS_SECRET_KEY` | sms 时必填 | 腾讯云 API 密钥（控制台 → 访问管理） |
 | `PORT` | | 默认 3000 |
@@ -116,6 +123,11 @@ node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链�
 | `memory`（默认） | globalThis Map，行为同原版 | 开发/测试/单机 |
 | `postgres` | Prisma + PostgreSQL | 生产多实例 |
 
+**本轮新增持久化行程（Plan）**：行程不再寄生在 2 小时 TTL 的 Job 里，而是独立落库（`Plan` 表：share token 主键 + `input` 原始条件 + `revision` 修订号 + 时间戳）。这带来两个部署含义：
+
+1. **建表**：升级既有部署后必须重新 `npm run db:push`（或 `prisma migrate deploy`），否则 `/p/<token>` 与「改行程」会因缺表失败；
+2. **分享链接不再过期**：旧链接（`/p/<jobId>`）仍兼容，但只有新链接是持久 token；生产 Postgres 模式不设过期时间（内存模式保留 30 天）。
+
 切换到 Postgres：
 ```bash
 # 1. 建表（新环境用 db push；有迁移历史的环境用 db:migrate）
@@ -126,10 +138,15 @@ DATABASE_URL=postgres://...
 # 3. 验证：/api/health 应返回 "store":"postgres"
 ```
 
-契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径 151 断言不受影响）。
+契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径的 e2e 断言不受影响）。
+
+## 成本模型补充：改行程（refine）的调用量
+
+「换一个景点」「一句话改一天」是**单次小调用**（只生成一天/一个点，输出量约为整份行程的 1/N），但会额外复跑一次体检（POI 验真有 30 分钟缓存，命中率高时几乎零成本）。成本上按「每次改 ≈ 0.2-0.5 次整份生成」量级估算，并用 `REFINE_HOURLY_LIMIT`（默认 20 次/小时/IP）作为闸门。改行程**不占用**每日生成配额（它是迭代既有行程，不是新增一次生成）。
 
 ## 上线后必须跟进的事项
 
-1. ~~配额换存储~~ / ~~任务态换存储~~：✅ 本轮已由 Store 抽象 + Postgres 实现解决（DATA_STORE=postgres）
-3. ~~登录体系~~（M3 已完成，剩厂商凭据）：选短信（填 SMS_APP_ID/SIGN/TEMPLATE_ID，`AUTH_PROVIDER=sms`）或微信（填 WECHAT_APPID/SECRET + 备案回调域名，`AUTH_PROVIDER=wechat`）
-4. **监控**：生成失败率 / 超时率 / 平均耗时（基线：1-4 天 3-5 分钟，5-7 天约 7 分钟）
+1. ~~配额换存储~~ / ~~任务态换存储~~：✅ 已由 Store 抽象 + Postgres 实现解决（`DATA_STORE=postgres`）
+2. ~~登录体系~~（M3 已完成，剩厂商凭据）：选短信（填 SMS_APP_ID/SIGN/TEMPLATE_ID，`AUTH_PROVIDER=sms`）或微信（填 WECHAT_APPID/SECRET + 备案回调域名，`AUTH_PROVIDER=wechat`）
+3. **监控**：生成/改行程失败率、超时率、平均耗时（基线：1-4 天 3-5 分钟，5-7 天约 7 分钟；改行程 20-90 秒）、静态地图上游错误率（`[staticmap]` 日志）
+4. **静态地图日配额**：个人高德 key 的静态地图有独立日配额，线上如遇 502/配额类错误，可临时置 `AMAP_MAP_DISABLED=1` 优雅回退到示意路线图（前端已做 fallback）

@@ -1,15 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getJob } from "@/lib/jobs";
+import { resolvePlan } from "@/lib/plan-repo";
 import { PlanView } from "@/components/PlanView";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function getPlan(id: string) {
-  const job = await getJob(id);
-  if (!job || job.status !== "done" || !job.plan) return null;
-  return job.plan;
+  // resolvePlan：新分享链接读持久化 Plan；旧 /p/<jobId> 链接在任务 TTL 内兜底可读
+  return resolvePlan(id);
 }
 
 // 动态 OG：分享到微信/Twitter 时渲染「城市 N 天行程」卡片而非裸链接
@@ -37,13 +36,19 @@ export async function generateMetadata({
   };
 }
 
-// 分享页：/p/<jobId>——只读展示某个已生成行程（任务结果保留 2 小时）
+// 分享页：/p/<share token>——只读展示已生成行程（持久化保存，不再 2 小时过期）。
+// 旧 /p/<jobId> 链接也能打开（只读兜底）。
+// ?edit=1 是「继续编辑」入口：PlanView 内部再校验本机是否生成过该行程
+// （ownerCheck），防止只改 URL 就能改别人的行程。
 export default async function SharePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { id } = await params;
+  const { edit } = await searchParams;
   const plan = await getPlan(id);
 
   if (!plan) {
@@ -52,7 +57,7 @@ export default async function SharePage({
         <div className="card">
           <h2>链接已失效</h2>
           <p className="muted">
-            这个行程不存在或已过期（生成结果保留 2 小时，服务重启也会清除）。
+            这个行程不存在或已被删除。可能是链接地址有误，或创建者删除了行程。
           </p>
           <p>
             <Link href="/" style={{ color: "var(--accent)" }}>
@@ -71,7 +76,12 @@ export default async function SharePage({
           ← 行程规划师
         </Link>
       </p>
-      <PlanView plan={plan} />
+      <PlanView
+        plan={plan}
+        shareId={id}
+        editable={edit === "1"}
+        ownerCheck
+      />
     </main>
   );
 }

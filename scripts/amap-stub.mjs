@@ -1,19 +1,55 @@
 #!/usr/bin/env node
 /**
- * 桩高德服务（测试专用）：按官方文档的形状实现两个端点，
+ * 桩高德服务（测试专用）：按官方文档的形状实现端点，
  * 让「真实模式」（AMAP key 已配置）的逻辑在没有真 key 时也可测。
  *
- *   GET /v3/place/text     → pois[0] = { name, address, location:"116.40,39.90", adname }
+ *   GET /v3/place/text     → pois[0] = { name, address, location, adname }
+ *                            location 按 keywords 哈希出**不同坐标**（成都基准
+ *                            104.07,30.60 附近偏移）——真实地图要按坐标摆站点，
+ *                            固定坐标会让一天内的站点全部重合、地图失去意义。
  *                            keywords 含「桃花源记」时返回空（fixture 里的真实 POI，
  *                            测 POI 未命中预警：连真实行程里的店也可能查不到）
  *   GET /v5/direction/driving → route.paths[0].distance 固定 5000 米
  *                            （换算公式 5000/1000/22*60+8 = 22 分钟/段，测试可精确断言）
+ *   GET /v3/staticmap      → 1×1 合法 PNG（Content-Type: image/png）。
+ *                            缺参数时按高德真实行为返回 HTTP 200 + JSON 错误；
+ *                            注意 /api/map 自身会先校验参数、不会把非法参数透传，
+ *                            这个错误分支主要用来验证代理层「非图片内容→失败」的防御。
  *
  * 用法：node scripts/amap-stub.mjs [port]   （默认 8899）
  */
 import { createServer } from "node:http";
 
 const PORT = Number(process.argv[2] || process.env.AMAP_STUB_PORT || 8899);
+
+// 地图测试点位的基准（成都）：与 fixture 行程城市一致，坐标散落在市域内
+const MAP_BASE_LNG = 104.07;
+const MAP_BASE_LAT = 30.6;
+
+/** 稳定伪随机哈希（同输入永远同坐标，e2e 可复现） */
+function hashText(s) {
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.codePointAt(0)) | 0;
+  return Math.abs(h);
+}
+
+/**
+ * 按关键词哈希出坐标：以成都为基准偏移 ±0.06°（约 ±6km，仍在本市域内）。
+ * 用 61×61 的散列网格而不是简单取模，尽量减少同一天站点坐标完全重合。
+ */
+function mockLocation(keywords, index = 0) {
+  const h = hashText(`${keywords}#${index}`);
+  const lng = MAP_BASE_LNG + ((h % 61) - 30) * 0.002;
+  const lat = MAP_BASE_LAT + ((Math.floor(h / 61) % 61) - 30) * 0.002;
+  return `${lng.toFixed(6)},${lat.toFixed(6)}`;
+}
+
+// 最小合法 PNG（1×1 透明）。e2e 只需断言 Content-Type 与 PNG 魔数，
+// 与真实底图尺寸无关——/api/map 的尺寸语义由路由自身校验。
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
@@ -42,7 +78,7 @@ const server = createServer((req, res) => {
       ? [1, 2, 3].map((n) => ({
           name: `${keywords}建议${n}`,
           address: `测试地址${n}`,
-          location: "116.400000,39.900000",
+          location: mockLocation(keywords, n),
           adname: "测试区",
           city: "成都市",
           pname: "四川省",
@@ -50,13 +86,39 @@ const server = createServer((req, res) => {
       : [{
           name: keywords,
           address: "测试地址",
-          location: "116.400000,39.900000",
+          location: mockLocation(keywords),
           adname: "测试区",
           city: "成都市",
           pname: "四川省",
         }];
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "1", info: "OK", count: String(pois.length), pois }));
+    return;
+  }
+
+  if (path === "/v3/staticmap") {
+    // 静态地图：校验参数形状（缺 location/zoom/size/scale 时按高德真实行为
+    // 返回 HTTP 200 + JSON 错误，而不是图片——这样 /api/map 的 502 映射可被 e2e 验证）
+    const location = url.searchParams.get("location") ?? "";
+    const zoom = url.searchParams.get("zoom") ?? "";
+    const size = url.searchParams.get("size") ?? "";
+    const scale = url.searchParams.get("scale") ?? "";
+    const okParams =
+      /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(location) &&
+      /^\d+$/.test(zoom) &&
+      /^\d+\*\d+$/.test(size) &&
+      (scale === "1" || scale === "2");
+    if (!okParams) {
+      console.log(`[amap-stub] /v3/staticmap 参数非法 location=${location || "-"} zoom=${zoom || "-"} size=${size || "-"} scale=${scale || "-"}`);
+      res.writeHead(200, { "Content-Type": "application/json;charset=UTF-8" });
+      res.end(JSON.stringify({ status: "0", info: "INVALID_PARAMS", infocode: "20000" }));
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": "image/png",
+      "Cache-Control": "no-store",
+    });
+    res.end(PNG_1X1);
     return;
   }
 

@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { getJob } from "@/lib/jobs";
+import { resolvePlan } from "@/lib/plan-repo";
 
 // 分享卡片图：分享到微信/Twitter 时渲染「城市 + 天数 + 概览」而非裸链接。
 // 视觉对齐 globals.css 的深色 Premium 设计系统（--bg/--accent/--ink）。
@@ -20,8 +20,8 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = await getJob(id);
-  const plan = job?.status === "done" ? job.plan : null;
+  // 同分享页：新 token 读持久化 Plan，旧 jobId 链接兜底读任务（OG 不回归）
+  const plan = await resolvePlan(id);
 
   const city = plan?.city ?? "行程";
   const days = plan?.days.length ?? 0;

@@ -580,3 +580,237 @@ a.btn-link-wechat { color: #07c160; }
 /* ---------- 预算图表 ---------- */
 
 .cost-chart { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+
+/* ============================================================
+   本轮升级新增：行程可修改 / 永久分享 / 最近行程 / 打印
+   ============================================================ */
+
+/* 结果头徽章行：验真状态 + 修订版本号 */
+.plan-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.rev-badge {
+  display: inline-flex; align-items: center;
+  font-size: var(--fs-caption); padding: 3px 10px; border-radius: 999px; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+}
+.plan-share-hint { margin-top: var(--sp-2); }
+
+/* 错误提示的关闭按钮：正文 flex:1，关闭按钮贴右 */
+.alert-error { align-items: flex-start; }
+.edit-error-text { flex: 1; font-size: var(--fs-small); }
+.alert-close {
+  flex-shrink: 0; border: none; background: none; color: inherit;
+  cursor: pointer; padding: 2px; opacity: 0.7; display: inline-flex;
+}
+.alert-close:hover { opacity: 1; }
+
+/* 通用禁用态（.btn 此前只有 .btn-primary 有禁用样式） */
+.btn:disabled { opacity: 0.5; cursor: wait; }
+.btn:disabled:hover { border-color: var(--line-strong); color: var(--ink-2); }
+.btn-mini {
+  height: 28px; padding: 0 10px; gap: 4px;
+  font-size: var(--fs-caption); border-radius: 999px; white-space: nowrap;
+}
+.spin { animation: tp-spin 0.9s linear infinite; }
+@keyframes tp-spin { to { transform: rotate(360deg); } }
+
+/* 每天标题行：DAY 与 46px 大日号同基线（原来 small 是 block，日号自占两行，
+   主题被 baseline 挤到顶部），主题靠右；编辑入口独占一行靠右。 */
+.day-head { flex-wrap: wrap; row-gap: var(--sp-2); gap: var(--sp-2) var(--sp-3); }
+.day-num { display: inline-flex; align-items: baseline; gap: 7px; }
+.day-num small { display: inline; margin: 0; }
+.day-theme { margin-left: auto; }
+/* 编辑入口独占一行（靠右）：与日号/主题同行会挤成两行、观感错乱。
+   flex-basis:100% 强制换行，桌面和手机都是「标题一行、操作一行」。 */
+.day-tools {
+  display: flex; gap: var(--sp-2); align-items: center;
+  flex-basis: 100%; justify-content: flex-end; margin-top: -2px;
+}
+
+/* 「一句话改」输入行：input 占满剩余宽度，按钮不收缩；窄屏自然换行 */
+.day-instruction {
+  display: flex; gap: var(--sp-2); align-items: center;
+  margin: var(--sp-3) 0 var(--sp-2); flex-wrap: wrap;
+}
+.day-instruction input { flex: 1; min-width: 200px; }
+.day-instruction .btn { white-space: nowrap; }
+
+/* 景点行操作：换一个 / 导航到这里 */
+.spot-actions { display: flex; gap: var(--sp-4); align-items: center; flex-wrap: wrap; margin-top: var(--sp-2); }
+.spot-action { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-caption); }
+.spot-action:disabled { opacity: 0.5; cursor: wait; }
+a.spot-action { color: var(--ink-3); }
+a.spot-action:hover { color: var(--accent); text-decoration: none; }
+
+/* 「最近行程」卡片：本机 localStorage 索引（不是账号数据） */
+.recent-trips { padding: var(--sp-4) var(--sp-5); margin-top: calc(-1 * var(--sp-2)); }
+.recent-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.recent-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-small); font-weight: 650; color: var(--ink-2);
+}
+.recent-title svg { color: var(--accent); }
+.recent-note { margin-left: auto; font-size: var(--fs-caption); color: var(--ink-4); }
+.recent-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; }
+.recent-item { display: flex; align-items: center; gap: var(--sp-2); border-top: 1px solid var(--line); }
+.recent-item:first-child { border-top: none; }
+.recent-link {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--sp-2);
+  padding: var(--sp-3) 0; text-decoration: none; color: var(--ink-2);
+  transition: color 0.15s;
+}
+.recent-link:hover { color: var(--ink); }
+.recent-city { font-weight: 650; font-size: 14.5px; color: var(--ink); flex-shrink: 0; }
+.recent-meta { font-size: var(--fs-caption); color: var(--accent); flex-shrink: 0; }
+.recent-summary {
+  font-size: var(--fs-caption); color: var(--ink-4); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.recent-open { margin-left: auto; flex-shrink: 0; color: var(--ink-4); }
+.recent-remove {
+  flex-shrink: 0; border: none; background: none; color: var(--ink-4);
+  cursor: pointer; padding: var(--sp-2); display: inline-flex; border-radius: var(--r-sm);
+}
+.recent-remove:hover { color: var(--err-ink); background: var(--err-bg); }
+
+/* ---------- 移动端补充 ---------- */
+@media (max-width: 640px) {
+  .day-tools { width: 100%; }
+  .day-instruction input { min-width: 100%; }
+  .day-instruction .btn { flex: 1; }
+  .spot-actions { gap: var(--sp-3); }
+  .spot-action { min-height: 36px; }
+  .recent-trips { padding: var(--sp-4); }
+  .recent-summary { display: none; } /* 手机不给第三列，城市 + 天数就够扫读 */
+  .plan-actions .btn { flex: 1 1 40%; }
+}
+
+/* ---------- 打印（升级：只打印行程本身，去掉一切交互入口） ---------- */
+@media print {
+  .recent-trips, .day-tools, .spot-actions, .alert-close,
+  .plan-actions, .plan-share-hint, .edit-error-text,
+  .trip-status, .weather-check, .locate-check { display: none !important; }
+  .alert { border: 1px solid #d4d4d4; background: #fff; color: #000; }
+  .warn-list li + li { border-top-color: #e5e5e5; }
+  .warn-tag { background: #fff; border-color: #d4d4d4; color: #000; }
+  .day-foot, .spot-meta, .spot-reason, .spot-name, .day-theme, .plan-summary,
+  .warn-list li, .tips li, .kpi-label, .kpi-value { color: #000 !important; }
+  .type-badge { border: 1px solid #d4d4d4; background: #fff !important; color: #000 !important; }
+  .realmap-img { filter: none !important; } /* 白底打印时不反转地图颜色 */
+  .card { page-break-inside: avoid; }
+}
+
+/* ---------- 真实地图（RealMap：高德静态底图 + 自绘覆盖层） ---------- */
+
+.realmap {
+  position: relative;
+  width: 100%;
+  background: var(--surface-solid);
+  overflow: hidden;
+}
+/* 底图暗色化：高德静态图是浅色，整站是深色 Premium——用 CSS filter 反相 + 色相
+   回正，把「白底浅色地图」变成深色地图；覆盖层（标记/路线）不做 filter，
+   所以语义色保持准确。打印时由上面的 @media print 覆盖回正常色。 */
+.realmap-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: invert(0.93) hue-rotate(180deg) saturate(0.55) brightness(0.92) contrast(1.08);
+}
+.realmap-skeleton { display: block; width: 100%; height: auto; }
+.realmap-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* 站名描边（paint-order: stroke）让文字压在复杂底图上也可读 */
+.realmap-label { paint-order: stroke; }
+.realmap-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  padding: var(--sp-4);
+  background: var(--surface-solid);
+  color: var(--ink-4);
+  font-size: var(--fs-caption);
+  text-align: center;
+}
+
+/* ---------- 预算透视（BudgetInsight：使用率 + 分类构成） ---------- */
+
+.budget-insight { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.budget-head { display: flex; align-items: center; gap: var(--sp-2); }
+.budget-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-caption); font-weight: 700; letter-spacing: 0.12em; color: var(--ink-4);
+}
+.budget-title-icon { color: var(--accent); }
+.budget-status {
+  margin-left: auto; padding: 2px 10px; border-radius: 999px;
+  font-size: var(--fs-caption); font-weight: 700; border: 1px solid transparent;
+  background: var(--surface-2); color: var(--ink-3);
+}
+.budget-tone-ok .budget-status { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
+.budget-tone-warn .budget-status { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-line); }
+.budget-tone-err .budget-status { background: var(--err-bg); color: var(--err-ink); border-color: var(--err-line); }
+
+.budget-usage { margin-top: var(--sp-2); }
+.budget-usage-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+.budget-usage-text { font-size: var(--fs-small); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.budget-usage-strong { color: var(--ink); font-weight: 650; }
+.budget-progress {
+  height: 6px; margin-top: var(--sp-2); border-radius: 999px; overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.budget-progress-fill {
+  height: 100%; border-radius: 999px; background: var(--ink-3);
+  transition: width 0.5s ease;
+}
+.budget-tone-ok .budget-progress-fill { background: var(--ok-ink); }
+.budget-tone-warn .budget-progress-fill { background: var(--warn-ink); }
+.budget-tone-err .budget-progress-fill { background: var(--err-ink); }
+
+.budget-stack {
+  display: flex; height: 10px; margin-top: var(--sp-4);
+  border-radius: 999px; overflow: hidden; background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.budget-stack-seg { display: block; height: 100%; }
+/* 相邻类别色块分隔：用 inset box-shadow 而不是 border/margin——不占布局宽度，
+   否则「pct 之和恰好 100%」的堆叠条会被分隔线挤出容器。 */
+.budget-stack-seg + .budget-stack-seg { box-shadow: inset 1px 0 0 rgba(9, 9, 11, 0.85); }
+.budget-legend {
+  list-style: none; margin: var(--sp-3) 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px var(--sp-5);
+}
+.budget-legend-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--fs-caption); color: var(--ink-3); min-width: 0;
+}
+.budget-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.budget-legend-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budget-legend-amount { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.budget-legend-pct { color: var(--ink-4); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+.budget-conclusion {
+  margin: var(--sp-3) 0 0; padding-left: var(--sp-3);
+  border-left: 2px solid var(--accent);
+  font-size: var(--fs-small); color: var(--ink-2);
+}
+.budget-tone-err .budget-conclusion { color: var(--err-ink); border-left-color: var(--err-ink); }
+.budget-tone-warn .budget-conclusion { color: var(--warn-ink); border-left-color: var(--warn-ink); }
+.budget-empty { margin: var(--sp-3) 0 0; font-size: var(--fs-caption); color: var(--ink-4); }
+
+@media (max-width: 640px) {
+  .budget-legend { grid-template-columns: 1fr; gap: 2px; }
+  .realmap-fallback { min-height: 80px; }
+  /* 三张 KPI 卡在 390px 宽下会挤到标签换行、卡片高矮不一：缩字号 + 紧 gap，
+     让「景点 / 餐点」这种长标签单行放下。 */
+  .kpi-row { gap: var(--sp-2); }
+  .kpi { padding: var(--sp-2) var(--sp-3); }
+  .kpi-value { font-size: 20px; }
+  .kpi-label { font-size: 11.5px; white-space: nowrap; }
+}
+
+

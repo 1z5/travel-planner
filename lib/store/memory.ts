@@ -1,5 +1,5 @@
 import "server-only";
-import type { CodeRecord, JobRecord, QuotaRecord, Store } from "./types";
+import type { CodeRecord, JobRecord, PlanRecord, QuotaRecord, Store } from "./types";
 
 // ============================================================
 // 内存实现：行为与原版（globalThis Map）完全一致，作为默认实现。
@@ -9,13 +9,21 @@ import type { CodeRecord, JobRecord, QuotaRecord, Store } from "./types";
 
 const g = globalThis as typeof globalThis & {
   __tpJobs?: Map<string, JobRecord>;
+  __tpPlans?: Map<string, PlanRecord>;
   __tpQuota?: Map<string, QuotaRecord>;
   __tpCodes?: Map<string, CodeRecord>;
 };
 
 const jobs = (g.__tpJobs ??= new Map<string, JobRecord>());
+// 行程是持久聚合，和 2 小时的任务记录分开存：分享链接不能跟着任务一起过期
+const plans = (g.__tpPlans ??= new Map<string, PlanRecord>());
 const quota = (g.__tpQuota ??= new Map<string, QuotaRecord>());
 const codes = (g.__tpCodes ??= new Map<string, CodeRecord>());
+
+/** 行程保留 30 天：比 job 的 2 小时长得多，覆盖「发给朋友过几天再打开」 */
+// 内存模式（dev/单机）保留 30 天：只是为了防长驻进程无限增长。
+// 生产用 postgres 实现，行程不设 TTL（见 store/postgres.ts 注释）。
+const PLAN_TTL_MS = 30 * 24 * 3600_000;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -23,14 +31,38 @@ function today(): string {
 
 const jobStore = {
   async create(record: JobRecord) {
-    jobs.set(record.id, record);
+    jobs.set(record.id, { ...record, updatedAt: record.updatedAt ?? record.createdAt });
   },
   async get(id: string) {
     return jobs.get(id) ?? null;
   },
   async update(id: string, patch: Partial<JobRecord>) {
     const cur = jobs.get(id);
-    if (cur) jobs.set(id, { ...cur, ...patch });
+    // 任何一次 update 都算心跳：调用方可以不传 patch（空对象 = 纯保活），
+    // 陈旧任务判定依赖这里持续刷新 updatedAt
+    if (cur) jobs.set(id, { ...cur, ...patch, updatedAt: patch.updatedAt ?? Date.now() });
+  },
+};
+
+const planStore = {
+  async save(record: PlanRecord) {
+    plans.set(record.id, record);
+  },
+  async get(id: string) {
+    return plans.get(id) ?? null;
+  },
+  async replace(id: string, plan: PlanRecord["plan"]) {
+    const cur = plans.get(id);
+    // 不存在返回 null，不抛错：「链接不存在」是业务分支（404），不是故障
+    if (!cur) return null;
+    const next: PlanRecord = {
+      ...cur,
+      plan,
+      revision: cur.revision + 1,
+      updatedAt: Date.now(),
+    };
+    plans.set(id, next);
+    return next;
   },
 };
 
@@ -82,7 +114,16 @@ if (typeof setInterval === "function") {
     for (const [k, v] of codes) if (v.expiresAt < now) codes.delete(k);
     // 任务保留 2 小时（同原 TTL）
     for (const [k, v] of jobs) if (v.createdAt < now - 2 * 3600_000) jobs.delete(k);
+    // 行程至少保留 30 天：分享链接的核心价值就是「过几天再打开」，
+    // 不能像任务那样 2 小时就清掉（这正是本轮要修的产品谎言）。
+    // 生产 Postgres 模式不清理，这里是内存模式的内存护栏。
+    for (const [k, v] of plans) if (v.updatedAt < now - PLAN_TTL_MS) plans.delete(k);
   }, 600_000).unref?.();
 }
 
-export const memoryStore: Store = { jobs: jobStore, quota: quotaStore, codes: codeStore };
+export const memoryStore: Store = {
+  jobs: jobStore,
+  plans: planStore,
+  quota: quotaStore,
+  codes: codeStore,
+};

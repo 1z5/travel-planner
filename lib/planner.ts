@@ -37,22 +37,29 @@ const OutlineSchema = z.object({
   tips: z.array(z.string()),
 });
 
+/**
+ * 单个行程点的 zod schema。
+ *
+ * 抽出来给「改行程」（lib/refine.ts）复用：那边要校验模型返回的单个 spot /
+ * 单日 spots，如果本地照抄一份，就变成两处字段定义——曾经踩过「改一处漏
+ * 一处」的坑（见 baseLines 的注释）。这里的字段/可选性与历史行为完全一致。
+ */
+export const SpotSchema = z.object({
+  period: z.enum(["morning", "lunch", "afternoon", "dinner", "evening"]),
+  time: z.string(),
+  type: z.enum(["sight", "food", "hotel", "transport", "shopping", "activity"]),
+  name: z.string(),
+  area: z.string(),
+  durationMin: z.number(),
+  costCny: z.number(),
+  reason: z.string(),
+  rainBackup: z.string().optional(),
+});
+
 const DaySchema = z.object({
   day: z.number(),
   theme: z.string(),
-  spots: z.array(
-    z.object({
-      period: z.enum(["morning", "lunch", "afternoon", "dinner", "evening"]),
-      time: z.string(),
-      type: z.enum(["sight", "food", "hotel", "transport", "shopping", "activity"]),
-      name: z.string(),
-      area: z.string(),
-      durationMin: z.number(),
-      costCny: z.number(),
-      reason: z.string(),
-      rainBackup: z.string().optional(),
-    }),
-  ),
+  spots: z.array(SpotSchema),
 });
 
 export type Outline = z.infer<typeof OutlineSchema>;
@@ -67,19 +74,8 @@ const PlanSchema = z.object({
     z.object({
       day: z.number(),
       theme: z.string(),
-      spots: z.array(
-        z.object({
-          period: z.enum(["morning", "lunch", "afternoon", "dinner", "evening"]),
-          time: z.string(),
-          type: z.enum(["sight", "food", "hotel", "transport", "shopping", "activity"]),
-          name: z.string(),
-          area: z.string(),
-          durationMin: z.number(),
-          costCny: z.number(),
-          reason: z.string(),
-          rainBackup: z.string().optional(),
-        }),
-      ),
+      // 复用 SpotSchema（与 DaySchema 同源）：字段/可选性一致，行为与历史完全相同
+      spots: z.array(SpotSchema),
     }),
   ),
   totalCostCny: z.number(),
@@ -208,7 +204,14 @@ const DAY_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，现在生�
 - 不要输出 totalCostCny 和 tips——那是整个行程层面的，由大纲负责。
 `;
 
-function client(): OpenAI {
+/**
+ * 创建 LLM 客户端。未配 key 时 throw（保持现状：调用方必须能感知「服务没配好」，
+ * 而不是拿到一个之后每次都静默失败的假客户端）。
+ *
+ * 导出原因：「改行程」（lib/refine.ts）复用同一套流式/重试基础设施，不再自建
+ * 一份 OpenAI 客户端（超时/重试参数在第二个地方独立演化是事故之源）。
+ */
+export function client(): OpenAI {
   if (!process.env.LLM_API_KEY) throw new Error("缺少 LLM_API_KEY，请配置 .env");
   return new OpenAI({
     apiKey: process.env.LLM_API_KEY,
@@ -316,8 +319,11 @@ async function streamChat(
  *
  * 与各生成函数里的 attempt 循环分工：这里管「连接层瞬时故障」，
  * 那里管「空返回 / JSON 不合法 / 结构不符」这类内容问题。
+ *
+ * 导出原因：改行程（lib/refine.ts）是同一类「等模型 20-90 秒」的调用，连接层
+ * 抖动同样要把已等的时间浪费掉，重试语义必须与生成路径完全一致。
  */
-async function streamChatRetry(
+export async function streamChatRetry(
   llm: OpenAI,
   system: string,
   user: string,
@@ -357,8 +363,12 @@ const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
  * 用户约束的公共描述：三条生成路径（单次 / 大纲 / 分日）共用。
  * 抽出来是为了避免同一份约束在三处各写一遍——曾经踩过「改了一处漏两处」
  * 导致 prompt 与实际行为漂移的坑。
+ *
+ * 导出原因：改行程（lib/refine.ts）也要把这批约束喂给模型，且必须与生成时
+ * 完全同源——否则「改行程」会按一套约束改、「生成」按另一套生成，改出来的
+ * 行程和用户当初要求的预算/节奏/必游地对不上。
  */
-function baseLines(input: PlanInput): string[] {
+export function baseLines(input: PlanInput): string[] {
   const lines = [
     `- 目的地：${input.city}`,
     `- 天数：${input.days} 天`,
@@ -492,7 +502,13 @@ function buildDayPrompt(
   return lines.filter((l) => l !== "").join("\n");
 }
 
-function extractJson(text: string): unknown {
+/** 从模型输出里抠出 JSON：容忍 markdown 代码围栏与前后废话。
+ *
+ * 导出原因：改行程的两种响应（swap/day）各自有自己的 zod schema，但「模型
+ * 返回的一定是 JSON 吗」这个现实问题与生成路径一模一样，抠 JSON 的逻辑必须
+ * 同源，否则会各踩一遍（例如围栏格式、前后解释文字）。
+ */
+export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = fenced ? fenced[1] : text;
   const start = raw.indexOf("{");

@@ -18,6 +18,29 @@ model Job {
   key       String // 配额键（u:<phone> / ip:<addr>）
   limit     Int
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // 心跳：陈旧 running 任务自愈靠它（见 app/api/plan/status）
+  shareId   String? // 生成完成后指向 Plan.id（分享 token）；缺省 = 无分享链接
+}
+
+/// 行程（一等聚合，id 即分享 token）。
+///
+/// 为什么从 Job 里拆出来：Job 是一次性执行记录（TTL 2 小时），而分享链接 /
+/// 改行程 / 最近行程都要求行程比生成过程活得久。ownerKey 为「最近行程」预留，
+/// revision 让「改行程」有并发语义（每次替换 +1）。
+///
+/// 【部署注意】新增本表后必须对数据库执行一次结构同步，否则
+/// DATA_STORE=postgres 下生成完成写 Plan 会报表不存在：
+///   npx prisma db push        # 开发/单实例快速同步
+///   # 或 npx prisma migrate deploy（使用已提交 migration 的正规路径）
+/// memory 实现无需任何操作（默认 DATA_STORE=memory）。
+model Plan {
+  id        String   @id
+  jobId     String?
+  ownerKey  String?
+  plan      Json
+  input     Json
+  revision  Int      @default(1)
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 

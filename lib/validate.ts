@@ -378,6 +378,9 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   }
 
   plan.totalCostCny = grandTotal;
+  // 回填用户预算：预算使用率（lib/budget.ts）的唯一依据。
+  // 放在 totalCostCny 旁边——两者是同一组「钱」的数据，避免上游遗漏这一行。
+  plan.budgetCny = input.budget;
   plan.warnings = warnings;
   plan.verified = !AMAP_MOCK;
   plan.verification = AMAP_MOCK ? "mock" : unverified.length ? "partial" : "ok";

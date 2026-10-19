@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanView } from "@/components/PlanView";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
@@ -50,14 +50,16 @@ describe("PlanView", () => {
   it("渲染行程头部：城市/天数/总价/验真状态", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument();
-    expect(screen.getByText(/人均总花费/)).toBeInTheDocument();
+    // 预算透视卡在没有 budgetCny 的旧数据上也会回显「人均总花费」，故用 getAll
+    expect(screen.getAllByText(/人均总花费/).length).toBeGreaterThan(0);
     // MOCK 模式的行程：verified=false → 显示未验真标注
     expect(screen.getByText(/未接高德/)).toBeInTheDocument();
   });
 
   it("KPI 三张统计卡：人均总花费 / 行程天数 / 景点餐点，各带图标", () => {
     const { container } = render(<PlanView plan={SAMPLE_PLAN} />);
-    expect(screen.getByText("人均总花费")).toBeInTheDocument();
+    // 同上：KPI 标签与预算透视的兜底文案都是「人均总花费」
+    expect(screen.getAllByText("人均总花费").length).toBeGreaterThan(0);
     expect(screen.getByText("行程天数")).toBeInTheDocument();
     expect(screen.getByText("景点 / 餐点")).toBeInTheDocument();
     expect(container.querySelectorAll(".kpi").length).toBe(3);
@@ -261,3 +263,143 @@ describe("PlanView 行中高亮（今天）", () => {
     expect(await screen.findByText(/都没有坐标/)).toBeInTheDocument();
   });
 });
+
+// ============================================================
+// 行程可共编（本轮产品跃迁）：换一个 / 一句话改 / 版本徽章 / 导航
+//
+// 组件只负责交互与请求契约，真正的 LLM 调用与落库在 /api/plan/refine；
+// 这里 mock fetch 断言「请求对不对 + 响应怎么渲染 + 失败怎么提示」。
+// ============================================================
+describe("PlanView 行程修改", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // 在 fixture 基础上造一份「修改后」的行程：第一天的第一个点被替换
+  function planWithRenamedFirstSpot(name: string) {
+    return {
+      ...SAMPLE_PLAN,
+      days: SAMPLE_PLAN.days.map((d, i) =>
+        i === 0
+          ? { ...d, spots: d.spots.map((s, j) => (j === 0 ? { ...s, name } : s)) }
+          : d,
+      ),
+    };
+  }
+
+  const editableProps = { shareId: "share_test123", editable: true } as const;
+
+  it("只读模式（未传 editable）不渲染任何修改入口——分享出去的只读链接不能改", () => {
+    render(<PlanView plan={SAMPLE_PLAN} shareId="share_test123" />);
+    expect(screen.queryByText("重排这天")).not.toBeInTheDocument();
+    expect(screen.queryByText("换一个")).not.toBeInTheDocument();
+    expect(screen.queryByText("一句话改")).not.toBeInTheDocument();
+  });
+
+  it("editable：每天有「重排这天/一句话改」，每个行程点有「换一个」", () => {
+    render(<PlanView plan={SAMPLE_PLAN} {...editableProps} />);
+    expect(screen.getAllByText("重排这天")).toHaveLength(SAMPLE_PLAN.days.length);
+    expect(screen.getAllByText("一句话改")).toHaveLength(SAMPLE_PLAN.days.length);
+    // 住宿/交通是行程骨架，不渲染「换一个」（服务端也会拒绝），只数可换类型
+    const swappable = new Set(["sight", "food", "shopping", "activity"]);
+    const spotCount = SAMPLE_PLAN.days.reduce(
+      (n, d) => n + d.spots.filter((x) => swappable.has(x.type)).length, 0,
+    );
+    expect(screen.getAllByText("换一个")).toHaveLength(spotCount);
+  });
+
+  it("ownerCheck：分享页里本机没生成过该行程 → 即使 ?edit=1 也只读", () => {
+    render(<PlanView plan={SAMPLE_PLAN} shareId="share_not_mine" editable ownerCheck />);
+    expect(screen.queryByText("换一个")).not.toBeInTheDocument();
+  });
+
+  it("点「换一个」→ POST /api/plan/refine（action=swap + day + spotIndex），成功后渲染新点与版本号", async () => {
+    const updated = planWithRenamedFirstSpot("替换后的新景点名称很长");
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ plan: updated, revision: 2 }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<PlanView plan={SAMPLE_PLAN} {...editableProps} />);
+    await userEvent.click(screen.getAllByText("换一个")[0]);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/plan/refine");
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      shareId: "share_test123",
+      action: "swap",
+      day: 1,
+      spotIndex: 0,
+    });
+
+    expect(await screen.findByText("替换后的新景点名称很长")).toBeInTheDocument();
+    expect(screen.getByText(/已更新 · 第 2 版/)).toBeInTheDocument();
+  });
+
+  it("「一句话改」→ 输入自然语言指令后提交，请求带 instruction", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ plan: SAMPLE_PLAN, revision: 3 }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<PlanView plan={SAMPLE_PLAN} {...editableProps} />);
+    // 第一天的「一句话改」按钮（每天各一个）
+    await userEvent.click(screen.getAllByText("一句话改")[0]);
+    const input = screen.getByLabelText("第 1 天修改指令");
+    await userEvent.type(input, "想轻松点，多安排室内");
+    await userEvent.click(screen.getByText("改这一天"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      shareId: "share_test123",
+      action: "day",
+      day: 1,
+      instruction: "想轻松点，多安排室内",
+    });
+  });
+
+  it("修改失败 → 展示服务端给的可行动错误文案（不吞错、不假装成功）", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ error: "改行程太频繁（每小时 20 次），请稍后再试" }),
+    })));
+    render(<PlanView plan={SAMPLE_PLAN} {...editableProps} />);
+    await userEvent.click(screen.getAllByText("换一个")[0]);
+    expect(await screen.findByText(/每小时 20 次/)).toBeInTheDocument();
+    // 失败时不应出现版本号徽章（没有真的改成）
+    expect(screen.queryByText(/已更新 · 第/)).not.toBeInTheDocument();
+  });
+
+  it("有坐标的行程点渲染「导航到这里」外链（高德 URI，新窗口 + noopener）", () => {
+    const plan = {
+      ...SAMPLE_PLAN,
+      days: SAMPLE_PLAN.days.map((d, i) =>
+        i === 0
+          ? { ...d, spots: d.spots.map((s, j) => (j === 0 ? { ...s, location: "104.07,30.60" } : s)) }
+          : d,
+      ),
+    };
+    render(<PlanView plan={plan} />);
+    const links = screen.getAllByText("导航到这里");
+    expect(links.length).toBe(1);
+    const a = links[0].closest("a")!;
+    expect(a.getAttribute("href")).toContain("uri.amap.com/navigation");
+    expect(a.getAttribute("href")).toContain("104.07,30.60");
+    expect(a).toHaveAttribute("target", "_blank");
+    expect(a.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("打印 / 存 PDF 入口存在（打印样式在 globals.css 里收敛交互元素）", () => {
+    render(<PlanView plan={SAMPLE_PLAN} />);
+    expect(screen.getByText("打印 / 存 PDF")).toBeInTheDocument();
+  });
+});
+
