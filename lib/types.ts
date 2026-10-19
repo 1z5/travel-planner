@@ -11,7 +11,11 @@ export interface PlanInput {
   pace?: "relaxed" | "balanced" | "packed"; // 行程节奏：轻松/适中/紧凑（默认适中）
   scope?: "city" | "region"; // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）
   events?: PlanEvent[];      // 用户指定的重点活动（演唱会/赛事/展览等，需编进行程）
+  transportMode?: TransportMode; // 交通方式：决定每天各景点间怎么走（默认 driving）
 }
+
+/** 交通方式：景点间路段用哪种方式串起来。公交/地铁当前高德 key 未开放，先不做 */
+export type TransportMode = "walking" | "bicycling" | "driving";
 
 /** 用户指定的重点活动。时间可选——给了就围绕它倒推动线，没给则由 AI 建议 */
 export interface PlanEvent {
@@ -43,7 +47,18 @@ export interface PlanDay {
   spots: PlanSpot[];
   transitMin: number;      // 当天站点间通勤合计（validate 回填真实估算）
   transitKnown?: boolean;  // false = 通勤估算失败（高德波动），该天未做通勤/节奏判定
+  legs?: PlanLeg[];        // 景点间分段路线（按 transportMode 算；旧行程无此字段）
   dailyCostCny: number;    // 人均当天花费（validate 回填）
+}
+
+/** 景点间的一段路线：从上一站到这一站怎么走 */
+export interface PlanLeg {
+  from: string;            // 起点景点名
+  to: string;              // 终点景点名
+  mode: TransportMode;     // 交通方式
+  distanceM: number;       // 距离（米）
+  durationSec: number;     // 时长（秒）
+  steps: string[];         // 关键分步指令（取前几条，够跟着走）
 }
 
 export interface Plan {

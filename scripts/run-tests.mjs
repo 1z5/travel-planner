@@ -761,6 +761,25 @@ async function phaseB(api) {
   check("Day3 通勤 = 66 分钟（3 段）", days[2]?.transitMin === 66, `got ${days[2]?.transitMin}`);
   check("总价 = 1925（每日 cost 汇总正确）",
     plan.totalCostCny === 1925, `got ${plan.totalCostCny}`);
+
+  // ---- 分段路线（按交通方式串起整条动线）----
+  // 默认 transportMode=driving，每天相邻景点算一段 legs。fixture 每天点数
+  // [7,5,4] → 段数 [6,4,3]；但「桃花源记」miss 无坐标，涉及它的段被跳过，
+  // 所以 Day1 实际 legs 少于 6——不断言精确数，只断言结构与内容正确。
+  const d1 = days[0];
+  check(" legs：Day1 生成了分段路线", Array.isArray(d1?.legs) && d1.legs.length > 0,
+    JSON.stringify(d1?.legs ?? null).slice(0, 200));
+  check(" legs：每段带 方式/距离/时长", (d1?.legs ?? []).every((l) =>
+    l.mode === "driving" && l.distanceM === 5000 && l.durationSec === 600),
+    JSON.stringify((d1?.legs ?? []).slice(0, 2)));
+  check(" legs：分步指令已清洗（剥 HTML 标签、去空串、最多 3 条）",
+    (d1?.legs ?? []).every((l) => l.steps.length <= 3 && l.steps.every((s) => s && !s.includes("<"))),
+    JSON.stringify((d1?.legs ?? []).map((l) => l.steps)));
+  check(" legs：路段的起止点首尾相接（from/to 与当天景点名对得上）",
+    (d1?.legs ?? []).every((l) =>
+      (d1.spots ?? []).some((s) => s.name === l.from) &&
+      (d1.spots ?? []).some((s) => s.name === l.to) && l.from !== l.to),
+    JSON.stringify((d1?.legs ?? []).map((l) => `${l.from}→${l.to}`)));
   check("POI 未命中预警（Day1 的桃花源记）",
     (plan.warnings ?? []).some((w) => w.includes("桃花源记") && w.includes("未在高德检索到")),
     JSON.stringify(plan.warnings));

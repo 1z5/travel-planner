@@ -85,6 +85,8 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [evTime, setEvTime] = useState("");
   // 行程节奏：轻松/适中/紧凑
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
+  // 交通方式：决定每天各景点间怎么走（串成路线链）。默认驾车。
+  const [transportMode, setTransportMode] = useState<"walking" | "bicycling" | "driving">("driving");
   // 规划范围：单城市 / 区域环线（影响 prompt、POI 验真方式与天数上限）
   const [scope, setScope] = useState<"city" | "region">("city");
   // POI 补全的城市收窄口径：区域模式下目的地是「川西环线」这类区域名而不是
@@ -362,6 +364,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           mustVisit,
           pace,
           scope,
+          transportMode,
           events,
         }),
       });
@@ -497,6 +500,25 @@ export function HomeClient({ children }: { children?: ReactNode }) {
               </button>
             ))}
           </div>
+
+          <label id="transport-label">交通方式</label>
+          <div className="segmented" role="group" aria-labelledby="transport-label">
+            {([
+              ["walking", "步行", "景点间步行串连"],
+              ["bicycling", "骑行", "适合近距离散布"],
+              ["driving", "驾车", "跨区/远距最省时"],
+            ] as const).map(([value, label, desc]) => (
+              <button type="button" key={value}
+                className={transportMode === value ? "on" : ""}
+                aria-pressed={transportMode === value}
+                onClick={() => setTransportMode(value)}>
+                {label}<small>{desc}</small>
+              </button>
+            ))}
+          </div>
+          <p className="helper">
+            按所选方式把每天各景点串成可跟着走的路线（含距离、时长与分步指引）。
+          </p>
         </div>
 
         <div className="field-group">

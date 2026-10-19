@@ -5,8 +5,9 @@ import {
   Landmark, Utensils, BedDouble, TrainFront, ShoppingBag, Compass,
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin, Wallet,
   RefreshCw, Loader2, MessageSquareText, Printer, Navigation, X,
+  Footprints, Bike, Car,
 } from "lucide-react";
-import type { Plan } from "@/lib/types";
+import type { Plan, TransportMode } from "@/lib/types";
 import { localTodayIso, nowMinutes, spotNow, tripToday, distMeters, fmtDist, type SpotNow, type TripToday } from "@/lib/trip-day";
 import { warnTag } from "@/lib/warn-tag";
 import { cityImage } from "@/lib/city-images";
@@ -22,6 +23,18 @@ import { CloudRain } from "lucide-react";
 const TYPE_LABEL: Record<string, string> = {
   sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
   shopping: "购物", activity: "体验",
+};
+
+/** 交通方式 → 图标与中文标签（路段卡上显示「步行 496米 · 7分钟」） */
+const MODE_ICON: Record<TransportMode, typeof Footprints> = {
+  walking: Footprints,
+  bicycling: Bike,
+  driving: Car,
+};
+const MODE_LABEL: Record<TransportMode, string> = {
+  walking: "步行",
+  bicycling: "骑行",
+  driving: "驾车",
 };
 
 /** 可「换一个」的类型：住宿/交通是行程骨架（服务端会拒绝），不给必失败的入口。
@@ -581,6 +594,12 @@ export function PlanView({
                   ? spotStatus.kind
                   : null;
               const swapBusy = busy === `swap:${day.day}:${i}`;
+              // 到下一站的路段（按用户所选交通方式算）；最后一个点没有下一站。
+              // 旧行程无 legs 字段时为 undefined，路段卡整体不渲染（向后兼容）。
+              const leg = i < day.spots.length - 1
+                ? day.legs?.find((l) => l.from === s.name && l.to === day.spots[i + 1].name)
+                : undefined;
+              const ModeIcon = leg ? MODE_ICON[leg.mode] : null;
               return (
                 <div className={`spot${spotMark ? ` spot-${spotMark}` : ""}`} key={i}>
                   <div className="spot-time">{s.time.replace("-", "\n")}</div>
@@ -625,6 +644,22 @@ export function PlanView({
                             target="_blank" rel="noopener noreferrer">
                             <Navigation size={12} />导航到这里
                           </a>
+                        )}
+                      </div>
+                    )}
+                    {leg && ModeIcon && (
+                      <div className="leg-chip">
+                        <ModeIcon size={12} />
+                        <span className="leg-summary">
+                          {MODE_LABEL[leg.mode]} {fmtDist(leg.distanceM)} · 约{Math.max(1, Math.round(leg.durationSec / 60))}分钟
+                        </span>
+                        {leg.steps.length > 0 && (
+                          <details className="leg-steps">
+                            <summary>分步指引</summary>
+                            <ol>
+                              {leg.steps.map((st, k) => <li key={k}>{st}</li>)}
+                            </ol>
+                          </details>
                         )}
                       </div>
                     )}

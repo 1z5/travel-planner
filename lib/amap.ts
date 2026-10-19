@@ -1,5 +1,6 @@
 import "server-only";
 import { sleep } from "./concurrency";
+import type { PlanLeg, TransportMode } from "./types";
 
 // 高德 Web 服务：POI 验真 + 站点间通勤估算。
 // 未配置 key 时进入 MOCK 模式：链路可跑通，但不做真实验证（plan.verified=false）。
@@ -305,6 +306,57 @@ export async function transitMinutes(
     };
   }
   return { state: "ok", minutes: Math.round(meters / 1000 / 22 * 60 + 8) };
+}
+
+/** 分段路线结果：ok=算出了 / unknown=算不出（缺坐标/上游异常） */
+export type RouteSegmentResult =
+  | { state: "ok"; leg: Omit<PlanLeg, "from" | "to" | "mode"> }
+  | { state: "unknown"; reason: string };
+
+// 各方式的高德 v5 direction 端点。公交/地铁（transit/integrated）实测当前
+// key 返回 HTTP 400（个人 Web 服务 key 未开放），故不提供。
+const DIRECTION_PATH: Record<TransportMode, string> = {
+  walking: "/v5/direction/walking",
+  bicycling: "/v5/direction/bicycling",
+  driving: "/v5/direction/driving",
+};
+
+/**
+ * 算两个坐标之间、按指定交通方式的一段路线（距离/时长/分步指令）。
+ *
+ * 与 transitMinutes 的分工：transitMinutes 只给一个分钟数（喂「绕路预警」
+ * 和「节奏体检」）；本函数给完整路段，给「行中」渲染成可跟着走的路线链。
+ * 两者都吃坐标，所以调用方应复用同一批 lookupPoi 结果，别重复解析。
+ *
+ * 三态：坐标缺失由调用方拦（本函数要求传入合法 "lng,lat"）；上游异常/
+ * 无有效数据返回 unknown——拿空路段去渲染就是骗人，宁可不显示这段。
+ */
+export async function routeSegment(
+  origin: string,
+  destination: string,
+  mode: TransportMode,
+): Promise<RouteSegmentResult> {
+  const r = await amapGetRetry(DIRECTION_PATH[mode], { origin, destination });
+  if (!r.ok) return { state: "unknown", reason: r.detail };
+
+  const path = (r.data as { route?: { paths?: Array<Record<string, unknown>> } })?.route?.paths?.[0];
+  const distanceM = Number(path?.distance);
+  // walking/bicycling 的时长在 path.duration，driving 在 path.cost.duration——
+  // 两处都取，取到用哪个。
+  const durationSec = Number(path?.duration ?? (path?.cost as { duration?: string })?.duration);
+  if (!Number.isFinite(distanceM) || distanceM <= 0 || !Number.isFinite(durationSec) || durationSec < 0) {
+    return { state: "unknown", reason: "路线接口未返回有效数据" };
+  }
+
+  const rawSteps = (path?.steps as Array<{ instruction?: string }> | undefined) ?? [];
+  // 只取前 3 条非空指令：够人跟着走，又不把卡片撑爆。strip 掉高德指令里的
+  // HTML 标签残留（实测偶有 <b> 之类）。
+  const steps = rawSteps
+    .map((s) => String(s.instruction ?? "").replace(/<[^>]*>/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return { state: "ok", leg: { distanceM, durationSec, steps } };
 }
 
 /**

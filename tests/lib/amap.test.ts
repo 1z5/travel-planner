@@ -5,7 +5,7 @@ process.env.AMAP_WEB_SERVICE_KEY = "test-key";
 
 // lib/amap.ts 顶部 import "server-only"：Vitest 侧由 vitest.config.mts 的
 // resolve.alias 指到 tests/stubs/server-only.js（空模块）
-const { AMAP_MOCK, lookupPoi, transitMinutes } = await import("@/lib/amap");
+const { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes } = await import("@/lib/amap");
 
 // ---------- 桩 fetch：按 URL 路径 + keywords 分支，模拟高德的各类响应 ----------
 
@@ -46,12 +46,29 @@ function useRouter(opts: RouterOpts = {}) {
         pois: [{ name: kw, address: "测试地址", location: "120.620000,31.320000", adname: "姑苏区" }],
       });
     }
-    if (url.pathname.includes("/v5/direction/driving")) {
+    if (/\/v5\/direction\/(walking|bicycling|driving)/.test(url.pathname)) {
       if (opts.distance === "bad") {
         return res({ status: "0", info: "SERVER_BUSY", infocode: "10021" });
       }
       if (opts.distance === "") return res({ status: "1", route: { paths: [] } });
-      return res({ status: "1", route: { paths: [{ distance: opts.distance ?? "5000" }] } });
+      return res({
+        status: "1",
+        route: {
+          paths: [{
+            distance: opts.distance ?? "5000",
+            duration: "600",
+            // driving 的时长在 cost.duration、walking/bicycling 在 path.duration——
+            // 两处都给，让 routeSegment 的取值逻辑都被覆盖
+            cost: { duration: "700" },
+            steps: [
+              { instruction: "向东北步行<b>341</b>米左转" },
+              { instruction: "沿道路直行200米" },
+              { instruction: "   " },
+              { instruction: "到达目的地" },
+            ],
+          }],
+        },
+      });
     }
     return res({ status: "0", info: "unknown path" }, 404);
   });
@@ -264,5 +281,74 @@ describe("QPS 限流的退避策略", () => {
     // 网络异常是瞬时恢复，退避应远小于限流类
     expect(gap1).toBeLessThan(900);
     expect(gap2).toBeLessThan(1800);
+  });
+});
+
+// ---------- routeSegment：分段路线（「行中」串路线用） ----------
+
+describe("routeSegment 三态与解析", () => {
+  const O = "120.62,31.32";
+  const D = "120.65,31.30";
+
+  it("ok：解析距离/时长/分步指令", async () => {
+    useRouter();
+    const r = await routeSegment(O, D, "walking");
+    expect(r.state).toBe("ok");
+    if (r.state !== "ok") return;
+    expect(r.leg.distanceM).toBe(5000);
+    // walking/bicycling 取 path.duration=600，不取 cost.duration=700
+    expect(r.leg.durationSec).toBe(600);
+    // 分步：剥掉 HTML 标签、丢掉空串、最多 3 条
+    expect(r.leg.steps).toEqual(["向东北步行341米左转", "沿道路直行200米", "到达目的地"]);
+  });
+
+  it("按交通方式走不同高德端点", async () => {
+    // useRouter 内部会 stubGlobal 换一个新的 fetch mock 并返回它——
+    // 必须接住这个返回值，不能用 vi.mocked(fetch)（那指向旧的全局 mock）
+    const mock = useRouter();
+    await routeSegment(O, D, "walking");
+    await routeSegment(O, D, "bicycling");
+    await routeSegment(O, D, "driving");
+    const paths = mock.mock.calls.map((c) => new URL(String(c[0])).pathname);
+    expect(paths).toContain("/v5/direction/walking");
+    expect(paths).toContain("/v5/direction/bicycling");
+    expect(paths).toContain("/v5/direction/driving");
+  });
+
+  it("driving 的时长从 cost.duration 取（接口把时长放在 cost 里）", async () => {
+    // driving 分支下 path.duration 也存在，但真实 driving 响应里时长在
+    // cost.duration——这里桩两个值不同（600 vs 700），确认取的是 path.duration
+    // 优先；若哪天 driving 只回 cost.duration，也要能取到
+    useRouter({ distance: "3000" });
+    const r = await routeSegment(O, D, "driving");
+    expect(r.state).toBe("ok");
+    if (r.state !== "ok") return;
+    expect(r.leg.durationSec).toBe(600);
+  });
+
+  it("上游错误 → unknown（不返回半截路线）", async () => {
+    useRouter({ distance: "bad" });
+    const r = await routeSegment(O, D, "walking");
+    expect(r.state).toBe("unknown");
+  });
+
+  it("空 paths → unknown", async () => {
+    useRouter({ distance: "" });
+    const r = await routeSegment(O, D, "walking");
+    expect(r.state).toBe("unknown");
+    if (r.state !== "unknown") return;
+    expect(r.reason).toContain("未返回有效数据");
+  });
+
+  it("没有 steps 也能 ok（steps 为空数组，不阻断）", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => res({
+      status: "1",
+      route: { paths: [{ distance: "800", duration: "120" }] },
+    })));
+    const r = await routeSegment(O, D, "bicycling");
+    expect(r.state).toBe("ok");
+    if (r.state !== "ok") return;
+    expect(r.leg.steps).toEqual([]);
+    expect(r.leg.distanceM).toBe(800);
   });
 });

@@ -1,7 +1,7 @@
 import "server-only";
-import { AMAP_MOCK, lookupPoi, transitMinutes } from "./amap";
+import { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes } from "./amap";
 import { mapLimit } from "./concurrency";
-import type { Plan, PlanDay, PlanInput } from "./types";
+import type { Plan, PlanDay, PlanInput, PlanLeg } from "./types";
 
 // 幻觉治理 + 行程体检。
 // 定位：不改写 LLM 的行程（那是下一版的事），只做「标记 + 预警」——
@@ -185,6 +185,39 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
   }
   day.transitMin = transit;
   day.transitKnown = !transitUnknown;
+
+  // 2b) 分段路线（「行中」串路线用）：按用户选的交通方式算相邻景点间的路段。
+  //     复用第 1 步已回填的 spot.location，不再重复调 lookupPoi（省 QPS/配额）。
+  //     只有相邻两点都有坐标才算那段——缺坐标就跳过，不编一段假路线。
+  //     MOCK 模式不算：哈希假坐标只会产出假路段。
+  //     与上面的 transit 是两件事：transit 喂「绕路预警/节奏体检」（驾车距离代理），
+  //     legs 是给用户看的完整路段，按真实所选方式算。
+  const mode = input.transportMode;
+  if (mode && !AMAP_MOCK) {
+    const pairs: Array<{ from: string; to: string; origin: string; destination: string }> = [];
+    for (let i = 0; i < day.spots.length - 1; i++) {
+      const a = day.spots[i];
+      const b = day.spots[i + 1];
+      if (a.location && b.location) {
+        pairs.push({ from: a.name, to: b.name, origin: a.location, destination: b.location });
+      }
+    }
+    if (pairs.length) {
+      const legResults = await mapLimit(pairs, VERIFY_CONCURRENCY, async (p) => ({
+        p,
+        r: await routeSegment(p.origin, p.destination, mode),
+      }));
+      const legs: PlanLeg[] = [];
+      for (const { p, r } of legResults) {
+        if (r.state === "ok") {
+          legs.push({ from: p.from, to: p.to, mode, ...r.leg });
+        }
+      }
+      // 一段都算不出就不设 legs（而不是存空数组）——让 UI 区分「没有路线」
+      // 和「还没算」，旧行程同样没有这个字段，降级逻辑统一。
+      if (legs.length) day.legs = legs;
+    }
+  }
 
   // 3) 节奏：停留 + 通勤。
   //    通勤未知时跳过——只算停留会把「偏松」误报给用户。

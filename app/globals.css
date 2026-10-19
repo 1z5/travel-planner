@@ -420,6 +420,25 @@ input { -moz-appearance: textfield; appearance: textfield; }
 .day-foot-item { display: inline-flex; align-items: center; gap: 5px; }
 .day-foot-item svg { color: var(--accent); flex-shrink: 0; }
 
+/* ---- 路段卡：从上一站到下一站怎么走（按所选交通方式）---- */
+.leg-chip {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: var(--sp-2); padding: 5px 10px;
+  background: var(--accent-soft); border: 1px solid var(--line);
+  border-radius: var(--r-sm); font-size: var(--fs-caption); color: var(--ink-2);
+}
+.leg-chip svg { color: var(--accent); flex-shrink: 0; }
+.leg-summary { font-weight: 600; font-variant-numeric: tabular-nums; }
+.leg-steps { margin-left: auto; }
+.leg-steps summary {
+  cursor: pointer; color: var(--accent); font-weight: 600;
+  list-style: none; user-select: none;
+}
+.leg-steps summary::-webkit-details-marker { display: none; }
+.leg-steps[open] summary { margin-bottom: 4px; }
+.leg-steps ol { margin: 0; padding-left: 18px; color: var(--ink-3); line-height: 1.6; }
+.leg-steps li { margin-bottom: 2px; }
+
 /* ---------- 警示 / 提示 ---------- */
 
 .alert { border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); display: flex; gap: var(--sp-2); align-items: flex-start; border: 1px solid; }

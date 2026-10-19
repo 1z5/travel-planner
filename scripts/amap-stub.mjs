@@ -122,13 +122,27 @@ const server = createServer((req, res) => {
     return;
   }
 
-  if (path === "/v5/direction/driving") {
-    const origin = url.searchParams.get("origin") ?? "";
-    const dest = url.searchParams.get("destination") ?? "";
+  // 分段路线：三种交通方式都支持（routeSegment 按 transportMode 选端点）。
+  // 距离固定 5000 米/段；walking/bicycling 的时长在 path.duration，driving 在
+  // path.cost.duration——两处都给，覆盖 routeSegment 的两种取值路径。
+  // steps 里故意放一条带 HTML 标签的和一条空串，验证 routeSegment 的清洗逻辑。
+  if (path === "/v5/direction/walking" || path === "/v5/direction/bicycling" || path === "/v5/direction/driving") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       status: "1", info: "OK",
-      route: { paths: [{ distance: "5000", duration: "600" }] },
+      route: {
+        paths: [{
+          distance: "5000",
+          duration: "600",
+          cost: { duration: "700" },
+          steps: [
+            { instruction: "向东北步行<b>341</b>米左转" },
+            { instruction: "沿道路直行200米" },
+            { instruction: "   " },
+            { instruction: "到达目的地" },
+          ],
+        }],
+      },
     }));
     return;
   }
