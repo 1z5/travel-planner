@@ -51,23 +51,25 @@ function useRouter(opts: RouterOpts = {}) {
         return res({ status: "0", info: "SERVER_BUSY", infocode: "10021" });
       }
       if (opts.distance === "") return res({ status: "1", route: { paths: [] } });
+      const steps = [
+        { instruction: "向东北步行<b>341</b>米左转" },
+        { instruction: "沿道路直行200米" },
+        { instruction: "   " },
+        { instruction: "到达目的地" },
+      ];
+      // 按交通方式还原真实形状（与 scripts/amap-stub.mjs 同口径）：
+      // walking/bicycling 的时长在 path.cost.duration、顶层无 duration；
+      // driving 全链路无时长字段。此前统一给 driving 造假 duration，导致
+      // routeSegment 的错误分支在桩下永远命中、盖住真机 bug。
+      if (url.pathname.endsWith("/driving")) {
+        return res({
+          status: "1",
+          route: { paths: [{ distance: opts.distance ?? "5000", restriction: "0", steps }] },
+        });
+      }
       return res({
         status: "1",
-        route: {
-          paths: [{
-            distance: opts.distance ?? "5000",
-            duration: "600",
-            // driving 的时长在 cost.duration、walking/bicycling 在 path.duration——
-            // 两处都给，让 routeSegment 的取值逻辑都被覆盖
-            cost: { duration: "700" },
-            steps: [
-              { instruction: "向东北步行<b>341</b>米左转" },
-              { instruction: "沿道路直行200米" },
-              { instruction: "   " },
-              { instruction: "到达目的地" },
-            ],
-          }],
-        },
+        route: { paths: [{ distance: opts.distance ?? "5000", cost: { duration: "700" }, steps }] },
       });
     }
     return res({ status: "0", info: "unknown path" }, 404);
@@ -296,8 +298,8 @@ describe("routeSegment 三态与解析", () => {
     expect(r.state).toBe("ok");
     if (r.state !== "ok") return;
     expect(r.leg.distanceM).toBe(5000);
-    // walking/bicycling 取 path.duration=600，不取 cost.duration=700
-    expect(r.leg.durationSec).toBe(600);
+    // walking/bicycling 的时长在 path.cost.duration（实测真实形状，顶层无 duration）
+    expect(r.leg.durationSec).toBe(700);
     // 分步：剥掉 HTML 标签、丢掉空串、最多 3 条
     expect(r.leg.steps).toEqual(["向东北步行341米左转", "沿道路直行200米", "到达目的地"]);
   });
@@ -315,15 +317,16 @@ describe("routeSegment 三态与解析", () => {
     expect(paths).toContain("/v5/direction/driving");
   });
 
-  it("driving 的时长从 cost.duration 取（接口把时长放在 cost 里）", async () => {
-    // driving 分支下 path.duration 也存在，但真实 driving 响应里时长在
-    // cost.duration——这里桩两个值不同（600 vs 700），确认取的是 path.duration
-    // 优先；若哪天 driving 只回 cost.duration，也要能取到
-    useRouter({ distance: "3000" });
+  it("driving 无时长字段，按均速从距离折算（真机实测的形状）", async () => {
+    // 真机直连实测：driving 全链路不返回时长（paths[0] 只有 distance/
+    // restriction/steps）。此前按「driving 在 cost.duration」写、配造假 duration
+    // 的桩，测试全绿却真机 legs 全空。现在 driving 走「从距离折算」：
+    // 5000/1000/22*60+8 ≈ 74 分钟。
+    useRouter({ distance: "5000" });
     const r = await routeSegment(O, D, "driving");
     expect(r.state).toBe("ok");
     if (r.state !== "ok") return;
-    expect(r.leg.durationSec).toBe(600);
+    expect(r.leg.durationSec).toBe(Math.round((5000 / 1000 / 22) * 60 + 8));
   });
 
   it("上游错误 → unknown（不返回半截路线）", async () => {
@@ -337,7 +340,7 @@ describe("routeSegment 三态与解析", () => {
     const r = await routeSegment(O, D, "walking");
     expect(r.state).toBe("unknown");
     if (r.state !== "unknown") return;
-    expect(r.reason).toContain("未返回有效数据");
+    expect(r.reason).toContain("未返回有效距离");
   });
 
   it("没有 steps 也能 ok（steps 为空数组，不阻断）", async () => {

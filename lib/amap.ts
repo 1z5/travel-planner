@@ -341,11 +341,23 @@ export async function routeSegment(
 
   const path = (r.data as { route?: { paths?: Array<Record<string, unknown>> } })?.route?.paths?.[0];
   const distanceM = Number(path?.distance);
-  // walking/bicycling 的时长在 path.duration，driving 在 path.cost.duration——
-  // 两处都取，取到用哪个。
-  const durationSec = Number(path?.duration ?? (path?.cost as { duration?: string })?.duration);
-  if (!Number.isFinite(distanceM) || distanceM <= 0 || !Number.isFinite(durationSec) || durationSec < 0) {
-    return { state: "unknown", reason: "路线接口未返回有效数据" };
+  if (!Number.isFinite(distanceM) || distanceM <= 0) {
+    return { state: "unknown", reason: "路线接口未返回有效距离" };
+  }
+
+  // 时长：walking/bicycling 在 path.cost.duration（实测 walking 就是这样，
+  // 顶层没有 duration）；**driving 全链路都不返回时长**——paths[0] 只有
+  // distance/restriction/steps，route 层只有 origin/destination/taxi_cost/
+  // paths，steps 里也只有 instruction/orientation/road_name/step_distance。
+  // 这是真机直连实测的结论；此前按「driving 在 cost.duration」写，配一个造了
+  // 假 duration 的桩，测试全绿却真机 legs 全空——桩盖住了真实数据形状。
+  //
+  // driving 拿不到时长，就按 transitMinutes 同款口径从距离折算（市内综合
+  // 均速 22km/h + 8 分钟寻路缓冲）：与「通勤总分钟数」同一模型，UI 上不引入
+  // 第二套精度口径，也不冒充高德给了真值。
+  let durationSec = Number((path?.cost as { duration?: string } | undefined)?.duration);
+  if (!Number.isFinite(durationSec) || durationSec < 0) {
+    durationSec = Math.round((distanceM / 1000 / 22) * 60 + 8);
   }
 
   const rawSteps = (path?.steps as Array<{ instruction?: string }> | undefined) ?? [];

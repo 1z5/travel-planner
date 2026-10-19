@@ -2,6 +2,22 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 真机核查驾车 legs：高德 driving 不返回时长，改距离折算 + 拆桩
+
+「全程路线」真机验过步行后，接着核查驾车——结果 3 天全部 `legs=0`，而同样的坐标和代码路径，步行却生成了 15 段。
+
+**根因（真机直连实测）**：高德 driving v5 接口**全链路不返回时长**——`paths[0]` 只有 `distance`/`restriction`/`steps`，`route` 层只有 `origin`/`destination`/`taxi_cost`/`paths`，`steps` 里也没有任何 duration。而 `routeSegment` 假设时长在 `path.duration` 或 `path.cost.duration`，两个都取不到 → `durationSec` 恒为 `NaN` → 全部 `unknown` → legs 全空。
+
+**桩为什么没抓到**：`useRouter` 和 amap-stub 都给 driving 造了假的 `duration: "600"`，于是「driving 有时长」这条错误分支在桩下永远命中、测试全绿，真机一跑就露。这是「桩盖住真实数据形状」的又一例——桩按我的错误假设造数据，比没有桩更危险。
+
+**修复（两步，缺一不可）**：
+1. `routeSegment`：driving 拿不到时长，按 `transitMinutes` 同款口径从距离折算（市内综合均速 22km/h + 8 分钟寻路缓冲）——与「通勤总分钟数」同一模型，UI 上不引入第二套精度口径，也不冒充高德给了真值
+2. **拆桩**：`useRouter` 和 amap-stub 都按交通方式还原真实形状——walking/bicycling 给 `cost.duration`，driving **故意不给时长**，逼 `routeSegment` 走折算那条路。桩要能抓出形状不匹配，而不是盖住它
+
+**测试**：`routeSegment` 的 driving 用例从「取 cost.duration」改为「无时长→按均速折算」；e2e 的 legs 断言同步改为折算口径（这次 e2e 失败恰好证明拆桩起作用了——它抓出了口径变化）。
+
+验证：typecheck / 370 单测 / 251 e2e / 生产构建全绿。
+
 ## 2026-10 全程路线真机验证：activity/hotel 纳入坐标回填，路线链从断成三截到全连
 
 「全程路线」交付后只经过桩测试，这次接真实高德验证，立刻暴露真机才有的问题：一天 8-10 个景点只生出 1-2 段 legs，路线链断成三四截。

@@ -126,18 +126,49 @@ const server = createServer((req, res) => {
   // 距离固定 5000 米/段；walking/bicycling 的时长在 path.duration，driving 在
   // path.cost.duration——两处都给，覆盖 routeSegment 的两种取值路径。
   // steps 里故意放一条带 HTML 标签的和一条空串，验证 routeSegment 的清洗逻辑。
-  if (path === "/v5/direction/walking" || path === "/v5/direction/bicycling" || path === "/v5/direction/driving") {
+  // 分段路线：三种交通方式都支持（routeSegment 按 transportMode 选端点）。
+  //
+  // 关键：桩必须**按交通方式还原各自的真实形状**，不能图省事给所有方式造同一份
+  // 数据。真机直连实测（踩过）：walking/bicycling 的时长在 path.cost.duration、
+  // 顶层没有 duration；**driving 全链路都不返回时长**（paths[0] 只有
+  // distance/restriction/steps）。此前给 driving 也造了假 duration，结果
+  // routeSegment 按「driving 有时长」写的分支在桩下永远命中、测试全绿，真机
+  // 却 legs 全空。所以 driving 这里**故意不给时长**，逼 routeSegment 走
+  // 「从距离折算」那条路——桩要能抓出这类形状不匹配，而不是盖住它。
+  //
+  // distance 固定 5000 米/段（routeSegment 折算 5000/1000/22*60+8 = 22 分钟/段）。
+  // steps 里放一条带 HTML 标签的和一条空串，验证清洗逻辑。
+  if (path === "/v5/direction/walking" || path === "/v5/direction/bicycling") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       status: "1", info: "OK",
       route: {
         paths: [{
           distance: "5000",
-          duration: "600",
-          cost: { duration: "700" },
+          cost: { duration: "600" },
           steps: [
             { instruction: "向东北步行<b>341</b>米左转" },
             { instruction: "沿道路直行200米" },
+            { instruction: "   " },
+            { instruction: "到达目的地" },
+          ],
+        }],
+      },
+    }));
+    return;
+  }
+  if (path === "/v5/direction/driving") {
+    // driving 真实形状：无任何时长字段（见上方注释）
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: "1", info: "OK",
+      route: {
+        paths: [{
+          distance: "5000",
+          restriction: "0",
+          steps: [
+            { instruction: "沿道路向东行驶162米向左后方行驶" },
+            { instruction: "沿道路向西行驶14米右转" },
             { instruction: "   " },
             { instruction: "到达目的地" },
           ],

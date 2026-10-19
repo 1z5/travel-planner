@@ -770,7 +770,7 @@ async function phaseB(api) {
   check(" legs：Day1 生成了分段路线", Array.isArray(d1?.legs) && d1.legs.length > 0,
     JSON.stringify(d1?.legs ?? null).slice(0, 200));
   check(" legs：每段带 方式/距离/时长", (d1?.legs ?? []).every((l) =>
-    l.mode === "driving" && l.distanceM === 5000 && l.durationSec === 600),
+    l.mode === "driving" && l.distanceM === 5000 && l.durationSec === Math.round((5000 / 1000 / 22) * 60 + 8)),
     JSON.stringify((d1?.legs ?? []).slice(0, 2)));
   check(" legs：分步指令已清洗（剥 HTML 标签、去空串、最多 3 条）",
     (d1?.legs ?? []).every((l) => l.steps.length <= 3 && l.steps.every((s) => s && !s.includes("<"))),
