@@ -2,6 +2,18 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 refine 不再白算全天 legs：改一天只重算那天的路线
+
+顺着「refine 后 legs 是否重算」查下去，确认了 legs 会随 `validatePlan` 重算（`input.transportMode` 从 schema 默认 driving 起就带着，无缺陷），但发现一个实在的性能浪费：`revalidate` 调 `validatePlan(candidate, input)` 会遍历**所有天**重算 legs，而 refine 只改一天——其余天的 spot 是原对象引用、坐标没变，legs 重算结果不会变，却要各打一次 direction 接口。而 `routeSegment` 走的是 `amapGetRetry`，**没有缓存层**（只有 POI 查询有 `poiCache`），所以 5 天行程就是 20+ 次无谓的真实 HTTP 调用，全阻塞在同步的「换一个」响应里，用户白等。
+
+**修复**：`validatePlan` / `validateDay` 加可选的 `recomputeDays` / `recomputeLegs` 参数——refine 只传被改的那天，其余天保留 `day.legs` 原值。不传 = 全算，首生成与流式路径行为不变（两个既有调用方 `jobs.ts:202` 和 `jobs.ts:326` 都不传，默认全算）。
+
+**为什么「其余天沿用」是诚实的**：refine 拼装新 plan 时，未改的天是原对象引用（`refine.ts` 里 `d.day === action.day ? newDay : d`），spot.location 没变，用同一 mode 重算只会得到同一结果。跳过不是偷懒，是避免为不变的东西重复花钱。
+
+**测试**：单测 370 → **373**（`validatePlan` 的 legs 收窄 3 条：不传参全算 / 只重算指定天且其余天 legs 保持同一引用 / 指定天算不出时不波及其余天）。此前这块零覆盖——`refine.test.ts` 把 `validatePlan` 整个 mock 掉了，`validate.test.ts` 只测纯函数，收窄逻辑正好落在两者都够不着的缝里。
+
+验证：typecheck / 373 单测 / 251 e2e / 生产构建全绿。
+
 ## 2026-10 真机核查驾车 legs：高德 driving 不返回时长，改距离折算 + 拆桩
 
 「全程路线」真机验过步行后，接着核查驾车——结果 3 天全部 `legs=0`，而同样的坐标和代码路径，步行却生成了 15 段。

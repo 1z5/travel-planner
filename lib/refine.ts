@@ -469,7 +469,10 @@ async function revalidate(
     const m = w.match(WEATHER_WARNING_RE);
     return m !== null && Number(m[1]) !== editedDay;
   });
-  await validatePlan(candidate, input);
+  // 只对被改的那天重算 legs：其余天的 spot 是原对象引用、坐标没变，legs
+  // 重算结果不会变，却要各打一次无缓存的 direction 接口（5 天行程 20+ 次，
+  // 全阻塞在这次同步的「换一个」响应里）。
+  await validatePlan(candidate, input, [editedDay]);
   for (const w of preservedWeather) {
     if (!candidate.warnings.includes(w)) candidate.warnings.push(w);
   }

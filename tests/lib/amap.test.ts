@@ -6,6 +6,8 @@ process.env.AMAP_WEB_SERVICE_KEY = "test-key";
 // lib/amap.ts 顶部 import "server-only"：Vitest 侧由 vitest.config.mts 的
 // resolve.alias 指到 tests/stubs/server-only.js（空模块）
 const { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes } = await import("@/lib/amap");
+const { validatePlan } = await import("@/lib/validate");
+import type { Plan, PlanInput } from "@/lib/types";
 
 // ---------- 桩 fetch：按 URL 路径 + keywords 分支，模拟高德的各类响应 ----------
 
@@ -353,5 +355,64 @@ describe("routeSegment 三态与解析", () => {
     if (r.state !== "ok") return;
     expect(r.leg.steps).toEqual([]);
     expect(r.leg.distanceM).toBe(800);
+  });
+});
+
+// ---------- validatePlan 的 legs 收窄（refine 只改一天，不该白算全天） ----------
+// 改行程只动一天：其余天的 spot 是原对象引用、坐标没变，legs 重算结果不会变，
+// 却要各打一次无缓存的 direction 接口（5 天行程 20+ 次，全阻塞在同步的
+// 「换一个」响应里）。这里钉住 recomputeDays 参数：只有名单里的天重算 legs。
+
+describe("validatePlan 的 legs 收窄", () => {
+  const input = { city: "杭州", days: 3, budget: 3000, transportMode: "driving" } as unknown as PlanInput;
+  const spot = (name: string, location: string) => ({
+    period: "morning", time: "09:00-10:00", type: "sight", name, area: "西湖",
+    durationMin: 60, costCny: 0, reason: "测试", location,
+  });
+  const day = (n: number, legs?: unknown) => ({
+    day: n, theme: `第${n}天`, transitMin: 0, dailyCostCny: 0,
+    legs: legs as Plan["days"][number]["legs"],
+    spots: [spot(`${n}-甲`, "120.10,30.10"), spot(`${n}-乙`, "120.20,30.20")],
+  });
+  const plan = () => ({
+    city: "杭州", summary: "测试", totalCostCny: 0, tips: [], warnings: [],
+    verified: true, days: [day(1), day(2), day(3)],
+  }) as unknown as Plan;
+
+  it("不传 recomputeDays：所有天都算 legs（首生成路径不变）", async () => {
+    useRouter();
+    const p = plan();
+    await validatePlan(p, input);
+    expect((p.days[0].legs ?? []).length).toBe(1);
+    expect((p.days[1].legs ?? []).length).toBe(1);
+    expect((p.days[2].legs ?? []).length).toBe(1);
+  });
+
+  it("recomputeDays=[2]：只有第 2 天重算，其余天 legs 原样保留（同一引用）", async () => {
+    useRouter();
+    const p = plan();
+    const kept = [{ from: "旧", to: "legs", mode: "driving" as const, distanceM: 1, durationSec: 1, steps: [] }];
+    p.days[0].legs = kept;
+    p.days[2].legs = kept;
+    await validatePlan(p, input, [2]);
+    // 未指定的天：legs 引用没被换掉（没有重算）
+    expect(p.days[0].legs).toBe(kept);
+    expect(p.days[2].legs).toBe(kept);
+    // 指定的天：legs 被重算成新数组（不再是 kept）
+    expect(p.days[1].legs).not.toBe(kept);
+    expect((p.days[1].legs ?? []).length).toBe(1);
+  });
+
+  it("recomputeDays 指定的天若算不出 legs，不设字段（其余天不受影响）", async () => {
+    // distance 为空 → routeSegment 全 unknown → 第 2 天无 legs，但不波及 1、3 天
+    useRouter({ distance: "" });
+    const p = plan();
+    const kept = [{ from: "旧", to: "legs", mode: "driving" as const, distanceM: 1, durationSec: 1, steps: [] }];
+    p.days[0].legs = kept;
+    p.days[2].legs = kept;
+    await validatePlan(p, input, [2]);
+    expect(p.days[1].legs).toBeUndefined();
+    expect(p.days[0].legs).toBe(kept);
+    expect(p.days[2].legs).toBe(kept);
   });
 });

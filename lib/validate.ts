@@ -134,8 +134,19 @@ export interface DayCheck {
  *
  * 注意：不改 plan 级字段（totalCostCny / warnings / verified），
  * 那些由调用方在收尾时统一处理——分日路径要逐天累积，不能每次覆盖。
+ *
+ * recomputeLegs=false 时跳过 legs 重算（保留 day.legs 原值）。这是给
+ * refine 用的：改行程只动一天，其余天的 spot 是原对象引用、坐标没变，
+ * legs 重算结果不会变，却要为此各打一次无缓存的 direction 接口（5 天行程
+ * 20+ 次，全阻塞在同步的「换一个」响应里）。首生成/流式路径不传这个参数，
+ * 默认全算，行为不变。
  */
-export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): Promise<DayCheck> {
+export async function validateDay(
+  plan: Plan,
+  day: PlanDay,
+  input: PlanInput,
+  recomputeLegs = true,
+): Promise<DayCheck> {
   const warnings: string[] = [];
   const unverified: string[] = [];
   let transitUnknown = false;
@@ -222,8 +233,12 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
   //     MOCK 模式不算：哈希假坐标只会产出假路段。
   //     与上面的 transit 是两件事：transit 喂「绕路预警/节奏体检」（驾车距离代理），
   //     legs 是给用户看的完整路段，按真实所选方式算。
+  //
+  //     recomputeLegs=false（refine 未改的天）：直接保留 day.legs 原值。那些天
+  //     的 spot 是原对象引用、坐标没变，重算结果不会变，跳过可省掉每天 N-1 次
+  //     无缓存的 direction 调用。
   const mode = input.transportMode;
-  if (mode && !AMAP_MOCK) {
+  if (mode && !AMAP_MOCK && recomputeLegs) {
     const pairs: Array<{ from: string; to: string; origin: string; destination: string }> = [];
     for (let i = 0; i < day.spots.length - 1; i++) {
       const a = day.spots[i];
@@ -462,8 +477,18 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   }
 }
 
-/** 单次调用路径（≤4 天）：逐天体检 + 统一收尾 */
-export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> {
+/**
+ * 单次调用路径（≤4 天）：逐天体检 + 统一收尾。
+ *
+ * recomputeDays 非空时，只有名单里的天重算 legs，其余天保留原 legs——
+ * 给 refine 用（改行程只动一天，其余天坐标没变，重算纯属白打 direction
+ * 接口）。不传 = 全算，首生成路径行为不变。
+ */
+export async function validatePlan(
+  plan: Plan,
+  input: PlanInput,
+  recomputeDays?: readonly number[],
+): Promise<Plan> {
   const warnings: string[] = [];
   const unverified: string[] = [];
   const transitUnknownDays: number[] = [];
@@ -472,7 +497,8 @@ export async function validatePlan(plan: Plan, input: PlanInput): Promise<Plan> 
   let missCount = 0;
   let poiTotal = 0;
   for (const day of plan.days) {
-    const check = await validateDay(plan, day, input);
+    const recomputeLegs = !recomputeDays || recomputeDays.includes(day.day);
+    const check = await validateDay(plan, day, input, recomputeLegs);
     warnings.push(...check.warnings);
     unverified.push(...check.unverified);
     if (check.transitUnknown) transitUnknownDays.push(day.day);
