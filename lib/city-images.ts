@@ -1,99 +1,49 @@
-// 城市/地区封面背景图。
+// 全局固定背景图（品牌化抽象渐变，data-URI SVG）。
 //
-// 两层机制：
-// 1) 少量已核实有真实照片的城市 → Wikimedia 实拍图（CITY_IMAGES）。
-// 2) 其它任意城市/地区 → 由城市名确定性生成的一张暗色渐变图（generatedCityImage）。
+// 曾经这里按城市切换：6 个城市用 Wikimedia 实拍图、其余城市用城市名哈希生成
+// 渐变。改为固定的原因（用户反馈）：背景不该抢注意力，更不该让「不会看地图」
+// 的用户面对一张张陌生的城市照片——一张沉稳的固定底更像"产品"，也更稳。
 //
-// 为什么未覆盖的城市用「生成图」而不是去搜一张网图：没有可靠的无 key 图床能对
-// 任意城市返回**正确**的图，搜错图（把 A 地照片安到 B 地头上）等于制造幻觉，与
-// 产品「不猜」的立场冲突。生成图是明确的「品牌化抽象背景」，不声称是某地实拍，
-// 却能让任何输入都得到一张协调、稳定、断网也能显示的图。
-//
-// 曾经的坑：未覆盖城市统一走一张长城兜底图——用户选了「京都」却看到长城，张冠
-// 李戴。已移除。
+// 为什么用内联 SVG 而不是外链图床：
+// 1) 零外部依赖——断网/图床挂掉都不会出现裂图或白底；
+// 2) 不声称是任何城市的实拍，杜绝"张冠李戴"（早期未覆盖城市统一走长城兜底图，
+//    用户选京都看到长城，已移除）；
+// 3) 体积极小（几行 SVG），随包下发，无额外请求。
 
-const W = "https://thumb.wikimedia.org/wikipedia/commons/thumb";
+// 固定品牌渐变：暖橙（与 --accent 同色系）在近黑底上的一束光晕，
+// 方向/位置固定，不随任何输入变化。
+const BRAND_SVG =
+  `<svg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'>` +
+  `<defs>` +
+  `<radialGradient id='glow' cx='26%' cy='24%' r='62%'>` +
+  `<stop offset='0' stop-color='#fb923c' stop-opacity='0.30'/>` +
+  `<stop offset='0.55' stop-color='#c2410c' stop-opacity='0.12'/>` +
+  `<stop offset='1' stop-color='#fb923c' stop-opacity='0'/>` +
+  `</radialGradient>` +
+  `<radialGradient id='glow2' cx='82%' cy='86%' r='55%'>` +
+  `<stop offset='0' stop-color='#0ea5e9' stop-opacity='0.14'/>` +
+  `<stop offset='1' stop-color='#0ea5e9' stop-opacity='0'/>` +
+  `</radialGradient>` +
+  `<linearGradient id='base' x1='0%' y1='0%' x2='100%' y2='100%'>` +
+  `<stop offset='0' stop-color='#0c0c10'/>` +
+  `<stop offset='1' stop-color='#09090b'/>` +
+  `</linearGradient>` +
+  `</defs>` +
+  `<rect width='1920' height='1080' fill='url(#base)'/>` +
+  `<rect width='1920' height='1080' fill='url(#glow)'/>` +
+  `<rect width='1920' height='1080' fill='url(#glow2)'/>` +
+  `</svg>`;
 
-export const CITY_IMAGES: Record<string, string> = {
-  成都: `${W}/2/20/Chengdu_skyline_June_2017.jpg/1920px-Chengdu_skyline_June_2017.jpg`,
-  西安: `${W}/d/d7/Xi%27an_city_walls_%2889479%29.jpg/1920px-Xi%27an_city_walls_%2889479%29.jpg`,
-  杭州: `${W}/f/fd/Hangzhou_Skyline_against_the_West_Lake.png/1920px-Hangzhou_Skyline_against_the_West_Lake.png`,
-  厦门: `${W}/f/fe/Xiamen_night_Skyline_from_Gulangyu.JPG/1920px-Xiamen_night_Skyline_from_Gulangyu.JPG`,
-  重庆: `${W}/f/f5/Chongqing_Skyline_At_Night.png/1920px-Chongqing_Skyline_At_Night.png`,
-  苏州: `${W}/d/d5/Skyline_of_Suzhou_02.jpg/1920px-Skyline_of_Suzhou_02.jpg`,
-};
-
-// 精选色相对 [h1, h2]（HSL 色相），都调成暗色主题协调的搭配——避免全色相轮
-// 随机取到难看或刺眼的组合。
-const PALETTES: Array<[number, number]> = [
-  [210, 265], // 蓝 → 紫
-  [185, 215], // 青 → 蓝
-  [25, 350],  // 橙 → 玫红
-  [150, 190], // 绿 → 青
-  [275, 320], // 紫 → 粉
-  [40, 15],   // 金 → 橙
-  [200, 280], // 蓝 → 紫罗兰
-  [160, 120], // 青绿 → 绿
-];
-
-// 4 种线性渐变方向（x1,y1 → x2,y2），按哈希选，增加城市间的差异。
-const DIRECTIONS: Array<[string, string, string, string]> = [
-  ["0%", "0%", "100%", "100%"],
-  ["100%", "0%", "0%", "100%"],
-  ["0%", "100%", "100%", "0%"],
-  ["50%", "0%", "50%", "100%"],
-];
-
-// FNV-1a 字符串哈希：稳定、无依赖，同一字符串永远同一结果。
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
+/** 全局固定背景图（data-URI SVG）。不随城市/任何输入变化。 */
+export const BRAND_BACKGROUND = `data:image/svg+xml,${encodeURIComponent(BRAND_SVG)}`;
 
 /**
- * 由城市/地区名确定性生成一张暗色渐变背景图（data-URI SVG）。
- * 同一名字永远生成同一张；不同名字靠哈希选到不同色相对/方向/光晕位置。
+ * 保留此函数名以最小化调用方改动，但语义已变为"返回固定背景"——参数忽略。
+ *
+ * 之所以保留函数而非让调用方直接用常量：masthead 用 `key={city}` 做切换动画，
+ * 若改成常量 src，React 会认为 img 从未变化、不再重播入场动画。保留
+ * cityImage(city) 让 key 仍随城市变化（动画照旧），只是图不再变。
  */
-export function generatedCityImage(city: string): string {
-  const h = hashStr(city || "travel");
-  const [h1, h2] = PALETTES[h % PALETTES.length];
-  const [dx1, dy1, dx2, dy2] = DIRECTIONS[(h >>> 3) % DIRECTIONS.length];
-  // 光晕位置取不同 bit 段，与色相/方向去相关，让近邻名字也常有不同观感
-  const gx1 = 18 + ((h >>> 5) % 26);
-  const gy1 = 22 + ((h >>> 10) % 26);
-  const gx2 = 70 + ((h >>> 15) % 22);
-  const gy2 = 68 + ((h >>> 20) % 24);
-  const svg =
-    `<svg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'>` +
-    `<defs>` +
-    `<linearGradient id='b' x1='${dx1}' y1='${dy1}' x2='${dx2}' y2='${dy2}'>` +
-    `<stop offset='0' stop-color='hsl(${h1},42%,17%)'/>` +
-    `<stop offset='0.55' stop-color='hsl(${h2},38%,11%)'/>` +
-    `<stop offset='1' stop-color='hsl(${h1},44%,14%)'/>` +
-    `</linearGradient>` +
-    `<radialGradient id='g1' cx='${gx1}%' cy='${gy1}%' r='55%'>` +
-    `<stop offset='0' stop-color='hsl(${h1},72%,54%)' stop-opacity='0.40'/>` +
-    `<stop offset='1' stop-color='hsl(${h1},72%,54%)' stop-opacity='0'/>` +
-    `</radialGradient>` +
-    `<radialGradient id='g2' cx='${gx2}%' cy='${gy2}%' r='50%'>` +
-    `<stop offset='0' stop-color='hsl(${h2},68%,50%)' stop-opacity='0.36'/>` +
-    `<stop offset='1' stop-color='hsl(${h2},68%,50%)' stop-opacity='0'/>` +
-    `</radialGradient>` +
-    `</defs>` +
-    `<rect width='1920' height='1080' fill='#0b0b12'/>` +
-    `<rect width='1920' height='1080' fill='url(#b)'/>` +
-    `<rect width='1920' height='1080' fill='url(#g1)'/>` +
-    `<rect width='1920' height='1080' fill='url(#g2)'/>` +
-    `</svg>`;
-  // encodeURIComponent 会正确编码 # / % / 空格等，浏览器解码后还原成合法 SVG
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
-/** 城市/地区封面图：已核实实拍图优先，否则确定性生成图。 */
-export function cityImage(city: string): string {
-  return CITY_IMAGES[city] ?? generatedCityImage(city);
+export function cityImage(_city: string): string {
+  return BRAND_BACKGROUND;
 }
