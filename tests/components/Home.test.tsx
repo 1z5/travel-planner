@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import Home from "@/app/page";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 
@@ -120,5 +121,112 @@ describe("Home 表单", () => {
     expect(screen.getByPlaceholderText("验证码")).toBeInTheDocument();
     expect(screen.getByText("获取验证码")).toBeInTheDocument();
     expect(screen.getByText("登录")).toBeInTheDocument();
+  });
+});
+
+// 「最近行程」：未登录用户没有账号可查，但服务端为每份行程签发了持久分享 token，
+// 浏览器记住 token 就能在本机找回。这里验证「生成完成 → 写入 localStorage →
+// 列表可打开（带 ?edit=1 继续编辑入口）→ 可移除」的闭环。
+describe("Home 最近行程", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+  });
+
+  it("生成完成后写入最近行程并展示入口（链接带 ?edit=1）", async () => {
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+      }
+      if (url === "/api/plan") {
+        return { ok: true, status: 202, json: async () => ({ jobId: "job_test_001" }) };
+      }
+      if (url.startsWith("/api/plan/status")) {
+        return {
+          ok: true,
+          json: async () => ({
+            status: "done", plan: SAMPLE_PLAN, remaining: 2, shareId: "share_test001",
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<Home />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.click(screen.getByText("生成行程"));
+
+    // 结果渲染 + 最近行程卡片出现
+    await waitFor(
+      () => expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText("最近行程")).toBeInTheDocument());
+    const link = screen.getByRole("link", { name: new RegExp(SAMPLE_PLAN.city) });
+    expect(link).toHaveAttribute("href", "/p/share_test001?edit=1");
+
+    // localStorage 落盘（同设备下次打开还能找回）
+    const raw = window.localStorage.getItem("tp.recent-trips.v1") ?? "";
+    expect(raw).toContain("share_test001");
+  });
+
+  it("最近行程可移除（只清本地索引，不影响已分享链接）", async () => {
+    window.localStorage.setItem("tp.recent-trips.v1", JSON.stringify([
+      { shareId: "share_keep01", city: "成都", days: 3, createdAt: Date.now() },
+      { shareId: "share_drop02", city: "苏州", days: 2, createdAt: Date.now() - 1000 },
+    ]));
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<Home />);
+    await waitFor(() => expect(screen.getByText("最近行程")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /从最近行程中移除 苏州/ }));
+    await waitFor(() => expect(screen.queryByText("苏州")).not.toBeInTheDocument());
+    expect(screen.getByText("成都")).toBeInTheDocument();
+    const raw = window.localStorage.getItem("tp.recent-trips.v1") ?? "";
+    expect(raw).toContain("share_keep01");
+    expect(raw).not.toContain("share_drop02");
+  });
+
+  // 回归（真机踩过）：React StrictMode（dev 默认开）会 挂载→卸载→再挂载，
+  // unmounted 标记若不在 effect setup 里复位，第二次挂载后永远卡在 true，
+  // pollJob 第一行就 return——一次轮询都不发，前端干等到超时。
+  // 症状：后台 job 早已 done，前端一直转圈。非 StrictMode 渲染抓不到，
+  // 所以这里显式包一层 StrictMode。
+  it("StrictMode 双挂载后，提交仍能轮询到 done 并渲染行程", async () => {
+    const statusCalls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return { ok: true, json: async () => ({ loggedIn: false, remaining: 3, provider: "none" }) };
+      }
+      if (url === "/api/plan") {
+        return { ok: true, status: 202, json: async () => ({ jobId: "job_strict_1" }) };
+      }
+      if (url.startsWith("/api/plan/status")) {
+        statusCalls.push(url);
+        return {
+          ok: true,
+          json: async () => ({ status: "done", plan: SAMPLE_PLAN, remaining: 2, shareId: "share_strict" }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    render(
+      <StrictMode>
+        <Home />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.click(screen.getByText("生成行程"));
+    // 关键：status 必须被调用过（修复前 StrictMode 下一次都不调）
+    await waitFor(() => expect(statusCalls.length).toBeGreaterThan(0), { timeout: 4000 });
+    await waitFor(
+      () => expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
   });
 });

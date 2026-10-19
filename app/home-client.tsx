@@ -3,12 +3,18 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Plan, PlanEvent } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope, MapPin } from "lucide-react";
+import {
+  AlertTriangle, Sparkles, ShieldCheck, Route, Stethoscope, MapPin,
+  History, Trash2, ArrowUpRight,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
 import { WaitProgress } from "@/components/WaitProgress";
+import {
+  loadRecentTrips, saveRecentTrip, removeRecentTrip, recentTripLabel, type RecentTrip,
+} from "@/lib/recent-trips";
 
 const PREF_OPTIONS = [
   "美食", "历史文化", "自然风光", "Citywalk", "博物馆",
@@ -59,7 +65,12 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [remaining, setRemaining] = useState<number | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
+  // 持久化分享 token：任务完成后服务端会为行程签发一个持久 token（Plan 聚合），
+  // 分享/日历/继续编辑都用它。不再用 jobId——任务只有 2 小时生命周期，拿它做分享
+  // 链接会让「分享给朋友」在两小时后变成「链接已失效」。
+  const [shareId, setShareId] = useState<string | null>(null);
+  // 本机生成过的行程索引（localStorage）：未登录用户回来后能一键找回自己的行程
+  const [recent, setRecent] = useState<RecentTrip[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
   const [sampleMode, setSampleMode] = useState(false);
@@ -91,9 +102,21 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   const [locatedCity, setLocatedCity] = useState("");
 
   // 卸载标记：轮询是长任务（分钟级），用户离开页面后必须停止，
-  // 否则既白烧请求又可能在卸载后 setState
+  // 否则既白烧请求又可能在卸载后 setState。
+  //
+  // 必须在 setup 里显式复位成 false，不能只靠 useRef(false) 的初值：
+  // React StrictMode（dev 默认开）会「挂载→卸载→再挂载」，第一次 cleanup
+  // 把标记置 true 后，第二次挂载的 setup 若不复位，标记就永远卡在 true——
+  // 于是 pollJob 第一行 if (unmounted.current) return 直接返回，一次轮询都
+  // 不发，前端干等到超时（真机踩过：深圳任务后台 328s 就跑完了，前端干等
+  // 20 分钟没结果，而四道门全绿——因为组件测试没在 StrictMode 下渲染）。
   const unmounted = useRef(false);
-  useEffect(() => () => { unmounted.current = true; }, []);
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
+    };
+  }, []);
 
   // ---- 登录态（可选：未登录 3 次/天，登录后 10 次/天）----
   const [me, setMe] = useState<{ loggedIn: boolean; phone?: string; remaining: number | null; provider: string } | null>(null);
@@ -105,6 +128,12 @@ export function HomeClient({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then(setMe).catch(() => setMe(null));
+  }, []);
+
+  // 「最近行程」只在客户端读：localStorage 在 SSR 不存在，放进 effect 避免
+  // hydration 前后 DOM 不一致（服务端渲染空列表，挂载后补上）。
+  useEffect(() => {
+    setRecent(loadRecentTrips());
   }, []);
 
   useEffect(() => {
@@ -241,7 +270,10 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         setLoading(false);
         return;
       }
-      let data: { status?: string; plan?: Plan; error?: string; remaining?: number };
+      let data: {
+        status?: string; plan?: Plan; error?: string; remaining?: number;
+        shareId?: string | null;
+      };
       try {
         const res = await fetch(`/api/plan/status?id=${jobId}`);
         if (res.status === 404) {
@@ -264,10 +296,23 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         return poll();
       }
       if (data.status === "done") {
-        setPlan(data.plan ?? null);
-        setJobId(jobId);
+        const donePlan = data.plan ?? null;
+        setPlan(donePlan);
+        setShareId(data.shareId ?? null);
         setRemaining(data.remaining ?? null);
         setLoading(false);
+        // 记进「最近行程」：只认持久化 token（有 token 才谈得上长期分享/继续编辑）。
+        // 写入失败（隐私模式/配额满）静默降级，不影响结果展示。
+        if (data.shareId && donePlan) {
+          setRecent(saveRecentTrip({
+            shareId: data.shareId,
+            city: donePlan.city,
+            days: donePlan.days.length,
+            startDate: donePlan.startDate,
+            summary: donePlan.summary,
+            createdAt: Date.now(),
+          }));
+        }
         return;
       }
       if (data.status === "error") {
@@ -277,7 +322,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
       }
       // running：分日流式路径（≥5 天）会增量回传已生成的天。
       // 立即渲染，让用户逐天看到结果，而不是干等一个总 deadline。
-      // 注意此时不设 jobId——分享页只认 status=done 的任务，
+      // 注意此时还没有 shareId——分享/编辑按钮只在 done 之后出现，
       // 中途把链接给出去只会看到「链接已失效」。
       if (data.plan) setPlan(data.plan);
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -301,6 +346,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     setLoading(true);
     setError("");
     setPlan(null);
+    setShareId(null); // 新任务开始：旧的分享 token 与当前结果不再对应
     setSubmittedDays(derivedDays); // 记录本次提交的总天数，供「已生成 N/M 天」使用
     try {
       const res = await fetch("/api/plan", {
@@ -637,6 +683,37 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         </p>
       </motion.form>
 
+      {/* 「最近行程」：本机生成过的行程索引（localStorage）。
+          未登录用户没有账号可查，但服务端已为每份行程签发持久分享 token，
+          记住 token 就够了——这里只做「这台设备上的我的行程」。
+          刻意放在表单之后、营销区块之前：回访用户一眼就能接着用。 */}
+      {recent.length > 0 && (
+        <div className="card recent-trips">
+          <div className="recent-head">
+            <span className="recent-title"><History size={15} />最近行程</span>
+            <span className="recent-note">存在这台设备 · 链接不会过期</span>
+          </div>
+          <ul className="recent-list">
+            {recent.map((t) => (
+              <li className="recent-item" key={t.shareId}>
+                <a className="recent-link" href={`/p/${t.shareId}?edit=1`}>
+                  <span className="recent-city">{t.city}</span>
+                  <span className="recent-meta">{recentTripLabel(t)}</span>
+                  {t.summary && <span className="recent-summary">{t.summary}</span>}
+                  <ArrowUpRight size={14} className="recent-open" />
+                </a>
+                <button type="button" className="recent-remove"
+                  aria-label={`从最近行程中移除 ${t.city}`}
+                  title="从这台设备移除（不影响已分享的链接）"
+                  onClick={() => setRecent(removeRecentTrip(t.shareId))}>
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* 营销/FAQ/页脚：服务端组件经 children 渲染在此，零客户端 JS */}
       {children}
 
@@ -645,7 +722,9 @@ export function HomeClient({ children }: { children?: ReactNode }) {
       {displayPlan && (
         <PlanView
           plan={displayPlan}
-          shareId={sampleMode ? undefined : jobId ?? undefined}
+          shareId={sampleMode ? undefined : shareId ?? undefined}
+          editable={!sampleMode && !!shareId}
+          onPlanChange={(p) => setPlan(p)}
           banner={sampleMode ? (
             <div className="card" style={{ background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
