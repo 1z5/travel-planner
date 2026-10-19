@@ -107,6 +107,8 @@ describe("Home 表单", () => {
     const calls = mockFetchSequence();
     render(<Home />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    // city 不再预填，先填城市才能提交（无定位权限时按钮禁用）
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
     await userEvent.click(screen.getByText("生成行程"));
     await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), { timeout: 3000 });
     expect((calls.find((c) => c.url === "/api/plan")?.body as { pace: string }).pace).toBe("balanced");
@@ -154,6 +156,7 @@ describe("Home 最近行程", () => {
 
     render(<Home />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
     await userEvent.click(screen.getByText("生成行程"));
 
     // 结果渲染 + 最近行程卡片出现
@@ -221,6 +224,7 @@ describe("Home 最近行程", () => {
       </StrictMode>,
     );
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
     await userEvent.click(screen.getByText("生成行程"));
     // 关键：status 必须被调用过（修复前 StrictMode 下一次都不调）
     await waitFor(() => expect(statusCalls.length).toBeGreaterThan(0), { timeout: 4000 });
@@ -228,5 +232,60 @@ describe("Home 最近行程", () => {
       () => expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument(),
       { timeout: 5000 },
     );
+  });
+});
+
+// 目的地城市默认值：不再硬编码「成都」。挂载时静默定位一次——拿到定位城市
+// 才预填，拿不到（无权限/不支持/失败）就留空让用户自己输。这两条钉住这个契约。
+describe("Home 目的地城市默认值", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("无定位能力时：城市留空、不预填，提交按钮禁用并提示先填城市", async () => {
+    // 不 stub geolocation → jsdom 里 navigator.geolocation 不存在，
+    // 挂载的静默定位走「不支持」分支静默失败（不弹错误）
+    mockFetchSequence();
+    render(<Home />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+
+    const cityInput = screen.getByPlaceholderText("如：成都") as HTMLInputElement;
+    expect(cityInput.value).toBe(""); // 没有预填任何城市
+    // 空城市时提交按钮禁用，且文字提示先填城市
+    expect(screen.getByText("请先填写目的地城市")).toBeInTheDocument();
+    expect(screen.getByText("请先填写目的地城市").closest("button")).toBeDisabled();
+  });
+
+  it("定位成功时：预填定位城市，提交按钮恢复可用", async () => {
+    // stub 定位：返回成都坐标；反解接口回成都
+    const getCurrentPosition = vi.fn((success: (p: unknown) => void) => {
+      success({ coords: { longitude: 104.06, latitude: 30.57 } });
+    });
+    Object.defineProperty(navigator, "geolocation", {
+      value: { getCurrentPosition }, configurable: true,
+    });
+    // jsdom 的 location 是 http://localhost，isSecureContext 求值为 false，
+    // resolveCity 会在调 geolocation 前就返回。真实浏览器里 localhost 是安全
+    // 上下文，所以这里按真实环境覆写为 true。
+    Object.defineProperty(window, "isSecureContext", {
+      value: true, configurable: true,
+    });
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+      }
+      if (url.startsWith("/api/geocode/reverse")) {
+        return { ok: true, json: async () => ({ city: "成都", formatted: "成都市武侯区" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<Home />);
+    await waitFor(() => {
+      const cityInput = screen.getByPlaceholderText("如：成都") as HTMLInputElement;
+      expect(cityInput.value).toBe("成都");
+    });
+    // 定位成功后提交按钮恢复可用
+    expect(screen.getByText("生成行程").closest("button")).not.toBeDisabled();
   });
 });

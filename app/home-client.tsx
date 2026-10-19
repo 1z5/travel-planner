@@ -50,7 +50,9 @@ function fmtElapsed(sec: number): string {
 // 注意：client component 直接 import 的模块仍会被打进客户端包（实测确认
 // 过），只有 children 传递才是真正的服务端组件边界。
 export function HomeClient({ children }: { children?: ReactNode }) {
-  const [city, setCity] = useState("成都");
+  // 目的地城市默认不预填：挂载时尝试静默定位，拿到定位城市才填，拿不到
+  // （无权限/不支持/失败）就空着让用户自己输——不拿一个硬编码城市冒充默认值。
+  const [city, setCity] = useState("");
   const [startAt, setStartAt] = useState(() => {
     const d = new Date(Date.now() + 86400000);
     return `${d.toISOString().slice(0, 10)}T10:00`;
@@ -220,16 +222,19 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   //    时浏览器直接不给位置，提前判断并给明确提示
   // 2. 用户可能拒绝授权、或迟迟不给位置（超时）——都要能降级
   // 3. 坐标可能落在海上/荒野，归属不到城市——服务端返回 422，同样降级
-  async function locateMe() {
+  // 定位并反解城市名。silent=true 时（挂载时的自动预填）不写 locateError——
+  // 一进页面就因为没给定位权限弹一片红是很糟的体验，那时保持空让用户自己输。
+  // 返回是否成功，供调用方决定后续。
+  async function resolveCity(silent: boolean): Promise<boolean> {
     setLocateError("");
-    setLocatedCity("");
+    if (!silent) setLocatedCity("");
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocateError("当前浏览器不支持定位，请手动输入城市");
-      return;
+      if (!silent) setLocateError("当前浏览器不支持定位，请手动输入城市");
+      return false;
     }
     if (!window.isSecureContext) {
-      setLocateError("定位需要 HTTPS 环境，请手动输入城市");
-      return;
+      if (!silent) setLocateError("定位需要 HTTPS 环境，请手动输入城市");
+      return false;
     }
     setLocating(true);
     try {
@@ -244,23 +249,37 @@ export function HomeClient({ children }: { children?: ReactNode }) {
       const r = await fetch(`/api/geocode/reverse?lng=${longitude}&lat=${latitude}`);
       const d = await r.json();
       if (!r.ok) {
-        setLocateError(d.error || "定位失败，请手动输入城市");
-        return;
+        if (!silent) setLocateError(d.error || "定位失败，请手动输入城市");
+        return false;
       }
       setCity(d.city);
       setLocatedCity(d.formatted || d.city);
+      return true;
     } catch (e) {
       // 1=拒绝授权 2=位置不可用 3=超时；其余归为未知失败
       const code = (e as GeolocationPositionError)?.code;
-      setLocateError(
-        code === 1 ? "定位权限被拒绝，请手动输入城市"
-        : code === 3 ? "定位超时，请手动输入城市"
-        : "定位失败，请手动输入城市",
-      );
+      if (!silent) {
+        setLocateError(
+          code === 1 ? "定位权限被拒绝，请手动输入城市"
+          : code === 3 ? "定位超时，请手动输入城市"
+          : "定位失败，请手动输入城市",
+        );
+      }
+      return false;
     } finally {
       setLocating(false);
     }
   }
+
+  async function locateMe() {
+    await resolveCity(false);
+  }
+
+  // 挂载时静默定位一次：拿到定位城市就预填，拿不到就留空（用户自己输）。
+  // 只在挂载时跑一次；用户之后可点「用我当前的位置」主动重定位。
+  useEffect(() => {
+    void resolveCity(true);
+  }, []);
 
   async function pollJob(jobId: string): Promise<void> {
     const deadline = Date.now() + POLL_MAX_MS;
@@ -676,8 +695,8 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           {authError && <p className="error login-error">{authError}</p>}
         </div>
 
-        <button className="btn-primary" disabled={loading}>
-          {loading ? "生成中…" : "生成行程"}
+        <button className="btn-primary" disabled={loading || !city.trim()}>
+          {loading ? "生成中…" : city.trim() ? "生成行程" : "请先填写目的地城市"}
         </button>
         {loading && (
           <WaitProgress
