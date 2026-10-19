@@ -44,6 +44,17 @@ const AREA_SPREAD_WARN = 4;
 // 个人 key 的 QPS 比预期低——日志里频繁出现 10021 CUQPS_HAS_EXCEEDED_THE_LIMIT，
 // 每次都靠重试到第 3 次才成功（既拖慢又刷日志）。降到 3 降低峰值 QPS。
 const VERIFY_CONCURRENCY = 3;
+// POI 验真的两类目标（刻意分开，见 validateDay 1) 的注释）：
+// - WARN_TYPES：进「未检索到」预警与 miss 计数的类型。这是用户关心的
+//   「这地方真有没有」，也是「无覆盖区域」判断（missCount === poiTotal）的
+//   数据源——放宽到别的类型会污染那个判断。
+// - GEO_TYPES：额外只为回填坐标而验真的类型。activity/hotel 是用户真要
+//   走到/住下的真实地点，缺坐标就连不成「行中」路线；它们的 miss 不该弹
+//   「未检索到」（那不是用户当初要求的硬约束），所以只静默取坐标。
+//   transport 刻意不在内——「A→B」是移动描述不是 POI，高德会模糊匹配成
+//   错误坐标（实测「杭州东站→断桥」命中「杭州站」）。
+const WARN_TYPES = new Set(["sight", "food"]);
+const GEO_TYPES = new Set(["sight", "food", "activity", "hotel"]);
 
 /**
  * 把 area 归一到「区县」粒度：「北区金阁寺」→「北区」。
@@ -135,22 +146,41 @@ export async function validateDay(plan: Plan, day: PlanDay, input: PlanInput): P
 
   // 1) POI 验真：景点和餐厅必须真实存在。
   //    有界并发 + 保序：warning 仍按当天顺序输出。
+  //
+  //    两类目标，刻意分开：
+  //    - **预警口径**（miss 计数 / 「未检索到」预警）：只有 sight/food。
+  //      这是用户关心的「这地方真有没有」，也是「无覆盖区域」判断的数据源
+  //      （missCount === poiTotal）。放宽到别的类型会污染这个判断。
+  //    - **坐标回填**（供「行中」串路线）：sight/food + activity + hotel。
+  //      真机踩过：只回填 sight/food 时，一天的 legs 断成两三截——activity
+  //      （西湖游船）、hotel（柳莺里酒店）都是用户真要走到/住下的真实地点，
+  //      没坐标就连不成链。而 transport 段（「杭州东站→断桥」）是移动描述
+  //      不是 POI，实测高德会把它模糊匹配成「杭州站」这种错误坐标，必须排除。
   if (!AMAP_MOCK) {
     const targets = day.spots
-      .filter((s) => s.type === "sight" || s.type === "food")
-      .map((s) => ({ spot: s, name: s.name, day: day.day }));
+      .filter((s) => WARN_TYPES.has(s.type) || GEO_TYPES.has(s.type))
+      .map((s) => ({
+        spot: s,
+        name: s.name,
+        day: day.day,
+        warn: WARN_TYPES.has(s.type),
+      }));
     const results = await mapLimit(targets, VERIFY_CONCURRENCY, async (t) => ({
       t,
       r: await lookupPoi(plan.city, t.name, input.scope),
     }));
     for (const { t, r } of results) {
       if (r.state === "miss") {
-        missCount += 1;
-        warnings.push(
-          `第 ${t.day} 天「${t.name}」未在高德检索到，可能名称有误或已关闭，出发前请自行确认`,
-        );
+        // 只有预警口径内的类型才计数/告警；activity/hotel 的 miss 只意味着
+        // 「这段连不成路线」，静默跳过即可，不该给用户弹「未检索到」
+        if (t.warn) {
+          missCount += 1;
+          warnings.push(
+            `第 ${t.day} 天「${t.name}」未在高德检索到，可能名称有误或已关闭，出发前请自行确认`,
+          );
+        }
       } else if (r.state === "error") {
-        unverified.push(t.name);
+        if (t.warn) unverified.push(t.name);
       } else if (r.poi.location) {
         // 命中时把坐标存回 spot——「行中」定位要算「我离这站多远」，而验真是
         // 唯一拿到真实坐标的时机（LLM 不输出坐标）。MOCK 模式整个块不跑，
