@@ -17,8 +17,26 @@ function makePlan(overrides: Partial<Plan> = {}): Plan {
         day: 1,
         theme: "市区",
         spots: [
-          { period: "morning", time: "09:00-11:00", type: "sight", name: "武侯祠", area: "武侯区", durationMin: 120, costCny: 50, reason: "test" },
-          { period: "lunch", time: "12:00-13:00", type: "food", name: "餐厅", area: "武侯区", durationMin: 60, costCny: 50, reason: "test" },
+          {
+            period: "morning",
+            time: "09:00-11:00",
+            type: "sight",
+            name: "武侯祠",
+            area: "武侯区",
+            durationMin: 120,
+            costCny: 50,
+            reason: "test",
+          },
+          {
+            period: "lunch",
+            time: "12:00-13:00",
+            type: "food",
+            name: "餐厅",
+            area: "武侯区",
+            durationMin: 60,
+            costCny: 50,
+            reason: "test",
+          },
         ],
         transitMin: 20,
         dailyCostCny: 100,
@@ -50,20 +68,37 @@ describe("fetchWeather", () => {
   it("正常返回：解析预报为按天的结构化数据", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    vi.stubGlobal("fetch", vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        status: "1",
-        forecasts: [{
-          city: "成都市",
-          casts: [
-            { date: "2026-10-16", dayweather: "小雨", nightweather: "多云", daytemp: "24", nighttemp: "18" },
-            { date: "2026-10-17", dayweather: "晴", nightweather: "晴", daytemp: "26", nighttemp: "19" },
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "1",
+          forecasts: [
+            {
+              city: "成都市",
+              casts: [
+                {
+                  date: "2026-10-16",
+                  dayweather: "小雨",
+                  nightweather: "多云",
+                  daytemp: "24",
+                  nighttemp: "18",
+                },
+                {
+                  date: "2026-10-17",
+                  dayweather: "晴",
+                  nightweather: "晴",
+                  daytemp: "26",
+                  nighttemp: "19",
+                },
+              ],
+            },
           ],
-        }],
-      }),
-    })));
+        }),
+      })),
+    );
     const { fetchWeather } = await import("@/lib/weather");
     const r = await fetchWeather("成都");
     expect(r.state).toBe("ok");
@@ -75,7 +110,14 @@ describe("fetchWeather", () => {
   it("上游异常 → unavailable（由调用方跳过，不抛错）", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ status: "0", info: "INVALID_USER_KEY" }) })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ status: "0", info: "INVALID_USER_KEY" }),
+      })),
+    );
     const { fetchWeather } = await import("@/lib/weather");
     const r = await fetchWeather("成都");
     expect(r.state).toBe("unavailable");
@@ -86,7 +128,13 @@ describe("buildWeatherAdvice", () => {
   const rainy = {
     state: "ok" as const,
     days: [
-      { date: "2026-10-16", dayWeather: "小雨", nightWeather: "多云", dayTemp: "24", nightTemp: "18" },
+      {
+        date: "2026-10-16",
+        dayWeather: "小雨",
+        nightWeather: "多云",
+        dayTemp: "24",
+        nightTemp: "18",
+      },
       { date: "2026-10-17", dayWeather: "晴", nightWeather: "晴", dayTemp: "26", nightTemp: "19" },
     ],
   };
@@ -115,15 +163,26 @@ describe("buildWeatherAdvice", () => {
 
   it("坏天气但当天无室外景点 → 不提示", async () => {
     const plan = makePlan({
-      days: [{
-        day: 1,
-        theme: "逛吃",
-        spots: [
-          { period: "lunch", time: "12:00-13:00", type: "food", name: "餐厅", area: "武侯区", durationMin: 60, costCny: 50, reason: "test" },
-        ],
-        transitMin: 0,
-        dailyCostCny: 50,
-      }],
+      days: [
+        {
+          day: 1,
+          theme: "逛吃",
+          spots: [
+            {
+              period: "lunch",
+              time: "12:00-13:00",
+              type: "food",
+              name: "餐厅",
+              area: "武侯区",
+              durationMin: 60,
+              costCny: 50,
+              reason: "test",
+            },
+          ],
+          transitMin: 0,
+          dailyCostCny: 50,
+        },
+      ],
     });
     const r = await buildWeatherAdvice(plan, rainy);
     expect(r.warnings).toHaveLength(0);
@@ -134,8 +193,42 @@ describe("buildWeatherAdvice", () => {
     const plan = makePlan({
       days: [
         ...makePlan().days,
-        { day: 2, theme: "第二天", spots: [{ period: "morning", time: "09:00-11:00", type: "sight", name: "杜甫草堂", area: "青羊区", durationMin: 120, costCny: 50, reason: "t" }], transitMin: 0, dailyCostCny: 50 },
-        { day: 3, theme: "第三天", spots: [{ period: "morning", time: "09:00-11:00", type: "sight", name: "金沙遗址", area: "青羊区", durationMin: 120, costCny: 50, reason: "t" }], transitMin: 0, dailyCostCny: 50 },
+        {
+          day: 2,
+          theme: "第二天",
+          spots: [
+            {
+              period: "morning",
+              time: "09:00-11:00",
+              type: "sight",
+              name: "杜甫草堂",
+              area: "青羊区",
+              durationMin: 120,
+              costCny: 50,
+              reason: "t",
+            },
+          ],
+          transitMin: 0,
+          dailyCostCny: 50,
+        },
+        {
+          day: 3,
+          theme: "第三天",
+          spots: [
+            {
+              period: "morning",
+              time: "09:00-11:00",
+              type: "sight",
+              name: "金沙遗址",
+              area: "青羊区",
+              durationMin: 120,
+              costCny: 50,
+              reason: "t",
+            },
+          ],
+          transitMin: 0,
+          dailyCostCny: 50,
+        },
       ],
     });
     const r = await buildWeatherAdvice(plan, rainy);
@@ -146,15 +239,27 @@ describe("buildWeatherAdvice", () => {
 
   it("已有雨天备选的景点 → 提示可直接参考（信息更有用）", async () => {
     const plan = makePlan({
-      days: [{
-        day: 1,
-        theme: "市区",
-        spots: [
-          { period: "morning", time: "09:00-11:00", type: "sight", name: "武侯祠", area: "武侯区", durationMin: 120, costCny: 50, reason: "t", rainBackup: "锦里" },
-        ],
-        transitMin: 0,
-        dailyCostCny: 50,
-      }],
+      days: [
+        {
+          day: 1,
+          theme: "市区",
+          spots: [
+            {
+              period: "morning",
+              time: "09:00-11:00",
+              type: "sight",
+              name: "武侯祠",
+              area: "武侯区",
+              durationMin: 120,
+              costCny: 50,
+              reason: "t",
+              rainBackup: "锦里",
+            },
+          ],
+          transitMin: 0,
+          dailyCostCny: 50,
+        },
+      ],
     });
     const r = await buildWeatherAdvice(plan, rainy);
     expect(r.warnings[0]).toContain("雨天备选");
@@ -174,16 +279,24 @@ describe("buildWeatherAdvice", () => {
 
   it("超过 3 个室外景点时列表截断，不刷屏", async () => {
     const plan = makePlan({
-      days: [{
-        day: 1,
-        theme: "暴走",
-        spots: ["A", "B", "C", "D", "E"].map((n) => ({
-          period: "morning" as const, time: "09:00-10:00", type: "sight" as const,
-          name: `景点${n}`, area: "武侯区", durationMin: 60, costCny: 0, reason: "t",
-        })),
-        transitMin: 0,
-        dailyCostCny: 0,
-      }],
+      days: [
+        {
+          day: 1,
+          theme: "暴走",
+          spots: ["A", "B", "C", "D", "E"].map((n) => ({
+            period: "morning" as const,
+            time: "09:00-10:00",
+            type: "sight" as const,
+            name: `景点${n}`,
+            area: "武侯区",
+            durationMin: 60,
+            costCny: 0,
+            reason: "t",
+          })),
+          transitMin: 0,
+          dailyCostCny: 0,
+        },
+      ],
     });
     const r = await buildWeatherAdvice(plan, rainy);
     expect(r.warnings[0]).toContain("5 个室外景点");

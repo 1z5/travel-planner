@@ -3,14 +3,33 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  AlertTriangle, BedDouble, Bike, CalendarDays, Car, CloudRain, Compass,
-  Footprints, Landmark, Loader2, MapPin, Navigation, ShoppingBag, TrainFront,
-  Utensils, Wallet,
+  AlertTriangle,
+  BedDouble,
+  Bike,
+  CalendarDays,
+  Car,
+  CloudRain,
+  Compass,
+  Footprints,
+  Landmark,
+  Loader2,
+  MapPin,
+  Navigation,
+  ShoppingBag,
+  TrainFront,
+  Utensils,
+  Wallet,
 } from "lucide-react";
 import type { Plan, PlanDay, PlanLeg, PlanSpot, TransportMode } from "@/lib/types";
 import {
-  distMeters, fmtDist, localTodayIso, nowMinutes, spotNow, tripToday,
-  type SpotNow, type TripToday,
+  distMeters,
+  fmtDist,
+  localTodayIso,
+  nowMinutes,
+  spotNow,
+  tripToday,
+  type SpotNow,
+  type TripToday,
 } from "@/lib/trip-day";
 import { formatHoursShort } from "@/lib/poi-hours";
 
@@ -27,13 +46,21 @@ import { formatHoursShort } from "@/lib/poi-hours";
 // ============================================================
 
 const TYPE_LABEL: Record<string, string> = {
-  sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
-  shopping: "购物", activity: "体验",
+  sight: "景点",
+  food: "餐饮",
+  hotel: "住宿",
+  transport: "交通",
+  shopping: "购物",
+  activity: "体验",
 };
 
 const TYPE_ICON: Record<string, typeof Landmark> = {
-  sight: Landmark, food: Utensils, hotel: BedDouble, transport: TrainFront,
-  shopping: ShoppingBag, activity: Compass,
+  sight: Landmark,
+  food: Utensils,
+  hotel: BedDouble,
+  transport: TrainFront,
+  shopping: ShoppingBag,
+  activity: Compass,
 };
 
 /** 路段交通方式：与 PlanView 同口径（服务端按用户所选方式算 legs） */
@@ -65,8 +92,10 @@ function fmtDate(iso: string | undefined): string {
  * 不能两个入口给出两套坐标系/参数。
  */
 function amapNavUrl(location: string, name: string): string {
-  return `https://uri.amap.com/navigation?to=${location},${encodeURIComponent(name)}`
-    + "&mode=car&policy=1&src=travelplanner&coordinate=gaode&callnative=1";
+  return (
+    `https://uri.amap.com/navigation?to=${location},${encodeURIComponent(name)}` +
+    "&mode=car&policy=1&src=travelplanner&coordinate=gaode&callnative=1"
+  );
 }
 
 /** 坏天气判定（与 lib/weather.ts 同口径；那边 server-only，客户端内联这一条正则） */
@@ -122,9 +151,8 @@ function TodayLeg({ leg }: { leg: PlanLeg }) {
     : null;
   // 人话格式：「步行 500 米 · 7 分钟」（方式与距离用空格，时长前用「·」分隔）
   const head = [modeLabel, distance].filter(Boolean).join(" ");
-  const summary = minutes !== null
-    ? (head ? `${head} · ${minutes} 分钟` : `${minutes} 分钟`)
-    : head;
+  const summary =
+    minutes !== null ? (head ? `${head} · ${minutes} 分钟` : `${minutes} 分钟`) : head;
   const steps = Array.isArray(leg.steps)
     ? leg.steps.filter((s) => typeof s === "string" && s.trim() !== "")
     : [];
@@ -141,7 +169,9 @@ function TodayLeg({ leg }: { leg: PlanLeg }) {
         <details className="today-leg-steps">
           <summary>分步指令</summary>
           <ol>
-            {steps.map((step, i) => <li key={i}>{step}</li>)}
+            {steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
           </ol>
         </details>
       )}
@@ -153,8 +183,12 @@ function TodayLeg({ leg }: { leg: PlanLeg }) {
 function TodayLinks({ shareId }: { shareId: string }) {
   return (
     <nav className="today-links" aria-label="页面导航">
-      <Link className="btn today-link" href={`/p/${shareId}`}>查看完整行程</Link>
-      <Link className="btn today-link today-link-home" href="/">回首页</Link>
+      <Link className="btn today-link" href={`/p/${shareId}`}>
+        查看完整行程
+      </Link>
+      <Link className="btn today-link today-link-home" href="/">
+        回首页
+      </Link>
     </nav>
   );
 }
@@ -259,9 +293,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       if (!r.ok) {
         setFix({
           status: "error",
-          error: typeof d?.error === "string" && d.error
-            ? d.error
-            : "改行程失败，请稍后重试",
+          error: typeof d?.error === "string" && d.error ? d.error : "改行程失败，请稍后重试",
         });
         return;
       }
@@ -296,8 +328,9 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
         const me = `${pos.coords.longitude},${pos.coords.latitude}`;
         const distances = spots
           .map((s) => ({ location: s.location, meters: distMeters(me, s.location) }))
-          .filter((x): x is { location: string; meters: number } =>
-            typeof x.location === "string" && x.meters !== null,
+          .filter(
+            (x): x is { location: string; meters: number } =>
+              typeof x.location === "string" && x.meters !== null,
           )
           .sort((a, b) => a.meters - b.meters);
         setLocate({ status: "done", distances });
@@ -327,9 +360,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                 这份行程没有可用的出发日期，判断不了今天是第几天
               </span>
             </div>
-            <p className="today-helper">
-              没有日期依据就不猜「今天」；打开完整行程可以看全部安排。
-            </p>
+            <p className="today-helper">没有日期依据就不猜「今天」；打开完整行程可以看全部安排。</p>
           </div>
         </section>
         <TodayLinks shareId={shareId} />
@@ -371,26 +402,22 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
         <section className="card today-hero">
           <div className="card-body">
             <p className="today-kicker">行中模式</p>
-            <h1 className="today-title">{city} · {days.length} 天行程</h1>
-            {viewPlan.startDate && (
-              <p className="today-sub">{fmtDate(viewPlan.startDate)} 出发</p>
-            )}
+            <h1 className="today-title">
+              {city} · {days.length} 天行程
+            </h1>
+            {viewPlan.startDate && <p className="today-sub">{fmtDate(viewPlan.startDate)} 出发</p>}
             <div className="today-status" role="status" aria-live="polite">
               <CalendarDays size={16} aria-hidden="true" />
               <span className="today-status-text">还有 {today.daysUntil} 天出发</span>
             </div>
-            <p className="today-helper">
-              出发当天打开这个页面，第一屏只有「今天怎么走」。
-            </p>
+            <p className="today-helper">出发当天打开这个页面，第一屏只有「今天怎么走」。</p>
           </div>
         </section>
 
         {firstDay && (
           <section className="card today-preview">
             <div className="card-body">
-              <h2 className="today-section-title">
-                第一天预览 · {firstDay.theme}
-              </h2>
+              <h2 className="today-section-title">第一天预览 · {firstDay.theme}</h2>
               {firstSpots.length > 0 ? (
                 <ol className="today-preview-list">
                   {firstSpots.map((s, i) => (
@@ -414,10 +441,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
 
   // ---------- 行程已结束：总结回顾 ----------
   if (today.kind === "after") {
-    const spotCount = days.reduce(
-      (n, d) => n + (Array.isArray(d.spots) ? d.spots.length : 0),
-      0,
-    );
+    const spotCount = days.reduce((n, d) => n + (Array.isArray(d.spots) ? d.spots.length : 0), 0);
     const totalCost = typeof viewPlan.totalCostCny === "number" ? viewPlan.totalCostCny : null;
     return (
       <div className="today-root">
@@ -440,20 +464,21 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
             {viewPlan.summary && <p className="today-summary">{viewPlan.summary}</p>}
             <div className="today-stats">
               <span className="today-stat">
-                <CalendarDays size={13} aria-hidden="true" />{days.length} 天
+                <CalendarDays size={13} aria-hidden="true" />
+                {days.length} 天
               </span>
               <span className="today-stat">
-                <MapPin size={13} aria-hidden="true" />{spotCount} 个行程点
+                <MapPin size={13} aria-hidden="true" />
+                {spotCount} 个行程点
               </span>
               {totalCost !== null && (
                 <span className="today-stat">
-                  <Wallet size={13} aria-hidden="true" />人均 ¥{totalCost.toLocaleString()}
+                  <Wallet size={13} aria-hidden="true" />
+                  人均 ¥{totalCost.toLocaleString()}
                 </span>
               )}
             </div>
-            <p className="today-helper">
-              这次行程已经走完；想看走过的全部安排，打开完整行程。
-            </p>
+            <p className="today-helper">这次行程已经走完；想看走过的全部安排，打开完整行程。</p>
           </div>
         </section>
         <TodayLinks shareId={shareId} />
@@ -523,8 +548,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       : typeof currentDay.transitMin === "number"
         ? `当天通勤约 ${Math.round(currentDay.transitMin / 6) / 10} 小时`
         : null;
-  const dailyCost =
-    typeof currentDay.dailyCostCny === "number" ? currentDay.dailyCostCny : null;
+  const dailyCost = typeof currentDay.dailyCostCny === "number" ? currentDay.dailyCostCny : null;
 
   /** 取某个点位离我的直线距离；没定位/没坐标/坐标非法 → null（不显示，不编） */
   const metersFor = (location: string | undefined): number | null => {
@@ -540,8 +564,12 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       <section className="card today-hero">
         <div className="card-body">
           <p className="today-kicker">行中模式</p>
-          <h1 className="today-title">{city} · 第 {dayNo} 天</h1>
-          <p className="today-sub">{currentDay.theme || "今日安排"} · {fmtDate(clock.todayIso)}</p>
+          <h1 className="today-title">
+            {city} · 第 {dayNo} 天
+          </h1>
+          <p className="today-sub">
+            {currentDay.theme || "今日安排"} · {fmtDate(clock.todayIso)}
+          </p>
           <div className="today-status today-status-during" role="status" aria-live="polite">
             <span className="today-status-text">{statusText}</span>
           </div>
@@ -553,7 +581,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       <section className="card today-weather">
         <div className="card-body">
           <h2 className="today-section-title">
-            <CloudRain size={16} aria-hidden="true" />今天天气
+            <CloudRain size={16} aria-hidden="true" />
+            今天天气
           </h2>
 
           {weather.status === "idle" && (
@@ -563,18 +592,22 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
               aria-label="查看今天天气"
               onClick={() => void checkWeather()}
             >
-              <CloudRain size={14} aria-hidden="true" />查看今天天气
+              <CloudRain size={14} aria-hidden="true" />
+              查看今天天气
             </button>
           )}
 
           {weather.status === "loading" && (
             <p className="today-helper" role="status">
-              <Loader2 size={14} className="spin" aria-hidden="true" />天气查询中…
+              <Loader2 size={14} className="spin" aria-hidden="true" />
+              天气查询中…
             </p>
           )}
 
           {weather.status === "unavailable" && (
-            <p className="today-degrade" role="status">{weather.reason}</p>
+            <p className="today-degrade" role="status">
+              {weather.reason}
+            </p>
           )}
 
           {weather.status === "done" && (
@@ -631,7 +664,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
               )}
               {fix.status === "error" && (
                 <p className="today-fix-error" role="alert">
-                  <AlertTriangle size={14} aria-hidden="true" />{fix.error}
+                  <AlertTriangle size={14} aria-hidden="true" />
+                  {fix.error}
                 </p>
               )}
             </>
@@ -644,7 +678,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
         <section className="card today-locate">
           <div className="card-body">
             <h2 className="today-section-title">
-              <MapPin size={16} aria-hidden="true" />定位与距离
+              <MapPin size={16} aria-hidden="true" />
+              定位与距离
             </h2>
             <button
               type="button"
@@ -655,16 +690,20 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
             >
               {locate.status === "locating" ? (
                 <>
-                  <Loader2 size={14} className="spin" aria-hidden="true" />定位中…
+                  <Loader2 size={14} className="spin" aria-hidden="true" />
+                  定位中…
                 </>
               ) : (
                 <>
-                  <MapPin size={14} aria-hidden="true" />离我多远
+                  <MapPin size={14} aria-hidden="true" />
+                  离我多远
                 </>
               )}
             </button>
             {locate.status === "error" && (
-              <p className="today-degrade" role="status">{locate.reason}</p>
+              <p className="today-degrade" role="status">
+                {locate.reason}
+              </p>
             )}
             {locate.status === "done" && locate.distances.length === 0 && (
               <p className="today-degrade" role="status">
@@ -684,7 +723,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       <section className="card today-timeline">
         <div className="card-body">
           <h2 className="today-section-title">
-            <CalendarDays size={16} aria-hidden="true" />今日时间轴
+            <CalendarDays size={16} aria-hidden="true" />
+            今日时间轴
           </h2>
 
           {spots.length === 0 ? (
@@ -739,22 +779,31 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                     {s.poi && (
                       <div className="poi-chips">
                         {s.poi.rating !== undefined && (
-                          <span className="poi-chip poi-chip-rating" title="高德真实评分">★ {s.poi.rating.toFixed(1)}</span>
+                          <span className="poi-chip poi-chip-rating" title="高德真实评分">
+                            ★ {s.poi.rating.toFixed(1)}
+                          </span>
                         )}
                         {s.poi.temporarilyClosed && (
-                          <span className="poi-chip poi-chip-closed" title="高德显示该地点暂停开放">暂停开放</span>
+                          <span className="poi-chip poi-chip-closed" title="高德显示该地点暂停开放">
+                            暂停开放
+                          </span>
                         )}
                         {(() => {
                           const hoursText = formatHoursShort(s.poi);
                           if (!hoursText) return null;
                           return (
-                            <span className="poi-chip" title={s.poi?.openTime2 || s.poi?.openTime || "高德营业时间"}>
+                            <span
+                              className="poi-chip"
+                              title={s.poi?.openTime2 || s.poi?.openTime || "高德营业时间"}
+                            >
                               营业 {hoursText}
                             </span>
                           );
                         })()}
                         {s.type === "food" && s.poi.avgCostCny !== undefined && (
-                          <span className="poi-chip" title="高德人均参考价（非本行程预算）">人均参考 ¥{s.poi.avgCostCny}</span>
+                          <span className="poi-chip" title="高德人均参考价（非本行程预算）">
+                            人均参考 ¥{s.poi.avgCostCny}
+                          </span>
                         )}
                       </div>
                     )}
@@ -776,7 +825,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                             rel="noopener noreferrer"
                             aria-label={`导航到${s.name}`}
                           >
-                            <Navigation size={12} aria-hidden="true" />导航到这里
+                            <Navigation size={12} aria-hidden="true" />
+                            导航到这里
                           </a>
                         )}
                         {meters !== null && (
@@ -796,15 +846,18 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
           <p className="today-foot">
             {dailyCost !== null && (
               <span className="today-foot-item">
-                <Wallet size={13} aria-hidden="true" />今日人均 ¥{dailyCost.toLocaleString()}
+                <Wallet size={13} aria-hidden="true" />
+                今日人均 ¥{dailyCost.toLocaleString()}
               </span>
             )}
             <span className="today-foot-item">
-              <MapPin size={13} aria-hidden="true" />{spots.length} 个行程点
+              <MapPin size={13} aria-hidden="true" />
+              {spots.length} 个行程点
             </span>
             {transitText && (
               <span className="today-foot-item">
-                <TrainFront size={13} aria-hidden="true" />{transitText}
+                <TrainFront size={13} aria-hidden="true" />
+                {transitText}
               </span>
             )}
           </p>

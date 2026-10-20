@@ -100,7 +100,13 @@ describe("fitView（视野拟合）", () => {
   });
 
   it("空数组 / 全是非法坐标：返回成都默认中心，不抛错", () => {
-    for (const points of [[], [{ lng: NaN, lat: 30 }, { lng: 104, lat: Infinity }] as MapPoint[]]) {
+    for (const points of [
+      [],
+      [
+        { lng: NaN, lat: 30 },
+        { lng: 104, lat: Infinity },
+      ] as MapPoint[],
+    ]) {
       const view = fitView(points, 720, 400);
       expect(view.center.lng).toBeCloseTo(DEFAULT_CENTER.lng, 10);
       expect(view.center.lat).toBeCloseTo(DEFAULT_CENTER.lat, 10);
@@ -192,8 +198,24 @@ describe("projectPixels（覆盖层像素投影）", () => {
   });
 
   it("zoom 每 +1，同一经度差对应的像素距离翻倍", () => {
-    const at10 = projectPixels([{ lng: 0, lat: 0 }, { lng: 0.01, lat: 0 }], { center: { lng: 0, lat: 0 }, zoom: 10 }, 720, 400);
-    const at11 = projectPixels([{ lng: 0, lat: 0 }, { lng: 0.01, lat: 0 }], { center: { lng: 0, lat: 0 }, zoom: 11 }, 720, 400);
+    const at10 = projectPixels(
+      [
+        { lng: 0, lat: 0 },
+        { lng: 0.01, lat: 0 },
+      ],
+      { center: { lng: 0, lat: 0 }, zoom: 10 },
+      720,
+      400,
+    );
+    const at11 = projectPixels(
+      [
+        { lng: 0, lat: 0 },
+        { lng: 0.01, lat: 0 },
+      ],
+      { center: { lng: 0, lat: 0 }, zoom: 11 },
+      720,
+      400,
+    );
     expect(at11[1].x - at11[0].x).toBeCloseTo((at10[1].x - at10[0].x) * 2, 6);
   });
 
@@ -217,7 +239,7 @@ describe("projectPixels（覆盖层像素投影）", () => {
 });
 
 describe("parseLocText（高德 location 字段解析）", () => {
-  it("合法 \"lng,lat\"（含负数、空白）", () => {
+  it('合法 "lng,lat"（含负数、空白）', () => {
     expect(parseLocText("104.0665,30.5728")).toEqual({ lng: 104.0665, lat: 30.5728 });
     expect(parseLocText(" -122.4194 , 37.7749 ")).toEqual({ lng: -122.4194, lat: 37.7749 });
     expect(parseLocText("0,0")).toEqual({ lng: 0, lat: 0 });
@@ -249,7 +271,6 @@ describe("parseLocText（高德 location 字段解析）", () => {
     expect(parseLocText(`180,${MAX_MERCATOR_LAT}`)).not.toBeNull();
   });
 });
-
 
 describe("isValidPoint", () => {
   it("有限数且在合法范围才为 true", () => {

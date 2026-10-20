@@ -26,8 +26,12 @@ import {
 
 /** 每种行程点的语义色，与 RouteMap 的 TYPE_COLOR 保持一致（改色两边一起改） */
 const TYPE_COLOR: Record<string, string> = {
-  sight: "#38bdf8", food: "#fbbf24", hotel: "#a78bfa", transport: "#94a3b8",
-  shopping: "#f472b6", activity: "#34d399",
+  sight: "#38bdf8",
+  food: "#fbbf24",
+  hotel: "#a78bfa",
+  transport: "#94a3b8",
+  shopping: "#f472b6",
+  activity: "#34d399",
 };
 
 const DESIGN_W = 720;
@@ -56,7 +60,8 @@ export interface RealMapProps {
 
 /** 请求尺寸：贴近实际 CSS 宽度，viewBox 单位≈CSS 像素（手机上字不会被缩得看不清） */
 function sizeFor(containerWidth: number): { w: number; h: number } {
-  const measured = Number.isFinite(containerWidth) && containerWidth > 0 ? containerWidth : DESIGN_W;
+  const measured =
+    Number.isFinite(containerWidth) && containerWidth > 0 ? containerWidth : DESIGN_W;
   const w = Math.round(Math.max(MIN_W, Math.min(MAX_W, measured)));
   // 保持 720×400 比例，并夹到 /api/map 允许的区间：
   // 两端必须算出一模一样的 w/h，否则服务端按 A 尺寸拟合、客户端按 B 尺寸投影 → 标记漂移
@@ -80,7 +85,12 @@ interface LabelPlacement {
  * 站名标签摆放：默认在圆点上方（奇数站放下方，减少相邻标签重叠），
  * 贴边时切换 text-anchor / 钳制坐标，保证在 viewBox 内不被裁切。
  */
-function placeLabel(p: { x: number; y: number }, index: number, w: number, h: number): LabelPlacement {
+function placeLabel(
+  p: { x: number; y: number },
+  index: number,
+  w: number,
+  h: number,
+): LabelPlacement {
   let above = index % 2 === 0;
   if (above && p.y < 30) above = false; // 靠顶边放不下，改下方
   if (!above && p.y > h - 28) above = true; // 靠底边也放不下，改上方
@@ -112,9 +122,7 @@ export function RealMap({ points, label, fallback, className }: RealMapProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   // 逐站解析坐标，只保留合法的：地图画能定位的站，不因为一站没坐标就整张图作废
-  const located = useMemo<
-    Array<{ name: string; type: string; point: MapPoint }>
-  >(
+  const located = useMemo<Array<{ name: string; type: string; point: MapPoint }>>(
     () =>
       (points ?? []).flatMap((p) => {
         const point = parseLocText(p.location);
@@ -156,11 +164,23 @@ export function RealMap({ points, label, fallback, className }: RealMapProps) {
   }, [located.length]);
 
   const view = useMemo<MapView>(
-    () => fitView(located.map((s) => s.point), size.w, size.h, DEFAULT_PADDING),
+    () =>
+      fitView(
+        located.map((s) => s.point),
+        size.w,
+        size.h,
+        DEFAULT_PADDING,
+      ),
     [located, size.w, size.h],
   );
   const pixels = useMemo(
-    () => projectPixels(located.map((s) => s.point), view, size.w, size.h),
+    () =>
+      projectPixels(
+        located.map((s) => s.point),
+        view,
+        size.w,
+        size.h,
+      ),
     [located, view, size.w, size.h],
   );
   const locText = useMemo(
@@ -177,13 +197,7 @@ export function RealMap({ points, label, fallback, className }: RealMapProps) {
 
   // 坐标不足 2 个：画不出路线，退回 fallback（不假装有地图）
   if (located.length < 2) {
-    return (
-      <>
-        {fallback ?? (
-          <DefaultFallback text="本日可用坐标不足 2 个，无法绘制真实地图" />
-        )}
-      </>
-    );
+    return <>{fallback ?? <DefaultFallback text="本日可用坐标不足 2 个，无法绘制真实地图" />}</>;
   }
 
   // 超过接口上限：不发注定 400 的请求，直接降级并说明原因
@@ -274,7 +288,14 @@ export function RealMap({ points, label, fallback, className }: RealMapProps) {
                     strokeWidth="2.4"
                     style={{ fill: "var(--surface-solid)" }}
                   />
-                  <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill={color}>
+                  <text
+                    x={p.x}
+                    y={p.y + 4}
+                    textAnchor="middle"
+                    fontSize="12"
+                    fontWeight="700"
+                    fill={color}
+                  >
                     {i + 1}
                   </text>
                   <text

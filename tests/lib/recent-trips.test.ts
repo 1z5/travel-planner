@@ -38,14 +38,17 @@ describe("loadRecentTrips", () => {
   });
 
   it("逐条过滤脏数据，好条目保留", () => {
-    window.localStorage.setItem(KEY, JSON.stringify([
-      base({ shareId: "share_good1" }),
-      { shareId: "too_short" },                       // shareId 太短
-      { ...base(), days: "3" },                       // days 类型错
-      { ...base(), city: "" },                        // 空城市
-      { ...base(), createdAt: "yesterday" },          // 时间戳类型错
-      base({ shareId: "share_good2" }),
-    ]));
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify([
+        base({ shareId: "share_good1" }),
+        { shareId: "too_short" }, // shareId 太短
+        { ...base(), days: "3" }, // days 类型错
+        { ...base(), city: "" }, // 空城市
+        { ...base(), createdAt: "yesterday" }, // 时间戳类型错
+        base({ shareId: "share_good2" }),
+      ]),
+    );
     const list = loadRecentTrips();
     expect(list.map((x) => x.shareId)).toEqual(["share_good1", "share_good2"]);
   });
@@ -84,7 +87,9 @@ describe("saveRecentTrip", () => {
     // 模拟 QuotaExceededError
     Object.defineProperty(window.localStorage, "setItem", {
       configurable: true,
-      value: () => { throw new Error("QuotaExceededError"); },
+      value: () => {
+        throw new Error("QuotaExceededError");
+      },
     });
     expect(() => saveRecentTrip(base())).not.toThrow();
     Object.defineProperty(window.localStorage, "setItem", {

@@ -79,8 +79,10 @@ async function verify() {
       const d3 = await (await fetch(url3)).json();
       const meters = Number(d3?.route?.paths?.[0]?.distance);
       if (Number.isFinite(meters) && meters > 0) {
-        const minutes = Math.round(meters / 1000 / 22 * 60 + 8);
-        console.log(`✅ 通勤矩阵可用：武侯祠→杜甫草堂 ${(meters / 1000).toFixed(1)}km ≈ ${minutes} 分钟（应用同款换算）`);
+        const minutes = Math.round((meters / 1000 / 22) * 60 + 8);
+        console.log(
+          `✅ 通勤矩阵可用：武侯祠→杜甫草堂 ${(meters / 1000).toFixed(1)}km ≈ ${minutes} 分钟（应用同款换算）`,
+        );
         pass += 1;
       } else {
         console.log(`❌ 距离矩阵失败: status=${d3.status} info=${d3.info}`);

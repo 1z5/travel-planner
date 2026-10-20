@@ -90,7 +90,14 @@ interface DateCtx {
 // ---------- 常量 ----------
 
 const WEEK_CHARS: Record<string, number> = {
-  一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7,
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  日: 7,
+  天: 7,
 };
 const WEEK_LABEL = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 /** formatHoursShort 的输出上限：UI 展示用，太长就不显示（宁可没有也不能挤爆卡片） */
@@ -100,10 +107,8 @@ const RAW_REASON_MAX = 36;
 
 // 时间窗口：HH:MM-HH:MM（冒号全/半角，连接符覆盖 - — – ~ ～ 至 到）。
 // 必须带冒号，避免和日期段（MM-DD、MM/DD、M月D日）混淆。
-const WINDOW_RE =
-  /(\d{1,2})\s*[:：]\s*(\d{2})\s*[-—–~～至到]\s*(\d{1,2})\s*[:：]\s*(\d{2})/g;
-const WINDOW_AT_RE =
-  /(\d{1,2})\s*[:：]\s*(\d{2})\s*[-—–~～至到]\s*(\d{1,2})\s*[:：]\s*(\d{2})/;
+const WINDOW_RE = /(\d{1,2})\s*[:：]\s*(\d{2})\s*[-—–~～至到]\s*(\d{1,2})\s*[:：]\s*(\d{2})/g;
+const WINDOW_AT_RE = /(\d{1,2})\s*[:：]\s*(\d{2})\s*[-—–~～至到]\s*(\d{1,2})\s*[:：]\s*(\d{2})/;
 const ALL_DAY_RE = /24\s*小时(?:营业|开放)?|全天(?:开放|营业)|全天候/;
 
 // 日期段（按「分句前缀」语义）：支持 MM/DD-MM/DD、M月D日-M月D日、MM-DD至MM-DD。
@@ -609,19 +614,28 @@ function evaluate(
     if (startMin < first.start) {
       return {
         state: "outside",
-        reason: withCaveat(`营业时间 ${text}；${fmtMin(first.start)} 才开门，你 ${fmtMin(startMin)} 到`, parsed.caveat),
+        reason: withCaveat(
+          `营业时间 ${text}；${fmtMin(first.start)} 才开门，你 ${fmtMin(startMin)} 到`,
+          parsed.caveat,
+        ),
       };
     }
     if (startMin >= last.end) {
       return {
         state: "outside",
-        reason: withCaveat(`营业时间 ${text}；${fmtMin(last.end)} 已关门，你 ${fmtMin(startMin)} 到`, parsed.caveat),
+        reason: withCaveat(
+          `营业时间 ${text}；${fmtMin(last.end)} 已关门，你 ${fmtMin(startMin)} 到`,
+          parsed.caveat,
+        ),
       };
     }
     // 落在两个营业时段之间（如午休闭店、日场与夜游之间清场）
     return {
       state: "outside",
-      reason: withCaveat(`营业时间 ${text}，你 ${fmtMin(startMin)} 到，不在营业时段内`, parsed.caveat),
+      reason: withCaveat(
+        `营业时间 ${text}，你 ${fmtMin(startMin)} 到，不在营业时段内`,
+        parsed.caveat,
+      ),
     };
   }
 
@@ -747,9 +761,10 @@ export function formatHoursShort(
       const dayPrefix =
         rule.weekdays && rule.weekdays.size < 7 ? `${weekdaySummary(rule.weekdays)} ` : "";
       const single = rule.windows.length === 1 ? rule.windows[0] : null;
-      const winText = single && single.start === 0 && single.end === 1440
-        ? "全天开放"
-        : windowsText(rule.windows);
+      const winText =
+        single && single.start === 0 && single.end === 1440
+          ? "全天开放"
+          : windowsText(rule.windows);
       let part = `${dayPrefix}${winText}`;
       if (rule.lastEntry !== null) part += `，最晚进入 ${fmtMin(rule.lastEntry)}`;
       parts.push(part);

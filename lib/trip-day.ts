@@ -24,10 +24,10 @@ function isRealDate(s: string): boolean {
 }
 
 export type TripToday =
-  | { kind: "unknown" }                    // 没有/非法 startDate——不高亮，不猜
-  | { kind: "before"; daysUntil: number }  // 还没出发
-  | { kind: "after" }                      // 已结束
-  | { kind: "during"; dayIndex: number };  // 今天 = 行程第 dayIndex+1 天（0 基，索引进 plan.days）
+  | { kind: "unknown" } // 没有/非法 startDate——不高亮，不猜
+  | { kind: "before"; daysUntil: number } // 还没出发
+  | { kind: "after" } // 已结束
+  | { kind: "during"; dayIndex: number }; // 今天 = 行程第 dayIndex+1 天（0 基，索引进 plan.days）
 
 /**
  * 算「今天」在行程里的位置。
@@ -35,11 +35,7 @@ export type TripToday =
  * @param today     今天的日历日 "YYYY-MM-DD"（调用方按本地时区给出）
  * @param days      行程总天数（plan.days.length）
  */
-export function tripToday(
-  startDate: string | undefined,
-  today: string,
-  days: number,
-): TripToday {
+export function tripToday(startDate: string | undefined, today: string, days: number): TripToday {
   if (
     !startDate ||
     !isRealDate(startDate) ||
@@ -86,20 +82,17 @@ function parseRange(time: string): { start: number; end: number } | null {
 }
 
 export type SpotNow =
-  | { kind: "now"; index: number }    // 现在在进行第 index 个点
-  | { kind: "next"; index: number }   // 下一站是第 index 个点
-  | { kind: "done" }                  // 今天的点都结束了
-  | { kind: "none" };                 // 没有可解析的时间（不猜）
+  | { kind: "now"; index: number } // 现在在进行第 index 个点
+  | { kind: "next"; index: number } // 下一站是第 index 个点
+  | { kind: "done" } // 今天的点都结束了
+  | { kind: "none" }; // 没有可解析的时间（不猜）
 
 /**
  * 算「现在」在进行哪个行程点 / 下一站是哪个。
  * @param spots  当天的行程点（读 time 字段）
  * @param nowMin 当前时间的分钟数（0-1439，调用方按本地时分给出）
  */
-export function spotNow(
-  spots: readonly { time: string }[],
-  nowMin: number,
-): SpotNow {
+export function spotNow(spots: readonly { time: string }[], nowMin: number): SpotNow {
   const parsed: Array<{ i: number; r: { start: number; end: number } }> = [];
   spots.forEach((s, i) => {
     const r = parseRange(s.time);

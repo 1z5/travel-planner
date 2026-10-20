@@ -36,13 +36,15 @@ const server = createServer((req, res) => {
       return;
     }
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      access_token: "stub_token",
-      expires_in: 7200,
-      refresh_token: "stub_refresh",
-      openid: "stub_openid_001",
-      scope: "snsapi_base",
-    }));
+    res.end(
+      JSON.stringify({
+        access_token: "stub_token",
+        expires_in: 7200,
+        refresh_token: "stub_refresh",
+        openid: "stub_openid_001",
+        scope: "snsapi_base",
+      }),
+    );
     return;
   }
 

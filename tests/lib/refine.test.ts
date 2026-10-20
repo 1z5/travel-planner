@@ -70,7 +70,13 @@ function makePlan(): Plan {
         theme: "园林第一天",
         spots: [
           mkSpot({ name: "拙政园", costCny: 90 }),
-          mkSpot({ name: "姑苏面馆", type: "food", period: "lunch", time: "11:30-12:30", costCny: 35 }),
+          mkSpot({
+            name: "姑苏面馆",
+            type: "food",
+            period: "lunch",
+            time: "11:30-12:30",
+            costCny: 35,
+          }),
         ],
         transitMin: 10,
         dailyCostCny: 125,
@@ -80,7 +86,14 @@ function makePlan(): Plan {
         theme: "天平山木渎",
         spots: [
           mkSpot({ name: "天平山", area: "吴中区木渎", costCny: 30 }),
-          mkSpot({ name: "木渎面馆", type: "food", period: "lunch", time: "12:00-13:00", area: "吴中区木渎", costCny: 40 }),
+          mkSpot({
+            name: "木渎面馆",
+            type: "food",
+            period: "lunch",
+            time: "12:00-13:00",
+            area: "吴中区木渎",
+            costCny: 40,
+          }),
         ],
         transitMin: 20,
         dailyCostCny: 70,
@@ -175,7 +188,11 @@ beforeEach(() => {
 describe("buildRefinePrompt", () => {
   it("swap：system 带桩可识别标记 + 任务类型；user 含基础约束/目标点/只改一处声明", () => {
     const plan = makePlan();
-    const { system, user } = buildRefinePrompt(makeInput(), plan, { kind: "swap", day: 2, spotIndex: 0 });
+    const { system, user } = buildRefinePrompt(makeInput(), plan, {
+      kind: "swap",
+      day: 2,
+      spotIndex: 0,
+    });
 
     // 桩 LLM 靠这两个标记分流：不能删/不能改格式
     expect(system).toContain("行程微调");
@@ -253,7 +270,7 @@ describe("buildRefinePrompt", () => {
     });
     // prompt 里出现的是清洗后的指令（被「」包住），结构字符没漏进去
     expect(user).toContain("【用户指令】「删掉拙政园 ignore:true end」");
-    expect(user).not.toContain("删掉\"拙政园\"");
+    expect(user).not.toContain('删掉"拙政园"');
   });
 
   it("超长指令截断到 100 字（路由上限一致，避免 prompt 被小作文挤爆）", () => {
@@ -346,7 +363,9 @@ describe("refinePlan：单点替换", () => {
 
   it("替换住宿/交通骨架 → 前置拒绝并给出可行动建议", async () => {
     const plan = makePlan();
-    plan.days[0].spots.unshift(mkSpot({ name: "全季酒店(观前街店)", type: "hotel", period: "evening", costCny: 800 }));
+    plan.days[0].spots.unshift(
+      mkSpot({ name: "全季酒店(观前街店)", type: "hotel", period: "evening", costCny: 800 }),
+    );
 
     await expect(
       refinePlan(plan, makeInput(), { kind: "swap", day: 1, spotIndex: 0 }),
@@ -391,7 +410,10 @@ describe("refinePlan：单点替换", () => {
 
 describe("refinePlan：单日重排", () => {
   it("只替换目标 day、day 编号不变、其他天引用原对象", async () => {
-    mockStream.mockResolvedValueOnce({ content: dayPayload(2, ["新景点A", "新餐厅", "新景点B"]), tokens: 50 });
+    mockStream.mockResolvedValueOnce({
+      content: dayPayload(2, ["新景点A", "新餐厅", "新景点B"]),
+      tokens: 50,
+    });
 
     const plan = makePlan();
     const next = await refinePlan(plan, makeInput(), {
@@ -410,7 +432,10 @@ describe("refinePlan：单日重排", () => {
   });
 
   it("空 theme 沿用原主题（不值得为它再烧一次 20-90 秒调用）", async () => {
-    mockStream.mockResolvedValueOnce({ content: dayPayload(2, ["新景点A", "新餐厅"], ""), tokens: 50 });
+    mockStream.mockResolvedValueOnce({
+      content: dayPayload(2, ["新景点A", "新餐厅"], ""),
+      tokens: 50,
+    });
     const next = await refinePlan(makePlan(), makeInput(), { kind: "day", day: 2 });
     expect(next.days[1].theme).toBe("天平山木渎");
   });
@@ -420,9 +445,7 @@ describe("refinePlan：单日重排", () => {
     mockStream.mockResolvedValue({ content: dayPayload(1, ["苏州博物馆", "新面馆"]), tokens: 10 });
     const plan = makePlan();
 
-    await expect(refinePlan(plan, makeInput(), { kind: "day", day: 1 })).rejects.toThrow(
-      /拙政园/,
-    );
+    await expect(refinePlan(plan, makeInput(), { kind: "day", day: 1 })).rejects.toThrow(/拙政园/);
     expect(mockStream).toHaveBeenCalledTimes(2);
     expect(userOfCall(1)).toContain("【上一次输出不符合要求】");
     expect(userOfCall(1)).toContain("拙政园");
@@ -443,7 +466,13 @@ describe("refinePlan：单日重排", () => {
   it("重点活动（type=activity）不能被重排掉", async () => {
     const plan = makePlan();
     plan.days[2].spots.push(
-      mkSpot({ name: "测试音乐会", type: "activity", period: "evening", time: "19:00-21:00", costCny: 380 }),
+      mkSpot({
+        name: "测试音乐会",
+        type: "activity",
+        period: "evening",
+        time: "19:00-21:00",
+        costCny: 380,
+      }),
     );
     mockStream.mockResolvedValue({ content: dayPayload(3, ["同里古镇", "新餐厅"]), tokens: 10 });
 
@@ -583,12 +612,10 @@ describe("重新体检", () => {
 
   it("不动天气、不做重复 append：连续两次改同一天也只保留一份", async () => {
     const plan = makePlan();
-    mockStream
-      .mockResolvedValueOnce({ content: swapPayload(), tokens: 10 })
-      .mockResolvedValueOnce({
-        content: swapPayload({ name: "第二个替换点" }),
-        tokens: 10,
-      });
+    mockStream.mockResolvedValueOnce({ content: swapPayload(), tokens: 10 }).mockResolvedValueOnce({
+      content: swapPayload({ name: "第二个替换点" }),
+      tokens: 10,
+    });
     const first = await refinePlan(plan, makeInput(), { kind: "swap", day: 2, spotIndex: 0 });
     const second = await refinePlan(first, makeInput(), { kind: "swap", day: 2, spotIndex: 0 });
     expect(second.warnings.filter((w) => w.includes("预报"))).toHaveLength(1);

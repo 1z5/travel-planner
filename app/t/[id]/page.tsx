@@ -40,11 +40,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function TodayPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function TodayPage({ params }: { params: Promise<{ id: string }> }) {
   // Next 16：params 是 Promise，必须 await（与 /p/[id] 一致）
   const { id } = await params;
   const plan = await getPlan(id);

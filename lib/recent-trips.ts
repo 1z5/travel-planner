@@ -16,12 +16,12 @@ const MAX_ENTRIES = 20;
 
 /** 一条「最近行程」索引。刻意只存展示用的轻量字段，完整行程在服务端。 */
 export interface RecentTrip {
-  shareId: string;      // 分享 token（服务端 Plan 主键）
+  shareId: string; // 分享 token（服务端 Plan 主键）
   city: string;
   days: number;
-  startDate?: string;   // "YYYY-MM-DD"，用于展示日期与排序兜底
-  summary?: string;     // 一句话概览（列表里给点上下文）
-  createdAt: number;    // 首次生成/打开的毫秒时间戳
+  startDate?: string; // "YYYY-MM-DD"，用于展示日期与排序兜底
+  summary?: string; // 一句话概览（列表里给点上下文）
+  createdAt: number; // 首次生成/打开的毫秒时间戳
 }
 
 function hasWindow(): boolean {
@@ -33,12 +33,21 @@ function isRecentTrip(v: unknown): v is RecentTrip {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;
   return (
-    typeof r.shareId === "string" && r.shareId.length >= 6 && r.shareId.length <= 64
-    && typeof r.city === "string" && r.city.length > 0 && r.city.length <= 40
-    && typeof r.days === "number" && Number.isFinite(r.days) && r.days >= 1 && r.days <= 30
-    && (r.startDate === undefined || (typeof r.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.startDate)))
-    && (r.summary === undefined || typeof r.summary === "string")
-    && typeof r.createdAt === "number" && Number.isFinite(r.createdAt)
+    typeof r.shareId === "string" &&
+    r.shareId.length >= 6 &&
+    r.shareId.length <= 64 &&
+    typeof r.city === "string" &&
+    r.city.length > 0 &&
+    r.city.length <= 40 &&
+    typeof r.days === "number" &&
+    Number.isFinite(r.days) &&
+    r.days >= 1 &&
+    r.days <= 30 &&
+    (r.startDate === undefined ||
+      (typeof r.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.startDate))) &&
+    (r.summary === undefined || typeof r.summary === "string") &&
+    typeof r.createdAt === "number" &&
+    Number.isFinite(r.createdAt)
   );
 }
 

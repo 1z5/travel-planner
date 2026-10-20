@@ -76,9 +76,7 @@ const BodySchema = z
     ),
     // fix 必填：修复类型。枚举与 lib/fix-actions.ts 的 FIX_KINDS 同源，避免两处漂移。
     // 未知取值由 zod 统一挡成 400（文案列出全部合法值，便于排查）。
-    fixKind: z
-      .enum(FIX_KINDS, { message: `fixKind 只能是 ${FIX_KINDS.join(" / ")}` })
-      .optional(),
+    fixKind: z.enum(FIX_KINDS, { message: `fixKind 只能是 ${FIX_KINDS.join(" / ")}` }).optional(),
   })
   .refine((d) => d.action !== "swap" || d.spotIndex !== undefined, {
     message: "「换一个」需要 spotIndex",
@@ -109,7 +107,7 @@ const BodySchema = z
   })
   // fixKind 只属于 fix 动作；day 传了说明前端没切对 action
   .refine((d) => d.action !== "day" || d.fixKind === undefined, {
-    message: "「重排这一天」不支持 fixKind，请改用 action=\"fix\"",
+    message: '「重排这一天」不支持 fixKind，请改用 action="fix"',
     path: ["fixKind"],
   });
 
@@ -232,10 +230,7 @@ export async function POST(req: NextRequest) {
     }
     // 体检/未知异常：不透出内部细节，只给可行动信息
     console.error(`[refine] ${shareId} 未预期失败: ${(e as Error)?.message ?? e}`);
-    return NextResponse.json(
-      { error: "改行程失败：服务暂时不可用，请稍后重试" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "改行程失败：服务暂时不可用，请稍后重试" }, { status: 502 });
   }
 
   // 6) 落库（revision+1，分享页/.ics/OG 会自动读到新 plan）。null = 链接刚被删掉

@@ -59,9 +59,9 @@ function parseSuggestion(value: unknown): CopilotSuggestion | undefined {
     return { kind: "retime", day: v.day, label: v.label };
   }
   if (
-    v.kind === "fix"
-    && typeof v.fixKind === "string"
-    && (FIX_KINDS as readonly string[]).includes(v.fixKind)
+    v.kind === "fix" &&
+    typeof v.fixKind === "string" &&
+    (FIX_KINDS as readonly string[]).includes(v.fixKind)
   ) {
     return {
       kind: "fix",
@@ -184,19 +184,19 @@ export function PlanCopilot({ shareId, onSuggestion }: PlanCopilotProps) {
   async function applySuggestion(messageId: number, suggestion: CopilotSuggestion) {
     if (!onSuggestion) return;
     setSuggestionError("");
-    setMessages((prev) => prev.map((m) => (
-      m.id === messageId ? { ...m, suggestionState: "pending" } : m
-    )));
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, suggestionState: "pending" } : m)),
+    );
     try {
       await onSuggestion(suggestion);
-      setMessages((prev) => prev.map((m) => (
-        m.id === messageId ? { ...m, suggestionState: "done" } : m
-      )));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, suggestionState: "done" } : m)),
+      );
     } catch {
       // 交给外层执行失败：恢复可点，并如实报错，不显示「已交给」
-      setMessages((prev) => prev.map((m) => (
-        m.id === messageId ? { ...m, suggestionState: "idle" } : m
-      )));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, suggestionState: "idle" } : m)),
+      );
       setSuggestionError("交给行程修改失败，请重试");
     }
   }
@@ -283,9 +283,7 @@ export function PlanCopilot({ shareId, onSuggestion }: PlanCopilotProps) {
               const hasHandler = typeof onSuggestion === "function";
               return (
                 <div key={m.id} className={`copilot-msg copilot-msg-${m.role}`}>
-                  <span className="copilot-msg-role">
-                    {m.role === "user" ? "你" : "行程管家"}
-                  </span>
+                  <span className="copilot-msg-role">{m.role === "user" ? "你" : "行程管家"}</span>
                   {/* 纯文本渲染：服务端答案是文本，绝不能当 HTML 注入 */}
                   <p className="copilot-msg-text">{m.content}</p>
                   {m.suggestion && (
@@ -328,8 +326,16 @@ export function PlanCopilot({ shareId, onSuggestion }: PlanCopilotProps) {
             )}
           </div>
 
-          {error && <p className="copilot-error" role="alert">{error}</p>}
-          {suggestionError && <p className="copilot-error" role="alert">{suggestionError}</p>}
+          {error && (
+            <p className="copilot-error" role="alert">
+              {error}
+            </p>
+          )}
+          {suggestionError && (
+            <p className="copilot-error" role="alert">
+              {suggestionError}
+            </p>
+          )}
 
           <form
             className="copilot-form"

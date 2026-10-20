@@ -30,7 +30,9 @@ describe("RouteMap", () => {
 
   it("暗色主题：底与圆点用 var(--surface-solid)（不再用亮蓝渐变）", () => {
     const { container } = render(<RouteMap stops={stops} />);
-    expect(container.querySelector("rect")?.getAttribute("style")).toContain("var(--surface-solid)");
+    expect(container.querySelector("rect")?.getAttribute("style")).toContain(
+      "var(--surface-solid)",
+    );
     expect(stationDots(container)[0]?.getAttribute("style")).toContain("var(--surface-solid)");
   });
 

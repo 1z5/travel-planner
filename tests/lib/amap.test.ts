@@ -50,14 +50,16 @@ function useRouter(opts: RouterOpts = {}) {
       if (kw.includes("查无此")) return res({ status: "1", pois: [] });
       return res({
         status: "1",
-        pois: [{
-          name: kw,
-          address: "测试地址",
-          location: "120.620000,31.320000",
-          adname: "姑苏区",
-          // 详情字段展开在最后：detailsFor 里可覆盖 name / 注入 biz_ext、tel 等
-          ...(opts.detailsFor?.[kw] ?? {}),
-        }],
+        pois: [
+          {
+            name: kw,
+            address: "测试地址",
+            location: "120.620000,31.320000",
+            adname: "姑苏区",
+            // 详情字段展开在最后：detailsFor 里可覆盖 name / 注入 biz_ext、tel 等
+            ...(opts.detailsFor?.[kw] ?? {}),
+          },
+        ],
       });
     }
     if (/\/v5\/direction\/(walking|bicycling|driving)/.test(url.pathname)) {
@@ -291,7 +293,9 @@ describe("lookupPoi 的 POI 详情（extensions=all）", () => {
 
   it("缓存命中时详情仍在（缓存存的是完整 PoiLookup，不丢 biz_ext）", async () => {
     const mock = useRouter({
-      detailsFor: { 缓存详情测试: { biz_ext: { rating: "4.7", opentime2: "周一至周日 09:00-17:00" } } },
+      detailsFor: {
+        缓存详情测试: { biz_ext: { rating: "4.7", opentime2: "周一至周日 09:00-17:00" } },
+      },
     });
     const a = await lookupPoi("苏州", "缓存详情测试");
     const b = await lookupPoi("苏州", "缓存详情测试");
@@ -323,7 +327,9 @@ describe("transitMinutes 两态语义", () => {
     if (r.state !== "unknown") throw new Error("应为 unknown");
     expect(r.reason).toContain("西园寺");
     // 只有 POI 解析的重试，没有任何 driving 调用
-    const drivingCalls = mock.mock.calls.filter((c) => String(c[0]).includes("/v5/direction/driving"));
+    const drivingCalls = mock.mock.calls.filter((c) =>
+      String(c[0]).includes("/v5/direction/driving"),
+    );
     expect(drivingCalls).toHaveLength(0);
   });
 
@@ -462,10 +468,15 @@ describe("routeSegment 三态与解析", () => {
   });
 
   it("没有 steps 也能 ok（steps 为空数组，不阻断）", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => res({
-      status: "1",
-      route: { paths: [{ distance: "800", duration: "120" }] },
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        res({
+          status: "1",
+          route: { paths: [{ distance: "800", duration: "120" }] },
+        }),
+      ),
+    );
     const r = await routeSegment(O, D, "bicycling");
     expect(r.state).toBe("ok");
     if (r.state !== "ok") return;
@@ -480,20 +491,41 @@ describe("routeSegment 三态与解析", () => {
 // 「换一个」响应里）。这里钉住 recomputeDays 参数：只有名单里的天重算 legs。
 
 describe("validatePlan 的 legs 收窄", () => {
-  const input = { city: "杭州", days: 3, budget: 3000, transportMode: "driving" } as unknown as PlanInput;
+  const input = {
+    city: "杭州",
+    days: 3,
+    budget: 3000,
+    transportMode: "driving",
+  } as unknown as PlanInput;
   const spot = (name: string, location: string) => ({
-    period: "morning", time: "09:00-10:00", type: "sight", name, area: "西湖",
-    durationMin: 60, costCny: 0, reason: "测试", location,
+    period: "morning",
+    time: "09:00-10:00",
+    type: "sight",
+    name,
+    area: "西湖",
+    durationMin: 60,
+    costCny: 0,
+    reason: "测试",
+    location,
   });
   const day = (n: number, legs?: unknown) => ({
-    day: n, theme: `第${n}天`, transitMin: 0, dailyCostCny: 0,
+    day: n,
+    theme: `第${n}天`,
+    transitMin: 0,
+    dailyCostCny: 0,
     legs: legs as Plan["days"][number]["legs"],
     spots: [spot(`${n}-甲`, "120.10,30.10"), spot(`${n}-乙`, "120.20,30.20")],
   });
-  const plan = () => ({
-    city: "杭州", summary: "测试", totalCostCny: 0, tips: [], warnings: [],
-    verified: true, days: [day(1), day(2), day(3)],
-  }) as unknown as Plan;
+  const plan = () =>
+    ({
+      city: "杭州",
+      summary: "测试",
+      totalCostCny: 0,
+      tips: [],
+      warnings: [],
+      verified: true,
+      days: [day(1), day(2), day(3)],
+    }) as unknown as Plan;
 
   it("不传 recomputeDays：所有天都算 legs（首生成路径不变）", async () => {
     useRouter();
@@ -507,7 +539,9 @@ describe("validatePlan 的 legs 收窄", () => {
   it("recomputeDays=[2]：只有第 2 天重算，其余天 legs 原样保留（同一引用）", async () => {
     useRouter();
     const p = plan();
-    const kept = [{ from: "旧", to: "legs", mode: "driving" as const, distanceM: 1, durationSec: 1, steps: [] }];
+    const kept = [
+      { from: "旧", to: "legs", mode: "driving" as const, distanceM: 1, durationSec: 1, steps: [] },
+    ];
     p.days[0].legs = kept;
     p.days[2].legs = kept;
     await validatePlan(p, input, [2]);
@@ -523,7 +557,9 @@ describe("validatePlan 的 legs 收窄", () => {
     // distance 为空 → routeSegment 全 unknown → 第 2 天无 legs，但不波及 1、3 天
     useRouter({ distance: "" });
     const p = plan();
-    const kept = [{ from: "旧", to: "legs", mode: "driving" as const, distanceM: 1, durationSec: 1, steps: [] }];
+    const kept = [
+      { from: "旧", to: "legs", mode: "driving" as const, distanceM: 1, durationSec: 1, steps: [] },
+    ];
     p.days[0].legs = kept;
     p.days[2].legs = kept;
     await validatePlan(p, input, [2]);
@@ -537,19 +573,41 @@ describe("validatePlan 的 legs 收窄", () => {
 // poiCache 缓存地名→坐标，driving 调用本身无缓存——未改的天 spot 没变、transitMin
 // 已在对象上，重算纯属浪费，且阻塞在同步的「换一个」响应里。
 describe("validatePlan 的通勤收窄", () => {
-  const input = { city: "杭州", days: 3, budget: 3000, transportMode: "driving" } as unknown as PlanInput;
+  const input = {
+    city: "杭州",
+    days: 3,
+    budget: 3000,
+    transportMode: "driving",
+  } as unknown as PlanInput;
   const spot = (name: string, location: string) => ({
-    period: "morning", time: "09:00-10:00", type: "sight", name, area: "西湖",
-    durationMin: 60, costCny: 0, reason: "测试", location,
+    period: "morning",
+    time: "09:00-10:00",
+    type: "sight",
+    name,
+    area: "西湖",
+    durationMin: 60,
+    costCny: 0,
+    reason: "测试",
+    location,
   });
   const day = (n: number, transitMin = 0, transitKnown?: boolean) => ({
-    day: n, theme: `第${n}天`, transitMin, transitKnown, dailyCostCny: 0,
+    day: n,
+    theme: `第${n}天`,
+    transitMin,
+    transitKnown,
+    dailyCostCny: 0,
     spots: [spot(`${n}-甲`, "120.10,30.10"), spot(`${n}-乙`, "120.20,30.20")],
   });
-  const plan = () => ({
-    city: "杭州", summary: "测试", totalCostCny: 0, tips: [], warnings: [],
-    verified: true, days: [day(1, 148, true), day(2), day(3, 90, true)],
-  }) as unknown as Plan;
+  const plan = () =>
+    ({
+      city: "杭州",
+      summary: "测试",
+      totalCostCny: 0,
+      tips: [],
+      warnings: [],
+      verified: true,
+      days: [day(1, 148, true), day(2), day(3, 90, true)],
+    }) as unknown as Plan;
 
   it("不传 recomputeDays：所有天都重算通勤（首生成路径不变）", async () => {
     useRouter();
@@ -567,7 +625,7 @@ describe("validatePlan 的通勤收窄", () => {
     await validatePlan(p, input, [2]);
     expect(p.days[0].transitMin).toBe(148); // 原值保留，没重算
     expect(p.days[3 - 1].transitMin).toBe(90); // 第 3 天原值 90 保留
-    expect(p.days[1].transitMin).toBe(22);   // 第 2 天重算（driving 折算）
+    expect(p.days[1].transitMin).toBe(22); // 第 2 天重算（driving 折算）
   });
 
   it("未改天的 transitKnown=false 被沿用（不把旧失败结论改成成功）", async () => {

@@ -141,7 +141,15 @@ describe("AddressInput 补全组件", () => {
   it("无高亮项时回车交给 onSubmit（添加为标签）", async () => {
     const onSubmit = vi.fn();
     mockSuggest();
-    render(<AddressInput label="期望必游地" scope="poi" value="自定义地名" onChange={() => {}} onSubmit={onSubmit} />);
+    render(
+      <AddressInput
+        label="期望必游地"
+        scope="poi"
+        value="自定义地名"
+        onChange={() => {}}
+        onSubmit={onSubmit}
+      />,
+    );
 
     await userEvent.type(screen.getByRole("combobox", { name: "期望必游地" }), "x");
     await userEvent.keyboard("{Enter}");
@@ -159,7 +167,10 @@ describe("AddressInput 补全组件", () => {
   });
 
   it("接口失败时静默降级：不展示下拉，但输入框仍可正常打字", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) } as unknown as Response)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, json: async () => ({}) }) as unknown as Response),
+    );
     const onChange = vi.fn();
     render(<AddressInput label="目的地城市" scope="city" value="" onChange={onChange} />);
 

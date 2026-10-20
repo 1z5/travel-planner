@@ -1,13 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { FIX_KINDS } from "./fix-actions";
-import {
-  baseLines,
-  client,
-  extractJson,
-  LlmError,
-  streamChatRetry,
-} from "./planner";
+import { baseLines, client, extractJson, LlmError, streamChatRetry } from "./planner";
 import type { Plan, PlanInput, PlanLeg, PlanSpot } from "./types";
 
 // ============================================================
@@ -82,7 +76,9 @@ const MODE_LABEL: Record<PlanLeg["mode"], string> = {
 
 /** 事实摘要里的所有多行文本压成一行，避免破坏 prompt 的分段结构 */
 function oneLine(s: string | undefined | null): string {
-  return String(s ?? "").replace(/\s+/g, " ").trim();
+  return String(s ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** 按 Unicode 码点截断（中文按「字」计，避免代理对截半） */
@@ -95,10 +91,7 @@ function positiveNumber(n: number | undefined): number | undefined {
 }
 
 function dayCost(day: Plan["days"][number]): number {
-  return day.spots.reduce(
-    (sum, s) => sum + (Number.isFinite(s.costCny) ? s.costCny : 0),
-    0,
-  );
+  return day.spots.reduce((sum, s) => sum + (Number.isFinite(s.costCny) ? s.costCny : 0), 0);
 }
 
 function fmtDistance(meters: number): string {
@@ -145,11 +138,7 @@ function spotLine(spot: PlanSpot, index: number): string {
 }
 
 function legLine(leg: PlanLeg): string {
-  const steps = (leg.steps ?? [])
-    .slice(0, 2)
-    .map(oneLine)
-    .filter(Boolean)
-    .join("；");
+  const steps = (leg.steps ?? []).slice(0, 2).map(oneLine).filter(Boolean).join("；");
   return (
     `  路段：${oneLine(leg.from)}→${oneLine(leg.to)} ` +
     `${MODE_LABEL[leg.mode] ?? leg.mode} ${fmtDistance(leg.distanceM)} ${fmtSeconds(leg.durationSec)}` +
@@ -203,11 +192,13 @@ function planFacts(plan: Plan, input: PlanInput | null): string[] {
   const lines: string[] = [];
   const start = plan.startDate ?? plan.startAt?.slice(0, 10) ?? "";
   const end = plan.endDate ?? plan.endAt?.slice(0, 10) ?? "";
-  const dateText = start
-    ? `${start}${end && end !== start ? ` ~ ${end}` : ""}`
-    : "未标注";
-  lines.push(`- 城市：${oneLine(plan.city) || "未标注"}；行程概览：${oneLine(plan.summary) || "未标注"}`);
-  lines.push(`- 日期：${dateText}；共 ${plan.days.length} 天；可选 day：${plan.days.map((d) => d.day).join("、") || "（无）"}`);
+  const dateText = start ? `${start}${end && end !== start ? ` ~ ${end}` : ""}` : "未标注";
+  lines.push(
+    `- 城市：${oneLine(plan.city) || "未标注"}；行程概览：${oneLine(plan.summary) || "未标注"}`,
+  );
+  lines.push(
+    `- 日期：${dateText}；共 ${plan.days.length} 天；可选 day：${plan.days.map((d) => d.day).join("、") || "（无）"}`,
+  );
   if (plan.startAt || plan.endAt) {
     lines.push(
       `- 起止时间：${oneLine(plan.startAt) || "未标注"} ~ ${oneLine(plan.endAt) || "未标注"}`,
@@ -215,7 +206,7 @@ function planFacts(plan: Plan, input: PlanInput | null): string[] {
   }
 
   const spotTotal = plan.days.reduce((sum, d) => sum + dayCost(d), 0);
-  const total = spotTotal > 0 ? spotTotal : positiveNumber(plan.totalCostCny) ?? 0;
+  const total = spotTotal > 0 ? spotTotal : (positiveNumber(plan.totalCostCny) ?? 0);
   const budget = positiveNumber(plan.budgetCny) ?? positiveNumber(input?.budget);
   const budgetText = budget
     ? ` / 预算 ¥${Math.round(budget)}（使用率 ${Math.round((total / budget) * 100)}%）`
@@ -234,7 +225,9 @@ function planFacts(plan: Plan, input: PlanInput | null): string[] {
   }
   plan.days.forEach((day, idx) => {
     const date = dayDate(plan, idx);
-    lines.push(`第 ${day.day} 天${date ? `（${date}）` : ""} · 主题「${oneLine(day.theme) || "未标注"}」`);
+    lines.push(
+      `第 ${day.day} 天${date ? `（${date}）` : ""} · 主题「${oneLine(day.theme) || "未标注"}」`,
+    );
     if (day.spots.length === 0) lines.push("  （无安排）");
     day.spots.forEach((spot, i) => lines.push(spotLine(spot, i)));
     for (const leg of day.legs ?? []) lines.push(legLine(leg));
@@ -300,7 +293,11 @@ function renderConversation(
   }
   lines.push("", "【用户本次问题】", lastUser);
   if (correction) {
-    lines.push("", `【上一次输出不符合要求】${correction}`, "本次必须修正后重新输出，仍然只输出合法 JSON。");
+    lines.push(
+      "",
+      `【上一次输出不符合要求】${correction}`,
+      "本次必须修正后重新输出，仍然只输出合法 JSON。",
+    );
   }
   return lines.join("\n");
 }
@@ -356,11 +353,7 @@ function detectIntents(text: string): Set<Intent> {
  * 建议是否与用户意图匹配。没有识别出任何意图 → 一律不允许建议：
  * 用户在问信息，不是在要求改行程；此时给按钮是把「回答」变成「推销」。
  */
-function intentAllows(
-  kind: "fix" | "retime",
-  fixKind: FixKind | null,
-  text: string,
-): boolean {
+function intentAllows(kind: "fix" | "retime", fixKind: FixKind | null, text: string): boolean {
   const intents = detectIntents(text);
   if (intents.size === 0) return false;
   if (kind === "retime") return intents.has("time");
@@ -511,9 +504,7 @@ export async function answerCopilot(
       throw translateLlmFailure(e);
     }
     tokensUsed += tokens;
-    console.log(
-      `[llm] ${plan.city} ${COPILOT_MARK} 第${attempt}次 tokens=${tokens || "?"}`,
-    );
+    console.log(`[llm] ${plan.city} ${COPILOT_MARK} 第${attempt}次 tokens=${tokens || "?"}`);
 
     if (!content.trim()) {
       if (attempt === 2) {

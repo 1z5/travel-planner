@@ -59,13 +59,13 @@ function pairKey(from: string, to: string): string {
 
 /** 一段「时间接不上」的冲突（相邻两点之间，有真实 leg 但时间不够） */
 export interface ScheduleConflict {
-  from: string;         // 上一站名称
-  to: string;           // 下一站名称
-  gapMin: number;       // 两点的间隔（next.start - cur.end；负值=时间重叠）
-  needMin: number;      // 这段路至少需要多少分钟（durationSec 向上取整到分钟）
-  fromEnd: string;      // 上一站结束 "HH:MM"
-  toStart: string;      // 下一站开始 "HH:MM"
-  mode: TransportMode;  // 该 leg 的交通方式（文案里要说清「驾车约需 22 分钟」）
+  from: string; // 上一站名称
+  to: string; // 下一站名称
+  gapMin: number; // 两点的间隔（next.start - cur.end；负值=时间重叠）
+  needMin: number; // 这段路至少需要多少分钟（durationSec 向上取整到分钟）
+  fromEnd: string; // 上一站结束 "HH:MM"
+  toStart: string; // 下一站开始 "HH:MM"
+  mode: TransportMode; // 该 leg 的交通方式（文案里要说清「驾车约需 22 分钟」）
 }
 
 /**
@@ -215,11 +215,7 @@ function namesMatch(a: string, b: string): boolean {
  * 日期换算：第 N 天 = startDate + (N-1) 天，与 validate.finalizePlan 的活动
  * 日期校验、天气/ics 的日期口径完全一致。
  */
-function collectAnchors(
-  plan: Plan,
-  input: PlanInput,
-  day: PlanDay,
-): Map<number, number> {
+function collectAnchors(plan: Plan, input: PlanInput, day: PlanDay): Map<number, number> {
   const anchors = new Map<number, number>();
   const startDate = plan.startDate;
   if (!isRealDate(startDate)) return anchors;
@@ -307,9 +303,7 @@ export function retimeDay(plan: Plan, input: PlanInput, dayNumber: number): Reti
   // 但会在 notes 里点明有几段缺数据——不假装整条链都是真实通勤
   const travelByPair = new Map<string, number>();
   for (let i = 0; i < spots.length - 1; i++) {
-    const leg = day.legs?.find(
-      (l) => l.from === spots[i].name && l.to === spots[i + 1].name,
-    );
+    const leg = day.legs?.find((l) => l.from === spots[i].name && l.to === spots[i + 1].name);
     if (leg && Number.isFinite(leg.durationSec) && leg.durationSec >= 0) {
       travelByPair.set(pairKey(spots[i].name, spots[i + 1].name), Math.ceil(leg.durationSec / 60));
     }
@@ -397,9 +391,6 @@ export function isHoursWarning(warning: string): boolean {
   const w = String(warning ?? "");
   if (isScheduleWarning(w)) return false;
   return (
-    w.includes("闭馆") ||
-    w.includes("才开门") ||
-    w.includes("暂停开放") ||
-    w.includes("营业时间")
+    w.includes("闭馆") || w.includes("才开门") || w.includes("暂停开放") || w.includes("营业时间")
   );
 }

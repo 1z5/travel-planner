@@ -23,7 +23,8 @@ function imageResponse(bytes: Buffer = PNG, contentType = "image/png"): Response
     headers: {
       get: (name: string) => (name.toLowerCase() === "content-type" ? contentType : null),
     },
-    arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    arrayBuffer: async () =>
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
   } as unknown as Response;
 }
 
@@ -114,7 +115,12 @@ describe("buildStaticMapQuery（纯函数）", () => {
 
   it("中心点保留 6 位小数（缓存 key 稳定，且远小于一个像素）", async () => {
     const m = await loadStaticMap();
-    const q = m.buildStaticMapQuery({ center: { lng: 104.06651234567, lat: 30.5728999999 }, zoom: 13 }, 720, 400, 2);
+    const q = m.buildStaticMapQuery(
+      { center: { lng: 104.06651234567, lat: 30.5728999999 }, zoom: 13 },
+      720,
+      400,
+      2,
+    );
     expect(q.location).toBe("104.066512,30.5729");
     expect(q.zoom).toBe("12"); // 13 - AMAP_ZOOM_OFFSET(1)
   });

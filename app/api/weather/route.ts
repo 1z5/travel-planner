@@ -14,7 +14,10 @@ export const dynamic = "force-dynamic";
 // - 三态返回，不猜：ok=有预报 / unavailable=查不到（MOCK 无 key / 超出预报窗口 /
 //   上游异常）。查不到就明说，不编造天气
 const QuerySchema = z.object({
-  city: z.string().trim().regex(/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/, "城市名格式不正确"),
+  city: z
+    .string()
+    .trim()
+    .regex(/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/, "城市名格式不正确"),
 });
 
 export async function GET(req: NextRequest) {
@@ -22,10 +25,7 @@ export async function GET(req: NextRequest) {
     city: req.nextUrl.searchParams.get("city"),
   });
   if (!parsed.success) {
-    return NextResponse.json(
-      { state: "unavailable", reason: "城市名格式不正确" },
-      { status: 400 },
-    );
+    return NextResponse.json({ state: "unavailable", reason: "城市名格式不正确" }, { status: 400 });
   }
 
   const result = await fetchWeather(parsed.data.city);

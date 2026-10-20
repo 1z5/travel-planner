@@ -30,29 +30,25 @@ export interface PoiInfo {
   name: string;
   address: string;
   location: string; // "经度,纬度"
-  adname: string;   // 所在区
+  adname: string; // 所在区
   verified: boolean;
   // ---- 以下来自 extensions=all 的 biz_ext / POI 顶层字段，全部可选 ----
   // 语义与 PlanSpot.poi（SpotPoiMeta）一致：有数据才填，高德返回空数组 `[]`
   // 或缺字段时就是 undefined——不填 ≠ 0 分 / 24 小时营业这类默认值。
-  rating?: number;             // 高德评分（"4.8" → 4.8）
-  avgCostCny?: number;         // 高德人均消费（"65.00" → 65）
-  openTime?: string;           // open_time 原文（简版）
-  openTime2?: string;          // opentime2 原文（含闭馆规则/季节/最晚进入）
-  tel?: string;                // 联系电话（POI 顶层 tel 字段）
+  rating?: number; // 高德评分（"4.8" → 4.8）
+  avgCostCny?: number; // 高德人均消费（"65.00" → 65）
+  openTime?: string; // open_time 原文（简版）
+  openTime2?: string; // opentime2 原文（含闭馆规则/季节/最晚进入）
+  tel?: string; // 联系电话（POI 顶层 tel 字段）
   temporarilyClosed?: boolean; // 名称含「暂停开放/暂停营业/已关闭」
 }
 
 /** POI 查询三态：hit=命中 / miss=高德明确无结果 / error=网络或上游异常（≠不存在） */
 export type PoiLookup =
-  | { state: "hit"; poi: PoiInfo }
-  | { state: "miss" }
-  | { state: "error"; reason: string };
+  { state: "hit"; poi: PoiInfo } | { state: "miss" } | { state: "error"; reason: string };
 
 /** 通勤估算两态：unknown 时调用方必须跳过该天的通勤/节奏判定，不能拿假数据填 */
-export type TransitResult =
-  | { state: "ok"; minutes: number }
-  | { state: "unknown"; reason: string };
+export type TransitResult = { state: "ok"; minutes: number } | { state: "unknown"; reason: string };
 
 // ---- 缓存：同一 POI 会被「验真」和「多次通勤」重复用到（住所每天都出现），
 // 个人 key 有 QPS/日配额，缓存既省调用又保证同一行程内结果一致。
@@ -144,7 +140,9 @@ async function amapGet(path: string, params: Record<string, string>): Promise<Am
       // 非瞬时错误（典型：key 类型选错/未生效）必须响一次，否则它只会表现为
       // 「一堆景点未能验真」，没人知道根因是配置
       if (!transient) {
-        logOnce(`[amap] 上游拒绝请求 ${path} infocode=${infocode} info=${info}——相关地点将标记为「未能验真」而非「未检索到」`);
+        logOnce(
+          `[amap] 上游拒绝请求 ${path} infocode=${infocode} info=${info}——相关地点将标记为「未能验真」而非「未检索到」`,
+        );
       }
       return { ok: false, kind: "upstream", detail: `${infocode} ${info}`, transient };
     }
@@ -161,7 +159,10 @@ async function amapGet(path: string, params: Record<string, string>): Promise<Am
  * 秒级窗口才重试，否则三次尝试全落在同一秒内、必然连续超限；网络异常
  * 用短退避（通常是瞬时恢复，等 1 秒反而拖慢）。
  */
-export async function amapGetRetry(path: string, params: Record<string, string>): Promise<AmapResult> {
+export async function amapGetRetry(
+  path: string,
+  params: Record<string, string>,
+): Promise<AmapResult> {
   let last: AmapResult = { ok: false, kind: "network", detail: "未发起请求", transient: false };
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (attempt > 1) {
@@ -363,7 +364,9 @@ export async function transitMinutes(
   });
   if (!r.ok) return { state: "unknown", reason: r.detail };
 
-  const meters = Number((r.data as { route?: { paths?: Array<{ distance?: string }> } })?.route?.paths?.[0]?.distance);
+  const meters = Number(
+    (r.data as { route?: { paths?: Array<{ distance?: string }> } })?.route?.paths?.[0]?.distance,
+  );
   if (!Number.isFinite(meters) || meters <= 0) {
     return { state: "unknown", reason: "距离接口未返回有效数据" };
   }
@@ -382,7 +385,7 @@ export async function transitMinutes(
       reason: `站点间距离 ${Math.round(meters / 1000)}km 超出合理范围，POI 可能匹配到了同名的其他城市`,
     };
   }
-  return { state: "ok", minutes: Math.round(meters / 1000 / 22 * 60 + 8) };
+  return { state: "ok", minutes: Math.round((meters / 1000 / 22) * 60 + 8) };
 }
 
 /** 分段路线结果：ok=算出了 / unknown=算不出（缺坐标/上游异常） */
@@ -416,7 +419,8 @@ export async function routeSegment(
   const r = await amapGetRetry(DIRECTION_PATH[mode], { origin, destination });
   if (!r.ok) return { state: "unknown", reason: r.detail };
 
-  const path = (r.data as { route?: { paths?: Array<Record<string, unknown>> } })?.route?.paths?.[0];
+  const path = (r.data as { route?: { paths?: Array<Record<string, unknown>> } })?.route
+    ?.paths?.[0];
   const distanceM = Number(path?.distance);
   if (!Number.isFinite(distanceM) || distanceM <= 0) {
     return { state: "unknown", reason: "路线接口未返回有效距离" };
@@ -451,7 +455,11 @@ export async function routeSegment(
   // 只取前 3 条非空指令：够人跟着走，又不把卡片撑爆。strip 掉高德指令里的
   // HTML 标签残留（实测偶有 <b> 之类）。
   const steps = rawSteps
-    .map((s) => String(s.instruction ?? "").replace(/<[^>]*>/g, "").trim())
+    .map((s) =>
+      String(s.instruction ?? "")
+        .replace(/<[^>]*>/g, "")
+        .trim(),
+    )
     .filter(Boolean)
     .slice(0, 3);
 
@@ -486,8 +494,8 @@ export function pickCityName(ac: { city?: unknown; province?: unknown }): string
 
 /** 逆地理编码结果 */
 export interface ReverseGeo {
-  city: string;      // 城市裸名（已归一化，如「北京」「成都」）
-  district: string;  // 区县（如「朝阳区」），仅用于展示
+  city: string; // 城市裸名（已归一化，如「北京」「成都」）
+  district: string; // 区县（如「朝阳区」），仅用于展示
   formatted: string; // 完整地址（如「北京市朝阳区望京街道…」），仅用于展示
 }
 
@@ -506,12 +514,14 @@ export async function reverseGeocode(lng: number, lat: number): Promise<ReverseG
   });
   if (!r.ok) return null;
 
-  const regeo = (r.data as {
-    regeocode?: {
-      addressComponent?: { city?: unknown; province?: unknown; district?: unknown };
-      formatted_address?: unknown;
-    };
-  })?.regeocode;
+  const regeo = (
+    r.data as {
+      regeocode?: {
+        addressComponent?: { city?: unknown; province?: unknown; district?: unknown };
+        formatted_address?: unknown;
+      };
+    }
+  )?.regeocode;
   const city = pickCityName(regeo?.addressComponent ?? {});
   if (!city) return null;
 
@@ -536,10 +546,10 @@ export async function reverseGeocode(lng: number, lat: number): Promise<ReverseG
 
 /** 一条地点建议 */
 export interface PlaceSuggestion {
-  name: string;      // 地点名（填入输入框的值）
-  detail: string;    // 附属说明（区县/地址），展示用
-  city: string;      // 所属城市（裸名，如「成都」）——城市字段据此判断是否城市级
-  isCity: boolean;   // 是否为城市级结果（决定建议归属「城市」还是「具体地点」）
+  name: string; // 地点名（填入输入框的值）
+  detail: string; // 附属说明（区县/地址），展示用
+  city: string; // 所属城市（裸名，如「成都」）——城市字段据此判断是否城市级
+  isCity: boolean; // 是否为城市级结果（决定建议归属「城市」还是「具体地点」）
 }
 
 /** 建议查询结果。error 时返回空列表而非抛错——补全失败应降级为自由输入 */

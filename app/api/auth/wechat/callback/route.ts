@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
   let redirect = "/";
   try {
     redirect = Buffer.from(redirectB64 ?? "", "base64url").toString() || "/";
-  } catch { /* 用默认 */ }
+  } catch {
+    /* 用默认 */
+  }
   if (!redirect.startsWith("/")) redirect = "/"; // 防开放重定向
 
   const { token, maxAgeSec } = createSession(`wx:${openid}`);
@@ -44,7 +46,11 @@ export async function GET(req: NextRequest) {
     secure: cookieSecure(),
   });
   res.cookies.set("wx_state", "", {
-    httpOnly: true, sameSite: "lax", path: "/", maxAge: 0, secure: cookieSecure(),
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+    secure: cookieSecure(),
   });
   return res;
 }

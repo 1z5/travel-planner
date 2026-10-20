@@ -29,18 +29,31 @@ const server = createServer((req, res) => {
         last.code = p.TemplateParamSet?.[0] ?? null;
         last.phone = p.PhoneNumberSet?.[0] ?? null;
         last.action = req.headers["x-tc-action"] ?? null;
-        console.log(`[sms-stub] SendSms action=${last.action} phone=${last.phone} code=${last.code}`);
+        console.log(
+          `[sms-stub] SendSms action=${last.action} phone=${last.phone} code=${last.code}`,
+        );
       } catch {
         console.log("[sms-stub] 收到非 JSON 请求");
       }
       // 腾讯云成功响应形状
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        Response: {
-          SendSmsStatusSet: [{ SerialNo: "stub:1", PhoneNumber: last.phone, Fee: 1, SessionContext: "", Code: "Ok", Message: "stub success" }],
-          RequestId: "stub-req-1",
-        },
-      }));
+      res.end(
+        JSON.stringify({
+          Response: {
+            SendSmsStatusSet: [
+              {
+                SerialNo: "stub:1",
+                PhoneNumber: last.phone,
+                Fee: 1,
+                SessionContext: "",
+                Code: "Ok",
+                Message: "stub success",
+              },
+            ],
+            RequestId: "stub-req-1",
+          },
+        }),
+      );
     });
     return;
   }

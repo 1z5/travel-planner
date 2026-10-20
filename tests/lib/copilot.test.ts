@@ -322,11 +322,7 @@ describe("answerCopilot", () => {
       }),
       tokens: 7,
     });
-    const time = await answerCopilot(
-      makePlan(),
-      makeInput(),
-      ask("第 2 天时间赶不赶？来得及吗"),
-    );
+    const time = await answerCopilot(makePlan(), makeInput(), ask("第 2 天时间赶不赶？来得及吗"));
     expect(time.suggestion).toEqual({ kind: "retime", day: 2, label: "顺延第2天" });
   });
 
@@ -426,17 +422,15 @@ describe("answerCopilot", () => {
   });
 
   it("第一次返回空、第二次合法 → 重试成功（纠正指令写清「返回为空」）", async () => {
-    mockStream
-      .mockResolvedValueOnce({ content: "", tokens: 3 })
-      .mockResolvedValueOnce({
-        content: reply("明天有雨，建议改室内。", {
-          kind: "fix",
-          fixKind: "rain",
-          day: 1,
-          label: "改室内",
-        }),
-        tokens: 4,
-      });
+    mockStream.mockResolvedValueOnce({ content: "", tokens: 3 }).mockResolvedValueOnce({
+      content: reply("明天有雨，建议改室内。", {
+        kind: "fix",
+        fixKind: "rain",
+        day: 1,
+        label: "改室内",
+      }),
+      tokens: 4,
+    });
 
     const result = await answerCopilot(makePlan(), makeInput(), ask("明天下雨怎么办"));
     expect(result.answer).toContain("室内");
@@ -450,17 +444,17 @@ describe("answerCopilot", () => {
       content: JSON.stringify({ suggestion: { kind: "retime", day: 1, label: "顺延第1天" } }),
       tokens: 6,
     });
-    await expect(
-      answerCopilot(makePlan(), makeInput(), ask("时间来得及吗")),
-    ).rejects.toThrow(/连续两次返回的结果无法解析/);
+    await expect(answerCopilot(makePlan(), makeInput(), ask("时间来得及吗"))).rejects.toThrow(
+      /连续两次返回的结果无法解析/,
+    );
     expect(mockStream).toHaveBeenCalledTimes(2);
   });
 
   it("模型调用失败（LlmError）→ 翻译成 CopilotError，文案可行动", async () => {
     mockStream.mockRejectedValue(new LlmError("生成连接被中断", true));
-    await expect(
-      answerCopilot(makePlan(), makeInput(), ask("明天下雨怎么办")),
-    ).rejects.toThrow(/连接中断/);
+    await expect(answerCopilot(makePlan(), makeInput(), ask("明天下雨怎么办"))).rejects.toThrow(
+      /连接中断/,
+    );
     expect(mockStream).toHaveBeenCalledTimes(1);
   });
 

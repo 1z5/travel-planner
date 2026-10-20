@@ -60,8 +60,7 @@ function enqueueUpstream<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export type StaticMapResult =
-  | { ok: true; bytes: Buffer; contentType: string }
-  | { ok: false; status: number; reason: string };
+  { ok: true; bytes: Buffer; contentType: string } | { ok: false; status: number; reason: string };
 
 /**
  * 地图能力是否可用。
@@ -189,15 +188,19 @@ async function requestUpstream(url: URL): Promise<StaticMapResult> {
 
       if (!contentType.startsWith("image/")) {
         // 高德参数/配额错误仍是 HTTP 200，body 是 {status:"0",info,infocode} JSON
-        const data = (await res.json().catch(() => null)) as
-          | { status?: unknown; info?: unknown; infocode?: unknown }
-          | null;
+        const data = (await res.json().catch(() => null)) as {
+          status?: unknown;
+          info?: unknown;
+          infocode?: unknown;
+        } | null;
         const info = String(data?.info ?? "");
         const infocode = String(data?.infocode ?? "");
         lastReason = data ? `${infocode} ${info || "未知错误"}`.trim() : "上游返回的内容不是图片";
         const transient = !!data && isTransientUpstream(info, infocode);
         if (transient && attempt < MAX_ATTEMPTS) continue;
-        logOnce(`[staticmap] 高德拒绝请求 infocode=${infocode || "-"} info=${info || "-"}——地图将降级为示意图`);
+        logOnce(
+          `[staticmap] 高德拒绝请求 infocode=${infocode || "-"} info=${info || "-"}——地图将降级为示意图`,
+        );
         return { ok: false, status: 502, reason: lastReason };
       }
 

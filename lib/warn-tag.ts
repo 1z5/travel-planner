@@ -15,7 +15,13 @@ export function warnTag(w: string): string | null {
   // 只认「时间接不上」：营业时间 outside 类警告也会建议「一键顺延」，
   // 若把「一键顺延」也算时间轴，它会被错标成时间轴并路由到 adjust（实测踩坑）。
   if (w.includes("时间接不上")) return "时间轴";
-  if (w.includes("闭馆") || w.includes("才开门") || w.includes("营业时间") || w.includes("暂停开放")) return "营业";
+  if (
+    w.includes("闭馆") ||
+    w.includes("才开门") ||
+    w.includes("营业时间") ||
+    w.includes("暂停开放")
+  )
+    return "营业";
   // 覆盖必须排在「未在高德检索到」之前：境外预警文案里同时含「境外」和
   // 「未在高德检索到」，先匹配未验真会把它误判成单点未命中（实测踩过）。
   if (w.includes("境外")) return "覆盖";

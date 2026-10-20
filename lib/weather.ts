@@ -26,8 +26,8 @@ function isBadWeather(w: string): boolean {
 
 /** 天气数据（按天） */
 export interface DayWeather {
-  date: string;        // YYYY-MM-DD
-  dayWeather: string;  // 白天天气，如「小雨」
+  date: string; // YYYY-MM-DD
+  dayWeather: string; // 白天天气，如「小雨」
   nightWeather: string;
   dayTemp: string;
   nightTemp: string;
@@ -35,8 +35,7 @@ export interface DayWeather {
 
 /** 天气查询结果：ok=有数据 / unavailable=查不到（超出预报窗口或上游异常） */
 export type WeatherResult =
-  | { state: "ok"; days: DayWeather[] }
-  | { state: "unavailable"; reason: string };
+  { state: "ok"; days: DayWeather[] } | { state: "unavailable"; reason: string };
 
 /**
  * 查城市未来天气预报。
@@ -113,7 +112,10 @@ export async function buildWeatherAdvice(
     if (!badDay && !badNight) continue;
 
     const when = badDay && badNight ? "全天" : badDay ? "白天" : "夜间";
-    const names = outdoor.slice(0, 3).map((s) => s.name).join("、");
+    const names = outdoor
+      .slice(0, 3)
+      .map((s) => s.name)
+      .join("、");
     const more = outdoor.length > 3 ? " 等" : "";
     const withBackup = outdoor.filter((s) => s.rainBackup).length;
     const backupHint = withBackup

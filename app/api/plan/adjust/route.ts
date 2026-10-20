@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
-import {
-  RetimeUnavailableError,
-  retimeDay,
-  type RetimeResult,
-} from "@/lib/schedule";
+import { RetimeUnavailableError, retimeDay, type RetimeResult } from "@/lib/schedule";
 import { refreshTimeWarnings } from "@/lib/validate";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
 import type { Plan } from "@/lib/types";
@@ -115,7 +111,9 @@ export async function POST(req: NextRequest) {
         { status },
       );
     }
-    console.error(`[adjust] ${shareId} 第 ${day} 天 retime 未预期失败: ${(e as Error)?.message ?? e}`);
+    console.error(
+      `[adjust] ${shareId} 第 ${day} 天 retime 未预期失败: ${(e as Error)?.message ?? e}`,
+    );
     return NextResponse.json(
       { error: "顺延时间轴失败：服务暂时不可用，请稍后重试" },
       { status: 500 },
@@ -124,9 +122,7 @@ export async function POST(req: NextRequest) {
 
   // 6) 无需改动：不落库、不涨 revision。前端据此提示「时间轴本来就是接得上的」
   if (!result.changed) {
-    console.log(
-      `[adjust] ${shareId} 第 ${day} 天 retime changed=false 用时 ${Date.now() - t0}ms`,
-    );
+    console.log(`[adjust] ${shareId} 第 ${day} 天 retime changed=false 用时 ${Date.now() - t0}ms`);
     return NextResponse.json({
       plan: record.plan,
       revision: record.revision,

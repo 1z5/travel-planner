@@ -8,12 +8,7 @@
 // 否则 UI 和图例会各算各的，出现「92% + 9% = 101%」这类肉眼可见的假数据。
 
 import { Wallet } from "lucide-react";
-import {
-  budgetTone,
-  formatCny,
-  type BudgetStatus,
-  type BudgetSummary,
-} from "@/lib/budget";
+import { budgetTone, formatCny, type BudgetStatus, type BudgetSummary } from "@/lib/budget";
 
 /** 状态文案：只说事实，不渲染情绪。颜色由 lib 的 budgetTone 统一决定。 */
 const STATUS_LABEL: Record<BudgetStatus, string> = {
@@ -59,8 +54,8 @@ export function BudgetInsight({ summary }: { summary: BudgetSummary }) {
             <div className="budget-usage-row">
               <span className="budget-usage-text">
                 预算 <strong className="budget-usage-strong">{formatCny(budget)}</strong>
-                {" · "}已用 <strong className="budget-usage-strong">{formatCny(total)}</strong>
-                （{usedPct}%）
+                {" · "}已用 <strong className="budget-usage-strong">{formatCny(total)}</strong>（
+                {usedPct}%）
               </span>
             </div>
             <div
@@ -101,7 +96,11 @@ export function BudgetInsight({ summary }: { summary: BudgetSummary }) {
           <ul className="budget-legend">
             {categories.map((c) => (
               <li className="budget-legend-item" key={c.type}>
-                <span className="budget-swatch" style={{ background: c.color }} aria-hidden="true" />
+                <span
+                  className="budget-swatch"
+                  style={{ background: c.color }}
+                  aria-hidden="true"
+                />
                 <span className="budget-legend-label">{c.label}</span>
                 <span className="budget-legend-amount">{formatCny(c.amount)}</span>
                 <span className="budget-legend-pct">{pctText(c.pct)}</span>
@@ -111,9 +110,7 @@ export function BudgetInsight({ summary }: { summary: BudgetSummary }) {
         </>
       )}
 
-      {categories.length === 0 && !notes[0] && (
-        <p className="budget-empty">这份行程暂无花费记录</p>
-      )}
+      {categories.length === 0 && !notes[0] && <p className="budget-empty">这份行程暂无花费记录</p>}
 
       {notes[0] && <p className="budget-conclusion">{notes[0]}</p>}
     </section>

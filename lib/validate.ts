@@ -27,8 +27,8 @@ import type { Plan, PlanDay, PlanInput, PlanLeg, SpotPoiMeta, TransportMode } fr
 //   validateDay   分日流式路径（≥5 天）：每生成一天就体检一天，
 //                 预警随天数一起出现，不用等全量生成完
 
-const TRANSIT_WARN_MIN = 120;   // 当天通勤超过 2 小时视为疑似绕路
-const LOOSE_DAY_MIN = 5 * 60;   // 每天净时长低于 5h 视为过松
+const TRANSIT_WARN_MIN = 120; // 当天通勤超过 2 小时视为疑似绕路
+const LOOSE_DAY_MIN = 5 * 60; // 每天净时长低于 5h 视为过松
 // 节奏上限按用户选择的行程分档（默认适中 10h）——避免"天天偏满"的告警噪音
 const PACE_DAY_MIN: Record<NonNullable<PlanInput["pace"]>, number> = {
   relaxed: 8 * 60,
@@ -40,7 +40,7 @@ const PACE_LABEL: Record<NonNullable<PlanInput["pace"]>, string> = {
   balanced: "适中",
   packed: "紧凑",
 };
-const BUDGET_OVER = 1.05;       // 总花费超预算 5% 预警
+const BUDGET_OVER = 1.05; // 总花费超预算 5% 预警
 // 总花费低于预算 80% 给提示——阈值与 prompt 的「至少用掉 80%」契约严格对齐：
 // 模型没兑现自己承诺的规则时，用户应该得到信号（以前只查上限，是 asymmetric 的）
 const BUDGET_UNDER = 0.8;
@@ -208,9 +208,7 @@ function dayHoursWarnings(plan: Plan, day: PlanDay): string[] {
       // reason 可能是「周一闭馆」也可能是「周一全天不开放」：语义都是闭馆，
       // 统一成用户熟悉的「周一闭馆」口径（与产品文案模板一致），并保证含
       // 「闭馆」标记词（warn-tag 的营业标签、fix-actions 的 hours 识别都依赖它）
-      const phrase = check.reason
-        .replace(/全天不开放$/, "闭馆")
-        .replace(/全天闭馆$/, "闭馆");
+      const phrase = check.reason.replace(/全天不开放$/, "闭馆").replace(/全天闭馆$/, "闭馆");
       const closedPhrase = phrase.includes("闭馆") ? phrase : `闭馆（${check.reason}）`;
       closed.push(
         `第 ${day.day} 天「${spot.name}」${closedPhrase}（高德：${truncateRaw(raw)}），当天去不了，建议换一个点或调到其他天`,
@@ -255,9 +253,7 @@ export function refreshTimeWarnings(plan: Plan, _input: PlanInput): string[] {
   const kept = plan.warnings.filter((w) => !isScheduleWarning(w) && !isHoursWarning(w));
   const fresh = collectTimeWarnings(plan);
   if (!fresh.length) return kept;
-  const firstOld = plan.warnings.findIndex(
-    (w) => isScheduleWarning(w) || isHoursWarning(w),
-  );
+  const firstOld = plan.warnings.findIndex((w) => isScheduleWarning(w) || isHoursWarning(w));
   if (firstOld < 0) return [...kept, ...fresh];
   const insertAt = plan.warnings
     .slice(0, firstOld)
@@ -312,10 +308,10 @@ export function nameCovered(name: string, candidates: readonly string[]): boolea
 
 /** 单日体检结果 */
 export interface DayCheck {
-  warnings: string[];       // 当天的预警（POI 未命中 / 通勤 / 节奏）
-  unverified: string[];     // 因上游异常未能验真的 POI（≠不存在）
-  transitUnknown: boolean;  // 当天通勤是否无法估算
-  missCount: number;        // 当天「未在高德检索到」的 POI 数（境外场景汇总用）
+  warnings: string[]; // 当天的预警（POI 未命中 / 通勤 / 节奏）
+  unverified: string[]; // 因上游异常未能验真的 POI（≠不存在）
+  transitUnknown: boolean; // 当天通勤是否无法估算
+  missCount: number; // 当天「未在高德检索到」的 POI 数（境外场景汇总用）
 }
 
 /**
@@ -604,9 +600,7 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   const spotNames = plan.days.flatMap((d) => d.spots.map((s) => s.name));
   for (const mv of input.mustVisit ?? []) {
     if (!nameCovered(mv, spotNames)) {
-      warnings.push(
-        `必游地「${mv}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
-      );
+      warnings.push(`必游地「${mv}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`);
     }
   }
   // 重点活动核验：与必游地同为硬约束（漏排告警），另加日期与时间合理性检查——
@@ -622,9 +616,7 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
     // 多日活动（连展/多场次）可能落在多天，日期校验要看有没有任一天对得上
     const matches = daySpots.filter((x) => nameCovered(ev.name, [x.s.name]));
     if (!matches.length) {
-      warnings.push(
-        `重点活动「${ev.name}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`,
-      );
+      warnings.push(`重点活动「${ev.name}」未出现在行程中——可重试，或检查名称是否与当地叫法一致`);
       continue;
     }
     // 日期校验：用户指定了 date，就必须有匹配的 spot 落在对应那天。
@@ -659,14 +651,19 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
     // 用户可能给模糊描述（"住春熙路附近"），模型会合理转化成具体酒店
     // （"春熙路亚朵S酒店"）——全字符串匹配会误报。提取场所核心词双路匹配：
     // 完整串命中（用户给了确切酒店名）或核心词命中（模糊描述的正确执行）
-    const hotelKey = hotel
-      .replace(/住在?|附近|旁边|一带|周边|那一片|这边/g, "")
-      .replace(/的?(酒店|宾馆|民宿|旅馆)/g, "")
-      .trim() || hotel;
+    const hotelKey =
+      hotel
+        .replace(/住在?|附近|旁边|一带|周边|那一片|这边/g, "")
+        .replace(/的?(酒店|宾馆|民宿|旅馆)/g, "")
+        .trim() || hotel;
     const mentioned = plan.days.some((d) =>
-      d.spots.some((s) =>
-        s.name.includes(hotel) || s.area.includes(hotel)
-        || (hotelKey.length >= 2 && (s.name.includes(hotelKey) || s.area.includes(hotelKey)))));
+      d.spots.some(
+        (s) =>
+          s.name.includes(hotel) ||
+          s.area.includes(hotel) ||
+          (hotelKey.length >= 2 && (s.name.includes(hotelKey) || s.area.includes(hotelKey))),
+      ),
+    );
     if (!mentioned) {
       warnings.push(`住所「${hotel}」未体现在行程中——行程应以它为每日出发点`);
     }
@@ -725,7 +722,12 @@ export async function validatePlan(
   }
 
   finalizePlan(plan, input, {
-    warnings, unverified, transitUnknownDays, grandTotal, missCount, poiTotal,
+    warnings,
+    unverified,
+    transitUnknownDays,
+    grandTotal,
+    missCount,
+    poiTotal,
   });
   return plan;
 }

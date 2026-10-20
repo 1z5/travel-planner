@@ -21,23 +21,30 @@ function hmac256(key: string | Buffer, msg: string): Buffer {
 }
 
 /** TC3 签名：返回请求头（Authorization / X-TC-*） */
-export function tc3Headers(secretId: string, secretKey: string, payload: object): Record<string, string> {
+export function tc3Headers(
+  secretId: string,
+  secretKey: string,
+  payload: object,
+): Record<string, string> {
   const timestamp = Math.floor(Date.now() / 1000);
   const date = new Date(timestamp * 1000).toISOString().slice(0, 10); // UTC
   const credentialScope = `${date}/${SERVICE}/tc3_request`;
   const hashedPayload = sha256hex(JSON.stringify(payload));
 
   const httpRequest = [
-    "POST", "/", "",
+    "POST",
+    "/",
+    "",
     `content-type:application/json; charset=utf-8`,
-    `host:${HOST}`, "",
+    `host:${HOST}`,
+    "",
     "content-type;host",
     hashedPayload,
   ].join("\n");
 
-  const stringToSign = [
-    "TC3-HMAC-SHA256", timestamp, credentialScope, sha256hex(httpRequest),
-  ].join("\n");
+  const stringToSign = ["TC3-HMAC-SHA256", timestamp, credentialScope, sha256hex(httpRequest)].join(
+    "\n",
+  );
 
   const secretDate = hmac256(`TC3${secretKey}`, date);
   const secretService = hmac256(secretDate, SERVICE);
@@ -58,14 +65,21 @@ export function tc3Headers(secretId: string, secretKey: string, payload: object)
 }
 
 /** 发送验证码短信。返回是否成功；失败时带腾讯云错误信息。 */
-export async function sendSmsCode(phone: string, code: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendSmsCode(
+  phone: string,
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
   const secretId = process.env.SMS_SECRET_ID;
   const secretKey = process.env.SMS_SECRET_KEY;
   const sdkAppId = process.env.SMS_APP_ID;
   const sign = process.env.SMS_SIGN;
   const templateId = process.env.SMS_TEMPLATE_ID;
   if (!secretId || !secretKey || !sdkAppId || !sign || !templateId) {
-    return { ok: false, error: "短信未配置（SMS_SECRET_ID / SMS_SECRET_KEY / SMS_APP_ID / SMS_SIGN / SMS_TEMPLATE_ID）" };
+    return {
+      ok: false,
+      error:
+        "短信未配置（SMS_SECRET_ID / SMS_SECRET_KEY / SMS_APP_ID / SMS_SIGN / SMS_TEMPLATE_ID）",
+    };
   }
 
   const payload = {

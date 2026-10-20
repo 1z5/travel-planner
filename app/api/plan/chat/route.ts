@@ -34,21 +34,14 @@ function clientIp(req: NextRequest): string {
 
 const MessageSchema = z.strictObject({
   role: z.enum(["user", "assistant"], { message: "role 只能是 user 或 assistant" }),
-  content: z
-    .string()
-    .trim()
-    .min(1, "消息内容不能为空")
-    .max(500, "单条消息最多 500 字"),
+  content: z.string().trim().min(1, "消息内容不能为空").max(500, "单条消息最多 500 字"),
 });
 
 const BodySchema = z
   .strictObject({
     // 与 refine/adjust 同一条 share token 规则
     shareId: z.string().regex(/^[A-Za-z0-9_-]{6,40}$/, "行程链接格式不正确"),
-    messages: z
-      .array(MessageSchema)
-      .min(1, "至少需要 1 条消息")
-      .max(12, "消息最多 12 条"),
+    messages: z.array(MessageSchema).min(1, "至少需要 1 条消息").max(12, "消息最多 12 条"),
   })
   .refine((d) => d.messages[d.messages.length - 1]?.role === "user", {
     message: "最后一条消息必须是你的提问（role=user）",
@@ -114,9 +107,6 @@ export async function POST(req: NextRequest) {
     }
     // 未知异常：不透出内部细节，只给可行动信息
     console.error(`[copilot] share ${shareId} 未预期失败: ${(e as Error)?.message ?? e}`);
-    return NextResponse.json(
-      { error: "行程管家暂时无法回答，请稍后重试" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "行程管家暂时无法回答，请稍后重试" }, { status: 502 });
   }
 }

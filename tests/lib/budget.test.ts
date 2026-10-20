@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  COST_CATEGORIES,
-  budgetTone,
-  formatCny,
-  summarizeBudget,
-} from "@/lib/budget";
+import { COST_CATEGORIES, budgetTone, formatCny, summarizeBudget } from "@/lib/budget";
 import { finalizePlan } from "@/lib/validate";
 import type { Plan, PlanDay, PlanInput, PlanSpot, SpotType } from "@/lib/types";
 import fixture from "../../scripts/fixture-plan.json";
@@ -40,8 +35,7 @@ function makePlan(
     transitMin: 0,
     dailyCostCny: d.spots.reduce((s, x) => s + x.costCny, 0),
   }));
-  const total =
-    opts.totalCostCny ?? planDays.reduce((s, d) => s + d.dailyCostCny, 0);
+  const total = opts.totalCostCny ?? planDays.reduce((s, d) => s + d.dailyCostCny, 0);
   return {
     city: "测试城",
     summary: "测试行程",
@@ -144,9 +138,7 @@ describe("summarizeBudget：分类构成", () => {
   });
 
   it("极端占比：不足 1% 的类别 pct 取 0，但金额如实保留（整数百分比的如实呈现）", () => {
-    const s = summarizeBudget(
-      makePlan([{ spots: [spot("hotel", 1999), spot("food", 1)] }]),
-    );
+    const s = summarizeBudget(makePlan([{ spots: [spot("hotel", 1999), spot("food", 1)] }]));
     expect(s.categories.map((c) => c.type)).toEqual(["hotel", "food"]);
     expect(s.categories[0].pct).toBe(100);
     expect(s.categories[1]).toMatchObject({ amount: 1, pct: 0 });
@@ -154,9 +146,7 @@ describe("summarizeBudget：分类构成", () => {
   });
 
   it("金额先取整再求和（避免浮点尾巴）", () => {
-    const s = summarizeBudget(
-      makePlan([{ spots: [spot("food", 10.4), spot("sight", 10.6)] }]),
-    );
+    const s = summarizeBudget(makePlan([{ spots: [spot("food", 10.4), spot("sight", 10.6)] }]));
     expect(s.total).toBe(21);
     expect(s.categories.map((c) => c.amount).sort((a, b) => a - b)).toEqual([10, 11]);
   });
@@ -224,9 +214,7 @@ describe("summarizeBudget：预算状态", () => {
 
   it("预算为 0 / 负数：视为无效预算，notes 第一句就说清原因，不除零、不出 Infinity", () => {
     for (const bad of [0, -100]) {
-      const s = summarizeBudget(
-        makePlan([{ spots: [spot("food", 100)] }], { budgetCny: bad }),
-      );
+      const s = summarizeBudget(makePlan([{ spots: [spot("food", 100)] }], { budgetCny: bad }));
       expect(s.status).toBe("unknown");
       expect(s.budget).toBeUndefined();
       expect(s.usedPct).toBeUndefined();
@@ -261,10 +249,7 @@ describe("summarizeBudget：perDay", () => {
   it("每天金额汇总正确；有预算时附带当天占预算百分比", () => {
     const s = summarizeBudget(
       makePlan(
-        [
-          { spots: [spot("hotel", 600), spot("food", 100)] },
-          { spots: [spot("food", 200)] },
-        ],
+        [{ spots: [spot("hotel", 600), spot("food", 100)] }, { spots: [spot("food", 200)] }],
         { budgetCny: 1000 },
       ),
     );
@@ -288,9 +273,7 @@ describe("summarizeBudget：perDay", () => {
 
 describe("summarizeBudget：数据自洽性", () => {
   it("行程记录总价与逐项合计不一致：以逐项合计为准并在 notes 如实说明", () => {
-    const s = summarizeBudget(
-      makePlan([{ spots: [spot("food", 100)] }], { totalCostCny: 150 }),
-    );
+    const s = summarizeBudget(makePlan([{ spots: [spot("food", 100)] }], { totalCostCny: 150 }));
     expect(s.total).toBe(100);
     expect(s.notes.some((n) => n.includes("不一致"))).toBe(true);
     expect(s.notes.join("\n")).toContain("¥150");

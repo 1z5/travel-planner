@@ -93,7 +93,10 @@ describe("PlanCopilot", () => {
 
   it("成功答案按纯文本渲染：HTML 标签显示为字面量而不是标签", async () => {
     const answer = "第二天 09:00 出发即可，<b>不用赶</b>。";
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ answer })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ answer })),
+    );
     const user = userEvent.setup();
     render(<PlanCopilot shareId="share_test123" onSuggestion={vi.fn()} />);
 
@@ -108,10 +111,15 @@ describe("PlanCopilot", () => {
 
   it("有 suggestion：按钮带 label + 说明，点击调用 onSuggestion 后禁用并显示已交给", async () => {
     const onSuggestion = vi.fn();
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
-      answer: "第 2 天通勤偏长，可以把景点收拢到同一区域。",
-      suggestion: TRANSIT_SUGGESTION,
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          answer: "第 2 天通勤偏长，可以把景点收拢到同一区域。",
+          suggestion: TRANSIT_SUGGESTION,
+        }),
+      ),
+    );
     const user = userEvent.setup();
     render(<PlanCopilot shareId="share_test123" onSuggestion={onSuggestion} />);
 
@@ -129,10 +137,15 @@ describe("PlanCopilot", () => {
   });
 
   it("未传 onSuggestion：建议按钮禁用并用 title 说明原因", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
-      answer: "第 2 天通勤偏长。",
-      suggestion: TRANSIT_SUGGESTION,
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          answer: "第 2 天通勤偏长。",
+          suggestion: TRANSIT_SUGGESTION,
+        }),
+      ),
+    );
     const user = userEvent.setup();
     render(<PlanCopilot shareId="share_test123" />);
 
@@ -164,9 +177,12 @@ describe("PlanCopilot", () => {
   });
 
   it("网络异常：展示「网络异常，请重试」而不是静默失败", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("offline");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     const user = userEvent.setup();
     render(<PlanCopilot shareId="share_test123" onSuggestion={vi.fn()} />);
 
@@ -179,9 +195,12 @@ describe("PlanCopilot", () => {
 
   it("发送中：展示 spinner/已等待秒数，禁用输入与按钮，且不会发起第二个请求", async () => {
     let resolveFetch!: (res: Response) => void;
-    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
-      resolveFetch = resolve;
-    }));
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<PlanCopilot shareId="share_test123" onSuggestion={vi.fn()} />);
@@ -225,7 +244,14 @@ describe("PlanCopilot", () => {
     // 第 5 次发送时总消息为 9 条，只取最近 8 条：A1 U2 A2 U3 A3 U4 A4 U5
     expect(body.messages).toHaveLength(8);
     expect(body.messages.map((m) => m.content)).toEqual([
-      "回答1", "问题2", "回答2", "问题3", "回答3", "问题4", "回答4", "问题5",
+      "回答1",
+      "问题2",
+      "回答2",
+      "问题3",
+      "回答3",
+      "问题4",
+      "回答4",
+      "问题5",
     ]);
     expect(body.messages.at(-1)).toEqual({ role: "user", content: "问题5" });
   });
@@ -248,7 +274,10 @@ describe("PlanCopilot", () => {
   });
 
   it("清空对话：消息与错误清空、输入清空，推荐问题重新出现", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ answer: "附近有两家面馆。" })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ answer: "附近有两家面馆。" })),
+    );
     const user = userEvent.setup();
     render(<PlanCopilot shareId="share_test123" onSuggestion={vi.fn()} />);
 

@@ -22,13 +22,31 @@ export function CostChart({ days }: { days: Array<{ day: number; dailyCostCny: n
   const avgY = Math.min(H - padB, Math.max(padT, H - padB - (avg / max) * chartH));
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
-         role="img" aria-label="每日人均花费">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ width: "100%", height: "auto", display: "block" }}
+      role="img"
+      aria-label="每日人均花费"
+    >
       {/* 平均线 */}
-      <line x1={8} y1={avgY} x2={W - 8} y2={avgY}
-            style={{ stroke: "var(--accent)" }} strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
-      <text x={W - 8} y={Math.max(11, avgY - 5)}
-            textAnchor="end" fontSize="11" style={{ fill: "var(--accent)" }} opacity="0.9">
+      <line
+        x1={8}
+        y1={avgY}
+        x2={W - 8}
+        y2={avgY}
+        style={{ stroke: "var(--accent)" }}
+        strokeWidth="1"
+        strokeDasharray="4 4"
+        opacity="0.5"
+      />
+      <text
+        x={W - 8}
+        y={Math.max(11, avgY - 5)}
+        textAnchor="end"
+        fontSize="11"
+        style={{ fill: "var(--accent)" }}
+        opacity="0.9"
+      >
         日均 ¥{Math.round(avg).toLocaleString()}
       </text>
 
@@ -38,14 +56,32 @@ export function CostChart({ days }: { days: Array<{ day: number; dailyCostCny: n
         const y = H - padB - h;
         return (
           <g key={d.day}>
-            <rect x={x} y={y} width={barW} height={h} rx="4"
-                  style={{ fill: "var(--accent)" }} opacity="0.85" />
-            <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize="12"
-                  style={{ fill: "var(--ink-3)" }} fontWeight="600">
+            <rect
+              x={x}
+              y={y}
+              width={barW}
+              height={h}
+              rx="4"
+              style={{ fill: "var(--accent)" }}
+              opacity="0.85"
+            />
+            <text
+              x={x + barW / 2}
+              y={y - 5}
+              textAnchor="middle"
+              fontSize="12"
+              style={{ fill: "var(--ink-3)" }}
+              fontWeight="600"
+            >
               {d.dailyCostCny.toLocaleString()}
             </text>
-            <text x={x + barW / 2} y={H - 7} textAnchor="middle" fontSize="11"
-                  style={{ fill: "var(--ink-4)" }}>
+            <text
+              x={x + barW / 2}
+              y={H - 7}
+              textAnchor="middle"
+              fontSize="11"
+              style={{ fill: "var(--ink-4)" }}
+            >
               Day {d.day}
             </text>
           </g>

@@ -86,7 +86,9 @@ export function fitView(
   const h = Number.isFinite(height) && height > 0 ? height : 400;
   const minSide = Math.min(w, h);
   // padding 不能把可视区域吃成负数（极端小图）
-  const pad = Number.isFinite(padding) ? Math.max(0, Math.min(padding, minSide / 2 - 4)) : DEFAULT_PADDING;
+  const pad = Number.isFinite(padding)
+    ? Math.max(0, Math.min(padding, minSide / 2 - 4))
+    : DEFAULT_PADDING;
 
   const valid = (points ?? []).filter(isValidPoint);
   if (valid.length === 0) return { center: { ...DEFAULT_CENTER }, zoom: DEFAULT_ZOOM };

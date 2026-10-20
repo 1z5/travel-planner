@@ -113,25 +113,28 @@ const server = createServer((req, res) => {
     }
     // offset>1 时（补全接口）返回多条建议，让 suggest 的下游逻辑可测
     const offset = Number(url.searchParams.get("offset") ?? "1");
-    const pois = offset > 1
-      ? [1, 2, 3].map((n) => ({
-          name: mockPoiName(`${keywords}建议${n}`),
-          address: `测试地址${n}`,
-          location: mockLocation(keywords, n),
-          adname: "测试区",
-          city: "成都市",
-          pname: "四川省",
-          biz_ext: mockBizExt(keywords),
-        }))
-      : [{
-          name: mockPoiName(keywords),
-          address: "测试地址",
-          location: mockLocation(keywords),
-          adname: "测试区",
-          city: "成都市",
-          pname: "四川省",
-          biz_ext: mockBizExt(keywords),
-        }];
+    const pois =
+      offset > 1
+        ? [1, 2, 3].map((n) => ({
+            name: mockPoiName(`${keywords}建议${n}`),
+            address: `测试地址${n}`,
+            location: mockLocation(keywords, n),
+            adname: "测试区",
+            city: "成都市",
+            pname: "四川省",
+            biz_ext: mockBizExt(keywords),
+          }))
+        : [
+            {
+              name: mockPoiName(keywords),
+              address: "测试地址",
+              location: mockLocation(keywords),
+              adname: "测试区",
+              city: "成都市",
+              pname: "四川省",
+              biz_ext: mockBizExt(keywords),
+            },
+          ];
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "1", info: "OK", count: String(pois.length), pois }));
     return;
@@ -150,7 +153,9 @@ const server = createServer((req, res) => {
       /^\d+\*\d+$/.test(size) &&
       (scale === "1" || scale === "2");
     if (!okParams) {
-      console.log(`[amap-stub] /v3/staticmap 参数非法 location=${location || "-"} zoom=${zoom || "-"} size=${size || "-"} scale=${scale || "-"}`);
+      console.log(
+        `[amap-stub] /v3/staticmap 参数非法 location=${location || "-"} zoom=${zoom || "-"} size=${size || "-"} scale=${scale || "-"}`,
+      );
       res.writeHead(200, { "Content-Type": "application/json;charset=UTF-8" });
       res.end(JSON.stringify({ status: "0", info: "INVALID_PARAMS", infocode: "20000" }));
       return;
@@ -181,41 +186,51 @@ const server = createServer((req, res) => {
   // steps 里放一条带 HTML 标签的和一条空串，验证清洗逻辑。
   if (path === "/v5/direction/walking" || path === "/v5/direction/bicycling") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "1", info: "OK",
-      route: {
-        paths: [{
-          distance: "5000",
-          cost: { duration: "600" },
-          steps: [
-            { instruction: "向东北步行<b>341</b>米左转" },
-            { instruction: "沿道路直行200米" },
-            { instruction: "   " },
-            { instruction: "到达目的地" },
+    res.end(
+      JSON.stringify({
+        status: "1",
+        info: "OK",
+        route: {
+          paths: [
+            {
+              distance: "5000",
+              cost: { duration: "600" },
+              steps: [
+                { instruction: "向东北步行<b>341</b>米左转" },
+                { instruction: "沿道路直行200米" },
+                { instruction: "   " },
+                { instruction: "到达目的地" },
+              ],
+            },
           ],
-        }],
-      },
-    }));
+        },
+      }),
+    );
     return;
   }
   if (path === "/v5/direction/driving") {
     // driving 真实形状：无任何时长字段（见上方注释）
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "1", info: "OK",
-      route: {
-        paths: [{
-          distance: "5000",
-          restriction: "0",
-          steps: [
-            { instruction: "沿道路向东行驶162米向左后方行驶" },
-            { instruction: "沿道路向西行驶14米右转" },
-            { instruction: "   " },
-            { instruction: "到达目的地" },
+    res.end(
+      JSON.stringify({
+        status: "1",
+        info: "OK",
+        route: {
+          paths: [
+            {
+              distance: "5000",
+              restriction: "0",
+              steps: [
+                { instruction: "沿道路向东行驶162米向左后方行驶" },
+                { instruction: "沿道路向西行驶14米右转" },
+                { instruction: "   " },
+                { instruction: "到达目的地" },
+              ],
+            },
           ],
-        }],
-      },
-    }));
+        },
+      }),
+    );
     return;
   }
 
@@ -224,17 +239,55 @@ const server = createServer((req, res) => {
     // （2026-10-10 ~ 10-12）的预报，其中 10-10 刻意设为「小雨」——
     // 这样 phaseB 的行程（Day1 有室外景点）应触发天气提示，可精确断言。
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "1", info: "OK",
-      forecasts: [{
-        city: "成都市",
-        casts: [
-          { date: "2026-10-10", week: "6", dayweather: "小雨", nightweather: "多云", daytemp: "24", nighttemp: "18", daywind: "北", nightwind: "北", daypower: "1-3", nightpower: "1-3" },
-          { date: "2026-10-11", week: "7", dayweather: "晴", nightweather: "晴", daytemp: "26", nighttemp: "19", daywind: "北", nightwind: "北", daypower: "1-3", nightpower: "1-3" },
-          { date: "2026-10-12", week: "1", dayweather: "多云", nightweather: "晴", daytemp: "25", nighttemp: "18", daywind: "北", nightwind: "北", daypower: "1-3", nightpower: "1-3" },
+    res.end(
+      JSON.stringify({
+        status: "1",
+        info: "OK",
+        forecasts: [
+          {
+            city: "成都市",
+            casts: [
+              {
+                date: "2026-10-10",
+                week: "6",
+                dayweather: "小雨",
+                nightweather: "多云",
+                daytemp: "24",
+                nighttemp: "18",
+                daywind: "北",
+                nightwind: "北",
+                daypower: "1-3",
+                nightpower: "1-3",
+              },
+              {
+                date: "2026-10-11",
+                week: "7",
+                dayweather: "晴",
+                nightweather: "晴",
+                daytemp: "26",
+                nighttemp: "19",
+                daywind: "北",
+                nightwind: "北",
+                daypower: "1-3",
+                nightpower: "1-3",
+              },
+              {
+                date: "2026-10-12",
+                week: "1",
+                dayweather: "多云",
+                nightweather: "晴",
+                daytemp: "25",
+                nighttemp: "18",
+                daywind: "北",
+                nightwind: "北",
+                daypower: "1-3",
+                nightpower: "1-3",
+              },
+            ],
+          },
         ],
-      }],
-    }));
+      }),
+    );
     return;
   }
 
@@ -246,17 +299,20 @@ const server = createServer((req, res) => {
     const location = url.searchParams.get("location") ?? "";
     const isMunicipality = location.startsWith("116.4");
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "1", info: "OK",
-      regeocode: {
-        addressComponent: isMunicipality
-          ? { city: [], province: "北京市", district: "朝阳区" }
-          : { city: "成都市", province: "四川省", district: "武侯区" },
-        formatted_address: isMunicipality
-          ? "北京市朝阳区望京街道方恒国际中心"
-          : "四川省成都市武侯区武侯祠大街",
-      },
-    }));
+    res.end(
+      JSON.stringify({
+        status: "1",
+        info: "OK",
+        regeocode: {
+          addressComponent: isMunicipality
+            ? { city: [], province: "北京市", district: "朝阳区" }
+            : { city: "成都市", province: "四川省", district: "武侯区" },
+          formatted_address: isMunicipality
+            ? "北京市朝阳区望京街道方恒国际中心"
+            : "四川省成都市武侯区武侯祠大街",
+        },
+      }),
+    );
     return;
   }
 

@@ -27,7 +27,10 @@ export function createSession(phone: string): { token: string; maxAgeSec: number
   const now = Date.now();
   const payload: SessionPayload = { p: phone, i: now, e: now + SESSION_TTL_MS };
   const payloadB64 = b64url(JSON.stringify(payload));
-  return { token: `${payloadB64}.${sign(payloadB64)}`, maxAgeSec: Math.floor(SESSION_TTL_MS / 1000) };
+  return {
+    token: `${payloadB64}.${sign(payloadB64)}`,
+    maxAgeSec: Math.floor(SESSION_TTL_MS / 1000),
+  };
 }
 
 export function readSession(cookieHeader: string | null | undefined): SessionPayload | null {

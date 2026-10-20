@@ -11,7 +11,10 @@ function mockFetchSequence() {
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     calls.push({ url, body: init?.body ? JSON.parse(init.body as string) : undefined });
     if (url === "/api/me") {
-      return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+      return {
+        ok: true,
+        json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+      };
     }
     if (url === "/api/plan") {
       return { ok: true, status: 202, json: async () => ({ jobId: "job_test_001" }) };
@@ -89,7 +92,9 @@ describe("Home 表单", () => {
 
     await userEvent.click(screen.getByText("生成行程"));
 
-    await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), { timeout: 3000 });
+    await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), {
+      timeout: 3000,
+    });
     const submit = calls.find((c) => c.url === "/api/plan");
     expect(submit?.body).toMatchObject({
       city: "成都",
@@ -97,10 +102,18 @@ describe("Home 表单", () => {
       hotel: "住春熙路附近",
       mustVisit: ["三星堆"],
     });
-    expect((submit?.body as { startAt: string }).startAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    expect((submit?.body as { startAt: string }).startAt).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
+    );
 
     // 轮询到 done 后渲染行程
-    await waitFor(() => expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument(), { timeout: 5000 });
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`),
+        ).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
   });
 
   it("默认节奏为适中（提交载荷 pace=balanced）", async () => {
@@ -110,8 +123,12 @@ describe("Home 表单", () => {
     // city 不再预填，先填城市才能提交（无定位权限时按钮禁用）
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
     await userEvent.click(screen.getByText("生成行程"));
-    await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), { timeout: 3000 });
-    expect((calls.find((c) => c.url === "/api/plan")?.body as { pace: string }).pace).toBe("balanced");
+    await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), {
+      timeout: 3000,
+    });
+    expect((calls.find((c) => c.url === "/api/plan")?.body as { pace: string }).pace).toBe(
+      "balanced",
+    );
   });
 
   it("点「手机号登录」展开登录表单（手机号 + 验证码 + 获取验证码/登录）", async () => {
@@ -138,7 +155,10 @@ describe("Home 最近行程", () => {
   it("生成完成后写入最近行程并展示入口（链接带 ?edit=1）", async () => {
     vi.stubGlobal("fetch", async (url: string) => {
       if (url === "/api/me") {
-        return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+        };
       }
       if (url === "/api/plan") {
         return { ok: true, status: 202, json: async () => ({ jobId: "job_test_001" }) };
@@ -147,7 +167,10 @@ describe("Home 最近行程", () => {
         return {
           ok: true,
           json: async () => ({
-            status: "done", plan: SAMPLE_PLAN, remaining: 2, shareId: "share_test001",
+            status: "done",
+            plan: SAMPLE_PLAN,
+            remaining: 2,
+            shareId: "share_test001",
           }),
         };
       }
@@ -161,7 +184,10 @@ describe("Home 最近行程", () => {
 
     // 结果渲染 + 最近行程卡片出现
     await waitFor(
-      () => expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`),
+        ).toBeInTheDocument(),
       { timeout: 5000 },
     );
     await waitFor(() => expect(screen.getByText("最近行程")).toBeInTheDocument());
@@ -174,13 +200,19 @@ describe("Home 最近行程", () => {
   });
 
   it("最近行程可移除（只清本地索引，不影响已分享链接）", async () => {
-    window.localStorage.setItem("tp.recent-trips.v1", JSON.stringify([
-      { shareId: "share_keep01", city: "成都", days: 3, createdAt: Date.now() },
-      { shareId: "share_drop02", city: "苏州", days: 2, createdAt: Date.now() - 1000 },
-    ]));
+    window.localStorage.setItem(
+      "tp.recent-trips.v1",
+      JSON.stringify([
+        { shareId: "share_keep01", city: "成都", days: 3, createdAt: Date.now() },
+        { shareId: "share_drop02", city: "苏州", days: 2, createdAt: Date.now() - 1000 },
+      ]),
+    );
     vi.stubGlobal("fetch", async (url: string) => {
       if (url === "/api/me") {
-        return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+        };
       }
       return { ok: true, json: async () => ({}) };
     });
@@ -204,7 +236,10 @@ describe("Home 最近行程", () => {
     const statusCalls: string[] = [];
     vi.stubGlobal("fetch", async (url: string) => {
       if (url === "/api/me") {
-        return { ok: true, json: async () => ({ loggedIn: false, remaining: 3, provider: "none" }) };
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: 3, provider: "none" }),
+        };
       }
       if (url === "/api/plan") {
         return { ok: true, status: 202, json: async () => ({ jobId: "job_strict_1" }) };
@@ -213,7 +248,12 @@ describe("Home 最近行程", () => {
         statusCalls.push(url);
         return {
           ok: true,
-          json: async () => ({ status: "done", plan: SAMPLE_PLAN, remaining: 2, shareId: "share_strict" }),
+          json: async () => ({
+            status: "done",
+            plan: SAMPLE_PLAN,
+            remaining: 2,
+            shareId: "share_strict",
+          }),
         };
       }
       return { ok: true, json: async () => ({}) };
@@ -229,7 +269,10 @@ describe("Home 最近行程", () => {
     // 关键：status 必须被调用过（修复前 StrictMode 下一次都不调）
     await waitFor(() => expect(statusCalls.length).toBeGreaterThan(0), { timeout: 4000 });
     await waitFor(
-      () => expect(screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`)).toBeInTheDocument(),
+      () =>
+        expect(
+          screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`),
+        ).toBeInTheDocument(),
       { timeout: 5000 },
     );
   });
@@ -262,17 +305,22 @@ describe("Home 目的地城市默认值", () => {
       success({ coords: { longitude: 104.06, latitude: 30.57 } });
     });
     Object.defineProperty(navigator, "geolocation", {
-      value: { getCurrentPosition }, configurable: true,
+      value: { getCurrentPosition },
+      configurable: true,
     });
     // jsdom 的 location 是 http://localhost，isSecureContext 求值为 false，
     // resolveCity 会在调 geolocation 前就返回。真实浏览器里 localhost 是安全
     // 上下文，所以这里按真实环境覆写为 true。
     Object.defineProperty(window, "isSecureContext", {
-      value: true, configurable: true,
+      value: true,
+      configurable: true,
     });
     vi.stubGlobal("fetch", async (url: string) => {
       if (url === "/api/me") {
-        return { ok: true, json: async () => ({ loggedIn: false, remaining: null, provider: "none" }) };
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+        };
       }
       if (url.startsWith("/api/geocode/reverse")) {
         return { ok: true, json: async () => ({ city: "成都", formatted: "成都市武侯区" }) };

@@ -44,14 +44,32 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     >
       {/* 顶部：品牌行 */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ display: "flex", width: 10, height: 10, borderRadius: 999, background: "#fb923c" }} />
-        <div style={{ display: "flex", fontSize: 26, color: "#a1a1aa", letterSpacing: 2 }}>AI 行程规划平台</div>
+        <div
+          style={{
+            display: "flex",
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            background: "#fb923c",
+          }}
+        />
+        <div style={{ display: "flex", fontSize: 26, color: "#a1a1aa", letterSpacing: 2 }}>
+          AI 行程规划平台
+        </div>
       </div>
 
       {/* 中部：城市 + 天数（主信息） */}
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 24 }}>
-          <div style={{ display: "flex", fontSize: 108, fontWeight: 700, color: "#fafafa", lineHeight: 1.05 }}>
+          <div
+            style={{
+              display: "flex",
+              fontSize: 108,
+              fontWeight: 700,
+              color: "#fafafa",
+              lineHeight: 1.05,
+            }}
+          >
             {city}
           </div>
           {days > 0 && (
@@ -82,14 +100,25 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               </div>
               <div style={{ display: "flex", fontSize: 22, color: "#71717a" }}>人均总花费</div>
             </div>
-            <div style={{ display: "flex", width: 1, height: 40, background: "rgba(255,255,255,0.16)" }} />
+            <div
+              style={{
+                display: "flex",
+                width: 1,
+                height: 40,
+                background: "rgba(255,255,255,0.16)",
+              }}
+            />
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <div style={{ display: "flex", fontSize: 40, fontWeight: 700, color: "#fafafa" }}>{`${spots}`}</div>
+              <div
+                style={{ display: "flex", fontSize: 40, fontWeight: 700, color: "#fafafa" }}
+              >{`${spots}`}</div>
               <div style={{ display: "flex", fontSize: 22, color: "#71717a" }}>个行程点</div>
             </div>
           </>
         )}
-        <div style={{ display: "flex", marginLeft: "auto", fontSize: 22, color: "#71717a" }}>行程规划师</div>
+        <div style={{ display: "flex", marginLeft: "auto", fontSize: 22, color: "#71717a" }}>
+          行程规划师
+        </div>
       </div>
     </div>,
     { ...size },

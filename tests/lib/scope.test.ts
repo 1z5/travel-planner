@@ -78,7 +78,10 @@ describe("lookupPoi 的 scope 行为", () => {
     let callCount = 0;
     const calls = captureFetch(() => {
       callCount += 1;
-      return { status: "1", pois: [{ name: `p${callCount}`, address: "a", location: "116.4,39.9", adname: "b" }] };
+      return {
+        status: "1",
+        pois: [{ name: `p${callCount}`, address: "a", location: "116.4,39.9", adname: "b" }],
+      };
     });
 
     const cityResult = await lookupPoi("成都", "同名寺", "city");
@@ -98,7 +101,10 @@ describe("lookupPoi 的 scope 行为", () => {
     const { transitMinutes } = await import("@/lib/amap");
     const calls = captureFetch((url) => {
       if (url.pathname.includes("/place/text")) {
-        return { status: "1", pois: [{ name: "x", address: "a", location: "103.0,30.0", adname: "b" }] };
+        return {
+          status: "1",
+          pois: [{ name: "x", address: "a", location: "103.0,30.0", adname: "b" }],
+        };
       }
       return { status: "1", route: { paths: [{ distance: "5000" }] } };
     });

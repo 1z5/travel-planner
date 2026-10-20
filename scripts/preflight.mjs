@@ -23,33 +23,54 @@ check("BLOCK", "Node.js >= 20", nodeOk, `当前 ${process.version}`);
 
 // 2. LLM 必需配置
 check("BLOCK", "LLM_API_KEY 已配置", Boolean(env("LLM_API_KEY")) && env("LLM_API_KEY").length > 10);
-check("BLOCK", "LLM_BASE_URL 是 https", (env("LLM_BASE_URL") ?? "").startsWith("https://"),
-  env("LLM_BASE_URL") || "未设置（默认 stepfun 网关）");
+check(
+  "BLOCK",
+  "LLM_BASE_URL 是 https",
+  (env("LLM_BASE_URL") ?? "").startsWith("https://"),
+  env("LLM_BASE_URL") || "未设置（默认 stepfun 网关）",
+);
 check("WARN", "LLM_MODEL 已设置", Boolean(env("LLM_MODEL")), env("LLM_MODEL") || "未设置");
 
 // 3. 高德（缺失 = MOCK 模式，POI 不验真，产品核心卖力缺失）
 const amapKey = env("AMAP_WEB_SERVICE_KEY");
-check("WARN", "AMAP_WEB_SERVICE_KEY 已配置", Boolean(amapKey),
-  amapKey ? "live 验真模式" : "未配置 → MOCK 模式，行程 POI 不验真（verified=false）");
+check(
+  "WARN",
+  "AMAP_WEB_SERVICE_KEY 已配置",
+  Boolean(amapKey),
+  amapKey ? "live 验真模式" : "未配置 → MOCK 模式，行程 POI 不验真（verified=false）",
+);
 
 // 4. 生产环境的 session 密钥（默认值是公开的，等于没签名）
 if ((env("NODE_ENV") ?? "") === "production") {
   const secret = env("SESSION_SECRET");
-  check("BLOCK", "SESSION_SECRET 已修改（生产）",
+  check(
+    "BLOCK",
+    "SESSION_SECRET 已修改（生产）",
     Boolean(secret) && secret !== "dev-only-insecure-secret",
-    "用随机长字符串，如 openssl rand -hex 32");
+    "用随机长字符串，如 openssl rand -hex 32",
+  );
 }
-check("WARN", "COOKIE_SECURE 生产应为 1/unset（自动 https）",
-  env("COOKIE_SECURE") !== "0", "COOKIE_SECURE=0 会让 session cookie 在 http 也发送");
+check(
+  "WARN",
+  "COOKIE_SECURE 生产应为 1/unset（自动 https）",
+  env("COOKIE_SECURE") !== "0",
+  "COOKIE_SECURE=0 会让 session cookie 在 http 也发送",
+);
 
 // 5. 配额数字合法（未设置则用代码默认值 3 / 10，合法）
 const DEFAULTS = { DAILY_FREE_LIMIT: 3, AUTH_USER_LIMIT: 10 };
-for (const [name, min, max] of [["DAILY_FREE_LIMIT", 1, 1000], ["AUTH_USER_LIMIT", 1, 1000]]) {
+for (const [name, min, max] of [
+  ["DAILY_FREE_LIMIT", 1, 1000],
+  ["AUTH_USER_LIMIT", 1, 1000],
+]) {
   const raw = env(name);
   const v = raw === undefined || raw === "" ? DEFAULTS[name] : Number(raw);
-  check("BLOCK", `${name} 是 ${min}-${max} 的整数`,
+  check(
+    "BLOCK",
+    `${name} 是 ${min}-${max} 的整数`,
     Number.isInteger(v) && v >= min && v <= max,
-    raw === undefined || raw === "" ? `未设置 → 用默认 ${DEFAULTS[name]}` : `当前 ${raw}`);
+    raw === undefined || raw === "" ? `未设置 → 用默认 ${DEFAULTS[name]}` : `当前 ${raw}`,
+  );
 }
 
 // 6. .env 不会被提交（密钥泄漏防线）
@@ -57,13 +78,21 @@ const gitignore = existsSync(".gitignore") ? readFileSync(".gitignore", "utf8") 
 check("BLOCK", ".gitignore 包含 .env", gitignore.includes(".env"));
 
 // 7. 构建产物存在（standalone）
-check("WARN", "已执行 npm run build", existsSync(".next/standalone/server.js"),
-  "部署前必须构建；standalone 需 cp static 与 public（见 DEPLOY.md）");
+check(
+  "WARN",
+  "已执行 npm run build",
+  existsSync(".next/standalone/server.js"),
+  "部署前必须构建；standalone 需 cp static 与 public（见 DEPLOY.md）",
+);
 
 // 8. Prisma Client 已生成（Prisma 7 起 @prisma/client 无 postinstall，
 // npm ci 不会自动生成，缺 .prisma/client 时 postgres 路径一跑就崩）
-check("BLOCK", "Prisma Client 已生成", existsSync("node_modules/.prisma/client/default.js"),
-  "跑 npx prisma generate（只读 schema，不连库）");
+check(
+  "BLOCK",
+  "Prisma Client 已生成",
+  existsSync("node_modules/.prisma/client/default.js"),
+  "跑 npx prisma generate（只读 schema，不连库）",
+);
 
 // ---- 汇总 ----
 let blocked = 0;

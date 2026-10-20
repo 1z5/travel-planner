@@ -67,7 +67,9 @@ export async function interruptJob(job: JobRecord): Promise<void> {
   refundedInterrupted.add(job.id); // 先同步登记再 await，避免并发双退
   await getStore().jobs.update(job.id, { status: "error", error: JOB_INTERRUPTED_ERROR });
   await refund(job.key);
-  console.log(`[job] ${job.id} 判定为中断（超过 ${Math.round(staleJobMs() / 1000)}s 无心跳），已退还配额`);
+  console.log(
+    `[job] ${job.id} 判定为中断（超过 ${Math.round(staleJobMs() / 1000)}s 无心跳），已退还配额`,
+  );
 }
 
 /**
@@ -187,9 +189,7 @@ export async function createJob(
     createdAt: Date.now(),
   };
   await store.jobs.create(job);
-  console.log(
-    `[job] ${job.id} 开始 城市=${input.city} 天数=${input.days} 预算=${input.budget}`,
-  );
+  console.log(`[job] ${job.id} 开始 城市=${input.city} 天数=${input.days} 预算=${input.budget}`);
   void (async () => {
     const t0 = Date.now();
     // 心跳保活：running 任务必须持续刷新 updatedAt，否则服务重启后 status 路由
@@ -202,14 +202,14 @@ export async function createJob(
         const plan = await validatePlan(await generatePlan(input), input);
         await completeWithWeather(store, job.id, plan, input, key);
       }
-      console.log(
-        `[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`,
-      );
+      console.log(`[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     } catch (e) {
       const error = e instanceof Error ? e.message : "生成失败，请稍后重试";
       await store.jobs.update(job.id, { status: "error", error });
       onError?.(); // 失败归还配额
-      console.log(`[job] ${job.id} 失败 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 原因=${error}`);
+      console.log(
+        `[job] ${job.id} 失败 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 原因=${error}`,
+      );
     } finally {
       stopHeartbeat();
     }
@@ -346,7 +346,12 @@ async function runStreaming(
   );
   const missCount = warnings.filter((w) => w.includes("未在高德检索到")).length;
   finalizePlan(plan, input, {
-    warnings, unverified, transitUnknownDays, grandTotal, missCount, poiTotal,
+    warnings,
+    unverified,
+    transitUnknownDays,
+    grandTotal,
+    missCount,
+    poiTotal,
   });
   // 天气提示 + 持久化分享 + 标记完成（共用逻辑，与单次路径一致）
   await completeWithWeather(store, jobId, plan, input, ownerKey);

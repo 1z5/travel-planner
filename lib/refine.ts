@@ -1,13 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import {
-  baseLines,
-  client,
-  extractJson,
-  LlmError,
-  SpotSchema,
-  streamChatRetry,
-} from "./planner";
+import { baseLines, client, extractJson, LlmError, SpotSchema, streamChatRetry } from "./planner";
 import { nameCovered, validatePlan } from "./validate";
 import type { Plan, PlanDay, PlanInput, PlanSpot } from "./types";
 
@@ -107,9 +100,11 @@ function refineSystemPrompt(kind: RefineAction["kind"]): string {
 ${kind === "swap" ? '{"spot": { ...完整 spot... }}' : '{"day": {"day": 天序号, "theme": "当天主题", "spots": [ ...完整一天... ]}}'}
 3. spot 字段（rainBackup 之外全部必填）：
 ${SPOT_SHAPE_DOC}
-4. ${kind === "swap"
-    ? "只返回这一个替换点，不要返回整天或整份行程。"
-    : "spots 必须是「改完后的完整一天」：按时间顺序、含午餐/晚餐，不是增量补丁；不得少于 1 个点。"}`;
+4. ${
+    kind === "swap"
+      ? "只返回这一个替换点，不要返回整天或整份行程。"
+      : "spots 必须是「改完后的完整一天」：按时间顺序、含午餐/晚餐，不是增量补丁；不得少于 1 个点。"
+  }`;
 }
 
 const TYPE_LABEL: Record<PlanSpot["type"], string> = {
@@ -202,11 +197,10 @@ export function buildRefinePrompt(
 
   if (action.kind === "swap") {
     const target = targetDay.spots[action.spotIndex]!;
-    const todayNames = targetDay.spots
-      .filter((_, i) => i !== action.spotIndex)
-      .map((s) => s.name);
-    const planNames = [...new Set(plan.days.flatMap((d) => d.spots.map((s) => s.name)))]
-      .filter((n) => n !== target.name);
+    const todayNames = targetDay.spots.filter((_, i) => i !== action.spotIndex).map((s) => s.name);
+    const planNames = [...new Set(plan.days.flatMap((d) => d.spots.map((s) => s.name)))].filter(
+      (n) => n !== target.name,
+    );
     lines.push("【本次任务】单点替换");
     lines.push(`目标：第 ${action.day} 天`);
     lines.push(
@@ -239,7 +233,9 @@ export function buildRefinePrompt(
     );
     lines.push(`【当天必须保留】${keeps.length ? keeps.join("、") : "（无）"}`);
     lines.push("重排要求：");
-    lines.push(`- 只输出第 ${action.day} 天改完后的完整一天，不要输出其他天，也不要在文字里复述它们。`);
+    lines.push(
+      `- 只输出第 ${action.day} 天改完后的完整一天，不要输出其他天，也不要在文字里复述它们。`,
+    );
     lines.push(`- theme 沿用「${targetDay.theme}」，除非用户指令明确要求换主题。`);
     lines.push(
       "- spots 按时间顺序完整（含午餐/晚餐），不得少于 1 个点；主景点数量与节奏按上面的用户约束。",
@@ -247,7 +243,9 @@ export function buildRefinePrompt(
     lines.push("- 当天已有的住宿点（如有）保持不变；type=activity 的点原样保留。");
     lines.push("- 不要删除【当天必须保留】里的任何点。");
     lines.push("");
-    lines.push('【输出】只输出 JSON：{"day": {"day": ' + action.day + ', "theme": "...", "spots": [...]}}');
+    lines.push(
+      '【输出】只输出 JSON：{"day": {"day": ' + action.day + ', "theme": "...", "spots": [...]}}',
+    );
   }
 
   if (correction) {
@@ -349,10 +347,7 @@ function dayCandidate(
     problems.push(`改完后这些硬约束不见了：${lost.join("、")}（必游地/重点活动/住所不能删）`);
   }
   // 「重排这一天」返回原样 = 没有兑现对用户的承诺，不能算成功
-  if (
-    problems.length === 0 &&
-    sameSpots(original.spots, out.spots as PlanSpot[])
-  ) {
+  if (problems.length === 0 && sameSpots(original.spots, out.spots as PlanSpot[])) {
     problems.push("输出与原来的安排完全相同（没有真正重排），请给出不同且更合理的安排");
   }
   if (problems.length) return { candidate: null, problem: problems.join("；") };
@@ -405,10 +400,7 @@ const DELETE_WORDS = /删|去掉|去除|取消|不要|别去|不去了|移除/;
 function deletingHardConstraint(instruction: string, input: PlanInput): string | null {
   const text = sanitizeInstruction(instruction);
   if (!DELETE_WORDS.test(text)) return null;
-  const hard = [
-    ...(input.mustVisit ?? []),
-    ...(input.events ?? []).map((e) => e.name),
-  ];
+  const hard = [...(input.mustVisit ?? []), ...(input.events ?? []).map((e) => e.name)];
   for (const name of hard) {
     if (nameCovered(name, [text])) return name;
   }

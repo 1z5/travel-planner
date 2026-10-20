@@ -52,9 +52,7 @@ export const COST_CATEGORIES: readonly CostCategoryMeta[] = [
 
 const OTHER_META: CostCategoryMeta = COST_CATEGORIES[COST_CATEGORIES.length - 1];
 /** 类别展示顺序（同额时按这个顺序稳定排序，避免每次渲染图例乱跳） */
-const CATEGORY_ORDER = new Map<string, number>(
-  COST_CATEGORIES.map((c, i) => [c.type, i]),
-);
+const CATEGORY_ORDER = new Map<string, number>(COST_CATEGORIES.map((c, i) => [c.type, i]));
 
 function categoryMeta(type: string): CostCategoryMeta {
   return COST_CATEGORIES.find((c) => c.type === type) ?? OTHER_META;
@@ -202,7 +200,10 @@ export function summarizeBudget(plan: Plan): BudgetSummary {
     .sort((a, b) => b.amount - a.amount || a.order - b.order);
 
   const total = built.reduce((s, c) => s + c.amount, 0);
-  const pcts = allocatePcts(built.map((c) => c.amount), total);
+  const pcts = allocatePcts(
+    built.map((c) => c.amount),
+    total,
+  );
   const categories: BudgetCategory[] = built.map((c, i) => ({
     type: c.type,
     label: c.label,
@@ -245,12 +246,16 @@ export function summarizeBudget(plan: Plan): BudgetSummary {
     if (budgetFilled) {
       notes.push(`预算金额 ${String(rawBudget)} 无效，无法计算使用率——以下为实际花费构成`);
       if (largest) {
-        notes.push(`${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`);
+        notes.push(
+          `${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`,
+        );
       }
     } else {
       // 无预算时 notes[0] 仍是「钱主要花在哪」——那是这份摘要里最有信息量的一句
       if (largest) {
-        notes.push(`${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`);
+        notes.push(
+          `${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`,
+        );
       }
       if (total === 0) {
         notes.push("这份行程没有记录花费，无法做预算透视（可能是免费行程或数据缺失）");
@@ -260,22 +265,30 @@ export function summarizeBudget(plan: Plan): BudgetSummary {
     }
   } else if (total === 0) {
     // 有预算却 0 花费：说成「预算宽松」是误导，更可能是免费行程或数据缺失。
-    notes.push(`行程没有记录花费（预算 ${formatCny(budget)} 未动用）——可能是免费景点为主，也可能是数据缺失`);
+    notes.push(
+      `行程没有记录花费（预算 ${formatCny(budget)} 未动用）——可能是免费景点为主，也可能是数据缺失`,
+    );
   } else {
     const diff = total - budget;
     if (status === "over") {
       const overPct = Math.round((total / budget - 1) * 100);
-      notes.push(`比预算多 ${formatCny(diff)}（+${overPct}%）——建议优先压缩${largest ? largest.label : "弹性项"}`);
+      notes.push(
+        `比预算多 ${formatCny(diff)}（+${overPct}%）——建议优先压缩${largest ? largest.label : "弹性项"}`,
+      );
     } else if (status === "tight") {
       const overPct = Math.round((total / budget - 1) * 100);
       notes.push(`比预算多 ${formatCny(diff)}（+${overPct}%），刚贴上 105% 预警线——再花就超了`);
     } else if (status === "on-target") {
       notes.push(`预算用掉 ${usedPct}%，在预算内——安排得刚好`);
     } else {
-      notes.push(`比预算少 ${formatCny(-diff)}（用掉 ${usedPct}%），预算宽松——可升级住宿或加一个体验`);
+      notes.push(
+        `比预算少 ${formatCny(-diff)}（用掉 ${usedPct}%），预算宽松——可升级住宿或加一个体验`,
+      );
     }
     if (largest) {
-      notes.push(`${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`);
+      notes.push(
+        `${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`,
+      );
     }
   }
 
@@ -287,16 +300,16 @@ export function summarizeBudget(plan: Plan): BudgetSummary {
     );
   }
   if (anomalyCount > 0) {
-    notes.push(`有 ${anomalyCount} 个花费条目金额异常（负数/非数字），已按 0 计入——原始数据可能有误`);
+    notes.push(
+      `有 ${anomalyCount} 个花费条目金额异常（负数/非数字），已按 0 计入——原始数据可能有误`,
+    );
   }
 
   // 5) 每日花费（供未来复用：哪天最贵 / 预算按天分配）。
   const perDay: BudgetDay[] = days.map((day, i) => ({
     day: day.day,
     amount: dayAmounts[i],
-    ...(budget !== undefined
-      ? { pctOfBudget: Math.round((dayAmounts[i] / budget) * 100) }
-      : {}),
+    ...(budget !== undefined ? { pctOfBudget: Math.round((dayAmounts[i] / budget) * 100) } : {}),
   }));
 
   return {

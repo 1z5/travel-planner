@@ -7,8 +7,12 @@ import type { Plan, PlanDay, PlanSpot } from "./types";
 // ============================================================
 
 const TYPE_LABEL: Record<string, string> = {
-  sight: "景点", food: "餐饮", hotel: "住宿", transport: "交通",
-  shopping: "购物", activity: "体验",
+  sight: "景点",
+  food: "餐饮",
+  hotel: "住宿",
+  transport: "交通",
+  shopping: "购物",
+  activity: "体验",
 };
 
 function pad(n: number): string {
@@ -37,7 +41,10 @@ function crossesMidnight(range: [string, string]): boolean {
 
 /** RFC5545 文本转义：换行/分号/逗号/反斜杠 */
 function esc(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,")
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
     .replace(/\r?\n/g, "\\n");
 }
 
@@ -84,9 +91,10 @@ function uidFor(plan: Plan, day: PlanDay, spot: PlanSpot, i: number, date: strin
 
 export function buildIcs(plan: Plan): string {
   // 没有 startDate 时退化为明天开始（老数据/分享页兜底）
-  const startDate = plan.startDate && /^\d{4}-\d{2}-\d{2}$/.test(plan.startDate)
-    ? plan.startDate
-    : new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const startDate =
+    plan.startDate && /^\d{4}-\d{2}-\d{2}$/.test(plan.startDate)
+      ? plan.startDate
+      : new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -110,7 +118,9 @@ export function buildIcs(plan: Plan): string {
         `Day${day.day} ${day.theme}`,
         spot.reason,
         spot.rainBackup ? `🌧 雨天备选：${spot.rainBackup}` : "",
-      ].filter(Boolean).join("\n");
+      ]
+        .filter(Boolean)
+        .join("\n");
 
       lines.push("BEGIN:VEVENT");
       lines.push(`UID:${uidFor(plan, day, spot, i, date)}@travel-planner`);

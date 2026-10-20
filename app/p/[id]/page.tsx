@@ -76,12 +76,7 @@ export default async function SharePage({
           ← 行程规划师
         </Link>
       </p>
-      <PlanView
-        plan={plan}
-        shareId={id}
-        editable={edit === "1"}
-        ownerCheck
-      />
+      <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck />
     </main>
   );
 }

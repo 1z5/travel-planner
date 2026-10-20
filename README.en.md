@@ -21,6 +21,7 @@ npm run dev             # http://localhost:3000
 ```
 
 Config:
+
 - `LLM_*`: step-5 (OpenAI-compatible), pre-filled
 - `AMAP_WEB_SERVICE_KEY`: apply for a "Web Service" key at the [Amap console](https://console.amap.com/dev/key/app) (free for personal use). Without it the app runs in MOCK mode (full pipeline works, POIs unverified, `plan.verified=false`). After getting a key, run `npm run verify:amap` for a 5-second end-to-end key check
 - `DAILY_FREE_LIMIT`: daily free generations for anonymous users (per IP; storage switchable, see Architecture)
@@ -32,6 +33,7 @@ npm test        # self-contained: spawns stub LLM + isolated-port test servers, 
 ```
 
 124 assertions across four suites:
+
 - **Input boundaries (20) + health check (2)**: empty body / bad city / day-range / budget / malformed JSON / hotel, must-visit and pace format & injection cases → all 400; `/api/health` returns 200 without leaking secrets
 - **Fault injection (7)**: happy path / garbage output / empty content / upstream 500 / quota refund arithmetic / hotel + must-visit hard-constraint verification (satisfied items don't warn, missing items do, fuzzy hotel descriptions don't false-positive, prompt wiring verified)
 - **LLM output structure checks (11)**: shuffled + gapped day numbering (array [Day2,Day3,Day1], day fields [5,9,2]) → normalized to consecutive 1..N without reordering content; day-count mismatch (asked 4 days, got 3) → corrective-instruction retry → then an explicit failure with the quota refunded
@@ -76,16 +78,17 @@ lib/ratelimit.ts              quota & rate limiting (daily dual-track + hourly-b
 
 ## Measured results (2026-10)
 
-| Case | Time | Warnings | Notes |
-|---|---|---|---|
-| Xi'an 4d ¥2500 | 253s | detour 2 + pace 3 | POIs real and sensible |
-| Suzhou 3d ¥2500 | 237s | detour 2 + pace 2 | booking tips accurate |
-| Hangzhou 3d ¥2800 | 253s (streaming) | detour 3 + pace 2 | ¥2490 (89% of budget); 15151 tokens |
-| Xiamen 4d ¥3500 | 297s (**standalone prod mode**) | detour 3 + pace 2 | ¥2945 (84%); booking/rainy-day fallback tips |
-| Hong Kong 3d ¥3000 | **496.6s** (first real user) | pace 1 | ¥2439 (81%); 28805 tokens (cross-border doubles reasoning) |
-| Chengdu 4d ¥3000 | 185s (isolated) | — | after the budget-prompt fix |
+| Case               | Time                            | Warnings          | Notes                                                      |
+| ------------------ | ------------------------------- | ----------------- | ---------------------------------------------------------- |
+| Xi'an 4d ¥2500     | 253s                            | detour 2 + pace 3 | POIs real and sensible                                     |
+| Suzhou 3d ¥2500    | 237s                            | detour 2 + pace 2 | booking tips accurate                                      |
+| Hangzhou 3d ¥2800  | 253s (streaming)                | detour 3 + pace 2 | ¥2490 (89% of budget); 15151 tokens                        |
+| Xiamen 4d ¥3500    | 297s (**standalone prod mode**) | detour 3 + pace 2 | ¥2945 (84%); booking/rainy-day fallback tips               |
+| Hong Kong 3d ¥3000 | **496.6s** (first real user)    | pace 1            | ¥2439 (81%); 28805 tokens (cross-border doubles reasoning) |
+| Chengdu 4d ¥3000   | 185s (isolated)                 | —                 | after the budget-prompt fix                                |
 
 Key engineering findings (details in CHANGELOG.md):
+
 - **undici headersTimeout**: non-streaming requests were silently killed at 300s (before our 420s SDK timeout) — fixed by streaming
 - **SDK timeout semantics**: `timeout` only fires after `attempts × timeout` (30s timeout threw at 91s) — requires `maxRetries: 0`
 - **Prompt complexity drives reasoning cost**: percentage-based budget rules grew reasoning from ~13k to 40k+ characters and tripled generation time — constraints must be anchors, not arithmetic

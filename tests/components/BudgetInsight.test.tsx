@@ -69,7 +69,9 @@ const toneClass = (container: HTMLElement) =>
 describe("BudgetInsight", () => {
   it("有预算：渲染预算/已用/百分比 + 进度条 + 状态文案", () => {
     const { container } = render(
-      <BudgetInsight summary={summarizeBudget(makePlan([{ spots: [spot("food", 1120)] }], { budgetCny: 1000 }))} />,
+      <BudgetInsight
+        summary={summarizeBudget(makePlan([{ spots: [spot("food", 1120)] }], { budgetCny: 1000 }))}
+      />,
     );
     expect(container.textContent).toContain("预算");
     expect(container.textContent).toContain("¥1,000");
@@ -81,7 +83,11 @@ describe("BudgetInsight", () => {
 
   it("超支：红色语义类名 + 进度条填满 + 无障碍值被夹取在 0-100", () => {
     const { container } = render(
-      <BudgetInsight summary={summarizeBudget(makePlan([{ spots: [spot("hotel", 1200), spot("food", 320)] }], { budgetCny: 1000 }))} />,
+      <BudgetInsight
+        summary={summarizeBudget(
+          makePlan([{ spots: [spot("hotel", 1200), spot("food", 320)] }], { budgetCny: 1000 }),
+        )}
+      />,
     );
     const root = container.querySelector(".budget-insight");
     expect(root?.className).toContain("budget-tone-err");
@@ -129,7 +135,9 @@ describe("BudgetInsight", () => {
 
   it("达标：绿色语义类名 + 预算达标文案", () => {
     const { container } = render(
-      <BudgetInsight summary={summarizeBudget(makePlan([{ spots: [spot("food", 830)] }], { budgetCny: 1000 }))} />,
+      <BudgetInsight
+        summary={summarizeBudget(makePlan([{ spots: [spot("food", 830)] }], { budgetCny: 1000 }))}
+      />,
     );
     expect(toneClass(container)).toContain("budget-tone-ok");
     expect(screen.getByText("预算达标")).toBeInTheDocument();
@@ -138,7 +146,9 @@ describe("BudgetInsight", () => {
 
   it("宽松：黄色语义类名 + 预算宽松文案", () => {
     const { container } = render(
-      <BudgetInsight summary={summarizeBudget(makePlan([{ spots: [spot("food", 500)] }], { budgetCny: 1000 }))} />,
+      <BudgetInsight
+        summary={summarizeBudget(makePlan([{ spots: [spot("food", 500)] }], { budgetCny: 1000 }))}
+      />,
     );
     expect(toneClass(container)).toContain("budget-tone-warn");
     expect(screen.getByText("预算宽松")).toBeInTheDocument();
@@ -147,7 +157,9 @@ describe("BudgetInsight", () => {
 
   it("占比不足 1% 的类别显示「<1%」，金额仍如实展示", () => {
     const { container } = render(
-      <BudgetInsight summary={summarizeBudget(makePlan([{ spots: [spot("hotel", 1999), spot("food", 1)] }]))} />,
+      <BudgetInsight
+        summary={summarizeBudget(makePlan([{ spots: [spot("hotel", 1999), spot("food", 1)] }]))}
+      />,
     );
     expect(container.textContent).toContain("<1%");
     expect(container.textContent).toContain("¥1");

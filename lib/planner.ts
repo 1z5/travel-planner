@@ -30,8 +30,8 @@ const OutlineSchema = z.object({
     z.object({
       day: z.number(),
       theme: z.string(),
-      area: z.string(),        // 当天主战场，如 "姑苏区古城带"
-      focus: z.string(),       // 一句话说明这天怎么安排，如 "以园林为主，午后转平江路"
+      area: z.string(), // 当天主战场，如 "姑苏区古城带"
+      focus: z.string(), // 一句话说明这天怎么安排，如 "以园林为主，午后转平江路"
     }),
   ),
   tips: z.array(z.string()),
@@ -230,7 +230,10 @@ export function client(): OpenAI {
  * 而超时/内容问题各有自己的处理路径（见 streamChatRetry 与各生成函数）。
  */
 export class LlmError extends Error {
-  constructor(message: string, readonly retryable: boolean) {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+  ) {
     super(message);
     this.name = "LlmError";
   }
@@ -277,13 +280,11 @@ function streamDeadlineMs(): number {
 
 /** 总时长兜底触发的错误：写清「已中止 + 下一步」，且明确不是网络问题 */
 function streamDeadlineError(deadline: number): LlmError {
-  const limitText = deadline >= 60_000
-    ? `${Math.round(deadline / 60_000)} 分钟`
-    : `${Math.round(deadline / 1000)} 秒`;
-  return new LlmError(
-    `生成超过 ${limitText}仍未完成，已中止（可稍后重试，或减少天数）`,
-    false,
-  );
+  const limitText =
+    deadline >= 60_000
+      ? `${Math.round(deadline / 60_000)} 分钟`
+      : `${Math.round(deadline / 1000)} 秒`;
+  return new LlmError(`生成超过 ${limitText}仍未完成，已中止（可稍后重试，或减少天数）`, false);
 }
 
 /**
@@ -313,17 +314,20 @@ async function streamChat(
   const deadlineTimer = setTimeout(() => controller.abort(), deadline);
   deadlineTimer.unref?.();
   try {
-    const stream = await llm.chat.completions.create({
-      model: process.env.LLM_MODEL || "step-5-preview",
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
-      reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
-      stream: true,
-      stream_options: { include_usage: true },
-    }, { signal: controller.signal });
+    const stream = await llm.chat.completions.create(
+      {
+        model: process.env.LLM_MODEL || "step-5-preview",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
+        reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
+        stream: true,
+        stream_options: { include_usage: true },
+      },
+      { signal: controller.signal },
+    );
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content;
       if (delta) content += delta;
@@ -402,7 +406,8 @@ function fmtRange(startAt: string, endAt: string): string {
 }
 
 const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
-  relaxed: "轻松：每天 1~3 个主景点 + 午餐 + 晚餐，午饭后留咖啡/闲逛/休息的时间，当天净游玩时间不超过 8 小时。",
+  relaxed:
+    "轻松：每天 1~3 个主景点 + 午餐 + 晚餐，午饭后留咖啡/闲逛/休息的时间，当天净游玩时间不超过 8 小时。",
   balanced: "适中：每天 2~4 个主景点 + 午餐 + 晚餐，当天净游玩时间不超过 10 小时。",
   packed: "紧凑：每天 3~5 个主景点 + 午餐 + 晚餐，能看则看，当天净游玩时间不超过 13 小时。",
 };
@@ -429,7 +434,9 @@ export function baseLines(input: PlanInput): string[] {
     if (input.days === 1) {
       lines.push("- 当天往返行程：不要安排酒店 spot，预算不含住宿。");
     } else {
-      lines.push("- 第一天的安排从抵达时间之后开始（不要安排抵达前的内容）；最后一天在离开时间前收尾。");
+      lines.push(
+        "- 第一天的安排从抵达时间之后开始（不要安排抵达前的内容）；最后一天在离开时间前收尾。",
+      );
     }
   }
   if (input.hotel?.trim()) {
@@ -450,10 +457,7 @@ export function baseLines(input: PlanInput): string[] {
 }
 
 function buildUserPrompt(input: PlanInput, correction?: string): string {
-  const lines = [
-    "请规划行程：",
-    ...baseLines(input),
-  ];
+  const lines = ["请规划行程：", ...baseLines(input)];
   if (correction) {
     lines.push(
       `- 上一次输出不符合要求：${correction}。本次必须严格输出 ${input.days} 天，day 字段从 1 连续编号，每天至少 1 个行程点。`,
@@ -686,7 +690,9 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
   for (let attempt = 1; attempt <= 2; attempt++) {
     const { content, tokens } = await streamChatRetry(
       llm,
-      input.scope === "region" ? `${OUTLINE_SYSTEM_PROMPT}\n${REGION_RULES}` : OUTLINE_SYSTEM_PROMPT,
+      input.scope === "region"
+        ? `${OUTLINE_SYSTEM_PROMPT}\n${REGION_RULES}`
+        : OUTLINE_SYSTEM_PROMPT,
       buildOutlinePrompt(input, correction),
       input.city,
       `大纲 第${attempt}次`,
@@ -703,9 +709,7 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
       // 归一化：按 day 排序 + 重编号为连续 1..N（与路径 1 同规格）
       outline = {
         ...parsed,
-        days: [...parsed.days]
-          .sort((a, b) => a.day - b.day)
-          .map((d, i) => ({ ...d, day: i + 1 })),
+        days: [...parsed.days].sort((a, b) => a.day - b.day).map((d, i) => ({ ...d, day: i + 1 })),
       };
     } catch (e) {
       if (attempt === 2) throw new Error(`LLM 大纲不是合法 JSON（${(e as Error).message}）`);
@@ -764,7 +768,8 @@ export async function generateDay(
     try {
       day = DaySchema.parse(extractJson(content));
     } catch (e) {
-      if (attempt === 2) throw new Error(`第 ${expectedDay} 天输出不是合法 JSON（${(e as Error).message}）`);
+      if (attempt === 2)
+        throw new Error(`第 ${expectedDay} 天输出不是合法 JSON（${(e as Error).message}）`);
       continue;
     }
 

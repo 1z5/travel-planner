@@ -3,8 +3,12 @@
 // 每种行程点的语义色（固定调色板，与主题 accent 无关——每种类型一个区分色）。
 // 亮enough 在暗色底上也清晰。
 const TYPE_COLOR: Record<string, string> = {
-  sight: "#38bdf8", food: "#fbbf24", hotel: "#a78bfa", transport: "#94a3b8",
-  shopping: "#f472b6", activity: "#34d399",
+  sight: "#38bdf8",
+  food: "#fbbf24",
+  hotel: "#a78bfa",
+  transport: "#94a3b8",
+  shopping: "#f472b6",
+  activity: "#34d399",
 };
 
 export interface RouteStop {
@@ -53,20 +57,37 @@ export function RouteMap({ stops }: { stops: RouteStop[] }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
-         role="img" aria-label="当日路线示意图">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      style={{ width: "100%", height: "auto", display: "block" }}
+      role="img"
+      aria-label="当日路线示意图"
+    >
       {/* 暗色底 */}
       <rect width={W} height={H} style={{ fill: "var(--surface-solid)" }} />
 
       {/* 装饰网格点 */}
       {Array.from({ length: 12 }).map((_, i) => (
-        <circle key={i} cx={40 + i * ((W - 80) / 11)} cy={H - 12} r="1.4"
-                style={{ fill: "var(--ink-4)" }} opacity="0.35" />
+        <circle
+          key={i}
+          cx={40 + i * ((W - 80) / 11)}
+          cy={H - 12}
+          r="1.4"
+          style={{ fill: "var(--ink-4)" }}
+          opacity="0.35"
+        />
       ))}
 
       {/* 路线（accent 淡色虚线） */}
-      <path d={path} fill="none" style={{ stroke: "var(--accent)" }} strokeWidth="2.5"
-            strokeDasharray="7 6" strokeLinecap="round" opacity="0.45" />
+      <path
+        d={path}
+        fill="none"
+        style={{ stroke: "var(--accent)" }}
+        strokeWidth="2.5"
+        strokeDasharray="7 6"
+        strokeLinecap="round"
+        opacity="0.45"
+      />
 
       {/* 站点 */}
       {anchors.map((a, i) => {
@@ -81,14 +102,41 @@ export function RouteMap({ stops }: { stops: RouteStop[] }) {
         const anchor = nearLeft ? "start" : nearRight ? "end" : "middle";
         return (
           <g key={i}>
-            <line x1={a.x} y1={a.y} x2={a.x} y2={above ? a.y - 14 : a.y + 14}
-                  stroke={color} strokeWidth="1.6" />
-            <circle cx={a.x} cy={a.y} r="11" stroke={color} strokeWidth="2.4"
-                    style={{ fill: "var(--surface-solid)" }} />
-            <text x={a.x} y={a.y + 4} textAnchor="middle" fontSize="12"
-                  fontWeight="700" fill={color}>{i + 1}</text>
-            <text x={labelX} y={labelY} textAnchor={anchor} fontSize="12.5"
-                  style={{ fill: "var(--ink-2)" }}>{name}</text>
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={a.x}
+              y2={above ? a.y - 14 : a.y + 14}
+              stroke={color}
+              strokeWidth="1.6"
+            />
+            <circle
+              cx={a.x}
+              cy={a.y}
+              r="11"
+              stroke={color}
+              strokeWidth="2.4"
+              style={{ fill: "var(--surface-solid)" }}
+            />
+            <text
+              x={a.x}
+              y={a.y + 4}
+              textAnchor="middle"
+              fontSize="12"
+              fontWeight="700"
+              fill={color}
+            >
+              {i + 1}
+            </text>
+            <text
+              x={labelX}
+              y={labelY}
+              textAnchor={anchor}
+              fontSize="12.5"
+              style={{ fill: "var(--ink-2)" }}
+            >
+              {name}
+            </text>
           </g>
         );
       })}

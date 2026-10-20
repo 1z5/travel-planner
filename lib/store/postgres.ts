@@ -204,7 +204,9 @@ async function sweep() {
     await prisma().job.deleteMany({ where: { createdAt: { lt: cutoff } } });
     await prisma().smsCode.deleteMany({ where: { expiresAt: { lt: new Date() } } });
     // 注意：plan 表不在这里清理（见文件顶部注释：行程是资产，不按时间删）
-  } catch { /* 清理失败不影响主流程 */ }
+  } catch {
+    /* 清理失败不影响主流程 */
+  }
 }
 
 export const postgresStore: Store = {

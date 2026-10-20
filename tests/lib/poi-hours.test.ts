@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  checkOpenHours,
-  formatHoursShort,
-  isTemporarilyClosedName,
-} from "@/lib/poi-hours";
+import { checkOpenHours, formatHoursShort, isTemporarilyClosedName } from "@/lib/poi-hours";
 
 // 本文件里的复杂营业时间文本**全部是 2026-10 用真实高德 key + extensions=all
 // 实测拿到的原文**（苏州/成都 POI），原样引用——解析器必须按真机格式设计，
@@ -284,8 +280,7 @@ describe("真实样本：周规则 / 多时段 / 跨年日期段", () => {
 
   it("跨年日期段 11-01至03-15 / 03-16至10-31 的边界两侧都判对", () => {
     const seasonal = {
-      openTime2:
-        "11-01至03-15 周一至周日 08:00-16:30；03-16至10-31 周一至周日 07:30-17:00",
+      openTime2: "11-01至03-15 周一至周日 08:00-16:30；03-16至10-31 周一至周日 07:30-17:00",
     };
     // 冬季段：08:00 才开门、16:30 关门
     expect(checkOpenHours(seasonal, "2026-01-15", min(8), min(10))).toEqual({ state: "open" });
@@ -333,20 +328,34 @@ describe("解析失败 → unknown（绝不臆测）", () => {
 
   it("无星期/日期限定的重叠多窗口（open_time 季节拼接「07:30-17:00 08:00-16:30」）→ unknown", () => {
     // 无法区分「午休两段取并集」还是「两季营业时间拼接」——取并集会在冬季多算 1 小时
-    expect(checkOpenHours({ openTime: "07:30-17:00 08:00-16:30" }, "2026-10-20", min(16, 45), min(17, 15))).toEqual({
+    expect(
+      checkOpenHours(
+        { openTime: "07:30-17:00 08:00-16:30" },
+        "2026-10-20",
+        min(16, 45),
+        min(17, 15),
+      ),
+    ).toEqual({
       state: "unknown",
     });
   });
 
   it("跨零点营业时间（17:00-02:00）当前不支持 → unknown（不把 02:00 当成当天凌晨）", () => {
-    expect(checkOpenHours({ openTime2: "周一至周日 17:00-02:00" }, "2026-10-20", min(19), min(20))).toEqual({
+    expect(
+      checkOpenHours({ openTime2: "周一至周日 17:00-02:00" }, "2026-10-20", min(19), min(20)),
+    ).toEqual({
       state: "unknown",
     });
   });
 
   it("opentime2 存在但读不懂 → unknown，**不回退** open_time（有详细原文读不懂时用简版会丢闭馆信息）", () => {
     expect(
-      checkOpenHours({ openTime: "09:00-17:00", openTime2: "详见景区公告" }, "2026-10-20", min(10), min(11)),
+      checkOpenHours(
+        { openTime: "09:00-17:00", openTime2: "详见景区公告" },
+        "2026-10-20",
+        min(10),
+        min(11),
+      ),
     ).toEqual({ state: "unknown" });
   });
 

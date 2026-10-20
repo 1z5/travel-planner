@@ -10,9 +10,9 @@ export function WaitProgress({
   elapsed,
   detail,
 }: {
-  pct: number | null;   // 0-100 的确定进度；null = 不确定（动画）
-  elapsed: string;      // 已等待时长，如 "2:30"
-  detail?: string;      // 额外说明，如 "已生成 3/5 天"
+  pct: number | null; // 0-100 的确定进度；null = 不确定（动画）
+  elapsed: string; // 已等待时长，如 "2:30"
+  detail?: string; // 额外说明，如 "已生成 3/5 天"
 }) {
   return (
     <div className="wait-progress">

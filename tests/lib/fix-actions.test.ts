@@ -68,7 +68,14 @@ function makePlan(days?: PlanDay[]): Plan {
         theme: "园林第一天",
         spots: [
           mkSpot({ name: "拙政园", costCny: 90 }),
-          mkSpot({ name: "姑苏面馆", type: "food", period: "lunch", time: "11:30-12:30", costCny: 35, durationMin: 60 }),
+          mkSpot({
+            name: "姑苏面馆",
+            type: "food",
+            period: "lunch",
+            time: "11:30-12:30",
+            costCny: 35,
+            durationMin: 60,
+          }),
         ],
         transitMin: 0,
         dailyCostCny: 125,
@@ -78,7 +85,15 @@ function makePlan(days?: PlanDay[]): Plan {
         theme: "天平山木渎",
         spots: [
           mkSpot({ name: "天平山", area: "吴中区木渎", costCny: 30, durationMin: 150 }),
-          mkSpot({ name: "石家饭店", type: "food", period: "lunch", time: "12:00-13:00", area: "吴中区木渎", costCny: 80, durationMin: 60 }),
+          mkSpot({
+            name: "石家饭店",
+            type: "food",
+            period: "lunch",
+            time: "12:00-13:00",
+            area: "吴中区木渎",
+            costCny: 80,
+            durationMin: 60,
+          }),
         ],
         transitMin: 0,
         dailyCostCny: 110,
@@ -116,9 +131,7 @@ function makeInput(over: Partial<PlanInput> = {}): PlanInput {
 describe("suggestFix 识别可修复预警", () => {
   it("绕路（通勤偏长）→ transit，天号取自「第 N 天」", () => {
     expect(
-      suggestFix(
-        "第 1 天站点间通勤约 2 小时 54 分钟，偏长，可能存在绕路，建议合并同区域景点",
-      ),
+      suggestFix("第 1 天站点间通勤约 2 小时 54 分钟，偏长，可能存在绕路，建议合并同区域景点"),
     ).toMatchObject({ fixKind: "transit", day: 1, label: "收拢动线" });
   });
 
@@ -139,15 +152,19 @@ describe("suggestFix 识别可修复预警", () => {
   });
 
   it("节奏偏松 → pace，label「充实一点」", () => {
-    expect(
-      suggestFix("第 1 天安排约 4 小时，偏松，可加一个景点或放慢节奏"),
-    ).toMatchObject({ fixKind: "pace", day: 1, label: "充实一点" });
+    expect(suggestFix("第 1 天安排约 4 小时，偏松，可加一个景点或放慢节奏")).toMatchObject({
+      fixKind: "pace",
+      day: 1,
+      label: "充实一点",
+    });
   });
 
   it("超预算 → budget-over，day=null（全局问题，服务端按花费挑天）", () => {
-    expect(
-      suggestFix("行程合计人均约 5000 元，超出预算 4000 元 25%，注意控制"),
-    ).toMatchObject({ fixKind: "budget-over", day: null, label: "压预算" });
+    expect(suggestFix("行程合计人均约 5000 元，超出预算 4000 元 25%，注意控制")).toMatchObject({
+      fixKind: "budget-over",
+      day: null,
+      label: "压预算",
+    });
   });
 
   it("预算宽松 → budget-under，day=null", () => {
@@ -199,9 +216,9 @@ describe("suggestFix 识别可修复预警", () => {
   });
 
   it("暂停开放 → hours", () => {
-    expect(
-      suggestFix("第 2 天「金鸡湖美术馆」在高德显示「暂停开放」，出发前请确认"),
-    ).toMatchObject({ fixKind: "hours", day: 2, label: "避开闭馆" });
+    expect(suggestFix("第 2 天「金鸡湖美术馆」在高德显示「暂停开放」，出发前请确认")).toMatchObject(
+      { fixKind: "hours", day: 2, label: "避开闭馆" },
+    );
   });
 
   it("「营业时间」但没有「才开门/关门/进不去」信号时按闭馆类处理 → hours", () => {
@@ -228,9 +245,7 @@ describe("suggestFix 不提供假按钮（返回 null）", () => {
 
   it("未验真（未在高德检索到）→ null", () => {
     expect(
-      suggestFix(
-        "第 1 天「桃花源记」未在高德检索到，可能名称有误或已关闭，出发前请自行确认",
-      ),
+      suggestFix("第 1 天「桃花源记」未在高德检索到，可能名称有误或已关闭，出发前请自行确认"),
     ).toBeNull();
   });
 
@@ -240,9 +255,7 @@ describe("suggestFix 不提供假按钮（返回 null）", () => {
         "「京都」疑似境外或无 POI 覆盖的目的地：9 个景点/餐厅全部未在高德检索到。本产品的 POI 验真与通勤估算依赖高德（仅覆盖国内）",
       ),
     ).toBeNull();
-    expect(
-      suggestFix("未检索到的地点包括：清水寺 等 9 个，均为境外/无覆盖数据所致"),
-    ).toBeNull();
+    expect(suggestFix("未检索到的地点包括：清水寺 等 9 个，均为境外/无覆盖数据所致")).toBeNull();
   });
 
   it("系统类：高德服务波动 → null", () => {
@@ -255,9 +268,7 @@ describe("suggestFix 不提供假按钮（返回 null）", () => {
 
   it("系统类：通勤估算失败（含「通勤」但不可修）→ null（排除顺序的回归用例）", () => {
     expect(
-      suggestFix(
-        "第 2 天通勤估算失败（高德服务波动），当天的通勤与节奏体检已跳过，未按估算值判定",
-      ),
+      suggestFix("第 2 天通勤估算失败（高德服务波动），当天的通勤与节奏体检已跳过，未按估算值判定"),
     ).toBeNull();
   });
 
@@ -266,9 +277,7 @@ describe("suggestFix 不提供假按钮（返回 null）", () => {
       suggestFix("必游地「桃花源记」未出现在行程中——可重试，或检查名称是否与当地叫法一致"),
     ).toBeNull();
     expect(
-      suggestFix(
-        "重点活动「测试音乐会」未出现在行程中——可重试，或检查名称是否与当地叫法一致",
-      ),
+      suggestFix("重点活动「测试音乐会」未出现在行程中——可重试，或检查名称是否与当地叫法一致"),
     ).toBeNull();
     expect(
       suggestFix(
@@ -373,7 +382,13 @@ describe("fixInstruction 模板", () => {
 
   it("pace 偏松：增加 1 个同区域景点", () => {
     const loose = makePlan([
-      { day: 1, theme: "很松的一天", spots: [mkSpot({ name: "A", durationMin: 60 })], transitMin: 0, dailyCostCny: 50 },
+      {
+        day: 1,
+        theme: "很松的一天",
+        spots: [mkSpot({ name: "A", durationMin: 60 })],
+        transitMin: 0,
+        dailyCostCny: 50,
+      },
     ]);
     expect(fixInstruction(loose, makeInput(), "pace", 1)).toBe(
       "第1天增加1个同区域的代表性景点，把当天安排充实到8小时左右",
@@ -410,9 +425,15 @@ describe("fixInstruction 模板", () => {
         dailyCostCny: 100,
       },
     ]);
-    expect(fixInstruction(plan, makeInput({ pace: "relaxed" }), "pace", 1)).toContain("减少1个景点");
-    expect(() => fixInstruction(plan, makeInput({ pace: "balanced" }), "pace", 1)).toThrow(FixDataError);
-    expect(() => fixInstruction(plan, makeInput({ pace: "packed" }), "pace", 1)).toThrow(FixDataError);
+    expect(fixInstruction(plan, makeInput({ pace: "relaxed" }), "pace", 1)).toContain(
+      "减少1个景点",
+    );
+    expect(() => fixInstruction(plan, makeInput({ pace: "balanced" }), "pace", 1)).toThrow(
+      FixDataError,
+    );
+    expect(() => fixInstruction(plan, makeInput({ pace: "packed" }), "pace", 1)).toThrow(
+      FixDataError,
+    );
   });
 
   it("budget-over：选当天人均花费最高的那天，目标 = 75%（忽略请求 day）", () => {
@@ -431,7 +452,13 @@ describe("fixInstruction 模板", () => {
 
   it("budget-over：每天 0 元 → FixDataError（没有可压缩的东西）", () => {
     const free = makePlan([
-      { day: 1, theme: "免费日", spots: [mkSpot({ name: "A", costCny: 0 })], transitMin: 0, dailyCostCny: 0 },
+      {
+        day: 1,
+        theme: "免费日",
+        spots: [mkSpot({ name: "A", costCny: 0 })],
+        transitMin: 0,
+        dailyCostCny: 0,
+      },
     ]);
     expect(() => fixInstruction(free, makeInput(), "budget-over", 1)).toThrow(FixDataError);
   });
@@ -440,9 +467,9 @@ describe("fixInstruction 模板", () => {
     expect(() => fixInstruction(makePlan(), makeInput({ budget: 0 }), "budget-under", 1)).toThrow(
       FixDataError,
     );
-    expect(() => fixInstruction(makePlan(), makeInput({ budget: Number.NaN }), "budget-under", 1)).toThrow(
-      FixDataError,
-    );
+    expect(() =>
+      fixInstruction(makePlan(), makeInput({ budget: Number.NaN }), "budget-under", 1),
+    ).toThrow(FixDataError);
   });
 
   it("day 越界回退第 1 天（接口层先校验，这里是第二道防线）", () => {
@@ -482,13 +509,23 @@ describe("fixInstruction 满足 refine 的指令约束（安全契约）", () =>
       {
         day: 1,
         theme: "排满的一天",
-        spots: [mkSpot({ name: "A", durationMin: 250 }), mkSpot({ name: "B", durationMin: 250 }), mkSpot({ name: "C", durationMin: 250 })],
+        spots: [
+          mkSpot({ name: "A", durationMin: 250 }),
+          mkSpot({ name: "B", durationMin: 250 }),
+          mkSpot({ name: "C", durationMin: 250 }),
+        ],
         transitMin: 0,
         dailyCostCny: 150,
       },
     ]);
     const loose = makePlan([
-      { day: 1, theme: "很松的一天", spots: [mkSpot({ name: "A", durationMin: 60 })], transitMin: 0, dailyCostCny: 50 },
+      {
+        day: 1,
+        theme: "很松的一天",
+        spots: [mkSpot({ name: "A", durationMin: 60 })],
+        transitMin: 0,
+        dailyCostCny: 50,
+      },
     ]);
     const plan = makePlan();
     const input = makeInput();

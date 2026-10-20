@@ -45,12 +45,7 @@ describe("areaRegion 归一化", () => {
     // 这是归一化存在的全部理由——「祇园」「先斗町」实为同一带。
     // 只放带区县前缀的字符串：无前缀的（如「祇园至鸭川先斗町」这种移动段
     // 描述）无法归属，会原样返回，见下一条「已知局限」。
-    const variants = [
-      "东山区祇园",
-      "东山区东山古道",
-      "东山区清水",
-      "东山区円山",
-    ];
+    const variants = ["东山区祇园", "东山区东山古道", "东山区清水", "东山区円山"];
     const regions = new Set(variants.map(areaRegion));
     expect(regions.size).toBe(1);
     expect([...regions][0]).toBe("东山区");
@@ -106,10 +101,22 @@ describe("areaRegion 归一化", () => {
 // 但 genuinely 没排的也不能被最长公共子串误放过。
 describe("nameCovered 名称匹配", () => {
   const FIXTURE_SPOTS = [
-    "拙政园", "姑苏桥·文人苏式面馆", "苏州博物馆", "平江历史街区",
-    "桃花源记", "七里山塘", "苏州书香府邸·平江府", "天平山风景名胜区",
-    "石家饭店", "木渎古镇", "协和菜馆", "十全街", "同里古镇",
-    "同里状元居", "同里国家湿地公园", "老苏州茶酒楼",
+    "拙政园",
+    "姑苏桥·文人苏式面馆",
+    "苏州博物馆",
+    "平江历史街区",
+    "桃花源记",
+    "七里山塘",
+    "苏州书香府邸·平江府",
+    "天平山风景名胜区",
+    "石家饭店",
+    "木渎古镇",
+    "协和菜馆",
+    "十全街",
+    "同里古镇",
+    "同里状元居",
+    "同里国家湿地公园",
+    "老苏州茶酒楼",
   ];
 
   it("完整包含：用户写了确切名称", () => {
@@ -168,7 +175,7 @@ describe("isRealDate 日历合法性", () => {
 
   it("平年 2 月 29 日非法（闰年规则）", () => {
     expect(isRealDate("2026-02-29")).toBe(false); // 2026 不是闰年
-    expect(isRealDate("2024-02-29")).toBe(true);  // 2024 是闰年
+    expect(isRealDate("2024-02-29")).toBe(true); // 2024 是闰年
   });
 
   it("格式不符直接 false（不抛错）", () => {
@@ -314,7 +321,9 @@ describe("时间轴冲突体检（validateDay 真实装配）", () => {
     ]);
     const check = await validateDay(mkPlan(day), day, mkInput());
     const [w] = check.warnings.filter(isScheduleWarning);
-    expect(w).toContain("第 1 天有 1 段「时间接不上」：「A」10:00 结束到「B」10:15 开始只有 15 分钟");
+    expect(w).toContain(
+      "第 1 天有 1 段「时间接不上」：「A」10:00 结束到「B」10:15 开始只有 15 分钟",
+    );
     expect(w).not.toContain("如「");
   });
 

@@ -15,16 +15,23 @@ if (!BASE || !/^https?:\/\//.test(BASE)) {
 }
 
 let failed = 0;
-const fail = (msg) => { failed += 1; console.log(`❌ ${msg}`); };
+const fail = (msg) => {
+  failed += 1;
+  console.log(`❌ ${msg}`);
+};
 
 // ① 健康检查
 console.log(`目标: ${BASE}`);
 try {
-  const h = await (await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(15000) })).json();
+  const h = await (
+    await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(15000) })
+  ).json();
   if (h.status !== "ok") {
     fail(`health 返回异常: ${JSON.stringify(h)}`);
   } else {
-    console.log(`✅ /api/health: llmConfigured=${h.llmConfigured} amapMode=${h.amapMode} auth=${h.authProvider}`);
+    console.log(
+      `✅ /api/health: llmConfigured=${h.llmConfigured} amapMode=${h.amapMode} auth=${h.authProvider}`,
+    );
     if (!h.llmConfigured) fail("LLM_API_KEY 未生效——检查部署环境变量注入");
     if (h.amapMode !== "live") console.log("⚠️  高德为 MOCK 模式（未配 AMAP key），POI 验真未生效");
   }
@@ -75,12 +82,16 @@ if (failed === 0) {
       if (job?.status === "done") {
         const p = job.plan;
         const spots = p.days.flatMap((d) => d.spots).length;
-        console.log(`✅ 生成成功: ${p.city} ${p.days.length} 天 / ${spots} 个点 / 总价 ¥${p.totalCostCny} / verified=${p.verified}`);
+        console.log(
+          `✅ 生成成功: ${p.city} ${p.days.length} 天 / ${spots} 个点 / 总价 ¥${p.totalCostCny} / verified=${p.verified}`,
+        );
         console.log(`   预警 ${p.warnings.length} 条，体检系统工作正常`);
       } else if (job?.status === "error") {
         fail(`生成失败: ${job.error}（查看服务端日志定位）`);
       } else {
-        fail("生成 10 分钟未完成（推理模型慢是正常的，但 10 分钟仍判超时——检查 LLM_BASE_URL 与模型名）");
+        fail(
+          "生成 10 分钟未完成（推理模型慢是正常的，但 10 分钟仍判超时——检查 LLM_BASE_URL 与模型名）",
+        );
       }
     }
   } catch (e) {

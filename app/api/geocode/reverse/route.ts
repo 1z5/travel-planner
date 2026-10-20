@@ -27,10 +27,7 @@ export async function GET(req: NextRequest) {
   if (!geo) {
     // 两种情况共用此文案：没配高德 key（MOCK 模式）、或坐标无法归属到城市。
     // 对用户的动作是一样的——手动输入城市，所以不必区分。
-    return NextResponse.json(
-      { error: "无法确定当前位置所在的城市，请手动输入" },
-      { status: 422 },
-    );
+    return NextResponse.json({ error: "无法确定当前位置所在的城市，请手动输入" }, { status: 422 });
   }
   return NextResponse.json(geo);
 }

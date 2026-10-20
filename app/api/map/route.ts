@@ -25,7 +25,12 @@ const DEFAULT_WIDTH = 720;
 const DEFAULT_HEIGHT = 400;
 
 /** 解析并夹取尺寸参数：容忍超大/超小值（夹到合法区间），非数字才报错 */
-function parseDimension(raw: string | null, fallback: number, min: number, max: number): number | null {
+function parseDimension(
+  raw: string | null,
+  fallback: number,
+  min: number,
+  max: number,
+): number | null {
   if (raw === null || raw.trim() === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) return null;
@@ -40,7 +45,10 @@ export async function GET(req: NextRequest) {
   if (!rawLoc) {
     return NextResponse.json({ error: "缺少 loc 参数（格式 lng,lat;lng,lat）" }, { status: 400 });
   }
-  const segments = rawLoc.split(";").map((s) => s.trim()).filter(Boolean);
+  const segments = rawLoc
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (segments.length < 1 || segments.length > MAX_POINTS) {
     return NextResponse.json(
       { error: `loc 需要 1-${MAX_POINTS} 个坐标点，收到 ${segments.length} 个` },

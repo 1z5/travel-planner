@@ -235,7 +235,7 @@ function pickCostDay(plan: Plan, want: "max" | "min"): PlanDay {
   return plan.days.reduce((best, d) => {
     const cur = dayCost(d);
     const base = dayCost(best);
-    return want === "max" ? (cur > base ? d : best) : (cur < base ? d : best);
+    return want === "max" ? (cur > base ? d : best) : cur < base ? d : best;
   });
 }
 
@@ -245,9 +245,7 @@ function resolveDay(plan: Plan, requested: number): PlanDay {
     throw new FixDataError("这份行程没有可调整的天，无法一键修复；请刷新页面后重试");
   }
   return (
-    plan.days.find((d) => d.day === requested) ??
-    plan.days.find((d) => d.day === 1) ??
-    plan.days[0]
+    plan.days.find((d) => d.day === requested) ?? plan.days.find((d) => d.day === 1) ?? plan.days[0]
   );
 }
 

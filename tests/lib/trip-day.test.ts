@@ -86,7 +86,7 @@ describe("spotNow 现在/下一站", () => {
   const DAY = ["08:00-10:00", "10:15-11:15", "11:30-12:50"];
 
   it("now 落在某点区间内 → now 该点", () => {
-    expect(spotNow(s(DAY), 9 * 60)).toEqual({ kind: "now", index: 0 });       // 09:00
+    expect(spotNow(s(DAY), 9 * 60)).toEqual({ kind: "now", index: 0 }); // 09:00
     expect(spotNow(s(DAY), 10 * 60 + 30)).toEqual({ kind: "now", index: 1 }); // 10:30
     expect(spotNow(s(DAY), 11 * 60 + 40)).toEqual({ kind: "now", index: 2 }); // 11:40
   });
@@ -121,7 +121,7 @@ describe("spotNow 现在/下一站", () => {
   it("跨零点时段按零长：不参与 now，仅参与 next（已知局限）", () => {
     const night = ["23:00-01:00"];
     expect(spotNow(s(night), 13 * 60)).toEqual({ kind: "next", index: 0 }); // 今晚 23 点那场是下一站
-    expect(spotNow(s(night), 23 * 60 + 30)).toEqual({ kind: "done" });      // 23:30 已过 start，零长不算 now
+    expect(spotNow(s(night), 23 * 60 + 30)).toEqual({ kind: "done" }); // 23:30 已过 start，零长不算 now
   });
 
   it("乱序的时间也按 start 找最近的下一站", () => {
@@ -151,7 +151,9 @@ describe("distMeters 地表距离（haversine）", () => {
   });
 
   it("对称：distMeters(a,b) === distMeters(b,a)", () => {
-    expect(distMeters("104.06,30.57", "104.20,30.80")).toBe(distMeters("104.20,30.80", "104.06,30.57"));
+    expect(distMeters("104.06,30.57", "104.20,30.80")).toBe(
+      distMeters("104.20,30.80", "104.06,30.57"),
+    );
   });
 
   it("越远的点距离越大", () => {

@@ -111,7 +111,12 @@ function outlineForRequestedDays(userMsg) {
       focus: `第 ${i + 1} 天的安排思路（桩数据）`,
     });
   }
-  return { city: requestedCity(userMsg), summary: CANNED_PLAN.summary, days, tips: CANNED_PLAN.tips ?? [] };
+  return {
+    city: requestedCity(userMsg),
+    summary: CANNED_PLAN.summary,
+    days,
+    tips: CANNED_PLAN.tips ?? [],
+  };
 }
 
 function dayForRequested(userMsg) {
@@ -240,17 +245,20 @@ function mvAliasResponse(userMsg, isDayCall) {
   const mk = (dayNum, src) => ({
     day: dayNum,
     theme: src.theme,
-    spots: [...src.spots.map((x) => ({ ...x })), {
-      period: "morning",
-      time: "09:00-12:00",
-      type: "sight",
-      name: ALIASED_MV_NAME,
-      area: "成华区",
-      durationMin: 180,
-      costCny: 55,
-      reason: "用户指定的必游地（桩数据），已落成规范全称",
-      rainBackup: "成都动物园",
-    }],
+    spots: [
+      ...src.spots.map((x) => ({ ...x })),
+      {
+        period: "morning",
+        time: "09:00-12:00",
+        type: "sight",
+        name: ALIASED_MV_NAME,
+        area: "成华区",
+        durationMin: 180,
+        costCny: 55,
+        reason: "用户指定的必游地（桩数据），已落成规范全称",
+        rainBackup: "成都动物园",
+      },
+    ],
   });
   const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
   const dayNum = m ? Number(m[1]) : 1;
@@ -276,16 +284,19 @@ function eventAliasResponse(userMsg, isDayCall, time) {
   const mk = (dayNum, src) => ({
     day: dayNum,
     theme: src.theme,
-    spots: [...src.spots.map((x) => ({ ...x })), {
-      period: "evening",
-      time,
-      type: "activity",
-      name: ALIASED_EVENT_NAME,
-      area: src.spots[0]?.area ?? "琴台路",
-      durationMin: 90,
-      costCny: 380,
-      reason: "用户指定的重点活动（桩数据），已落成具体场馆",
-    }],
+    spots: [
+      ...src.spots.map((x) => ({ ...x })),
+      {
+        period: "evening",
+        time,
+        type: "activity",
+        name: ALIASED_EVENT_NAME,
+        area: src.spots[0]?.area ?? "琴台路",
+        durationMin: 90,
+        costCny: 380,
+        reason: "用户指定的重点活动（桩数据），已落成具体场馆",
+      },
+    ],
   });
   const m = userMsg.match(/第 (\d+) 天的时刻表（共 (\d+) 天/);
   const dayNum = m ? Number(m[1]) : 1;
@@ -331,8 +342,23 @@ function refineSwapBase(userMsg) {
   const m = userMsg.match(
     /【被替换点】序号 (\d+)｜类型 (\w+)｜时段 (\w+)｜时间 ([\d:]+-[\d:]+)｜区域 ([^｜\n]+)｜名称 ([^\n]+)/,
   );
-  if (!m) return { index: 1, type: "sight", period: "morning", time: "09:00-11:00", area: "测试区", name: "原景点" };
-  return { index: Number(m[1]), type: m[2], period: m[3], time: m[4], area: m[5].trim(), name: m[6].trim() };
+  if (!m)
+    return {
+      index: 1,
+      type: "sight",
+      period: "morning",
+      time: "09:00-11:00",
+      area: "测试区",
+      name: "原景点",
+    };
+  return {
+    index: Number(m[1]),
+    type: m[2],
+    period: m[3],
+    time: m[4],
+    area: m[5].trim(),
+    name: m[6].trim(),
+  };
 }
 
 function refineKeeps(userMsg) {
@@ -479,7 +505,9 @@ function hangStream(req, res) {
   // 刻意不做任何收尾：**不要**监听 req 的 close——POST body 收完后 req 的 close
   // 就会触发（不是连接断开），在那时 res.end() 会让「挂起」变成「立刻空流」，
   // 测到的是「返回为空」而不是总时长兜底。让响应一直挂着，等客户端 abort。
-  res.on("close", () => { /* 客户端已 abort；无需处理 */ });
+  res.on("close", () => {
+    /* 客户端已 abort；无需处理 */
+  });
 }
 
 const server = createServer((req, res) => {
@@ -504,11 +532,21 @@ const server = createServer((req, res) => {
     let isStream = false;
     try {
       const parsed = JSON.parse(body);
-      userMsg = parsed.messages?.filter((m) => m.role === "user").map((m) => m.content).join("\n") ?? "";
-      systemMsg = parsed.messages?.filter((m) => m.role === "system").map((m) => m.content).join("\n") ?? "";
+      userMsg =
+        parsed.messages
+          ?.filter((m) => m.role === "user")
+          .map((m) => m.content)
+          .join("\n") ?? "";
+      systemMsg =
+        parsed.messages
+          ?.filter((m) => m.role === "system")
+          .map((m) => m.content)
+          .join("\n") ?? "";
       lastUserMsg = userMsg;
       isStream = parsed.stream === true;
-    } catch { /* 空 body 按 valid 处理 */ }
+    } catch {
+      /* 空 body 按 valid 处理 */
+    }
 
     // 「挂起」测试城市：只握手不吐 chunk，验证 planner 的「流式总时长兜底」。
     // 必须放在所有 mode 分流之前——它连 JSON 都不返回。
@@ -564,10 +602,10 @@ const server = createServer((req, res) => {
     else if (userMsg.includes("活动晚点")) mode = "event-late";
     // 活动漏排：整个行程不含该活动（测漏排告警）
     else if (userMsg.includes("活动漏排")) mode = "event-missing";
-    const refineKind = isRefineCall
-      ? systemMsg.includes("单点替换") ? " (swap)" : " (day)"
-      : "";
-    console.log(`[stub] ${mode}${refineKind}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`);
+    const refineKind = isRefineCall ? (systemMsg.includes("单点替换") ? " (swap)" : " (day)") : "";
+    console.log(
+      `[stub] ${mode}${refineKind}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`,
+    );
 
     if (mode === "http500") {
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -602,23 +640,55 @@ const server = createServer((req, res) => {
     }
     const content =
       // 行程管家优先：它的响应结构（answer/suggestion）与所有生成分支不同
-      mode === "copilot" ? copilotContent(userMsg)
-      // 改行程其次：它的响应结构（spot/day）与整份生成完全不同，不能落到下面分支
-      : mode === "refine" ? refineContent(userMsg, systemMsg)
-      : mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
-      : mode === "empty" ? ""
-      : mode === "scrambled" ? JSON.stringify(scrambledPlan())
-      // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
-      : mode === "wrongdays" ? JSON.stringify(CANNED_PLAN)
-      : isOutlineCall ? JSON.stringify(outlineForRequestedDays(userMsg))
-      : mode === "scattered" ? JSON.stringify(scatteredDayForRequested(userMsg))
-      : mode === "event-ok" ? JSON.stringify(eventResponse(userMsg, isDayCall, "18:30-21:30", 180, "用户指定的重点活动（桩数据），提前 30 分钟入场"))
-      : mode === "event-late" ? JSON.stringify(eventResponse(userMsg, isDayCall, "21:00-22:30", 90, "用户指定的重点活动（桩数据）"))
-      : mode === "event-missing" ? JSON.stringify(eventMissingResponse(userMsg, isDayCall))
-      : mode === "event-alias" ? JSON.stringify(eventAliasResponse(userMsg, isDayCall, "18:30-20:00"))
-      : mode === "mv-alias" ? JSON.stringify(mvAliasResponse(userMsg, isDayCall))
-      : isDayCall ? JSON.stringify(dayForRequested(userMsg))
-      : JSON.stringify(planForRequestedDays(userMsg));
+      mode === "copilot"
+        ? copilotContent(userMsg)
+        : // 改行程其次：它的响应结构（spot/day）与整份生成完全不同，不能落到下面分支
+          mode === "refine"
+          ? refineContent(userMsg, systemMsg)
+          : mode === "garbage"
+            ? "抱歉，我不知道怎么回答这个问题。"
+            : mode === "empty"
+              ? ""
+              : mode === "scrambled"
+                ? JSON.stringify(scrambledPlan())
+                : // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
+                  mode === "wrongdays"
+                  ? JSON.stringify(CANNED_PLAN)
+                  : isOutlineCall
+                    ? JSON.stringify(outlineForRequestedDays(userMsg))
+                    : mode === "scattered"
+                      ? JSON.stringify(scatteredDayForRequested(userMsg))
+                      : mode === "event-ok"
+                        ? JSON.stringify(
+                            eventResponse(
+                              userMsg,
+                              isDayCall,
+                              "18:30-21:30",
+                              180,
+                              "用户指定的重点活动（桩数据），提前 30 分钟入场",
+                            ),
+                          )
+                        : mode === "event-late"
+                          ? JSON.stringify(
+                              eventResponse(
+                                userMsg,
+                                isDayCall,
+                                "21:00-22:30",
+                                90,
+                                "用户指定的重点活动（桩数据）",
+                              ),
+                            )
+                          : mode === "event-missing"
+                            ? JSON.stringify(eventMissingResponse(userMsg, isDayCall))
+                            : mode === "event-alias"
+                              ? JSON.stringify(
+                                  eventAliasResponse(userMsg, isDayCall, "18:30-20:00"),
+                                )
+                              : mode === "mv-alias"
+                                ? JSON.stringify(mvAliasResponse(userMsg, isDayCall))
+                                : isDayCall
+                                  ? JSON.stringify(dayForRequested(userMsg))
+                                  : JSON.stringify(planForRequestedDays(userMsg));
 
     if (isStream) {
       // SSE：模拟真实流式（role 帧 → 内容分两帧 → 结束帧带 usage）
@@ -628,8 +698,11 @@ const server = createServer((req, res) => {
         Connection: "keep-alive",
       });
       const chunk = (delta, finishReason, usage) => {
-        const payload = { id: "stub-1", object: "chat.completion.chunk",
-          choices: [{ index: 0, delta, finish_reason: finishReason ?? null }] };
+        const payload = {
+          id: "stub-1",
+          object: "chat.completion.chunk",
+          choices: [{ index: 0, delta, finish_reason: finishReason ?? null }],
+        };
         if (usage) payload.usage = usage;
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
       };
@@ -639,19 +712,25 @@ const server = createServer((req, res) => {
         chunk({ content: content.slice(0, mid) }, null);
         chunk({ content: content.slice(mid) }, null);
       }
-      chunk({}, "stop", { prompt_tokens: 10, completion_tokens: content.length, total_tokens: 20 + content.length });
+      chunk({}, "stop", {
+        prompt_tokens: 10,
+        completion_tokens: content.length,
+        total_tokens: 20 + content.length,
+      });
       res.write("data: [DONE]\n\n");
       res.end();
       return;
     }
 
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      id: "stub-1",
-      object: "chat.completion",
-      choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
-      usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
-    }));
+    res.end(
+      JSON.stringify({
+        id: "stub-1",
+        object: "chat.completion",
+        choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+      }),
+    );
   });
 });
 

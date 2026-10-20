@@ -198,12 +198,18 @@ describe("RealMap 覆盖层", () => {
   it("非法坐标被过滤，但合法点仍上图（不因一站缺坐标作废整张图）", () => {
     const { container } = render(
       <RealMap
-        points={[...POINTS, { name: "没坐标的店", type: "food" }, { name: "坐标非法", type: "sight", location: "oops" }]}
+        points={[
+          ...POINTS,
+          { name: "没坐标的店", type: "food" },
+          { name: "坐标非法", type: "sight", location: "oops" },
+        ]}
       />,
     );
     enterViewport();
     expect(container.querySelectorAll("circle.realmap-stop")).toHaveLength(3);
-    expect(container.querySelector(".realmap")?.getAttribute("aria-label")).toBe("真实路线地图，共 3 站");
+    expect(container.querySelector(".realmap")?.getAttribute("aria-label")).toBe(
+      "真实路线地图，共 3 站",
+    );
   });
 
   it("无障碍：容器 role=img + aria-label（第 N 天，共 K 站）", () => {
@@ -217,10 +223,14 @@ describe("RealMap 覆盖层", () => {
   it("长站名截断到 9 字（8 字 + …），不留全文", () => {
     const longName = "这是一个非常长的景点名称";
     const { container } = render(
-      <RealMap points={[{ name: longName, type: "sight", location: "104.048,30.645" }, POINTS[1]]} />,
+      <RealMap
+        points={[{ name: longName, type: "sight", location: "104.048,30.645" }, POINTS[1]]}
+      />,
     );
     enterViewport();
-    const labels = [...container.querySelectorAll("text.realmap-label")].map((t) => t.textContent ?? "");
+    const labels = [...container.querySelectorAll("text.realmap-label")].map(
+      (t) => t.textContent ?? "",
+    );
     expect(labels[0]).toBe("这是一个非常长的…");
     expect(labels.join("")).not.toContain(longName);
   });

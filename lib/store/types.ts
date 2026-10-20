@@ -18,7 +18,7 @@ export interface JobRecord {
   status: "running" | "done" | "error";
   plan?: Plan;
   error?: string;
-  key: string;        // 配额键（u:<phone> 或 ip:<addr>）
+  key: string; // 配额键（u:<phone> 或 ip:<addr>）
   limit: number;
   createdAt: number;
   /**
@@ -90,7 +90,7 @@ export interface PlanStore {
 
 export interface QuotaRecord {
   key: string;
-  date: string;       // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   count: number;
 }
 
@@ -108,7 +108,7 @@ export interface QuotaStore {
 export interface CodeRecord {
   phone: string;
   code: string;
-  expiresAt: number;  // ms 时间戳
+  expiresAt: number; // ms 时间戳
 }
 
 export interface CodeStore {

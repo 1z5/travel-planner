@@ -104,9 +104,7 @@ function basePlan(): Plan {
         theme: "都江堰",
         transitMin: 60,
         dailyCostCny: 200,
-        spots: [
-          mkSpot({ name: "都江堰景区", time: "09:00-13:00", durationMin: 240, costCny: 80 }),
-        ],
+        spots: [mkSpot({ name: "都江堰景区", time: "09:00-13:00", durationMin: 240, costCny: 80 })],
       },
     ],
   };
@@ -223,9 +221,7 @@ describe("TodayView 现在 / 下一站", () => {
   it("今天还没开始 → 明确说「还没开始 + 第一站」，不假装现在在某点", async () => {
     mockClock.minutes = 7 * 60; // 07:00，早于第一站 08:00
     render(<TodayView plan={basePlan()} shareId="share_test123" />);
-    expect(
-      await screen.findByText("今天的行程还没开始 · 第一站：宽窄巷子"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("今天的行程还没开始 · 第一站：宽窄巷子")).toBeInTheDocument();
     expect(screen.queryByText("现在：宽窄巷子")).not.toBeInTheDocument();
   });
 
@@ -312,9 +308,7 @@ describe("TodayView 今日时间轴 / 路段 / 导航 / 花费", () => {
     });
     const { container } = render(<TodayView plan={basePlan()} shareId="share_test123" />);
     await userEvent.click(await screen.findByText("离我多远"));
-    await waitFor(() =>
-      expect(container.querySelectorAll(".today-spot-dist")).toHaveLength(2),
-    );
+    await waitFor(() => expect(container.querySelectorAll(".today-spot-dist")).toHaveLength(2));
     expect(screen.getByText(/离我 0 米/)).toBeInTheDocument();
   });
 
@@ -328,9 +322,7 @@ describe("TodayView 今日时间轴 / 路段 / 导航 / 花费", () => {
     });
     render(<TodayView plan={basePlan()} shareId="share_test123" />);
     await userEvent.click(await screen.findByText("离我多远"));
-    expect(
-      await screen.findByText("定位权限被拒绝，可在浏览器设置里开启"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("定位权限被拒绝，可在浏览器设置里开启")).toBeInTheDocument();
   });
 });
 

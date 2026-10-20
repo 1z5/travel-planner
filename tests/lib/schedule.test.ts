@@ -31,7 +31,12 @@ function mkSpot(over: Partial<PlanSpot> & { name: string }): PlanSpot {
   };
 }
 
-function mkLeg(from: string, to: string, minutes: number, mode: PlanLeg["mode"] = "driving"): PlanLeg {
+function mkLeg(
+  from: string,
+  to: string,
+  minutes: number,
+  mode: PlanLeg["mode"] = "driving",
+): PlanLeg {
   return {
     from,
     to,
@@ -247,11 +252,7 @@ describe("retimeDay 确定性顺延", () => {
     expect(r.changed).toBe(true);
     expect(checkDaySchedule(r.day)).toEqual([]);
     // 首点保持原开始时间；后续 = 上一点结束 + leg 分钟数
-    expect(r.day.spots.map((s) => s.time)).toEqual([
-      "08:00-10:00",
-      "10:22-11:22",
-      "11:44-13:04",
-    ]);
+    expect(r.day.spots.map((s) => s.time)).toEqual(["08:00-10:00", "10:22-11:22", "11:44-13:04"]);
   });
 
   it("保留每个点的 durationMin（time 长度必须等于停留时长）", () => {
@@ -306,7 +307,9 @@ describe("retimeDay 确定性顺延", () => {
       ],
       [mkLeg("拙政园", "周杰伦演唱会", 20)],
     );
-    const input = mkInput({ events: [{ name: "周杰伦演唱会", date: "2026-10-10", time: "20:00" }] });
+    const input = mkInput({
+      events: [{ name: "周杰伦演唱会", date: "2026-10-10", time: "20:00" }],
+    });
     const r = retimeDay(mkPlan(day), input, 1);
     expect(r.day.spots[1].time).toBe("20:00-21:00");
     expect(r.notes.join("")).not.toContain("固定时间活动");
@@ -321,7 +324,9 @@ describe("retimeDay 确定性顺延", () => {
       [mkLeg("拙政园", "周杰伦演唱会", 20)],
     );
     // 活动日期是 2026-10-11（第 2 天），目标天是第 1 天 → 不应用锚点
-    const input = mkInput({ events: [{ name: "周杰伦演唱会", date: "2026-10-11", time: "20:00" }] });
+    const input = mkInput({
+      events: [{ name: "周杰伦演唱会", date: "2026-10-11", time: "20:00" }],
+    });
     const r = retimeDay(mkPlan(day), input, 1);
     expect(r.day.spots[1].time).toBe("10:20-11:20");
     expect(r.notes.join("")).not.toContain("固定时间活动");
@@ -399,10 +404,7 @@ describe("retimeDay 确定性顺延", () => {
 
   it("首点时间解析不出 → changed=false 并说明，不乱改后面的点", () => {
     const day = mkDay(
-      [
-        mkSpot({ name: "A", time: "上午" }),
-        mkSpot({ name: "B", time: "10:15-11:15" }),
-      ],
+      [mkSpot({ name: "A", time: "上午" }), mkSpot({ name: "B", time: "10:15-11:15" })],
       [mkLeg("A", "B", 22)],
     );
     const r = retimeDay(mkPlan(day), mkInput(), 1);
@@ -470,8 +472,12 @@ describe("isScheduleWarning / isHoursWarning 标记词判定", () => {
   });
 
   it("闭馆 / 暂停开放 / 营业时间 都归营业类；普通预警两类都不是", () => {
-    expect(isHoursWarning("第 3 天「同里古镇」周一闭馆（高德：周一 全天不开放），当天去不了")).toBe(true);
-    expect(isHoursWarning("第 1 天「金沙遗址博物馆」在高德显示「暂停开放」，出发前请确认")).toBe(true);
+    expect(isHoursWarning("第 3 天「同里古镇」周一闭馆（高德：周一 全天不开放），当天去不了")).toBe(
+      true,
+    );
+    expect(isHoursWarning("第 1 天「金沙遗址博物馆」在高德显示「暂停开放」，出发前请确认")).toBe(
+      true,
+    );
     expect(isHoursWarning("营业时间无法确认，建议现场核实")).toBe(true);
     expect(isHoursWarning("第 1 天安排约 12 小时，超出适中节奏上限（10 小时）")).toBe(false);
     expect(isScheduleWarning("行程合计人均约 3000 元")).toBe(false);
