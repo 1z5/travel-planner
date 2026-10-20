@@ -1,7 +1,15 @@
 import "server-only";
-import { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes } from "./amap";
+import { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes, type PoiInfo } from "./amap";
 import { mapLimit } from "./concurrency";
-import type { Plan, PlanDay, PlanInput, PlanLeg } from "./types";
+import { checkOpenHours } from "./poi-hours";
+import {
+  checkDaySchedule,
+  isHoursWarning,
+  isScheduleWarning,
+  parseTimeRange,
+  type ScheduleConflict,
+} from "./schedule";
+import type { Plan, PlanDay, PlanInput, PlanLeg, SpotPoiMeta, TransportMode } from "./types";
 
 // 幻觉治理 + 行程体检。
 // 定位：不改写 LLM 的行程（那是下一版的事），只做「标记 + 预警」——
@@ -55,6 +63,34 @@ const VERIFY_CONCURRENCY = 3;
 //   错误坐标（实测「杭州东站→断桥」命中「杭州站」）。
 const WARN_TYPES = new Set(["sight", "food"]);
 const GEO_TYPES = new Set(["sight", "food", "activity", "hotel"]);
+// 营业时间类预警每天最多报几条：同一天多个 POI 闭馆/不在营业时间时逐条报会
+// 刷屏（用户只会觉得体检在制造噪音）。只留最要紧的 2 条，改完再看下一轮。
+const HOURS_WARN_MAX_PER_DAY = 2;
+// 交通方式的中文说法（时间轴预警里要说清「驾车约需 22 分钟」而不是「通勤」）
+const MODE_LABEL: Record<TransportMode, string> = {
+  driving: "驾车",
+  walking: "步行",
+  bicycling: "骑行",
+};
+
+/**
+ * 把高德 POI 详情收进 spot.poi（字段见 SpotPoiMeta）。
+ *
+ * 原则与「不猜」一致：**高德没给的字段就不写**（缺字段 = 没数据，不是默认值），
+ * 全都没给就不建 poi 对象（UI 据此不渲染任何徽章）。MOCK 模式整个验真块不跑，
+ * 不会写入假详情。
+ */
+function pickPoiMeta(poi: PoiInfo & Partial<SpotPoiMeta>): SpotPoiMeta | undefined {
+  const meta: SpotPoiMeta = {};
+  if (Number.isFinite(poi.rating)) meta.rating = poi.rating;
+  if (Number.isFinite(poi.avgCostCny)) meta.avgCostCny = poi.avgCostCny;
+  if (poi.openTime?.trim()) meta.openTime = poi.openTime.trim();
+  if (poi.openTime2?.trim()) meta.openTime2 = poi.openTime2.trim();
+  if (poi.tel?.trim()) meta.tel = poi.tel.trim();
+  // 只在 true 时写：false 表示「高德没这么说」，不是「确认营业」——不写更诚实
+  if (poi.temporarilyClosed === true) meta.temporarilyClosed = true;
+  return Object.keys(meta).length ? meta : undefined;
+}
 
 /**
  * 把 area 归一到「区县」粒度：「北区金阁寺」→「北区」。
@@ -73,6 +109,160 @@ function fmtMin(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return h ? `${h} 小时 ${m} 分钟` : `${m} 分钟`;
+}
+
+// ============================================================
+// 时间轴体检：相邻点之间的「时间接不上」（可执行性）
+//
+// 早于本轮的体检从不校验「这两段时间接不上」：LLM 经常排出物理不可能的
+// 时间轴（10:00 结束 A、10:15 开始 B，但这段路要 22 分钟），而 legs 里
+// 明明有真实耗时。现在把它摊开：每天汇总成一条，并给出确定性修复入口
+// （「一键顺延」，/api/plan/adjust，不调模型、不扣配额）。
+// ============================================================
+
+/** 一段冲突的白话描述：负数间距（时间重叠）单独措辞，不写成「只有 -5 分钟」 */
+function fmtScheduleConflict(c: ScheduleConflict): string {
+  const mode = MODE_LABEL[c.mode] ?? "通勤";
+  if (c.gapMin < 0) {
+    return `「${c.from}」${c.fromEnd} 结束、「${c.to}」${c.toStart} 开始，两段时间重叠 ${-c.gapMin} 分钟，但${mode}约需 ${c.needMin} 分钟`;
+  }
+  return `「${c.from}」${c.fromEnd} 结束到「${c.to}」${c.toStart} 开始只有 ${c.gapMin} 分钟，但${mode}约需 ${c.needMin} 分钟`;
+}
+
+/**
+ * 每天的时间轴结论汇总成一条预警。
+ *
+ * 为什么每天只报一条：逐段报会刷屏（fixture 一天就 4-5 段接不上），而用户
+ * 需要的是「这天整体排不排得下」。K=1 时不给「如」示例（那会是冗余表述）。
+ * 文案必须包含「时间接不上」「一键顺延」两个稳定标记词——
+ * 前端（warn-tag/PlanView）与 e2e 按它们识别这一类和对应修复动作。
+ */
+function dayScheduleWarning(day: PlanDay): string | null {
+  const conflicts = checkDaySchedule(day);
+  if (!conflicts.length) return null;
+  const detail = fmtScheduleConflict(conflicts[0]);
+  const head =
+    conflicts.length === 1
+      ? `第 ${day.day} 天有 1 段「时间接不上」：${detail}`
+      : `第 ${day.day} 天有 ${conflicts.length} 段「时间接不上」：如${detail}`;
+  return `${head}——可用「一键顺延」重排当天时间轴`;
+}
+
+/** 引用高德营业时间原文：给用户留证据，但截断——预警不能长到刷屏 */
+function truncateRaw(raw: string, max = 40): string {
+  const t = raw.trim();
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+
+/**
+ * outside 的 reason 形如「营业时间 09:00-17:00；09:00 才开门，你 08:00 到」。
+ * 前半个分句（营业时间窗口）会和预警末尾的「（高德：原文）」重复，这里去掉，
+ * 只留「09:00 才开门…」这种真正说明差在哪的部分。
+ */
+function compactOutsideReason(reason: string): string {
+  return reason.replace(/^营业时间\s*[^；;]*[；;]\s*/, "");
+}
+
+/**
+ * 营业时间体检（闭馆日 / 不在营业时间 / 暂停开放）——「到得了，进得去吗」。
+ *
+ * 数据来源：spot.poi（POI 验真命中时由高德 biz_ext 回填）。判定交给
+ * lib/poi-hours.ts 的 checkOpenHours（client-safe 纯函数，覆盖真实数据里的
+ * 周几区间/季节与日期段/最晚进入/法定节假日例外）。
+ *
+ * 诚实口径（不猜）：
+ * - 没有 spot.poi / 没有营业时间原文 → 不判、不告警（unknown 不是问题）；
+ * - 缺合法 startDate → 算不出周几与日期段，同样不告警；
+ * - checkOpenHours 返回 unknown → 不告警。
+ *
+ * 每天最多 HOURS_WARN_MAX_PER_DAY 条，且「闭馆/暂停开放（当天去不了）」优先于
+ * 「时间对不上（可能进不去）」——前者是硬伤，后者还能靠顺延抢救。
+ */
+function dayHoursWarnings(plan: Plan, day: PlanDay): string[] {
+  const startDate = plan.startDate;
+  if (!startDate || !isRealDate(startDate)) return [];
+  // 第 N 天 = startDate + (N-1)，与 finalizePlan 的活动日期校验、ics/天气同口径
+  const isoDate = addDays(startDate, day.day - 1);
+  const closed: string[] = [];
+  const outside: string[] = [];
+
+  for (const spot of day.spots) {
+    const poi = spot.poi;
+    if (!poi) continue;
+    // 暂停开放：高德用名称/字段表达停业。不需要日期与营业时间窗口就能判定
+    if (poi.temporarilyClosed) {
+      closed.push(`第 ${day.day} 天「${spot.name}」在高德显示「暂停开放」，出发前请确认`);
+      continue;
+    }
+    const raw = poi.openTime2 ?? poi.openTime;
+    if (!raw) continue; // 高德没给营业时间：unknown，不告警
+    const range = parseTimeRange(spot.time);
+    if (!range) continue; // spot 时间解析不了：无法判定到达/离开，不告警
+    const check = checkOpenHours({ ...poi, name: spot.name }, isoDate, range.start, range.end);
+    if (check.state === "closed") {
+      // 名称标记停业的情况也走「暂停开放」口径（warn-tag/前端按同一组词识别）
+      if (check.reason.includes("暂停开放")) {
+        closed.push(`第 ${day.day} 天「${spot.name}」在高德显示「暂停开放」，出发前请确认`);
+        continue;
+      }
+      // reason 可能是「周一闭馆」也可能是「周一全天不开放」：语义都是闭馆，
+      // 统一成用户熟悉的「周一闭馆」口径（与产品文案模板一致），并保证含
+      // 「闭馆」标记词（warn-tag 的营业标签、fix-actions 的 hours 识别都依赖它）
+      const phrase = check.reason
+        .replace(/全天不开放$/, "闭馆")
+        .replace(/全天闭馆$/, "闭馆");
+      const closedPhrase = phrase.includes("闭馆") ? phrase : `闭馆（${check.reason}）`;
+      closed.push(
+        `第 ${day.day} 天「${spot.name}」${closedPhrase}（高德：${truncateRaw(raw)}），当天去不了，建议换一个点或调到其他天`,
+      );
+      continue;
+    }
+    if (check.state === "outside") {
+      outside.push(
+        `第 ${day.day} 天「${spot.name}」计划 ${spot.time}，但 ${compactOutsideReason(check.reason)}（高德：${truncateRaw(raw)}），营业时间对不上、可能进不去，建议用「一键顺延」调整时间`,
+      );
+    }
+    // open → 正常；unknown → 数据不足，不告警
+  }
+
+  return [...closed, ...outside].slice(0, HOURS_WARN_MAX_PER_DAY);
+}
+
+/**
+ * 只算「时间轴 + 营业时间」两类预警（纯计算，**不打网络**）。
+ * validateDay（首生成/refine 重体检）与 refreshTimeWarnings（一键顺延后
+ * 只刷新这两类）共用，保证两条路径的判定与文案逐字一致。
+ */
+function collectTimeWarnings(plan: Plan): string[] {
+  const out: string[] = [];
+  for (const day of plan.days) {
+    const schedule = dayScheduleWarning(day);
+    if (schedule) out.push(schedule);
+    out.push(...dayHoursWarnings(plan, day));
+  }
+  return out;
+}
+
+/**
+ * 只刷新行程里「时间轴 / 营业时间」两类预警，其它预警原顺序保留。
+ *
+ * 给 /api/plan/adjust 用：顺延只改 spot.time，这两类结论必须跟着变，
+ * 而 POI 验真/预算/节奏/天气等结论与时间无关、重算还要打网络（同步接口里
+ * 不可接受），所以原样保留。新预警插回原来第一条时间类预警的位置——
+ * 避免跑到系统提示/天气提示后面，让用户误以为是补充说明。
+ */
+export function refreshTimeWarnings(plan: Plan, _input: PlanInput): string[] {
+  const kept = plan.warnings.filter((w) => !isScheduleWarning(w) && !isHoursWarning(w));
+  const fresh = collectTimeWarnings(plan);
+  if (!fresh.length) return kept;
+  const firstOld = plan.warnings.findIndex(
+    (w) => isScheduleWarning(w) || isHoursWarning(w),
+  );
+  if (firstOld < 0) return [...kept, ...fresh];
+  const insertAt = plan.warnings
+    .slice(0, firstOld)
+    .filter((w) => !isScheduleWarning(w) && !isHoursWarning(w)).length;
+  return [...kept.slice(0, insertAt), ...fresh, ...kept.slice(insertAt)];
 }
 
 /**
@@ -200,6 +390,12 @@ export async function validateDay(
         // 所以不会存入假坐标。
         t.spot.location = r.poi.location;
       }
+      // POI 详情（评分/人均/营业时间/停业标记）与坐标分开写：坐标没给时详情
+      // 仍然是有效事实。这是营业时间体检与前端 POI 徽章的唯一数据入口。
+      if (r.state === "hit") {
+        const meta = pickPoiMeta(r.poi);
+        if (meta) t.spot.poi = meta;
+      }
     }
   }
 
@@ -273,6 +469,17 @@ export async function validateDay(
       if (legs.length) day.legs = legs;
     }
   }
+
+  // 2c) 时间轴体检（可执行性）：legs 齐了才能算「时间接不上」。
+  //     每天汇总成一条——逐段报会刷屏，用户要的是「这天排不排得下」。
+  //     放在 legs 之后、节奏/区域之前：物理上走不通比节奏建议更硬。
+  const scheduleWarning = dayScheduleWarning(day);
+  if (scheduleWarning) warnings.push(scheduleWarning);
+
+  // 2d) 营业时间体检（到得了，进得去吗）：闭馆日/没开门/暂停开放。
+  //     数据来自验真回填的 spot.poi；没有 POI 详情或没有合法日期时
+  //     dayHoursWarnings 自身会跳过（unknown 不告警）。
+  warnings.push(...dayHoursWarnings(plan, day));
 
   // 3) 节奏：停留 + 通勤。
   //    通勤未知时跳过——只算停留会把「偏松」误报给用户。

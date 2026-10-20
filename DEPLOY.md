@@ -76,8 +76,11 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 | `AUTH_PROVIDER` | | `none`（开发，验证码固定 123456）/ `sms` / `wechat` |
 | `SESSION_SECRET` | 生产必改 | session cookie HMAC 密钥，换成随机长字符串 |
 | `AUTH_USER_LIMIT` | | 默认 10 次/天（登录用户） |
-| `REFINE_HOURLY_LIMIT` | | 默认 20 次/小时/IP（「换一个 / 一句话改一天」，不占每日生成配额） |
-| `JOB_STALE_MS` | | 默认 1200000（20 分钟）：running 任务超过这么久无心跳即判定中断 |
+| `REFINE_HOURLY_LIMIT` | | 默认 20 次/小时/IP（「换一个 / 一句话改一天 / 一键修复」，不占每日生成配额） |
+| `ADJUST_HOURLY_LIMIT` | | 默认 60 次/小时/IP（「一键顺延时间轴」，不调模型、不占生成配额） |
+| `LLM_STREAM_DEADLINE_MS` | | 默认 600000（10 分钟）：单次流式调用的总时长兜底；上游挂住不发 chunk 时中止任务并退配额 |
+| `COPILOT_HOURLY_LIMIT` | | 默认 40 次/小时/IP（「行程管家」对话，调用 step-5；独立于生成/修改配额） |
+| `JOB_STALE_MS` | | 默认 720000（12 分钟）：running 任务超过这么久无心跳即判定中断 |
 | `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信三件套（应用 ID/签名/模板） |
 | `SMS_SECRET_ID` / `SMS_SECRET_KEY` | sms 时必填 | 腾讯云 API 密钥（控制台 → 访问管理） |
 | `PORT` | | 默认 3000 |
@@ -139,6 +142,13 @@ DATABASE_URL=postgres://...
 ```
 
 契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径的 e2e 断言不受影响）。
+
+## 数据源与外部依赖（v3 起）
+
+- **高德 POI 详情**：`/v3/place/text` 以 `extensions=all` 请求，获取评分/营业时间/人均/电话；响应体比 base 大但请求数不变，结果只缓存解析后的结构（`poiCache` 30 分钟）。
+- **营业时间解析**：拿不准一律 `unknown` 且不告警（跨零点/复杂节假日/无星期限定的重叠窗口）；节假日安排以官方公告为准。**不额外依赖任何第三方数据源**。
+- **一键顺延**：纯计算 + 已有 `legs`，不打高德；缺真实路段（MOCK/旧行程）时返回 422 引导改用 AI 重排。
+- **流式总时长兜底**：见 `LLM_STREAM_DEADLINE_MS`。SDK 的 timeout 只约束 chunk 间隔，上游「挂着不发数据」会让任务变成永远 running 的僵尸——这是生产必须的兜底。
 
 ## 成本模型补充：改行程（refine）的调用量
 

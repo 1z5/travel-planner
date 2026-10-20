@@ -28,6 +28,11 @@ interface RouterOpts {
   badKeyFor?: string[];
   /** 距离接口返回的距离（米）；"bad" = 上游错误，"" = 无 paths */
   distance?: string;
+  /**
+   * 按 POI 名给 place/text 的 pois[0] 追加高德详情字段（模拟 extensions=all）：
+   * 可放 biz_ext（rating/cost/open_time/opentime2）、tel，或覆盖 name（如「…(暂停开放)」）。
+   */
+  detailsFor?: Record<string, Record<string, unknown>>;
 }
 
 function useRouter(opts: RouterOpts = {}) {
@@ -45,7 +50,14 @@ function useRouter(opts: RouterOpts = {}) {
       if (kw.includes("查无此")) return res({ status: "1", pois: [] });
       return res({
         status: "1",
-        pois: [{ name: kw, address: "测试地址", location: "120.620000,31.320000", adname: "姑苏区" }],
+        pois: [{
+          name: kw,
+          address: "测试地址",
+          location: "120.620000,31.320000",
+          adname: "姑苏区",
+          // 详情字段展开在最后：detailsFor 里可覆盖 name / 注入 biz_ext、tel 等
+          ...(opts.detailsFor?.[kw] ?? {}),
+        }],
       });
     }
     if (/\/v5\/direction\/(walking|bicycling|driving)/.test(url.pathname)) {
@@ -191,6 +203,106 @@ describe("缓存与在飞去重", () => {
   });
 });
 
+// ---------- extensions=all 与 biz_ext 详情 ----------
+// 「到点开不开门」依赖高德 extensions=all 返回的 biz_ext：opentime2（复杂闭馆
+// 规则）/open_time（简版）/rating/cost。这里的形状全部按 2026-10 真实 key
+// 实测返回写：字段可能是字符串、空数组 `[]`、数组或整个 biz_ext 缺失。
+
+describe("lookupPoi 的 POI 详情（extensions=all）", () => {
+  it("请求带 extensions=all（否则拿不到 biz_ext）", async () => {
+    const mock = useRouter();
+    await lookupPoi("苏州", "详情请求参数测试");
+    const url = new URL(String(mock.mock.calls[0][0]));
+    expect(url.searchParams.get("extensions")).toBe("all");
+  });
+
+  it("解析 biz_ext：评分/人均/营业时间原文/电话按真实形状映射", async () => {
+    useRouter({
+      detailsFor: {
+        详情解析测试: {
+          biz_ext: {
+            rating: "4.8",
+            cost: "65.00",
+            open_time: "09:00-17:00",
+            opentime2: "周二至周日 09:00-17:00；周一 全天不开放",
+          },
+          tel: "0512-67510286",
+        },
+      },
+    });
+    const r = await lookupPoi("苏州", "详情解析测试");
+    if (r.state !== "hit") throw new Error("应为 hit");
+    expect(r.poi.rating).toBe(4.8);
+    expect(r.poi.avgCostCny).toBe(65); // "65.00" → 65
+    expect(r.poi.openTime).toBe("09:00-17:00");
+    expect(r.poi.openTime2).toBe("周二至周日 09:00-17:00；周一 全天不开放");
+    expect(r.poi.tel).toBe("0512-67510286");
+    expect(r.poi.temporarilyClosed).toBeUndefined();
+  });
+
+  it("空数组 / 缺字段 → 全部 undefined（`[]` 绝不能被当成 0 分 / 0 元 / 一定营业）", async () => {
+    useRouter({
+      detailsFor: {
+        空详情测试: { biz_ext: { rating: [], cost: [], open_time: [], opentime2: [] } },
+        无详情测试: {},
+      },
+    });
+    const empty = await lookupPoi("苏州", "空详情测试");
+    if (empty.state !== "hit") throw new Error("应为 hit");
+    expect(empty.poi.rating).toBeUndefined();
+    expect(empty.poi.avgCostCny).toBeUndefined();
+    expect(empty.poi.openTime).toBeUndefined();
+    expect(empty.poi.openTime2).toBeUndefined();
+    expect(empty.poi.tel).toBeUndefined();
+
+    const missing = await lookupPoi("苏州", "无详情测试");
+    if (missing.state !== "hit") throw new Error("应为 hit");
+    expect(missing.poi.rating).toBeUndefined();
+    expect(missing.poi.openTime2).toBeUndefined();
+    // 基础字段不受详情缺失影响
+    expect(missing.poi.verified).toBe(true);
+    expect(missing.poi.location).toBe("120.620000,31.320000");
+  });
+
+  it("opentime2 是数组时用分号拼回字符串（解析器按分句处理）", async () => {
+    useRouter({
+      detailsFor: {
+        数组营业时间测试: {
+          biz_ext: { opentime2: ["周二至周日 09:00-17:00", "周一 全天不开放"] },
+        },
+      },
+    });
+    const r = await lookupPoi("苏州", "数组营业时间测试");
+    if (r.state !== "hit") throw new Error("应为 hit");
+    expect(r.poi.openTime2).toBe("周二至周日 09:00-17:00；周一 全天不开放");
+  });
+
+  it("名称含「暂停开放」→ temporarilyClosed=true（高德用名称表达停业状态）", async () => {
+    useRouter({
+      detailsFor: {
+        暂停测试: { name: "暂停测试(暂停开放)", biz_ext: { rating: "4.7" } },
+      },
+    });
+    const r = await lookupPoi("苏州", "暂停测试");
+    if (r.state !== "hit") throw new Error("应为 hit");
+    expect(r.poi.name).toBe("暂停测试(暂停开放)");
+    expect(r.poi.temporarilyClosed).toBe(true);
+  });
+
+  it("缓存命中时详情仍在（缓存存的是完整 PoiLookup，不丢 biz_ext）", async () => {
+    const mock = useRouter({
+      detailsFor: { 缓存详情测试: { biz_ext: { rating: "4.7", opentime2: "周一至周日 09:00-17:00" } } },
+    });
+    const a = await lookupPoi("苏州", "缓存详情测试");
+    const b = await lookupPoi("苏州", "缓存详情测试");
+    expect(mock).toHaveBeenCalledTimes(1); // 第二次走缓存
+    expect(b).toEqual(a);
+    if (b.state !== "hit") throw new Error("应为 hit");
+    expect(b.poi.rating).toBe(4.7);
+    expect(b.poi.openTime2).toBe("周一至周日 09:00-17:00");
+  });
+});
+
 // ---------- transitMinutes：两态语义 ----------
 
 describe("transitMinutes 两态语义", () => {
@@ -323,12 +435,16 @@ describe("routeSegment 三态与解析", () => {
     // 真机直连实测：driving 全链路不返回时长（paths[0] 只有 distance/
     // restriction/steps）。此前按「driving 在 cost.duration」写、配造假 duration
     // 的桩，测试全绿却真机 legs 全空。现在 driving 走「从距离折算」：
-    // 5000/1000/22*60+8 ≈ 74 分钟。
+    // 5000m → 5000/1000/22*60+8 ≈ 21.64 **分钟**，先按分钟取整（22）再 ×60 = 1320 秒
+    // ——必须与 transitMinutes 的「22 分钟」同一口径（先乘 60 再取整会得到 1298 秒）。
+    // 漏乘 60 时本断言是 22（秒），会让「时间轴接不上」体检永远判接得上
+    // （regression 已由 feasibility 定位，2026-10 修复）。
     useRouter({ distance: "5000" });
     const r = await routeSegment(O, D, "driving");
     expect(r.state).toBe("ok");
     if (r.state !== "ok") return;
-    expect(r.leg.durationSec).toBe(Math.round((5000 / 1000 / 22) * 60 + 8));
+    expect(r.leg.durationSec).toBe(Math.round((5000 / 1000 / 22) * 60 + 8) * 60);
+    expect(r.leg.durationSec).toBe(1320); // 22 分钟 = 1320 秒（显式钉住口径）
   });
 
   it("上游错误 → unknown（不返回半截路线）", async () => {
@@ -463,5 +579,42 @@ describe("validatePlan 的通勤收窄", () => {
     // 未改的第 1 天：transitKnown 仍是 false，不因跳过重算而被“洗白”
     expect(p.days[0].transitKnown).toBe(false);
     expect(p.days[0].transitMin).toBe(0);
+  });
+});
+
+// ---------- MOCK 模式：不填假详情 ----------
+// 未配置 key 时链路可跑通，但「不猜、不假装」要求详情字段也必须缺席——
+// 填一个哈希出的评分/营业时间，等于假装验真过（verified 已经是 false）。
+
+describe("MOCK 模式不填假 POI 详情", () => {
+  it("MOCK 下 hit 的 POI 只有基础字段，没有任何评分/营业时间/停业状态", async () => {
+    const savedKey = process.env.AMAP_WEB_SERVICE_KEY;
+    delete process.env.AMAP_WEB_SERVICE_KEY;
+    vi.resetModules();
+    try {
+      const noFetch = vi.fn();
+      vi.stubGlobal("fetch", noFetch);
+      const m = await import("@/lib/amap");
+      expect(m.AMAP_MOCK).toBe(true);
+      const r = await m.lookupPoi("成都", "MOCK详情测试");
+      expect(r.state).toBe("hit");
+      if (r.state !== "hit") return;
+      expect(r.poi).toEqual({
+        name: "MOCK详情测试",
+        address: "成都·MOCK详情测试 附近（mock）",
+        location: expect.any(String),
+        adname: "mock",
+        verified: false,
+      });
+      expect(r.poi.rating).toBeUndefined();
+      expect(r.poi.avgCostCny).toBeUndefined();
+      expect(r.poi.openTime).toBeUndefined();
+      expect(r.poi.openTime2).toBeUndefined();
+      expect(r.poi.temporarilyClosed).toBeUndefined();
+      expect(noFetch).not.toHaveBeenCalled(); // MOCK 模式不发任何请求
+    } finally {
+      process.env.AMAP_WEB_SERVICE_KEY = savedKey;
+      vi.resetModules();
+    }
   });
 });

@@ -10,6 +10,12 @@ export function warnTag(w: string): string | null {
   if (w.includes("节奏上限") || w.includes("偏松")) return "节奏";
   if (w.includes("超出预算") || w.includes("预算较为宽松")) return "预算";
   if (w.includes("个不同区域")) return "分散";
+  // 本轮新增（可执行性）：时间轴接不上 / 营业时间与闭馆日。
+  // 放在「未验真」之前？不需要——这两类文案不含「未在高德检索到」，互不干扰。
+  // 只认「时间接不上」：营业时间 outside 类警告也会建议「一键顺延」，
+  // 若把「一键顺延」也算时间轴，它会被错标成时间轴并路由到 adjust（实测踩坑）。
+  if (w.includes("时间接不上")) return "时间轴";
+  if (w.includes("闭馆") || w.includes("才开门") || w.includes("营业时间") || w.includes("暂停开放")) return "营业";
   // 覆盖必须排在「未在高德检索到」之前：境外预警文案里同时含「境外」和
   // 「未在高德检索到」，先匹配未验真会把它误判成单点未命中（实测踩过）。
   if (w.includes("境外")) return "覆盖";

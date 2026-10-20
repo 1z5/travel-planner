@@ -257,6 +257,36 @@ function isTransientConnectionError(err: unknown): boolean {
 }
 
 /**
+ * 一次流式调用的「整次墙钟」上限（毫秒）。
+ *
+ * 为什么需要它：SDK 的 timeout 在流式下约束的是 **chunk 间隔**（实测 496s 的
+ * 任务不会被 420s 掐断），这本身是对的——推理模型 3-5 分钟很正常。但如果上游
+ * 把连接挂着却不发 chunk（实测 2026-10-20 一次真实 3 天生成卡了 11 分钟以上），
+ * 既没有 chunk 超时、任务心跳又一直跳（心跳是独立定时器）→ 任务永远 running，
+ * 配额不退、用户永远等。这是「僵尸任务」的唯一入口，必须有总时长兜底。
+ *
+ * 默认 10 分钟：正常最慢的跨境 3 天实测 497s，留足余量；超了就是上游异常。
+ * 可用 LLM_STREAM_DEADLINE_MS 覆盖（例如上游明确更慢时）。
+ */
+function streamDeadlineMs(): number {
+  const raw = Number(process.env.LLM_STREAM_DEADLINE_MS);
+  // 下限 1s（不是 60s）：e2e 需要把阈值压到秒级来复现「上游挂起」，
+  // 真实部署按分钟级配置；非法值回退默认 10 分钟。
+  return Number.isFinite(raw) && raw >= 1_000 ? raw : 600_000;
+}
+
+/** 总时长兜底触发的错误：写清「已中止 + 下一步」，且明确不是网络问题 */
+function streamDeadlineError(deadline: number): LlmError {
+  const limitText = deadline >= 60_000
+    ? `${Math.round(deadline / 60_000)} 分钟`
+    : `${Math.round(deadline / 1000)} 秒`;
+  return new LlmError(
+    `生成超过 ${limitText}仍未完成，已中止（可稍后重试，或减少天数）`,
+    false,
+  );
+}
+
+/**
  * 一次流式调用，返回拼接后的正文与 token 统计。
  *
  * 为什么必须流式：推理模型生成要 3-5 分钟，非流式会撞上 Node fetch 的
@@ -275,6 +305,13 @@ async function streamChat(
 ): Promise<{ content: string; tokens: number }> {
   let content = "";
   let totalTokens = 0;
+  // 总时长兜底（见 streamDeadlineMs 注释）：到点直接 abort 掉这条流，
+  // 让上层按「生成失败」结束任务并退还配额，而不是留一个永远 running 的僵尸。
+  const deadline = streamDeadlineMs();
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const deadlineTimer = setTimeout(() => controller.abort(), deadline);
+  deadlineTimer.unref?.();
   try {
     const stream = await llm.chat.completions.create({
       model: process.env.LLM_MODEL || "step-5-preview",
@@ -286,15 +323,24 @@ async function streamChat(
       reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
       stream: true,
       stream_options: { include_usage: true },
-    });
+    }, { signal: controller.signal });
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content;
       if (delta) content += delta;
       if (chunk.usage) totalTokens = chunk.usage.total_tokens ?? 0;
     }
+    // 关键（实测踩坑）：abort 一条流后，SDK 的 async iterator 是「自然结束」
+    // 而**不是**抛错——实测 signal.abort() 后 7ms 流就正常走完 for-await。
+    // 不在这里检查，就会把「我们主动中止」误报成「LLM 返回为空」，
+    // 用户拿到的是让人去调 token 的错误提示，完全不可行动。
+    if (controller.signal.aborted) throw streamDeadlineError(deadline);
   } catch (e) {
     const msg = (e as Error).message ?? "";
-    console.log(`[llm] ${city} ${tag}异常: ${msg}`);
+    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+    console.log(`[llm] ${city} ${tag}异常（已等 ${elapsed}s）: ${msg}`);
+    // 自己到点 abort：这不是上游的错，但要给用户可行动的话，且明确「已中止」
+    // （不能用「连接中断」——那会让人以为是网络问题、重试就行）。
+    if (controller.signal.aborted) throw streamDeadlineError(deadline);
     if (/timed out|timeout/i.test(msg)) {
       // 流式下 SDK 超时约束的是「chunk 间隔」而非总时长（实测 496s 的任务
       // 也未被 420s 掐断），所以这里触发时是断流/连接问题，不是"到点没返回"
@@ -306,6 +352,8 @@ async function streamChat(
       throw new LlmError("生成连接被中断", true);
     }
     throw e;
+  } finally {
+    clearTimeout(deadlineTimer);
   }
   return { content, tokens: totalTokens };
 }

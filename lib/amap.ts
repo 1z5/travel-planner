@@ -1,5 +1,6 @@
 import "server-only";
 import { sleep } from "./concurrency";
+import { isTemporarilyClosedName } from "./poi-hours";
 import type { PlanLeg, TransportMode } from "./types";
 
 // 高德 Web 服务：POI 验真 + 站点间通勤估算。
@@ -31,6 +32,15 @@ export interface PoiInfo {
   location: string; // "经度,纬度"
   adname: string;   // 所在区
   verified: boolean;
+  // ---- 以下来自 extensions=all 的 biz_ext / POI 顶层字段，全部可选 ----
+  // 语义与 PlanSpot.poi（SpotPoiMeta）一致：有数据才填，高德返回空数组 `[]`
+  // 或缺字段时就是 undefined——不填 ≠ 0 分 / 24 小时营业这类默认值。
+  rating?: number;             // 高德评分（"4.8" → 4.8）
+  avgCostCny?: number;         // 高德人均消费（"65.00" → 65）
+  openTime?: string;           // open_time 原文（简版）
+  openTime2?: string;          // opentime2 原文（含闭馆规则/季节/最晚进入）
+  tel?: string;                // 联系电话（POI 顶层 tel 字段）
+  temporarilyClosed?: boolean; // 名称含「暂停开放/暂停营业/已关闭」
 }
 
 /** POI 查询三态：hit=命中 / miss=高德明确无结果 / error=网络或上游异常（≠不存在） */
@@ -177,6 +187,65 @@ function cacheSet(key: string, v: PoiLookup): void {
 }
 
 /**
+ * biz_ext 字段归一化：高德同一字段可能是字符串、数字，也可能是空数组 `[]`
+ * （表示「没有这项数据」）。只有拿到**有效值**才返回，空值/数组/对象一律 undefined
+ * ——把 [] 当 0 分/0 元会凭空造出假数据，正是本项目最怕的事。
+ */
+function bizText(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const t = value.trim();
+    return t || undefined;
+  }
+  if (Array.isArray(value)) {
+    // 实测 opentime2 / open_time 偶有多段数组返回，用中文分号拼回原文语义
+    const parts = value
+      .filter((x): x is string => typeof x === "string")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return parts.length ? parts.join("；") : undefined;
+  }
+  return undefined;
+}
+
+function bizNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!t) return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined; // [] / {} 等：没有数据
+}
+
+/**
+ * 从 extensions=all 的返回里提取 POI 详情（评分/人均/营业时间/电话/停业状态）。
+ * 只填**拿得到**的字段：缺字段就不出现在对象里，上层（SpotPoiMeta）保持可选语义。
+ */
+function parsePoiDetails(poi: Record<string, unknown>, name: string): Partial<PoiInfo> {
+  const rawExt = poi.biz_ext;
+  // biz_ext 正常是对象，但没有详情时实测也可能给 []（空数组）
+  const ext =
+    rawExt && typeof rawExt === "object" && !Array.isArray(rawExt)
+      ? (rawExt as Record<string, unknown>)
+      : {};
+  const details: Partial<PoiInfo> = {};
+  const rating = bizNumber(ext.rating);
+  if (rating !== undefined && rating > 0) details.rating = rating;
+  const cost = bizNumber(ext.cost);
+  if (cost !== undefined && cost >= 0) details.avgCostCny = cost;
+  const openTime = bizText(ext.open_time);
+  if (openTime) details.openTime = openTime;
+  const openTime2 = bizText(ext.opentime2);
+  if (openTime2) details.openTime2 = openTime2;
+  const tel = bizText(poi.tel);
+  if (tel) details.tel = tel;
+  // 高德用名称表达停业状态（实测「金沙遗址博物馆(暂停开放)」）
+  if (isTemporarilyClosedName(name)) details.temporarilyClosed = true;
+  return details;
+}
+
+/**
  * POI 验真：在高德里按「城市 + 名称」搜。
  * 三态语义见 PoiLookup——error 表示「不知道」，调用方不得据此下任何结论。
  *
@@ -191,6 +260,8 @@ export async function lookupPoi(
   scope: "city" | "region" = "city",
 ): Promise<PoiLookup> {
   if (AMAP_MOCK) {
+    // 不填任何详情字段：未接高德时没有评分/营业时间的真实依据，填哈希假数据
+    // 就是「假装验真过」——MOCK 模式下 verified=false，详情同样必须缺席。
     const h = hash(city + name);
     return {
       state: "hit",
@@ -217,7 +288,10 @@ export async function lookupPoi(
     const params: Record<string, string> = {
       keywords: name,
       offset: "1",
-      extensions: "base",
+      // extensions=all：本函数不只验真「有没有这个地方」，还要拿回评分/人均/
+      // 营业时间（biz_ext.opentime2 等）供体检判断「到点开不开门」。
+      // 三态语义/缓存/重试策略与 base 时完全一致，只有响应多带详情。
+      extensions: "all",
     };
     if (scope === "city") {
       params.city = city;
@@ -239,6 +313,9 @@ export async function lookupPoi(
               location: String(poi.location ?? ""),
               adname: String(poi.adname ?? ""),
               verified: true,
+              // 详情字段按实际返回填（缺字段就不出现）；三态/缓存对象随之变大，
+              // 但 CACHE_MAX=500 的上限不变，缓存反而让后续体检零额外调用。
+              ...parsePoiDetails(poi, String(poi.name ?? name)),
             },
           }
         : { state: "miss" };
@@ -355,9 +432,19 @@ export async function routeSegment(
   // driving 拿不到时长，就按 transitMinutes 同款口径从距离折算（市内综合
   // 均速 22km/h + 8 分钟寻路缓冲）：与「通勤总分钟数」同一模型，UI 上不引入
   // 第二套精度口径，也不冒充高德给了真值。
+  //
+  // **单位**：折算公式算出的是「分钟」（5000m → 约 22 分钟），而 PlanLeg.durationSec
+  // 的契约是「秒」，必须 ×60。且口径要与 transitMinutes 严格一致：**先按分钟取整、
+  // 再 ×60**（Math.round(...) * 60 = 22*60 = 1320），而不是先乘 60 再取整
+  // （那样 21.636 分钟 → 1298 秒，与「通勤 22 分钟」对不上）。
+  // 2026-10 联调踩过的坑：漏乘 60 时 5km 路段记成 22 秒，「时间轴接不上」体检拿
+  // ceil(22/60)=1 分钟去比，真实模式永远判接得上（本轮核心预警失效），
+  // UI 也把每段显示成「约1分钟」。
+  // walking/bicycling 走 path.cost.duration，那是高德给的真实秒值（600 = 10 分钟），
+  // 三种方式现在单位一致。
   let durationSec = Number((path?.cost as { duration?: string } | undefined)?.duration);
   if (!Number.isFinite(durationSec) || durationSec < 0) {
-    durationSec = Math.round((distanceM / 1000 / 22) * 60 + 8);
+    durationSec = Math.round((distanceM / 1000 / 22) * 60 + 8) * 60;
   }
 
   const rawSteps = (path?.steps as Array<{ instruction?: string }> | undefined) ?? [];

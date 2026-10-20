@@ -3,11 +3,14 @@
  * 桩高德服务（测试专用）：按官方文档的形状实现端点，
  * 让「真实模式」（AMAP key 已配置）的逻辑在没有真 key 时也可测。
  *
- *   GET /v3/place/text     → pois[0] = { name, address, location, adname }
+ *   GET /v3/place/text     → pois[0] = { name, address, location, adname, biz_ext }
  *                            location 按 keywords 哈希出**不同坐标**（成都基准
  *                            104.07,30.60 附近偏移）——真实地图要按坐标摆站点，
  *                            固定坐标会让一天内的站点全部重合、地图失去意义。
- *                            keywords 含「桃花源记」时返回空（fixture 里的真实 POI，
+ *                            biz_ext 按关键词确定性映射评分/营业时间/人均（供 e2e
+ *                            断言「营业时间体检」；见 mockBizExt，是测试数据非真实数据）。
+ *                            keywords 含「暂停」时 name 追加「(暂停开放)」（模拟真实停业
+ *                            状态写法）；含「桃花源记」时返回空（fixture 里的真实 POI，
  *                            测 POI 未命中预警：连真实行程里的店也可能查不到）
  *   GET /v5/direction/driving → route.paths[0].distance 固定 5000 米
  *                            （换算公式 5000/1000/22*60+8 = 22 分钟/段，测试可精确断言）
@@ -44,6 +47,42 @@ function mockLocation(keywords, index = 0) {
   return `${lng.toFixed(6)},${lat.toFixed(6)}`;
 }
 
+/**
+ * 桩专供测试：按关键词**确定性**构造 biz_ext（字段形状照真实
+ * extensions=all 返回：字符串 / 空数组 `[]`，与真机一致）。
+ *
+ * 这些营业时间**是测试数据、不是真实数据**——目的是让 e2e 能精确断言
+ * 「营业时间体检」的三种结论（fixture 默认起始日 2026-10-10，Day3=10-12 周一）：
+ * - 拙政园    09:00 开门 → fixture Day1 08:00 到 → outside（「09:00 才开门」）
+ * - 苏州博物馆 周一闭馆 → 用于验证 closed 分支/文案
+ * - 同里古镇   周一闭馆 → fixture Day3（2026-10-12）正是周一 → closed
+ * - 餐饮类给人均 cost（预算/人均展示可断言）
+ * - 其它给 00:00-24:00，避免给无关 POI 制造营业时间噪声告警
+ *
+ * 真实高德的营业时间原文要复杂得多（季节分段/日期段/夜游/最晚进入），
+ * 那些格式由 tests/lib/poi-hours.test.ts 用真机原文覆盖；桩只负责让 e2e 稳定可断言。
+ */
+function mockBizExt(keywords) {
+  if (keywords.includes("拙政园")) {
+    return { open_time: "09:00-17:00", opentime2: "周一至周日 09:00-17:00", rating: "4.9" };
+  }
+  if (keywords.includes("苏州博物馆")) {
+    return { open_time: [], opentime2: "周二至周日 09:00-17:00；周一 全天不开放", rating: "4.8" };
+  }
+  if (keywords.includes("同里古镇")) {
+    return { open_time: [], opentime2: "周二至周日 08:00-17:00；周一 全天不开放", rating: "4.6" };
+  }
+  if (/菜馆|饭店|面馆|茶酒楼|餐厅/.test(keywords)) {
+    return { open_time: [], opentime2: "周一至周日 10:30-22:00", cost: "65.00" };
+  }
+  return { open_time: [], opentime2: "周一至周日 00:00-24:00" };
+}
+
+/** 高德用名称表达停业状态（真实样本「金沙遗址博物馆(暂停开放)」）；桩里含「暂停」即模拟 */
+function mockPoiName(keywords) {
+  return keywords.includes("暂停") ? `${keywords}(暂停开放)` : keywords;
+}
+
 // 最小合法 PNG（1×1 透明）。e2e 只需断言 Content-Type 与 PNG 魔数，
 // 与真实底图尺寸无关——/api/map 的尺寸语义由路由自身校验。
 const PNG_1X1 = Buffer.from(
@@ -76,20 +115,22 @@ const server = createServer((req, res) => {
     const offset = Number(url.searchParams.get("offset") ?? "1");
     const pois = offset > 1
       ? [1, 2, 3].map((n) => ({
-          name: `${keywords}建议${n}`,
+          name: mockPoiName(`${keywords}建议${n}`),
           address: `测试地址${n}`,
           location: mockLocation(keywords, n),
           adname: "测试区",
           city: "成都市",
           pname: "四川省",
+          biz_ext: mockBizExt(keywords),
         }))
       : [{
-          name: keywords,
+          name: mockPoiName(keywords),
           address: "测试地址",
           location: mockLocation(keywords),
           adname: "测试区",
           city: "成都市",
           pname: "四川省",
+          biz_ext: mockBizExt(keywords),
         }];
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "1", info: "OK", count: String(pois.length), pois }));

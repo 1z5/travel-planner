@@ -39,6 +39,25 @@ export interface PlanSpot {
   reason: string;          // 为什么去这里
   rainBackup?: string;     // 雨天备选（室外景点必填）
   location?: string;       // "经度,纬度"（验真命中时由高德回填，「行中」定位算「我离这站多远」用）
+  // 高德 POI 详情（验真命中且 extensions=all 有数据时回填）。
+  // 为什么单独放一层而不是塞进 PlanSpot 顶层：这些字段**不是** LLM 生成的，
+  // 是验真接口返回的事实；分层后 UI/体检能严格区分「模型说的」与「高德证的」。
+  // 缺字段 = 高德没给，不代表任何默认值（MOCK 模式一律不填，见 lib/amap.ts）。
+  poi?: SpotPoiMeta;
+}
+
+/**
+ * 高德 POI 的「真实世界约束」数据（评分/人均/营业时间/电话/停业状态）。
+ * 全部可选：高德返回空数组（`[]`）或缺字段时就是不填，绝不猜默认值。
+ * 解析入口在 lib/amap.ts 的 lookupPoi；营业时间文本的判定在 lib/poi-hours.ts。
+ */
+export interface SpotPoiMeta {
+  rating?: number;             // 高德评分（"4.8" → 4.8）
+  avgCostCny?: number;         // 高德人均消费（"65.00" → 65；餐饮/景点有则给）
+  openTime?: string;           // open_time 原文（简版，如 "09:00-17:00"/"24小时营业"）
+  openTime2?: string;          // opentime2 原文（复杂：季节分段/闭馆日/最晚进入）
+  tel?: string;                // 联系电话原文
+  temporarilyClosed?: boolean; // 名称含「暂停开放/暂停营业/已关闭」（高德用名称表达停业状态）
 }
 
 export interface PlanDay {

@@ -195,6 +195,9 @@ async function phaseA(api) {
     (plan.warnings ?? []).some((w) => w.includes("偏满") || w.includes("超出") && w.includes("节奏上限")),
     JSON.stringify(plan.warnings));
   check("MOCK 模式 verified=false", plan.verified === false);
+  check("MOCK 模式：不伪造营业时间/时间轴预警（没有真实数据就不判，不猜）",
+    !(plan.warnings ?? []).some((w) => w.includes("才开门") || w.includes("闭馆") || w.includes("时间接不上")),
+    JSON.stringify(plan.warnings));
   check("remaining = 49（LIMIT 50 - 1）", j1.remaining === 49, `got ${j1.remaining}`);
 
   // 分享页：同一份 job 的只读链接
@@ -318,6 +321,36 @@ async function phaseA(api) {
     `got ${rfLimit.status} ${JSON.stringify(rfLimit.body).slice(0, 80)}`);
 
 
+  // ---- 行程管家（step-5 对话助手）：问答 + 可执行建议 ----
+  const chatPost = async (payload) => {
+    const r = await fetch(`${api.baseUrl}/api/plan/chat`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  const chatOk = await chatPost({ shareId: j1Share, messages: [{ role: "user", content: "第二天下雨怎么办" }] });
+  check("管家：正常提问 → 200 + 回答非空", chatOk.status === 200 && typeof chatOk.body.answer === "string" && chatOk.body.answer.length > 0,
+    JSON.stringify(chatOk.body).slice(0, 160));
+  check("管家：下雨问题给出可执行建议（fix/rain + 天内）",
+    chatOk.body.suggestion?.kind === "fix" && chatOk.body.suggestion?.fixKind === "rain"
+      && Number.isInteger(chatOk.body.suggestion?.day),
+    JSON.stringify(chatOk.body.suggestion));
+  const chatRetime = await chatPost({ shareId: j1Share, messages: [{ role: "user", content: "第二天来不来得及" }] });
+  check("管家：时间是否赶得上 → 建议顺延（retime）",
+    chatRetime.status === 200 && chatRetime.body.suggestion?.kind === "retime",
+    JSON.stringify(chatRetime.body.suggestion));
+  const chatEmpty = await chatPost({ shareId: j1Share, messages: [] });
+  check("管家：空消息 → 400", chatEmpty.status === 400, `got ${chatEmpty.status}`);
+  const chatBadRole = await chatPost({ shareId: j1Share, messages: [{ role: "assistant", content: "hi" }] });
+  check("管家：最后一条不是用户消息 → 400", chatBadRole.status === 400, `got ${chatBadRole.status}`);
+  const chat404 = await chatPost({ shareId: "share_doesnotexist00", messages: [{ role: "user", content: "预算花在哪" }] });
+  check("管家：行程不存在 → 404", chat404.status === 404, `got ${chat404.status}`);
+  const shareHtmlChat = await (await fetch(`${api.baseUrl}/p/${j1Share}`)).text();
+  check("管家：行程页渲染「行程管家」入口（只读链接也能问）", shareHtmlChat.includes("行程管家"));
+  const chatPage = await fetch(`${api.baseUrl}/p/${j1Share}`);
+  check("管家入口不破坏分享页 200", chatPage.status === 200, `got ${chatPage.status}`);
+
   // MOCK 模式下没有高德 key：地图能力必须诚实地 503，而不是返回假图
   const mapMock = await fetch(`${api.baseUrl}/api/map?loc=104.07,30.60;104.02,30.55&w=720&h=400`);
   check("MOCK 模式：/api/map → 503 + JSON 错误（不返回假地图）",
@@ -341,6 +374,20 @@ async function phaseA(api) {
   const j4 = await api.waitJob((await api.post({ city: "上游故障城市", days: 3, budget: 1000, preferences: [] })).body.jobId);
   check("任务 error", j4.status === "error");
   check("配额退还（remaining = 48）", j4.remaining === 48, `got ${j4.remaining}`);
+
+  console.log("-- 用例 4b：上游挂起不发数据 → 流式总时长兜底中止（不产生僵尸任务）--");
+  // 真实故障：上游把连接挂着却不发 chunk。SDK 的 chunk 级 timeout 永远不会触发
+  // （没有 chunk 可等），若没有 planner 的总时长兜底，任务会永远 running、配额不退。
+  // 桩按城市名「挂起」走 hangStream；mock 服务器的 LLM_STREAM_DEADLINE_MS=8000。
+  const r4b = await api.post({ city: "挂起测试城市", days: 3, budget: 1000, preferences: [] });
+  check("挂起：提交 202", r4b.status === 202, `got ${r4b.status}`);
+  const j4b = await api.waitJob(r4b.body.jobId, 30000);
+  check("挂起：任务按超时中止（error，不永远 running）", j4b.status === "error",
+    JSON.stringify(j4b).slice(0, 160));
+  check("挂起：错误文案说明「已中止」且可行动",
+    /已中止/.test(j4b.error ?? "") && /重试|减少天数/.test(j4b.error ?? ""), j4b.error);
+  check("挂起：中止后配额已退还（remaining = 48，与失败路径一致）",
+    j4b.remaining === 48, `got ${j4b.remaining}`);
 
   console.log("-- 用例 5：配额最终账目 --");
   const j5 = await api.waitJob((await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] })).body.jobId);
@@ -769,8 +816,10 @@ async function phaseB(api) {
   const d1 = days[0];
   check(" legs：Day1 生成了分段路线", Array.isArray(d1?.legs) && d1.legs.length > 0,
     JSON.stringify(d1?.legs ?? null).slice(0, 200));
-  check(" legs：每段带 方式/距离/时长", (d1?.legs ?? []).every((l) =>
-    l.mode === "driving" && l.distanceM === 5000 && l.durationSec === Math.round((5000 / 1000 / 22) * 60 + 8)),
+  // driving 兜底按 transitMinutes 同口径折算：5000m / 22km/h + 8 分钟 = 22 分钟，
+  // 先取整到分钟再 ×60（= 1320 秒）。三种交通方式的 durationSec 统一是「秒」。
+  check(" legs：每段带 方式/距离/时长（22 分钟 = 1320 秒）", (d1?.legs ?? []).every((l) =>
+    l.mode === "driving" && l.distanceM === 5000 && l.durationSec === Math.round((5000 / 1000 / 22) * 60 + 8) * 60),
     JSON.stringify((d1?.legs ?? []).slice(0, 2)));
   check(" legs：分步指令已清洗（剥 HTML 标签、去空串、最多 3 条）",
     (d1?.legs ?? []).every((l) => l.steps.length <= 3 && l.steps.every((s) => s && !s.includes("<"))),
@@ -934,6 +983,128 @@ async function phaseB(api) {
   // 数据前提：真实模式下 spot 带坐标，前端才画得出真实地图（否则降级示意图）
   check("真实地图前提：行程点带 location 坐标（验真回填）", locSpots.length > 0,
     `located=${locSpots.length}`);
+
+  // ---- 真实世界约束（本轮）：POI 评分/营业时间 + 营业时间体检 ----
+  // 桩的 biz_ext 按关键词确定性映射（拙政园 09:00 开门、同里古镇周一闭馆）。
+  // 主计划日期 2026-10-10（周六）~10-12（周一），fixture 的 Day1 08:00 到拙政园、
+  // Day3（周一）安排同里古镇 —— 两条预警都应出现。
+  const poiSpots = days.flatMap((d) => d.spots).filter((sp) => sp.poi);
+  check("POI 详情：验真命中时回填真实评分/营业时间（不是编的）",
+    poiSpots.length > 0
+      && poiSpots.some((sp) => typeof sp.poi.rating === "number")
+      && poiSpots.some((sp) => typeof sp.poi.openTime2 === "string" && sp.poi.openTime2.length > 0),
+    JSON.stringify(poiSpots.slice(0, 2).map((sp) => ({ name: sp.name, poi: sp.poi }))));
+
+  const hoursWarnings = (plan.warnings ?? []).filter((w) => w.includes("才开门") || w.includes("整天不开放") || w.includes("闭馆"));
+  check("营业时间体检：Day1 08:00 到拙政园（09:00 开门）→ 触发「才开门」预警",
+    hoursWarnings.some((w) => w.includes("拙政园") && w.includes("才开门")), JSON.stringify(hoursWarnings));
+  check("营业时间体检：Day3（周一）同里古镇闭馆 → 触发「闭馆」预警",
+    hoursWarnings.some((w) => w.includes("同里古镇") && w.includes("闭馆")), JSON.stringify(hoursWarnings));
+  check("营业时间体检：停在营业时间内的点不误报（苏州博物馆 Day1 周六开放）",
+    !hoursWarnings.some((w) => w.includes("苏州博物馆")), JSON.stringify(hoursWarnings));
+  check("营业时间体检：预警给出证据（含高德营业时间原文）",
+    hoursWarnings.every((w) => w.includes("高德：")), JSON.stringify(hoursWarnings));
+
+  // ---- 时间轴体检 + 一键顺延（确定性重排）----
+  // 桩的 driving 折算：5000m / 22km/h + 8 分钟 = 22 分钟；fixture Day1 有多段
+  // 只有 10-20 分钟间隔 → 必须报「时间接不上」。
+  const scheduleWarnings = (plan.warnings ?? []).filter((w) => w.includes("时间接不上"));
+  check("时间轴体检：Day1 报告「时间接不上」（每天汇总一条）",
+    scheduleWarnings.some((w) => w.includes("第 1 天")), JSON.stringify(scheduleWarnings));
+  check("时间轴体检：文案给出真实耗时与天数、并指向一键顺延",
+    (() => {
+      const w = scheduleWarnings.find((x) => x.includes("第 1 天")) ?? "";
+      return w.includes("驾车约需") && w.includes("一键顺延");
+    })(), JSON.stringify(scheduleWarnings));
+  check("时间轴体检：同一天最多一条（不逐段刷屏）",
+    scheduleWarnings.filter((w) => w.includes("第 1 天")).length === 1,
+    JSON.stringify(scheduleWarnings));
+
+  const beforeDay1 = days[0].spots.map((sp) => sp.time).join(",");
+  const adj1 = await (await fetch(`${api.baseUrl}/api/plan/adjust`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: j.shareId, op: "retime", day: 1 }),
+  })).json();
+  check("一键顺延：200 + changed=true",
+    adj1.changed === true && typeof adj1.revision === "number",
+    JSON.stringify(adj1).slice(0, 160));
+  check("一键顺延：revision 递增（落库，分享页/日历同步）", adj1.revision === 2,
+    `got ${adj1.revision}`);
+  const afterDay1 = (adj1.plan?.days ?? [])[0]?.spots?.map((sp) => sp.time).join(",") ?? "";
+  check("一键顺延：第 1 天时间被顺延（不再按原时间硬排）",
+    afterDay1 !== beforeDay1, `before=${beforeDay1} after=${afterDay1}`);
+  check("一键顺延：第 1 天的「时间接不上」预警消失",
+    !(adj1.plan?.warnings ?? []).some((w) => w.includes("第 1 天") && w.includes("时间接不上")),
+    JSON.stringify(adj1.plan?.warnings));
+  check("一键顺延：其它天与其它类预警不被误删",
+    (adj1.plan?.warnings ?? []).some((w) => w.includes("第 2 天") || w.includes("第 3 天"))
+      || (adj1.plan?.warnings ?? []).length > 0,
+    JSON.stringify(adj1.plan?.warnings));
+
+  const adj2 = await (await fetch(`${api.baseUrl}/api/plan/adjust`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: j.shareId, op: "retime", day: 1 }),
+  })).json();
+  check("一键顺延：幂等（第二次 changed=false，不涨 revision）",
+    adj2.changed === false && adj2.revision === adj1.revision,
+    JSON.stringify({ changed: adj2.changed, revision: adj2.revision }));
+
+  const adjBadDay = await fetch(`${api.baseUrl}/api/plan/adjust`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: j.shareId, op: "retime", day: 9 }),
+  });
+  check("一键顺延：越界天数 → 400", adjBadDay.status === 400, `got ${adjBadDay.status}`);
+  const adjMissing = await fetch(`${api.baseUrl}/api/plan/adjust`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: "share_doesnotexist00", op: "retime", day: 1 }),
+  });
+  check("一键顺延：行程不存在 → 404", adjMissing.status === 404, `got ${adjMissing.status}`);
+
+  // ---- 体检一键修复（服务端模板化指令 → AI 改一天 → 自动重体检）----
+  // 用新的 share：fix 会走 refine 链路，独立 plan 便于断言 revision/appliedFix。
+  const jFix = await api.waitJob(
+    (await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] })).body.jobId,
+  );
+  const fixRes = await fetch(`${api.baseUrl}/api/plan/refine`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: jFix.shareId, action: "fix", fixKind: "pace", day: 1 }),
+  });
+  const fixBody = await fixRes.json().catch(() => ({}));
+  check("一键修复：pace → 200 且返回 appliedFix（模板指令可追溯）",
+    fixRes.status === 200 && fixBody.appliedFix?.fixKind === "pace"
+      && String(fixBody.appliedFix?.instruction ?? "").includes("第1天"),
+    JSON.stringify(fixBody).slice(0, 200));
+  check("一键修复：模板指令与约定一致（不是用户自由输入）",
+    String(fixBody.appliedFix?.instruction ?? "").includes("减少1个景点"),
+    String(fixBody.appliedFix?.instruction ?? ""));
+  check("一键修复：revision 递增（改完落库）", fixBody.revision === 2, `got ${fixBody.revision}`);
+  check("一键修复：改完自动重体检（warnings 是数组，不是原样搬运）",
+    Array.isArray(fixBody.plan?.warnings), JSON.stringify(fixBody.plan?.warnings)?.slice(0, 120));
+
+  const fixBadKind = await fetch(`${api.baseUrl}/api/plan/refine`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: jFix.shareId, action: "fix", fixKind: "nope", day: 1 }),
+  });
+  check("一键修复：未知 fixKind → 400", fixBadKind.status === 400, `got ${fixBadKind.status}`);
+  const fixWithInstruction = await fetch(`${api.baseUrl}/api/plan/refine`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: jFix.shareId, action: "fix", fixKind: "pace", day: 1, instruction: "随便改" }),
+  });
+  check("一键修复：不允许自定义 instruction（防注入面）→ 400",
+    fixWithInstruction.status === 400, `got ${fixWithInstruction.status}`);
+
+  // ---- 行中模式页面（/t/<token>）：SSR 骨架 + 失效页 ----
+  const tRes = await fetch(`${api.baseUrl}/t/${j.shareId}`);
+  const tHtml = await tRes.text();
+  check("/t/<shareId> → 200（行中模式页可打开）", tRes.status === 200, `got ${tRes.status}`);
+  check("/t 页含「行中模式」与「查看完整行程」入口",
+    tHtml.includes("行中模式") && tHtml.includes("查看完整行程"), "");
+  check("/t 页 title 为「城市 行中助手」", /<title>[^<]*行中助手[^<]*<\/title>/.test(tHtml),
+    (tHtml.match(/<title>[^<]*<\/title>/) ?? [""])[0]);
+  const tBad = await fetch(`${api.baseUrl}/t/job_nonexistent_today`);
+  const tBadHtml = await tBad.text();
+  check("/t 无效 token → 200 + 友好失效页（非 500）",
+    tBad.status === 200 && tBadHtml.includes("链接已失效"), `got ${tBad.status}`);
 }
 
 // ---------------- 阶段 C：登录体系（dev provider） ----------------
@@ -1131,6 +1302,9 @@ async function main() {
     // 改行程按 IP/小时限流（不占每日生成配额）。设为 2：两次成功修改后第 3 次
     // 必须 429——失败/非法请求会退还名额，所以只计成功次数，断言确定。
     REFINE_HOURLY_LIMIT: "2",
+    // 流式总时长兜底：正常桩调用（单日 1.5s 延迟）远小于 8s，只有「挂起」
+    // 测试城市（桩只握手不吐 chunk）会触发中止。
+    LLM_STREAM_DEADLINE_MS: "8000",
     // 显式清空：Next dev 会自动加载项目根的 .env，若开发机 .env 里配了真实
     // 高德 key，这台本该跑 MOCK 模式的服务器会悄悄进入 live 模式，导致
     // 「MOCK 模式 verified=false」等断言失败。显式空值优先于 .env（已验证）。
@@ -1143,6 +1317,9 @@ async function main() {
     LLM_MODEL: "step-5-preview",
     AMAP_WEB_SERVICE_KEY: "stub-amap-key",
     AMAP_BASE_URL: `http://127.0.0.1:${AMAP_STUB_PORT}`,
+    // 本阶段要跑「营业时间/时间轴/一键修复/行中模式」多组用例，会多次提交生成任务；
+    // 显式放大配额，避免被开发机 .env 的 DAILY_FREE_LIMIT 截断（与 mock 服务器同思路）。
+    DAILY_FREE_LIMIT: "50",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.auth)], {
     NEXT_DIST_DIR: `.next-t-auth`,

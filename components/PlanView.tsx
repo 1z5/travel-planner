@@ -5,7 +5,7 @@ import {
   Landmark, Utensils, BedDouble, TrainFront, ShoppingBag, Compass,
   Copy, Link2, CalendarDays, AlertTriangle, Lightbulb, MapPin, Wallet,
   RefreshCw, Loader2, MessageSquareText, Printer, Navigation, X,
-  Footprints, Bike, Car,
+  Footprints, Bike, Car, Sparkles, TimerReset,
 } from "lucide-react";
 import type { Plan, TransportMode } from "@/lib/types";
 import { localTodayIso, nowMinutes, spotNow, tripToday, distMeters, fmtDist, type SpotNow, type TripToday } from "@/lib/trip-day";
@@ -13,10 +13,15 @@ import { warnTag } from "@/lib/warn-tag";
 import { cityImage } from "@/lib/city-images";
 import { ownsRecentTrip } from "@/lib/recent-trips";
 import { RouteMap } from "./RouteMap";
+import { PlanCopilot } from "./PlanCopilot";
+import type { CopilotSuggestion } from "@/lib/copilot-types";
 import { RealMap } from "./RealMap";
 import { BudgetInsight } from "./BudgetInsight";
 import { CostChart } from "./CostChart";
 import { summarizeBudget } from "@/lib/budget";
+import { suggestFix } from "@/lib/fix-actions";
+import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
+import { formatHoursShort } from "@/lib/poi-hours";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
 
@@ -72,8 +77,13 @@ function toMarkdown(plan: Plan): string {
     lines.push(`## Day ${day.day} ${day.theme}`, "");
     for (const s of day.spots) {
       lines.push(`### ${s.time} ${s.name}`);
+      const poiBits: string[] = [];
+      if (s.poi?.rating !== undefined) poiBits.push(`评分 ${s.poi.rating.toFixed(1)}`);
+      const hoursText = formatHoursShort(s.poi ?? {});
+      if (hoursText) poiBits.push(`营业 ${hoursText}`);
       lines.push(
-        `- ${TYPE_LABEL[s.type] ?? s.type} · ${s.area} · 停留 ${s.durationMin} 分钟 · 人均 ¥${s.costCny}`,
+        `- ${TYPE_LABEL[s.type] ?? s.type} · ${s.area} · 停留 ${s.durationMin} 分钟 · 人均 ¥${s.costCny}`
+          + (poiBits.length ? ` · ${poiBits.join(" · ")}` : ""),
       );
       lines.push(`- ${s.reason}`);
       if (s.rainBackup) lines.push(`- 🌧 雨天备选：${s.rainBackup}`);
@@ -151,6 +161,10 @@ export function PlanView({
   const [revision, setRevision] = useState<number | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [instruction, setInstruction] = useState("");
+  // 「一键修复」：每类体检问题一个动作。fixBusy 是当前在跑的警告 key（同一时刻只允许一个，
+  // 避免两个修复并发互相覆盖——服务端是整份 plan 覆盖写）。
+  const [fixBusy, setFixBusy] = useState<string | null>(null);
+  const [fixSuccess, setFixSuccess] = useState<{ key: string; text: string } | null>(null);
   // 编辑权限：分享页需要「本机生成过」才放行（localStorage 里认领过这个 token）
   const [editAllowed, setEditAllowed] = useState(!ownerCheck);
   useEffect(() => {
@@ -187,6 +201,139 @@ export function PlanView({
       setEditError("网络异常，修改未保存，请重试");
     } finally {
       setBusy(null);
+    }
+  }
+
+  /** 从警告文本里取「第 N 天」（validate / weather 文案统一格式） */
+  function warningDay(w: string): number | null {
+    const m = w.match(/第\s*(\d+)\s*天/);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isInteger(n) && n >= 1 ? n : null;
+  }
+
+  /**
+   * 一键修复一条体检预警。
+   *
+   * 两类路径刻意分开：
+   * - 时间轴类（「时间接不上」）→ /api/plan/adjust 确定性顺延：不调模型、不扣次数、
+   *   毫秒级返回，且结果可预测（按真实路段时长重排）；
+   * - 其余可修类 → /api/plan/refine 的 fix 动作：服务端用模板化指令让 AI 改一天，
+   *   改完自动重体检。指令不由用户输入，天然没有注入面。
+   * 修不了的问题（未验真/境外/系统波动/硬约束）根本没有按钮，不提供假动作。
+   */
+  async function fixWarning(w: string, key: string): Promise<void> {
+    if (!shareId) return;
+    setFixBusy(key);
+    setEditError("");
+    setFixSuccess(null);
+    try {
+      if (isScheduleWarning(w)) {
+        const day = warningDay(w);
+        if (day === null) {
+          setEditError("这条时间轴预警缺少天数信息，请刷新页面后重试");
+          return;
+        }
+        const r = await fetch("/api/plan/adjust", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shareId, op: "retime", day }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setEditError(d.error || "顺延时间轴失败，请稍后重试");
+          return;
+        }
+        if (d.plan) {
+          setViewPlan(d.plan);
+          onPlanChange?.(d.plan);
+        }
+        setRevision(typeof d.revision === "number" ? d.revision : null);
+        setFixSuccess({
+          key,
+          text: d.changed
+            ? `已按真实路段时长顺延第 ${day} 天时间轴（第 ${d.revision} 版）`
+            : (Array.isArray(d.notes) && d.notes[0]) || "时间轴已核对，没有需要顺延的地方",
+        });
+        return;
+      }
+
+      const fix = suggestFix(w);
+      if (!fix) return;
+      // 预算类是全局问题：suggestFix 不给天，服务端会按花费自动选一天；这里只传一个
+      // 存在的天（接口要求 day 必须存在）。
+      const targetDay = fix.day ?? viewPlan.days[0]?.day ?? 1;
+      const r = await fetch("/api/plan/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId, action: "fix", fixKind: fix.fixKind, day: targetDay }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setEditError(d.error || "一键修复失败，请稍后重试");
+        return;
+      }
+      if (d.plan) {
+        setViewPlan(d.plan);
+        onPlanChange?.(d.plan);
+      }
+      setRevision(typeof d.revision === "number" ? d.revision : null);
+      const applied = d.appliedFix?.instruction ? `：${d.appliedFix.instruction}` : "";
+      setFixSuccess({
+        key,
+        text: `已按「${fix.label}」调整（第 ${d.revision} 版）${applied}`,
+      });
+    } catch {
+      setEditError("网络异常，修复未保存，请重试");
+    } finally {
+      setFixBusy(null);
+    }
+  }
+
+  /**
+   * 执行「行程管家」给的建议——**必须用户点了才执行**（服务端只返回兜底建议，
+   * 不会自动改行程）。建议只有两类：确定性顺延（adjust）与一键修复（refine fix），
+   * 复用体检查出的同一套接口，因此失败语义/退款/版本号与手动修复完全一致。
+   */
+  async function applySuggestion(s: CopilotSuggestion): Promise<void> {
+    if (!shareId) return;
+    setFixBusy("copilot");
+    setEditError("");
+    setFixSuccess(null);
+    try {
+      if (s.kind === "retime") {
+        const r = await fetch("/api/plan/adjust", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shareId, op: "retime", day: s.day }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { setEditError(d.error || "顺延时间轴失败，请稍后重试"); return; }
+        if (d.plan) { setViewPlan(d.plan); onPlanChange?.(d.plan); }
+        setRevision(typeof d.revision === "number" ? d.revision : null);
+        setFixSuccess({
+          key: "copilot",
+          text: d.changed
+            ? `已按真实路段时长顺延第 ${s.day} 天时间轴（第 ${d.revision} 版）`
+            : (Array.isArray(d.notes) && d.notes[0]) || "时间轴已核对，没有需要顺延的地方",
+        });
+        return;
+      }
+      const r = await fetch("/api/plan/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId, action: "fix", fixKind: s.fixKind, day: s.day }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setEditError(d.error || "按建议修改失败，请稍后重试"); return; }
+      if (d.plan) { setViewPlan(d.plan); onPlanChange?.(d.plan); }
+      setRevision(typeof d.revision === "number" ? d.revision : null);
+      const applied = d.appliedFix?.instruction ? `：${d.appliedFix.instruction}` : "";
+      setFixSuccess({ key: "copilot", text: `已按建议调整（第 ${d.revision} 版）${applied}` });
+    } catch {
+      setEditError("网络异常，建议未执行，请重试");
+    } finally {
+      setFixBusy(null);
     }
   }
 
@@ -413,6 +560,9 @@ export function PlanView({
               <a className="btn" href={`/api/plan/ics?id=${shareId}`}>
                 <CalendarDays size={14} />下载日历（.ics）
               </a>
+              <a className="btn btn-today" href={`/t/${shareId}`}>
+                <Footprints size={14} />行中模式
+              </a>
             </>
           )}
           <button type="button" className="btn" onClick={() => window.print()}>
@@ -445,16 +595,46 @@ export function PlanView({
             <ul className="warn-list">
               {viewPlan.warnings.map((w, i) => {
                 const tag = warnTag(w);
+                const key = `warn:${i}`;
+                // 只有「可编辑的持久化行程」才提供修复入口：示例行程（无 shareId）
+                // 和别人的只读分享链接（canEdit=false）都不显示按钮，避免点了必失败。
+                const fix = canEdit ? suggestFix(w) : null;
+                const scheduleFix = canEdit && isScheduleWarning(w);
+                const busyThis = fixBusy === key;
                 return (
                   <li key={i}>
                     {tag && <span className="warn-tag">{tag}</span>}
-                    <span>{w}</span>
+                    <span className="warn-text">{w}</span>
+                    {scheduleFix && (
+                      <button type="button" className="warn-fix" disabled={!!fixBusy}
+                        onClick={() => void fixWarning(w, key)}
+                        title="按真实路段时长重排当天时间轴——不调模型、不扣次数">
+                        {busyThis ? <Loader2 size={12} className="spin" /> : <TimerReset size={12} />}一键顺延
+                      </button>
+                    )}
+                    {!scheduleFix && fix && (
+                      <button type="button" className="warn-fix" disabled={!!fixBusy}
+                        onClick={() => void fixWarning(w, key)} title={fix.hint}>
+                        {busyThis ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}{fix.label}
+                      </button>
+                    )}
+                    {fixSuccess?.key === key && (
+                      <p className="warn-fixed" role="status">{fixSuccess.text}</p>
+                    )}
                   </li>
                 );
               })}
             </ul>
           </div>
         </div>
+      )}
+
+      {/* ===== 行程管家（step-5）：基于这份行程回答 / 给一个可执行建议 ===== */}
+      {shareId && (
+        <PlanCopilot
+          shareId={shareId}
+          onSuggestion={canEdit ? (s) => applySuggestion(s) : undefined}
+        />
       )}
 
       {/* ===== 行中状态：今天在哪个位置 + 现在/下一站 ===== */}
@@ -624,6 +804,39 @@ export function PlanView({
                     <div className="spot-meta">
                       {s.area} · {Math.round(s.durationMin / 60 * 10) / 10} 小时 · 人均 ¥{s.costCny}
                     </div>
+                    {s.poi && (
+                      <div className="poi-chips">
+                        {s.poi.rating !== undefined && (
+                          <span className="poi-chip poi-chip-rating" title="高德真实评分">★ {s.poi.rating.toFixed(1)}</span>
+                        )}
+                        {s.poi.temporarilyClosed && (
+                          <span className="poi-chip poi-chip-closed" title="高德显示该地点暂停开放">暂停开放</span>
+                        )}
+                        {(() => {
+                          const hoursText = formatHoursShort(s.poi);
+                          if (!hoursText) return null;
+                          // 这一站是否被营业时间体检点名：点名就把 chip 标成警示色，
+                          // 让用户在时间轴里也能立刻定位到「可能进不去」的那个点。
+                          const flagged = viewPlan.warnings.some(
+                            (w) => isHoursWarning(w) && w.includes(s.name),
+                          );
+                          return (
+                            <span
+                              className={`poi-chip${flagged ? " poi-chip-warn" : ""}`}
+                              title={s.poi?.openTime2 || s.poi?.openTime || "高德营业时间"}
+                            >
+                              营业 {hoursText}
+                            </span>
+                          );
+                        })()}
+                        {s.type === "food" && s.poi.avgCostCny !== undefined && (
+                          <span className="poi-chip" title="高德人均参考价（非行程预算）">人均参考 ¥{s.poi.avgCostCny}</span>
+                        )}
+                        {s.poi.tel && (
+                          <a className="poi-chip" href={`tel:${s.poi.tel}`} title={`拨打 ${s.poi.tel}`}>☎ {s.poi.tel}</a>
+                        )}
+                      </div>
+                    )}
                     <div className="spot-reason">{s.reason}</div>
                     {s.rainBackup && (
                       <div className="spot-backup"><CloudRain size={12} />雨天备选：{s.rainBackup}</div>

@@ -265,6 +265,155 @@ describe("PlanView 行中高亮（今天）", () => {
 });
 
 // ============================================================
+// 可执行性（本轮）：真实 POI 数据 chips + 一键修复 + 行中模式入口
+//
+// 这些能力都建立在「持久化行程（shareId）+ 真实高德数据」之上：
+// - 没有 poi 数据 → 不渲染 chips（不猜）
+// - 没有 shareId / 只读链接 → 不渲染修复按钮（不给点了必失败的假动作）
+// ============================================================
+describe("PlanView 可执行性（POI 真实数据 / 一键修复）", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const POI = { rating: 4.8, openTime: "09:00-17:00", openTime2: "周一至周日 09:00-17:00", avgCostCny: 65, tel: "0512-67575666" };
+
+  function planWithPoi(overrides: { temporarilyClosed?: boolean } = {}) {
+    // 第一个点（景点）挂完整 POI 数据；当天第一个餐饮点单独挂「人均参考价」，
+    // 验证不同 chip 只在对应类型上出现（餐饮人均参考价对景点没有意义）。
+    let foodPoiAdded = false;
+    return {
+      ...SAMPLE_PLAN,
+      days: SAMPLE_PLAN.days.map((d, i) =>
+        i === 0
+          ? {
+              ...d,
+              spots: d.spots.map((sp, j) => {
+                if (j === 0) return { ...sp, poi: { ...POI, ...overrides } };
+                if (!foodPoiAdded && sp.type === "food") {
+                  foodPoiAdded = true;
+                  return { ...sp, poi: { avgCostCny: 65 } };
+                }
+                return sp;
+              }),
+            }
+          : d,
+      ),
+    };
+  }
+
+  function planWithWarnings(warnings: string[]) {
+    return { ...SAMPLE_PLAN, warnings };
+  }
+
+  const editableProps = { shareId: "share_test123", editable: true } as const;
+
+  it("行程点展示真实 POI 数据：评分 / 营业时间 / 餐饮人均参考价 / 电话", () => {
+    render(<PlanView plan={planWithPoi()} />);
+    expect(screen.getByText("★ 4.8")).toBeInTheDocument();
+    expect(screen.getByText(/营业 09:00-17:00/)).toBeInTheDocument();
+    expect(screen.getByText(/人均参考 ¥65/)).toBeInTheDocument();
+    const tel = screen.getByTitle(/拨打 0512-67575666/);
+    expect(tel.getAttribute("href")).toBe("tel:0512-67575666");
+  });
+
+  it("高德显示暂停开放 → 明确的红色 chip（不假装它还能去）", () => {
+    render(<PlanView plan={planWithPoi({ temporarilyClosed: true })} />);
+    expect(screen.getByText("暂停开放")).toBeInTheDocument();
+  });
+
+  it("可修复预警给出对应按钮：绕路→收拢动线、闭馆→避开闭馆、时间轴→一键顺延", () => {
+    render(<PlanView plan={planWithWarnings([
+      "第 1 天站点间通勤约 2 小时 30 分钟，偏长，可能存在绕路，建议合并同区域景点",
+      "第 2 天「苏州博物馆」周一闭馆（高德：周一 全天不开放），当天去不了，建议换一个点或调到其他天",
+      "第 3 天有 1 段「时间接不上」：「A」10:00 结束到「B」10:15 开始只有 15 分钟，但驾车约需 22 分钟——可用「一键顺延」重排当天时间轴",
+    ])} {...editableProps} />);
+    expect(screen.getByText("收拢动线")).toBeInTheDocument();
+    expect(screen.getByText("避开闭馆")).toBeInTheDocument();
+    expect(screen.getByText("一键顺延")).toBeInTheDocument();
+  });
+
+  it("修不了的预警不给按钮（未验真不能说「一键修复」）", () => {
+    render(<PlanView plan={planWithWarnings([
+      "第 1 天「拙政园」未在高德检索到，可能名称有误或已关闭，出发前请自行确认",
+    ])} {...editableProps} />);
+    expect(document.querySelectorAll(".warn-fix").length).toBe(0);
+  });
+
+  it("只读分享链接（未 editable）不渲染修复按钮", () => {
+    render(<PlanView plan={planWithWarnings([
+      "第 1 天站点间通勤约 2 小时 30 分钟，偏长，可能存在绕路，建议合并同区域景点",
+    ])} shareId="share_readonly1" />);
+    expect(document.querySelectorAll(".warn-fix").length).toBe(0);
+  });
+
+  it("点「一键顺延」→ POST /api/plan/adjust（op=retime + 第 N 天），成功后展示版本", async () => {
+    const fixed = { ...SAMPLE_PLAN, days: SAMPLE_PLAN.days.map((d) => ({ ...d })) };
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ plan: fixed, revision: 2, changed: true, notes: [] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PlanView plan={planWithWarnings([
+      "第 3 天有 1 段「时间接不上」：…可用「一键顺延」重排当天时间轴",
+    ])} {...editableProps} />);
+    await userEvent.click(screen.getByText("一键顺延"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/plan/adjust");
+    expect(JSON.parse(String(init.body))).toEqual({ shareId: "share_test123", op: "retime", day: 3 });
+    expect(await screen.findByText(/已按真实路段时长顺延第 3 天时间轴/)).toBeInTheDocument();
+    expect(screen.getByText(/已更新 · 第 2 版/)).toBeInTheDocument();
+  });
+
+  it("点「一键修复」（AI 类）→ POST /api/plan/refine（action=fix + fixKind + day）", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        plan: SAMPLE_PLAN,
+        revision: 3,
+        appliedFix: { fixKind: "transit", instruction: "第1天景点收拢到同一区域，减少跨区折返，当天通勤控制在1小时内" },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PlanView plan={planWithWarnings([
+      "第 1 天站点间通勤约 2 小时 30 分钟，偏长，可能存在绕路，建议合并同区域景点",
+    ])} {...editableProps} />);
+    await userEvent.click(screen.getByText("收拢动线"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/plan/refine");
+    expect(JSON.parse(String(init.body))).toEqual({ shareId: "share_test123", action: "fix", fixKind: "transit", day: 1 });
+    expect(await screen.findByText(/已按「收拢动线」调整/)).toBeInTheDocument();
+  });
+
+  it("修复失败 → 展示服务端可行动文案，不显示成功提示", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ error: "第 1 天当前安排已在合理节奏区间内，无需再调整" }),
+    })));
+    render(<PlanView plan={planWithWarnings([
+      "第 1 天安排约 10 小时 5 分钟，超出适中节奏上限（10 小时），可删减 1 个景点",
+    ])} {...editableProps} />);
+    await userEvent.click(screen.getByText("减轻节奏"));
+    expect(await screen.findByText(/无需再调整/)).toBeInTheDocument();
+    expect(screen.queryByText(/已按「减轻节奏」调整/)).not.toBeInTheDocument();
+  });
+
+  it("有 shareId 时渲染「行中模式」入口（/t/<shareId>）", () => {
+    render(<PlanView plan={SAMPLE_PLAN} shareId="share_today01" />);
+    const link = screen.getByText("行中模式").closest("a")!;
+    expect(link.getAttribute("href")).toBe("/t/share_today01");
+  });
+
+  it("无 shareId 时不渲染行中模式入口（示例行程没有持久化 token）", () => {
+    render(<PlanView plan={SAMPLE_PLAN} />);
+    expect(screen.queryByText("行中模式")).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================
 // 行程可共编（本轮产品跃迁）：换一个 / 一句话改 / 版本徽章 / 导航
 //
 // 组件只负责交互与请求契约，真正的 LLM 调用与落库在 /api/plan/refine；

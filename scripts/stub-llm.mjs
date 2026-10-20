@@ -26,6 +26,16 @@
  *   注：swap 的「类型必须延续」纠正重试由单测覆盖（tests/lib/refine.test.ts）；
  *   swap 契约上不带指令，桩无法用指令触发错误类型，故不在 e2e 里造这条路径。
  *
+ * 行程管家（copilot，lib/copilot.ts）请求**最先**判定：system prompt 固定含
+ * 「行程管家」四个字。返回 {"answer","suggestion"} 的 JSON；因 streamChatRetry
+ * 只发一条 user 消息，桩从 user prompt 末尾的「【用户本次问题】」块取最后一条
+ * 用户消息（历史里的旧问题不参与意图判定），规则确定性：
+ *   含「雨」                    -> fix / rain，day=1
+ *   含「赶/来不来得及/顺延」     -> retime，day=1
+ *   含「预算」                  -> fix / budget-over，day=1
+ *   其它                        -> suggestion=null
+ * 该分支先于城市名/refine 分支，不影响既有生成与改行程链路。
+ *
  * 用法：node scripts/stub-llm.mjs [port]   （默认 8898）
  */
 import { createServer } from "node:http";
@@ -422,6 +432,56 @@ function refineContent(userMsg, systemMsg) {
   return refineDayContent(userMsg);
 }
 
+// ---------------- 行程管家（copilot）的桩响应 ----------------
+// 约定见文件头注释；prompt 格式的定义方在 lib/copilot.ts，两处必须同步。
+// 关键：streamChatRetry 只发 system + 一条 user。user 里前面是对话历史，
+// 真正的「最后一条 user 消息」在末尾【用户本次问题】块——必须只按这一块判意图，
+// 否则历史里问过的「下雨」会让现在的「预算」问题也返回 rain。
+
+const COPILOT_QUESTION_MARK = "【用户本次问题】";
+
+function copilotLastQuestion(userMsg) {
+  const idx = userMsg.lastIndexOf(COPILOT_QUESTION_MARK);
+  return idx === -1 ? userMsg : userMsg.slice(idx + COPILOT_QUESTION_MARK.length).trim();
+}
+
+function copilotContent(userMsg) {
+  const question = copilotLastQuestion(userMsg);
+  let suggestion = null;
+  if (question.includes("雨")) {
+    suggestion = { kind: "fix", fixKind: "rain", day: 1, label: "改室内" };
+  } else if (/赶|来不来得及|顺延/.test(question)) {
+    suggestion = { kind: "retime", day: 1, label: "顺延第1天" };
+  } else if (question.includes("预算")) {
+    suggestion = { kind: "fix", fixKind: "budget-over", day: 1, label: "压预算" };
+  }
+  return JSON.stringify({
+    answer: "（桩）基于你的行程，建议先看当天时间轴与真实路段；如需调整可参考建议按钮。",
+    suggestion,
+  });
+}
+
+/**
+ * 「挂起」测试开关（Lead 加，用于验证 planner 的「流式总时长兜底」）：
+ * 城市名含「挂起」时只回 SSE 响应头、永远不写 chunk、也不结束响应。
+ *
+ * 模拟真实故障：上游把连接挂着却不发数据。这种状态下 SDK 的 chunk 级 timeout
+ * 永远不会触发（没有 chunk 可等），若没有总时长兜底，任务会永远 running。
+ * 配合测试服务器的 LLM_STREAM_DEADLINE_MS=2000，2 秒后应被 abort 成 error。
+ */
+function hangStream(req, res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  res.write(": keep-alive\n\n"); // 合法 SSE 注释行：证明连接已建立，但没有 content chunk
+  // 刻意不做任何收尾：**不要**监听 req 的 close——POST body 收完后 req 的 close
+  // 就会触发（不是连接断开），在那时 res.end() 会让「挂起」变成「立刻空流」，
+  // 测到的是「返回为空」而不是总时长兜底。让响应一直挂着，等客户端 abort。
+  res.on("close", () => { /* 客户端已 abort；无需处理 */ });
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
 
@@ -450,15 +510,24 @@ const server = createServer((req, res) => {
       isStream = parsed.stream === true;
     } catch { /* 空 body 按 valid 处理 */ }
 
-    // 三类调用靠 system prompt 区分：改行程 / 大纲 / 单日。
-    // 改行程先判断：它的 system prompt 含「行程微调」标记，且不应落入下面按
-    // 城市名切换的生成分支（那些分支都是为整份生成准备的）。
-    const isRefineCall = systemMsg.includes("行程微调");
-    const isOutlineCall = !isRefineCall && systemMsg.includes("行程大纲");
-    const isDayCall = !isRefineCall && systemMsg.includes("某一天的时刻表");
+    // 「挂起」测试城市：只握手不吐 chunk，验证 planner 的「流式总时长兜底」。
+    // 必须放在所有 mode 分流之前——它连 JSON 都不返回。
+    if (userMsg.includes("挂起")) {
+      hangStream(req, res);
+      return;
+    }
+
+    // 四类调用靠 system prompt 区分：行程管家 / 改行程 / 大纲 / 单日。
+    // 行程管家必须最先判断（其 system 含「行程管家」标记，且不应落入下面按
+    // 城市名切换的生成分支）；改行程的 system prompt 含「行程微调」标记。
+    const isCopilotCall = systemMsg.includes("行程管家");
+    const isRefineCall = !isCopilotCall && systemMsg.includes("行程微调");
+    const isOutlineCall = !isCopilotCall && !isRefineCall && systemMsg.includes("行程大纲");
+    const isDayCall = !isCopilotCall && !isRefineCall && systemMsg.includes("某一天的时刻表");
 
     let mode = "valid";
-    if (isRefineCall) mode = "refine";
+    if (isCopilotCall) mode = "copilot";
+    else if (isRefineCall) mode = "refine";
     else if (userMsg.includes("垃圾")) mode = "garbage";
     else if (userMsg.includes("空")) mode = "empty";
     else if (userMsg.includes("故障")) mode = "http500";
@@ -532,8 +601,10 @@ const server = createServer((req, res) => {
       await sleep(delay);
     }
     const content =
-      // 改行程优先：它的响应结构（spot/day）与整份生成完全不同，不能落到下面分支
-      mode === "refine" ? refineContent(userMsg, systemMsg)
+      // 行程管家优先：它的响应结构（answer/suggestion）与所有生成分支不同
+      mode === "copilot" ? copilotContent(userMsg)
+      // 改行程其次：它的响应结构（spot/day）与整份生成完全不同，不能落到下面分支
+      : mode === "refine" ? refineContent(userMsg, systemMsg)
       : mode === "garbage" ? "抱歉，我不知道怎么回答这个问题。"
       : mode === "empty" ? ""
       : mode === "scrambled" ? JSON.stringify(scrambledPlan())
