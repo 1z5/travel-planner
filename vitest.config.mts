@@ -9,10 +9,27 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "html"],
+      include: ["lib/**/*.ts", "components/**/*.tsx", "app/**/*.{ts,tsx}"],
+      exclude: [
+        "lib/auth/**",
+        "lib/store/postgres.ts",
+        "app/api/auth/**",
+        "**/*.d.ts",
+        "**/*.config.*",
+      ],
+      thresholds: {
+        lines: 50,
+        functions: 50,
+        branches: 40,
+        statements: 50,
+      },
+    },
   },
   resolve: {
     alias: [
-      // Next 的 bundler 才认识的虚拟模块：指向仓库内空桩（见 tests/stubs/server-only.js）
       {
         find: /^server-only$/,
         replacement: fileURLToPath(new URL("./tests/stubs/server-only.js", import.meta.url)),

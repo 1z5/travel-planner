@@ -29,6 +29,12 @@ jobs:
       - name: 依赖安全审计（高危阻断）
         run: npm audit --audit-level=high
 
+      - name: 代码检查（ESLint）
+        run: npm run lint
+
+      - name: 格式检查（Prettier）
+        run: npm run format:check
+
       - name: 类型检查
         run: npm run typecheck
 
