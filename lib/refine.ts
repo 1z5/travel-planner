@@ -61,7 +61,7 @@ export class RefineLlmError extends Error {
 // ---------- prompt 构造 ----------
 
 /** 桩 LLM（scripts/stub-llm.mjs）靠这个标记区分「改行程」与「整份生成」，改动要同步桩 */
-const REFINE_MARK = "行程微调";
+export const REFINE_MARK = "行程微调";
 
 const SPOT_SHAPE_DOC = `{
   "period": "morning|lunch|afternoon|dinner|evening",

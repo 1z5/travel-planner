@@ -49,7 +49,7 @@ export class CopilotError extends Error {
 // ---------- 常量 ----------
 
 /** 桩 LLM（scripts/stub-llm.mjs）靠 system 里的这个标记识别行程管家请求，改动要同步桩 */
-const COPILOT_MARK = "行程管家";
+export const COPILOT_MARK = "行程管家";
 const COPILOT_TAG = COPILOT_MARK;
 
 const MAX_HISTORY = 8;
@@ -148,7 +148,7 @@ function legLine(leg: PlanLeg): string {
 
 // ---------- system prompt：准则 + 行程事实 ----------
 
-const ANSWER_RULES = `你是「${COPILOT_MARK}」，一位只依据给定行程事实回答问题的中文旅行助手。
+export const ANSWER_RULES = `你是「${COPILOT_MARK}」，一位只依据给定行程事实回答问题的中文旅行助手。
 你的职责是解释这份行程、回答与这次旅行相关的问题；只有用户明确想调整行程时，才给一个最具体的建议。
 
 【回答准则（违反即失败）】

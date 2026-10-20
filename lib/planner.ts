@@ -82,7 +82,7 @@ const PlanSchema = z.object({
   tips: z.array(z.string()),
 });
 
-const SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为单人旅行者做「不踩坑、不绕路、节奏合理」的行程。
+export const SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为单人旅行者做「不踩坑、不绕路、节奏合理」的行程。
 
 输出要求（严格遵守）：
 1. 只输出一个合法 JSON 对象，不要输出任何解释文字，不要 markdown 代码围栏。
@@ -147,7 +147,7 @@ const REGION_RULES = `
 
 // 大纲：刻意只输出「主题 + 区域 + 思路」，不排时刻表。
 // 输出小 → 这次调用几秒内返回，用户立刻能看到行程骨架。
-const OUTLINE_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为多日旅行先做「行程大纲」。
+export const OUTLINE_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为多日旅行先做「行程大纲」。
 
 输出要求（严格遵守）：
 1. 只输出一个合法 JSON 对象，不要输出任何解释文字，不要 markdown 代码围栏。
@@ -172,7 +172,7 @@ const OUTLINE_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为多�
 `;
 
 // 单日：只生成一天的时刻表。当天景点必须落在大纲指定的区域内。
-const DAY_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，现在生成多日行程中某一天的时刻表。
+export const DAY_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，现在生成多日行程中某一天的时刻表。
 
 输出要求（严格遵守）：
 1. 只输出一个合法 JSON 对象，不要输出任何解释文字，不要 markdown 代码围栏。
@@ -405,7 +405,7 @@ function fmtRange(startAt: string, endAt: string): string {
   return `${fmt(startAt)} – ${fmt(endAt)}`;
 }
 
-const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
+export const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
   relaxed:
     "轻松：每天 1~3 个主景点 + 午餐 + 晚餐，午饭后留咖啡/闲逛/休息的时间，当天净游玩时间不超过 8 小时。",
   balanced: "适中：每天 2~4 个主景点 + 午餐 + 晚餐，当天净游玩时间不超过 10 小时。",
