@@ -12,6 +12,7 @@
  */
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -35,6 +36,44 @@ function check(name, cond, detail = "") {
     failed += 1;
     failures.push(`${name} ${detail}`);
     console.log(`  ❌ ${name} ${detail}`);
+  }
+}
+
+// e2e 串行锁：本套件占用固定端口 3103-3108，多个 agent 并行开发时同时跑会互撞。
+// mkdir 在 POSIX 上原子——抢到即持有；抢不到就轮询等待，锁超 25 分钟视为上次
+// 崩溃残留（被 kill -9 的进程不会清理锁）直接抢占。锁目录不进 git。
+const LOCK_DIR = path.join(ROOT, ".e2e-lock");
+const LOCK_WAIT_MS = 15 * 60_000;
+const LOCK_STALE_MS = 25 * 60_000;
+
+async function acquireLock() {
+  const t0 = Date.now();
+  for (;;) {
+    try {
+      fs.mkdirSync(LOCK_DIR);
+      return true;
+    } catch {
+      try {
+        const st = fs.statSync(LOCK_DIR);
+        if (Date.now() - st.mtimeMs > LOCK_STALE_MS) {
+          fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        /* 锁刚好被释放，下一轮重试 */
+      }
+      if (Date.now() - t0 > LOCK_WAIT_MS) return false;
+      console.log("  ⏳ 等待 e2e 锁（另一场测试正在运行）…");
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+}
+
+function releaseLock() {
+  try {
+    fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+  } catch {
+    /* 释放失败不影响测试结果 */
   }
 }
 
@@ -118,6 +157,24 @@ function makeApi(base) {
       return { status: r.status, body: await r.json() };
     },
   };
+}
+
+// ---------------- 升级切片 e2e（六个切片各一个独立模块） ----------------
+// 为什么抽成模块：六个切片并行开发，若各自往本 orchestrator 里插断言必然互相冲撞
+// （同一文件并行编辑 = 无尽 FS_STALE_VERSION 重试）。约定：
+//   scripts/e2e-slices/<name>.mjs 导出 `export async function runSlice(ctx)`，
+//   ctx = { check, api, mode }——api 就是 makeApi 的实例（post/postRaw/waitJob/
+//   authPost/me），mode 为 "mock"（3103 无高德 key）或 "real"（3104 高德桩）。
+// 模块自行判断模式适用性（如行中重规划在 mock 下只验降级文案，real 下验求解）。
+// 每个切片模块会在 mock 与 real 两台服务器上各跑一遍，必须幂等。
+const SLICE_NAMES = ["poster", "clone", "report", "replan", "profile", "live"];
+
+async function runSlices(api, mode) {
+  for (const name of SLICE_NAMES) {
+    console.log(`\n  —— 切片 ${name}（${mode}）——`);
+    const mod = await import(`./e2e-slices/${name}.mjs`);
+    await mod.runSlice({ check, api, mode });
+  }
 }
 
 // ---------------- 阶段 A：MOCK 模式 ----------------
@@ -2013,6 +2070,11 @@ async function phaseP(api) {
 // ---------------- 主流程 ----------------
 
 async function main() {
+  if (!(await acquireLock())) {
+    console.error(`❌ 等待 e2e 锁超时（${LOCK_WAIT_MS / 60000} 分钟），可能有测试卡死占用端口`);
+    process.exitCode = 1;
+    return;
+  }
   console.log("启动桩服务与两台测试服务器（MOCK 3103 / 真实 3104）……");
   // 单日响应加延迟：分日流式的核心价值是「逐天出现」，桩若秒回则整个任务
   // 瞬间完成，e2e 无法观测中间状态。注入 1500ms/天，5 天约 7.5 秒——
@@ -2110,6 +2172,7 @@ async function main() {
     );
     for (const c of children) c.kill("SIGTERM");
     process.exitCode = 1;
+    releaseLock();
     return;
   }
 
@@ -2120,7 +2183,9 @@ async function main() {
 
   try {
     await phaseA(makeApi(APP("mock")));
+    await runSlices(makeApi(APP("mock")), "mock");
     await phaseB(makeApi(APP("real")));
+    await runSlices(makeApi(APP("real")), "real");
     await phaseC(makeApi(APP("auth")));
     await phaseD(APP("wx"));
     await phaseE(APP("sms"), `http://127.0.0.1:${SMS_STUB_PORT}`);
@@ -2134,6 +2199,12 @@ async function main() {
     for (const f of failures) console.log("  -", f);
   }
   process.exitCode = failed > 0 ? 1 : 0;
+  releaseLock();
 }
 
-main();
+// 异常兜底：任何阶段抛错都要释放锁，否则下一次要等 25 分钟陈旧判定才抢得回
+main().catch((e) => {
+  console.error("测试编排器异常终止：", e);
+  process.exitCode = 1;
+  releaseLock();
+});

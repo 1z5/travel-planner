@@ -9,3 +9,4 @@ next-env.d.ts
 eval-results/
 .next-t-*/
 coverage/
+.e2e-lock/
