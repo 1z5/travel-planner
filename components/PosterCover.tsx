@@ -22,6 +22,7 @@ import type { Plan } from "@/lib/types";
 import { budgetTone, formatCny, summarizeBudget } from "@/lib/budget";
 import { parseLocText } from "@/lib/map-view";
 import { RealMap } from "./RealMap";
+import { CloneCTA } from "./CloneCTA";
 
 export interface PosterCoverProps {
   plan: Plan;
@@ -153,12 +154,10 @@ export function PosterCover({ plan, shareId }: PosterCoverProps) {
       )}
 
       <div className="poster-foot">
-        {/* 集成契约（切片2 · 一键克隆）：CloneCTA 挂载位。
-            队友 clone 交付 components/CloneCTA.tsx（props: { plan, shareId }），
-            lead 集成时统一挂载：
-              <CloneCTA plan={plan} shareId={shareId} />
-            为什么只留注释不 import：该文件在本切片开发期尚不存在，直接 import
-            会让构建立刻失败；「不猜不假装」对模块依赖同样成立。 */}
+        {/* 一键克隆（切片2）：看到别人行程的人，一键带出「按我的日期重排」的
+            版本。克隆走完整生成管线（事实层按新日期重新核验闭馆与通勤）——
+            这是与「复制 JSON 改日期」的假克隆的分水岭。 */}
+        <CloneCTA plan={plan} shareId={shareId} />
         <Link href={`/r/${shareId}`} className="poster-report-link">
           旅行报告
           <ArrowRight size={14} />

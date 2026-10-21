@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PosterCover } from "@/components/PosterCover";
 import type { Plan, PlanDay, PlanSpot, SpotType } from "@/lib/types";
+
+// CloneCTA（切片2）用 useRouter 做完成后跳转——jsdom 里没有 App Router
+// 上下文会抛 invariant。这里 mock 掉路由：本测试钉的是海报自身的契约，
+// 克隆交互由 tests/components/CloneCTA.test.tsx 覆盖。
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}));
 
 // 切片1 · 海报级分享页：封面海报组件测试。
 //
@@ -11,7 +18,7 @@ import type { Plan, PlanDay, PlanSpot, SpotType } from "@/lib/types";
 // 3. MOCK 行程（无坐标）→ 地图块整块不渲染（海报不做示意图降级）；
 // 4. 有坐标（验真命中）→ 地图块渲染（RealMap）；
 // 5. 站点数按名称去重（同一家酒店连住 3 天算一站）；
-// 6. 纯增量接口：旅行报告链接指向 /r/<shareId>，CloneCTA 只留挂载注释。
+// 6. 纯增量接口：旅行报告链接指向 /r/<shareId>；CloneCTA 已挂载（见切片2）。
 
 function spot(name: string, type: SpotType | string, costCny: number, location?: string): PlanSpot {
   return {
