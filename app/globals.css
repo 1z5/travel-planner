@@ -3182,6 +3182,136 @@ a.spot-action:hover {
    切片2 · 克隆 CTA（owner: clone）
    ============================================================ */
 
+/* 克隆 CTA：分享页上「把这趟行程改成我的日期」。视觉定位是海报封面底部的
+   行动区——暖橙主按钮（唯一强调色）+ 半透明玻璃表单，不抢封面标题的戏。
+   为什么用渐变玻璃而不是纯色块：它挂在深色海报封面上，需要一点体积感
+   把自己和上面的封面内容分层，又不能像 alert 那样重。 */
+.clone-cta {
+  margin: var(--sp-4) 0 var(--sp-5);
+  padding: var(--sp-5);
+  background:
+    linear-gradient(135deg, var(--accent-soft) 0%, rgba(255, 255, 255, 0.02) 60%), var(--surface);
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--r-lg);
+}
+/* 收起态的一句话说明：承诺的是机制（按新日期重新核验）而不是情绪——
+   克隆与「改日期的复印件」的区别就在这句里。刻意不做大标题：海报封面
+   已经有大衬线标题，这里再抢一个只会重复「也想去某地」的信息。 */
+.clone-note {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+
+/* 主按钮：暖橙实底，与 .share-cta-btn 同族（分享页已有的一键动作语言），
+   最低 44px 触控高度（移动端拇指区）。 */
+.clone-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--accent);
+  color: #09090b;
+  border: none;
+  border-radius: var(--r-md);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.clone-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.clone-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 紧凑表单：只暴露「我的时间/我的钱/我的节奏」，其余沿用原行程——刻意
+   不做全量表单，克隆的意义就是一键，不是再填一遍表。 */
+.clone-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.clone-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+.clone-form label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.clone-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.clone-cancel {
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.clone-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 进行中状态：确定性提示 + 不确定进度。为什么不画百分比——克隆走完整
+   生成管线（单次调用路径拿不到真实 N/M 天），编一个假百分比就是撒谎；
+   分日流式的「已生成 N 天」是真数据，来了才显示。 */
+.clone-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small);
+}
+.clone-progress strong {
+  display: block;
+}
+.clone-progress-text span {
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+.clone-spin {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-ring);
+  border-top-color: var(--accent);
+  animation: clone-spin 0.9s linear infinite;
+}
+@keyframes clone-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .clone-cta {
+    padding: var(--sp-4);
+  }
+  .clone-row {
+    grid-template-columns: 1fr;
+  }
+  .clone-btn {
+    width: 100%;
+  }
+}
+
 /* ============================================================
    切片4 · 旅程报告（owner: report）
    ============================================================ */
