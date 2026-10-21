@@ -3025,6 +3025,159 @@ a.spot-action:hover {
    切片1 · 海报分享页（owner: poster）
    ============================================================ */
 
+/* 海报根：深色玻璃 + 顶部暖橙辉光（与 masthead 的 radial-gradient 同一手法），
+   圆角与阴影对齐设计系统。整块是「传播物」而不是功能面板：内边距给足，
+   截图时四周留白，不会贴边。 */
+.poster {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 0%, rgba(251, 146, 60, 0.13), transparent 70%),
+    var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  margin-bottom: var(--sp-4);
+}
+/* 城市大标题：设计系统的大衬线（--font-serif），与 day-num / kpi-value 同族。
+   overflow-wrap 兜底超长区域名（如「丝绸之路河西走廊段」9 字）在窄屏折行。 */
+.poster-city {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.poster-sub {
+  margin: var(--sp-2) 0 0;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 数据徽章：上排「图标 + 大数字」、下排小标签，与 kpi 卡同一视觉语法。 */
+.poster-badges {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+.poster-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.poster-badge-icon {
+  color: var(--accent);
+  margin-bottom: var(--sp-1);
+}
+.poster-badge-value {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.poster-badge-label {
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+/* 预算使用率的语义色（口径同 lib/budget.ts 的 budgetTone：超支红 / 偏紧宽松黄 /
+   达标绿 / 无数据中性）。超支海报用红色大数字——传播出去的截图同样要说真话。 */
+.poster-badge-tone-ok .poster-badge-value {
+  color: var(--ok-ink);
+}
+.poster-badge-tone-warn .poster-badge-value {
+  color: var(--warn-ink);
+}
+.poster-badge-tone-err .poster-badge-value {
+  color: var(--err-ink);
+}
+
+/* 路线概览：RealMap 自带暗色底图（.realmap），这里只加画框与说明。
+   说明文字写「第 N 天」与当天主题——路线只画首日，标题必须说清是哪天。 */
+.poster-map-wrap {
+  margin-top: var(--sp-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-solid);
+}
+.poster-map-cap {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+
+/* 底部传播入口：旅行报告链接（/r/<shareId>）。右侧对齐，
+   左侧留白是 CloneCTA 的挂载位（见 PosterCover.tsx 内注释）。 */
+.poster-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+.poster-report-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-small);
+  font-weight: 650;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.poster-report-link:hover {
+  border-bottom-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  /* 手机：城市标题缩到 40px（56px 在 340px 屏上 4 字就换行），徽章改 2×2 */
+  .poster {
+    padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  }
+  .poster-city {
+    font-size: 40px;
+  }
+  .poster-sub {
+    font-size: 15px;
+  }
+  .poster-badges {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-2);
+  }
+  .poster-badge-value {
+    font-size: 20px;
+  }
+}
+
+/* 打印：与 result-cover 一致地整块隐藏——打印产物只要行程本身，
+   海报的装饰性视觉（辉光/阴影）在白底上只会变成灰块。 */
+@media print {
+  .poster {
+    display: none !important;
+  }
+}
+
 /* ============================================================
    切片2 · 克隆 CTA（owner: clone）
    ============================================================ */

@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { resolvePlan } from "@/lib/plan-repo";
+import { formatCny, summarizeBudget } from "@/lib/budget";
 
 // 分享卡片图：分享到微信/Twitter 时渲染「城市 + 天数 + 概览」而非裸链接。
 // 视觉对齐 globals.css 的深色 Premium 设计系统（--bg/--accent/--ink）。
@@ -28,6 +29,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const spots = plan?.days.reduce((n, d) => n + d.spots.length, 0) ?? 0;
   const summary = plan?.summary ?? "这个行程不存在或已过期，去生成自己的行程吧";
   const summaryClamped = summary.length > 60 ? `${summary.slice(0, 60)}…` : summary;
+  // 预算口径与页面海报 / 预算透视同源（lib/budget.ts 的逐项合计 + 四态阈值）：
+  // 分享卡片上的使用率必须和打开页面看到的数字一致，两处说两套话比不说更糟。
+  // 行程没有记录预算（旧数据 / 早期分享）时 usedPct 为 undefined——整行不渲染，不猜。
+  const budget = plan ? summarizeBudget(plan) : null;
 
   return new ImageResponse(
     <div
@@ -88,6 +93,20 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         >
           {summaryClamped}
         </div>
+        {/* 预算行（切片1 增量）：只有有效预算才出现。暖橙强调色与卡片上的
+            城市主标题形成呼应，让「预算」在微信/Twitter 卡片里第一眼可见。 */}
+        {budget?.usedPct !== undefined && (
+          <div
+            style={{
+              display: "flex",
+              fontSize: 32,
+              fontWeight: 600,
+              color: "#fb923c",
+            }}
+          >
+            {`预算 ${formatCny(budget.budget ?? 0)} · 用掉 ${budget.usedPct}%`}
+          </div>
+        )}
       </div>
 
       {/* 底部：数据行 */}

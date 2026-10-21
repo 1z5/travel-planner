@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { resolvePlan } from "@/lib/plan-repo";
+import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
 
@@ -87,6 +88,10 @@ export default async function SharePage({
           生成我的行程 →
         </Link>
       </div>
+
+      {/* 切片1 · 海报级分享页：传播飞轮的「值得截图」封面（见 components/PosterCover.tsx）。
+          纯增量插在 TripAlert 之前，现有元素与顺序一律不动。 */}
+      <PosterCover plan={plan} shareId={id} />
 
       <TripAlert plan={plan} />
 
