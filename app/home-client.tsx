@@ -918,15 +918,24 @@ export function HomeClient({ children }: { children?: ReactNode }) {
             {loading ? "生成中…" : city.trim() ? "生成行程" : "请先填写目的地城市"}
           </button>
           {loading && (
-            <WaitProgress
-              pct={waitPct}
-              elapsed={fmtElapsed(elapsed)}
-              detail={
-                waitPct !== null
-                  ? `已生成 ${plan?.days.length ?? 0}/${submittedDays} 天`
-                  : undefined
-              }
-            />
+            <>
+              <WaitProgress
+                pct={waitPct}
+                elapsed={fmtElapsed(elapsed)}
+                detail={
+                  waitPct !== null
+                    ? `已生成 ${plan?.days.length ?? 0}/${submittedDays} 天`
+                    : plan?.draft
+                      ? "正在生成精确行程…"
+                      : undefined
+                }
+              />
+              {plan?.draft && (
+                <p className="draft-hint" role="status">
+                  ⚡ 已显示快速预览（结构就绪），精确行程生成中——通常 2-4 分钟
+                </p>
+              )}
+            </>
           )}
           {loading ? (
             <p className="muted" role="status" style={{ marginTop: 8 }}>

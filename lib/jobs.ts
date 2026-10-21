@@ -1,5 +1,6 @@
 import "server-only";
 import { generatePlan, generateOutline, generateDay } from "./planner";
+import { generateDraftPlan } from "./draft-plan";
 import { validatePlan, validateDay, finalizePlan, type DayCheck } from "./validate";
 import { mapLimit } from "./concurrency";
 import { AMAP_MOCK } from "./amap";
@@ -199,6 +200,12 @@ export async function createJob(
       if (input.days >= STREAMING_MIN_DAYS) {
         await runStreaming(store, job.id, input, key);
       } else {
+        // 即时草稿：<100ms 生成结构化预览，用户立即看到行程骨架
+        const draft = generateDraftPlan(input);
+        await store.jobs.update(job.id, { plan: draft });
+        console.log(`[job] ${job.id} 即时草稿已发布（${draft.days.length} 天预览）`);
+
+        // LLM 真实生成（3-5 分钟），完成后替换草稿
         const plan = await validatePlan(await generatePlan(input), input);
         await completeWithWeather(store, job.id, plan, input, key);
       }

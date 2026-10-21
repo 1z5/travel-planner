@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { resolvePlan } from "@/lib/plan-repo";
 import { PlanView } from "@/components/PlanView";
+import { TripAlert } from "@/components/TripAlert";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,19 @@ export default async function SharePage({
           ← 行程规划师
         </Link>
       </p>
+      {/* 传播型 CTA：看到别人行程的人，一键生成自己的 */}
+      <div className="share-cta">
+        <div className="share-cta-text">
+          <strong>也想去{plan.city}？</strong>
+          <span>输入你的时间和预算，30 秒生成专属行程</span>
+        </div>
+        <Link href="/" className="share-cta-btn">
+          生成我的行程 →
+        </Link>
+      </div>
+
+      <TripAlert plan={plan} />
+
       <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck />
     </main>
   );

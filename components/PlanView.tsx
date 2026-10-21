@@ -190,6 +190,7 @@ type RefineRequest =
 export function PlanView({
   plan,
   banner,
+  draftBadge = false,
   shareId,
   editable = false,
   ownerCheck = false,
@@ -197,6 +198,7 @@ export function PlanView({
 }: {
   plan: Plan;
   banner?: ReactNode;
+  draftBadge?: boolean;
   shareId?: string;
   editable?: boolean;
   ownerCheck?: boolean;
@@ -565,6 +567,12 @@ export function PlanView({
   return (
     <>
       {banner}
+      {draftBadge && (
+        <div className="draft-badge" role="status">
+          <span className="draft-badge-icon">⚡</span>
+          <span>快速预览 — 精确行程生成中</span>
+        </div>
+      )}
 
       {/* ===== 行程头部：城市封面 + 日期/概览/预算 + 导出操作 ===== */}
       <motion.div
