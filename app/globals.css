@@ -3316,6 +3316,293 @@ a.spot-action:hover {
    切片4 · 旅程报告（owner: report）
    ============================================================ */
 
+/* ---------- 顶部状态条 ----------
+   past/ongoing/upcoming 三态。SSR 不渲染这条（「今天」按用户本地时区在
+   客户端判定，与 TodayView 同一模式），hydrate 后才出现——所以它用 pill
+   形态、不占布局高度，晚出现不会推乱首屏。 */
+.report-statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: fit-content;
+  padding: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.report-statusbar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.report-statusbar-date {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+/* past 用暖橙（「已盖章」的语义色），ongoing 用 ok 绿，upcoming 中性 */
+.report-statusbar-past {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.report-statusbar-past .report-statusbar-dot {
+  background: var(--accent);
+}
+.report-statusbar-ongoing {
+  color: var(--ok-ink);
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+}
+.report-statusbar-ongoing .report-statusbar-dot {
+  background: var(--ok-ink);
+}
+.report-statusbar-upcoming {
+  color: var(--ink-2);
+}
+.report-statusbar-upcoming .report-statusbar-dot {
+  background: var(--ink-3);
+}
+
+/* ---------- 海报卡（截图主体） ----------
+   与 poster（切片1）同一视觉语言：顶部暖橙辉光 + 玻璃表面 + 大衬线。
+   区别是这里的主角是「统计」而不是「路线」：大数字网格占主视觉。 */
+.report-poster {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 0%, var(--accent-soft), transparent 70%), var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+}
+/* 眉题 pill：与 masthead-eyebrow 同手法（暖橙描边 + 宽字距） */
+.report-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 14px;
+  border-radius: 999px;
+  margin-bottom: var(--sp-4);
+}
+/* 城市大标题：设计系统的大衬线；移动端在 media query 里收小 */
+.report-city {
+  font-family: var(--font-serif);
+  font-size: 52px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+  margin: 0 0 var(--sp-3);
+  color: var(--ink);
+}
+.report-sub {
+  font-size: var(--fs-body);
+  color: var(--ink-3);
+  line-height: 1.7;
+  margin: 0 0 var(--sp-3);
+}
+.report-meta {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  margin: 0 0 var(--sp-5);
+}
+/* 大数字网格：格子数量随数据增减（缺 legs → 没有公里格），所以用 auto-fit
+   而非固定 4 列——数据少时不会出现空列把格子拉宽。 */
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-3);
+}
+.report-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  text-align: center;
+}
+.report-stat-icon {
+  color: var(--accent);
+  margin-bottom: var(--sp-1);
+}
+/* 统计数字：衬线大号 + tabular-nums（多格并排时数字不随宽度跳动） */
+.report-stat-value {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.report-stat-label {
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.report-stat-sub {
+  font-size: var(--fs-caption);
+  color: var(--accent);
+}
+
+/* ---------- 通用区块（餐饮清单 / 路线回顾共用） ---------- */
+.report-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-4);
+}
+.report-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  margin: 0 0 var(--sp-4);
+  color: var(--ink);
+}
+.report-section-head svg {
+  color: var(--accent);
+}
+.report-section-count {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+/* ---------- 餐饮清单 ---------- */
+.report-food-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--sp-5);
+}
+.report-food-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-small);
+}
+.report-food-name {
+  color: var(--ink-2);
+}
+.report-food-cost {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- 路线回顾 ---------- */
+.report-route-day + .report-route-day {
+  margin-top: var(--sp-5);
+}
+.report-route-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-small);
+}
+.report-route-theme {
+  color: var(--ink-3);
+}
+.report-route-dist {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.report-day-map {
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+/* ---------- 底部 CTA + 数据边界声明 ---------- */
+.report-cta {
+  display: flex;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.report-cta-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: var(--sp-2) var(--sp-5);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--accent);
+  color: #09090b;
+  transition: background 0.15s;
+}
+.report-cta-btn:hover {
+  background: var(--accent-hover);
+}
+.report-cta-btn-ghost {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+.report-cta-btn-ghost:hover {
+  background: var(--surface);
+}
+.report-footnote {
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+  line-height: 1.7;
+  margin: 0 0 var(--sp-6);
+}
+
+@media (max-width: 640px) {
+  .report-city {
+    font-size: 38px;
+  }
+  .report-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .report-food-list {
+    grid-template-columns: 1fr;
+  }
+  .report-cta {
+    flex-direction: column;
+  }
+  .report-cta-btn {
+    width: 100%;
+  }
+}
+
 /* ============================================================
    切片6 · 行中重规划（owner: replan）
    ============================================================ */
