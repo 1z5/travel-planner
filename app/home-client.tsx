@@ -19,6 +19,7 @@ import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
 import { LiveProgress } from "@/components/LiveProgress";
+import { ProfileDrawer } from "@/components/ProfileDrawer";
 import {
   loadRecentTrips,
   saveRecentTrip,
@@ -26,6 +27,7 @@ import {
   recentTripLabel,
   type RecentTrip,
 } from "@/lib/recent-trips";
+import { loadProfile } from "@/lib/profile-store";
 
 const PREF_OPTIONS = [
   "美食",
@@ -405,6 +407,10 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     setSubmittedDays(derivedDays); // 记录本次提交的总天数，供「已生成 N/M 天」使用
     setStage(undefined); // 新任务：旧任务的阶段遥测作废（即使它还没被清）
     try {
+      // 档案在**提交时现读**（不信缓存的 state）：用户在抽屉里刚改完档案就
+      // 点生成，缓存会旧。localStorage 读取是廉价的，换来的是一致性。
+      // 拿不到（没填过/坏数据）= 不传 = 与加档案前逐字一致的行为。
+      const profile = loadProfile();
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -420,6 +426,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           scope,
           transportMode,
           events,
+          ...(profile ? { profile } : {}),
         }),
       });
       const data = await res.json();
@@ -442,6 +449,10 @@ export function HomeClient({ children }: { children?: ReactNode }) {
 
   return (
     <main>
+      {/* 旅行档案（切片3）：fixed 定位的入口 FAB + 抽屉，挂在 main 第一位。
+          挂在这里而不是表单内：档案是跨行程的长期资产，不属于任何一次
+          表单提交；fixed 定位也让它在首页任何滚动位置都可唤起。 */}
+      <ProfileDrawer />
       <header className="masthead">
         <motion.img
           key={city}

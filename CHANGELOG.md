@@ -62,6 +62,39 @@ RangeError，把接口打成 500 而不是 400——先校验格式再计算。
 
 **验收**：typecheck / lint / **708 单测** / **427 e2e（原 295 + 四切片 132）** 全绿。
 
+### 6. 第二波：旅行档案（切片3）——产品记得你（v6.1）
+
+五字段档案（体力上限 / 忌口 / 作息 / 通勤耐受 / 推断偏好），localStorage 存储（未登录可用）。
+`baseLines` 追加档案行（三条生成路径 + refine/copilot 共用同一读取点——不会「生成带档案、
+改行程不带」）；体检日净时长上限按 stamina 动态化（relaxed×0.8 / packed×1.2，取整到小时）。
+
+三条治理红线：
+
+1. **零变化**：无档案时全链路行为与加档案前逐字一致（e2e 负向断言：无档案请求 prompt
+   不含档案行、节奏预警文案逐字一致）；
+2. **可溯源可删**：推断项强制带「根据你上次的行程推测」徽章 + 来源，黑箱画像比没有画像
+   更让人不安；
+3. **v1 不做推断引擎**：治理契约先做实，引擎是下一迭代（`INFERENCE_DEFERRED_NOTE` 写明原因）。
+
+接线：`app/api/plan` 的 InputSchema 加 `profile`（**不剥离未知字段**——zod v4 z.object
+默认剥离，档案会被静默丢掉）+ validateProfile 字符白名单校验（档案会进 prompt，与 city/hotel
+同等防注入口径）；`PlanInput.profile?: TravelProfile`（type-only import，无运行时循环依赖）；
+createJob → generatePlan 整体透传，下游零改动。`profile: null` 视为未传。
+
+### 7. 第二波：流式生长体验（切片5）——等待期从黑盒变直播（v6.1）
+
+`stage` 遥测按管线**真实位置**写入（进入该阶段时）：流式路径
+`outline → grounding → day:N/M → finalizing`；单次路径 `grounding → generating → verify → finalizing`。
+**遥测永不领先真实交付**——写入发生在快照落库之后（e2e 硬断言 `day:N/M` 的 N ≤ daysReady，
+滞后可接受，领先是撒谎）。LiveProgress：阶段清单（到达打勾）+ 已生成的天逐张生长上屏 +
+≥5 天确定性 N/M / ≤4 天不确定动画条（草稿天数不是生成天数，不假装百分比）+ 无遥测整块
+降级。泛化轮换提示降级为无遥测兜底——真实遥测存在时两者并存会互相矛盾。
+
+遥测存进程内 Map（挂 globalThis）而非 JobRecord 字段：postgres store 的 update 是字段白名单，
+加列要动 Prisma schema 迁移，超出切片范围；多实例落到非执行节点时前端诚实降级。
+
+**验收（v6 全量）**：typecheck / lint / **781 单测** / **506 e2e（原 295 + 六切片 211）** 全绿。
+
 ## 2026-10 v5「事实先行」：把真实世界从生成之后挪到生成之前
 
 生成 → 修改 → 执行三段都通了之后，回头看发现一条**根本性的错配**：模型是「盲写」的。
