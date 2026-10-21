@@ -10,3 +10,4 @@ eval-results/
 .next-t-*/
 coverage/
 .e2e-lock/
+.DS_Store
