@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import { cityImage } from "@/lib/city-images";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
-import { WaitProgress } from "@/components/WaitProgress";
+import { LiveProgress } from "@/components/LiveProgress";
 import {
   loadRecentTrips,
   saveRecentTrip,
@@ -40,13 +40,9 @@ const PREF_OPTIONS = [
   "夜生活",
 ];
 
-// 等待期的阶段提示（对应真实处理流程：生成 → 展开 → 验真 → 体检）
-const WAITING_TIPS = [
-  "推理模型正在推演预算、动线与节奏约束…",
-  "正在展开每天的时刻表（POI / 时长 / 雨天备选）…",
-  "即将核查 POI 真实性与站点间通勤…",
-  "最后跑一遍体检：绕路、节奏、预算…",
-];
+// 等待期的阶段提示已移入 LiveProgress：管线遥测（stage）存在时展示**真实
+// 阶段清单**，无遥测（旧任务）时才轮换泛化提示。这里不再保留按时间轮换的
+// WAITING_TIPS——真实进度比泛化提示诚实，两者并存会互相矛盾。
 
 // 轮询兜底三件事（以前只有「3 秒一次、直到 done/error」）：
 // 1. 任务 404（服务重启 / 超过 2 小时 TTL）必须立即报错——否则
@@ -93,7 +89,9 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   // 本机生成过的行程索引（localStorage）：未登录用户回来后能一键找回自己的行程
   const [recent, setRecent] = useState<RecentTrip[]>([]);
   const [elapsed, setElapsed] = useState(0);
-  const [tipIndex, setTipIndex] = useState(0);
+  // 管线阶段遥测（服务端在真实节点写入，见 lib/jobs.ts JobStage）：
+  // undefined = 旧任务/无遥测 → LiveProgress 降级为不确定进度条。
+  const [stage, setStage] = useState<string | undefined>(undefined);
   const [sampleMode, setSampleMode] = useState(false);
   // 新增：用户指定住所 + 期望必游地（硬约束）
   const [hotel, setHotel] = useState("");
@@ -222,14 +220,6 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     return () => clearInterval(t);
   }, [loading]);
 
-  // 等待期间的阶段提示轮换
-  useEffect(() => {
-    if (!loading) return;
-    setTipIndex(0);
-    const t = setInterval(() => setTipIndex((i) => (i + 1) % WAITING_TIPS.length), 4500);
-    return () => clearInterval(t);
-  }, [loading]);
-
   function togglePref(p: string) {
     setPrefs((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
   }
@@ -328,6 +318,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         error?: string;
         remaining?: number;
         shareId?: string | null;
+        stage?: string; // 管线阶段遥测（running 时；见 lib/jobs.ts JobStage）
       };
       try {
         const res = await fetch(`/api/plan/status?id=${jobId}`);
@@ -381,7 +372,10 @@ export function HomeClient({ children }: { children?: ReactNode }) {
       // 立即渲染，让用户逐天看到结果，而不是干等一个总 deadline。
       // 注意此时还没有 shareId——分享/编辑按钮只在 done 之后出现，
       // 中途把链接给出去只会看到「链接已失效」。
+      // stage 同步给 LiveProgress 渲染真实阶段清单；遥测缺失（旧任务）
+      // 时置 undefined，由组件降级为不确定进度条（不猜阶段）。
       if (data.plan) setPlan(data.plan);
+      setStage(data.stage);
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       return poll();
     };
@@ -409,6 +403,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     setPlan(null);
     setShareId(null); // 新任务开始：旧的分享 token 与当前结果不再对应
     setSubmittedDays(derivedDays); // 记录本次提交的总天数，供「已生成 N/M 天」使用
+    setStage(undefined); // 新任务：旧任务的阶段遥测作废（即使它还没被清）
     try {
       const res = await fetch("/api/plan", {
         method: "POST",
@@ -440,12 +435,10 @@ export function HomeClient({ children }: { children?: ReactNode }) {
     }
   }
 
-  // 等待进度：流式路径（≥5 天）有真实增量数据（已生成天数/总天数），画确定性
-  // 进度条；单次路径拿不到增量，waitPct=null → 不确定动画条（不假装百分比）。
-  const waitPct =
-    loading && submittedDays !== null && submittedDays >= 5 && plan && plan.days.length > 0
-      ? Math.round((plan.days.length / submittedDays) * 100)
-      : null;
+  // 等待进度：LiveProgress 自己按 stage + plan 判定流式/单次路径——
+  // 流式路径画确定性进度（真实 N/M 天），单次路径画不确定动画条
+  // （草稿天数不是生成天数，不假装百分比）。确定性判定在组件内完成，
+  // 这里不再重复计算。
 
   return (
     <main>
@@ -919,16 +912,11 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           </button>
           {loading && (
             <>
-              <WaitProgress
-                pct={waitPct}
+              <LiveProgress
+                stage={stage}
+                plan={plan}
+                submittedDays={submittedDays}
                 elapsed={fmtElapsed(elapsed)}
-                detail={
-                  waitPct !== null
-                    ? `已生成 ${plan?.days.length ?? 0}/${submittedDays} 天`
-                    : plan?.draft
-                      ? "正在生成精确行程…"
-                      : undefined
-                }
               />
               {plan?.draft && (
                 <p className="draft-hint" role="status">
@@ -937,11 +925,7 @@ export function HomeClient({ children }: { children?: ReactNode }) {
               )}
             </>
           )}
-          {loading ? (
-            <p className="muted" role="status" style={{ marginTop: 8 }}>
-              {WAITING_TIPS[tipIndex]}
-            </p>
-          ) : (
+          {!loading && (
             <p className="muted" style={{ marginTop: 8 }}>
               推理模型做约束规划通常 2-4 分钟，跨境目的地（如香港）可能 8 分钟以上，
               可以放着等，页面上方会实时显示进度。

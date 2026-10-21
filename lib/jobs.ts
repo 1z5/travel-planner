@@ -33,6 +33,70 @@ const STREAMING_MIN_DAYS = 5;
 /** 轻量心跳间隔：任务运行期间每 60s 打一次空 update，刷新 JobRecord.updatedAt */
 const HEARTBEAT_MS = 60_000;
 
+// ============================================================
+// 阶段遥测（stage）：把「3-5 分钟轮询黑盒」变成「看着行程长出来」。
+//
+// stage 枚举（管线真实顺序，每条路径只走其中一段）：
+//   outline     大纲生成中（≥5 天流式路径：LLM 先出天数主题骨架）
+//   grounding   取事实清单中（高德 POI/营业时间/闭馆日，两条路径都有）
+//   day:N/M     逐日生成/验真/发布中（≥5 天；N=已发布天数，M=总天数）
+//   generating  单次调用生成完整行程中（≤4 天；真正的长等待在这里）
+//   verify      POI 验真 + 体检中（validatePlan/validateDay）
+//   finalizing  收尾：计划级体检汇总 + 天气提示 + 持久化
+//   done        完成（终态；status 路由只对 running 任务透传 stage）
+//
+// 为什么存在进程内 Map 而不是 JobRecord 字段：postgres 实现的 update 是
+// 字段白名单（见 store/postgres.ts），加列要动 Prisma schema 并重新
+// generate——那是存储层的一次迁移，不属于本切片的改动范围。进程内 Map
+// （挂 globalThis，与 memory store 同一理由：dev 下模块重复实例化会丢
+// 状态）覆盖默认部署（单进程 memory）；多实例 postgres 下若状态请求落到
+// 非执行实例，遥测缺失 → 前端降级为不确定进度条（诚实：不知道就不猜）。
+// ============================================================
+
+export type JobStage =
+  | "outline"
+  | "grounding"
+  | "generating"
+  | "verify"
+  | "finalizing"
+  | "done"
+  | `day:${number}/${number}`;
+
+const gStages = globalThis as typeof globalThis & {
+  __tpJobStages?: Map<string, { stage: JobStage; at: number }>;
+};
+const jobStages = (gStages.__tpJobStages ??= new Map<string, { stage: JobStage; at: number }>());
+
+/** 任务 TTL 同口径（memory store 2 小时）：顺带清掉过期条目，防常驻进程内存增长 */
+const STAGE_TTL_MS = 2 * 3600_000;
+
+/** 写入当前阶段。只在管线**真实经过**该位置时调用——遥测撒谎比没有遥测更糟 */
+export function setStage(jobId: string, stage: JobStage): void {
+  const cutoff = Date.now() - STAGE_TTL_MS;
+  for (const [k, v] of jobStages) if (v.at < cutoff) jobStages.delete(k);
+  jobStages.set(jobId, { stage, at: Date.now() });
+}
+
+/** 读取当前阶段；未知/旧任务（升级前创建的）返回 undefined */
+export function getJobStage(jobId: string): JobStage | undefined {
+  return jobStages.get(jobId)?.stage;
+}
+
+/** 任务终止（失败/中断）时清除遥测：僵死任务不该留着一个假装还在跑的阶段 */
+export function clearStage(jobId: string): void {
+  jobStages.delete(jobId);
+}
+
+/**
+ * 逐日阶段标签：`day:N/M`（N=已发布天数，M=总天数）。
+ *
+ * 抽成函数是为了把格式契约钉死在一处：前端按 `day:N/M` 解析确定性进度，
+ * 两端口径必须一致（单测见 tests/lib/jobs.test.ts）。
+ */
+export function dayStage(published: number, total: number): JobStage {
+  return `day:${published}/${total}`;
+}
+
 /**
  * 陈旧任务阈值：running 任务超过这么久没有心跳，就认为生成它的进程已经不在了
  * （服务重启 / 容器被回收 / 进程冻结）。默认 12 分钟，JOB_STALE_MS 可覆盖。
@@ -72,6 +136,7 @@ const refundedInterrupted = new Set<string>();
 export async function interruptJob(job: JobRecord): Promise<void> {
   if (refundedInterrupted.has(job.id)) return;
   refundedInterrupted.add(job.id); // 先同步登记再 await，避免并发双退
+  clearStage(job.id); // 遥测跟着任务一起死：不留假装在跑的阶段
   await getStore().jobs.update(job.id, { status: "error", error: JOB_INTERRUPTED_ERROR });
   await refund(job.key);
   console.log(
@@ -136,6 +201,9 @@ async function completeWithWeather(
     plan: snapshot,
     ...(shareId ? { shareId } : {}),
   });
+  // 遥测收口到 done（终态）。写在落库之后：状态请求以 status=done 为准，
+  // 这条 stage 只让遥测序列完整（供日志/排查看「管线最后停在哪」）。
+  setStage(jobId, "done");
 }
 
 /**
@@ -234,6 +302,10 @@ export async function createJob(
       if (input.days >= STREAMING_MIN_DAYS) {
         await runStreaming(store, job.id, input, key);
       } else {
+        // 遥测起点（grounding）写在 IIFE 的第一行同步段：它先于任何 await
+        // 执行，因此 202 响应返回前 stage 必然已写入——轮询永远不会看到
+        // 「running 但无遥测」的窗口，旧任务降级只发生在真的没有遥测时。
+        setStage(job.id, "grounding");
         // 即时草稿：<100ms 生成结构化预览，用户立即看到行程骨架
         const draft = generateDraftPlan(input);
         await store.jobs.update(job.id, { plan: draft });
@@ -242,14 +314,19 @@ export async function createJob(
         // LLM 真实生成（3-5 分钟），完成后替换草稿
         // 事实先行：先把高德的真实素材清单交给模型，再让它排行程
         const grounding = await safeGrounding(input);
-        const plan = await validatePlan(await generatePlan(input, grounding), input);
+        setStage(job.id, "generating"); // 单次路径的长等待全在这一个调用里
+        const raw = await generatePlan(input, grounding);
+        setStage(job.id, "verify"); // validatePlan = 逐日验真 + 体检 + 计划级汇总
+        const plan = await validatePlan(raw, input);
         plan.grounding = groundingSummary(grounding);
+        setStage(job.id, "finalizing"); // 收尾：天气提示 + 持久化 + done
         await completeWithWeather(store, job.id, plan, input, key);
       }
       console.log(`[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     } catch (e) {
       const error = e instanceof Error ? e.message : "生成失败，请稍后重试";
       await store.jobs.update(job.id, { status: "error", error });
+      clearStage(job.id); // 失败即终态：遥测清掉，不留假装在跑的阶段
       onError?.(); // 失败归还配额
       console.log(
         `[job] ${job.id} 失败 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 原因=${error}`,
@@ -277,10 +354,15 @@ async function runStreaming(
   ownerKey?: string,
 ): Promise<void> {
   const t0 = Date.now();
+  // 遥测起点（outline）是函数的第一个同步语句：runStreaming 由 createJob 的
+  // IIFE 在同步段里 await 调用，因此它先于 202 响应执行——轮询从第一帧起
+  // 就能看到阶段，不存在「running 但无遥测」的窗口。
+  setStage(jobId, "outline");
   const outline = await generateOutline(input);
 
   // 事实先行（多天）：城市级清单是主力——模型要跨天分配地点，得先看见全城
   // 有哪些真实可用的点；每天再按主题/区域补一轮，作为当天的加权补充。
+  setStage(jobId, "grounding");
   const cityGrounding = await safeGrounding(input);
   const dayGrounding = new Map<number, Grounding | undefined>();
   await mapLimit(
@@ -325,6 +407,10 @@ async function runStreaming(
   const transitUnknownDays: number[] = [];
   let grandTotal = 0;
 
+  // 遥测进入逐日阶段（还没有任何一天就绪：day:0/M）。M 用大纲的真实天数
+  // （管线口径），不拿用户输入的天数冒充——两者不一致时以管线为准。
+  setStage(jobId, dayStage(0, outline.days.length));
+
   // 有界并发生成多天。已实测 LLM 网关的并发能力（3 路并发总耗时 2.8s ≈
   // 单次 1.8s，远小于 3×单次），取 3 路：5-7 天的串行 5-7 波可压到 2-3 波，
   // 把总等待从 10-15 分钟降到约一半。不取更高是不想逼近限流阈值。
@@ -364,6 +450,10 @@ async function runStreaming(
     // 链式等待保证落地顺序与发布顺序一致。
     updateChain = updateChain.then(() => store.jobs.update(jobId, { plan: snapshot }));
     await updateChain;
+    // 遥测在快照**落库之后**再写：反过来写会出现「stage=day:2/5 但
+    // daysReady=1」的不一致快照（一次轮询正好落在两次写之间）。遥测永远
+    // 不领先于真实交付——滞后可接受（下一帧就追平），领先就是撒谎。
+    setStage(jobId, dayStage(published, outline.days.length));
   };
 
   await mapLimit(
@@ -403,6 +493,7 @@ async function runStreaming(
   // 收尾：预算核对 + 必游地/住所核验 + 验真完成度 + 系统提示。
   // missCount / poiTotal 供 finalizePlan 判断「无覆盖区域」（境外目的地）：
   // 逐条 warning 里已含当天 miss 信息，这里按全局汇总即可。
+  setStage(jobId, "finalizing"); // 逐日阶段结束：进入计划级汇总 + 天气 + 持久化
   const poiTotal = plan.days.reduce(
     (n, d) => n + d.spots.filter((s) => s.type === "sight" || s.type === "food").length,
     0,

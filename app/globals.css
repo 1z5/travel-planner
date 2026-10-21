@@ -3738,3 +3738,141 @@ a.spot-action:hover {
 /* ============================================================
    切片5 · 流式生长体验（owner: live · 第二波）
    ============================================================ */
+
+/* 等待期的三段式容器：阶段清单 → 进度条 → 生长中的天数卡片。
+   为什么用 live- 前缀的新 class 而不是直接复用 PlanView 的卡片样式：
+   生长中的卡片是「未收尾」状态（可能还有天在生成、全局体检未做），
+   与最终形态语义不同——样式隔离避免两个状态互相污染，同时 day-head/
+   day-num/day-theme 沿用 PlanView 设计系统，保证「长出来」的天与最终
+   形态视觉一致（第一印象的连续性）。 */
+
+.live-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* ---- 管线阶段清单 ---- */
+
+.live-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.live-stage {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: var(--fs-small);
+  color: var(--ink-4);
+}
+.live-stage.done {
+  color: var(--ink-3);
+}
+.live-stage.active {
+  color: var(--ink);
+  font-weight: 600;
+}
+.live-stage-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-4);
+}
+.live-stage.done .live-stage-dot {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent);
+}
+.live-stage.active .live-stage-dot {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.live-stage-badge {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-ring);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.live-stage-hint {
+  flex-basis: 100%;
+  margin-left: 26px; /* 与 label 左对齐（跳过 dot） */
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+
+/* ---- 生长中的天数卡片 ---- */
+
+.live-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.live-day {
+  padding: var(--sp-4);
+}
+.live-day-num {
+  font-size: 30px; /* 比最终卡片（46px）小一档：生长中是「正在成形」的预览 */
+}
+.live-day-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--fs-caption);
+  color: var(--ok-ink);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-line);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.live-day-spots {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.live-day-spots li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+.live-day-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-4);
+  font-size: var(--fs-caption);
+  flex-shrink: 0;
+}
+.live-day-more {
+  color: var(--ink-4);
+  font-size: var(--fs-caption);
+}
+
+@media (max-width: 640px) {
+  .live-day-badge {
+    margin-left: 0;
+  }
+}
+@media print {
+  /* 等待态是交互过程，不属于行程本体：打印只输出最终结果 */
+  .live-progress {
+    display: none !important;
+  }
+}

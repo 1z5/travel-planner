@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJob, interruptJob, isJobStale, JOB_INTERRUPTED_ERROR } from "@/lib/jobs";
+import { getJob, getJobStage, interruptJob, isJobStale, JOB_INTERRUPTED_ERROR } from "@/lib/jobs";
 import { peek } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -41,10 +41,15 @@ export async function GET(req: NextRequest) {
   // 带出去前端就能渐进渲染，不必等全量生成完。
   // daysReady/daysTotal 让前端能显示「已生成 N/M 天」。
   const daysReady = job.plan?.days.length ?? 0;
+  // 阶段遥测（增量字段）：管线真实位置（见 lib/jobs.ts JobStage），前端据此
+  // 渲染「看着行程长出来」的阶段清单。旧任务（升级前创建）或遥测缺失时
+  // 这个键不出现——JSON 里没有 stage，前端降级为不确定进度条，不猜进度。
+  const stage = getJobStage(id);
   return NextResponse.json({
     status: "running",
     elapsedMs: Date.now() - job.createdAt,
     plan: job.plan,
     daysReady,
+    ...(stage ? { stage } : {}),
   });
 }

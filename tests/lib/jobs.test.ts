@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayFailureError } from "@/lib/jobs";
+import { clearStage, dayFailureError, dayStage, getJobStage, setStage } from "@/lib/jobs";
 
 // dayFailureError 把「哪一天、哪个阶段、什么原因、已成功几天」组织成可行动的信息。
 //
@@ -45,5 +45,50 @@ describe("dayFailureError", () => {
   it("dayIdx 是 0 基下标，文案里要转成人类可读的第 N 天", () => {
     expect(dayFailureError(0, "生成", new Error("x"), 0).message).toContain("第 1 天");
     expect(dayFailureError(6, "生成", new Error("x"), 0).message).toContain("第 7 天");
+  });
+});
+
+// 阶段遥测（切片5）：status 路由透传 stage，前端据此渲染「看着行程长出来」。
+// 这里钉死存储契约——写、读、推进、清除；真实推进顺序由 e2e 断言
+// （scripts/e2e-slices/live.mjs：管线顺序 + day:N/M 的 N ≤ daysReady）。
+
+describe("阶段遥测（stage）", () => {
+  it("dayStage 格式契约：day:N/M（前端按此解析确定性进度）", () => {
+    expect(dayStage(0, 5)).toBe("day:0/5");
+    expect(dayStage(2, 5)).toBe("day:2/5");
+    expect(dayStage(7, 7)).toBe("day:7/7");
+  });
+
+  it("写入后读回：管线位置可被轮询看到", () => {
+    const id = "job_stage_roundtrip";
+    setStage(id, "grounding");
+    expect(getJobStage(id)).toBe("grounding");
+    setStage(id, "generating");
+    expect(getJobStage(id)).toBe("generating"); // 推进覆盖旧阶段
+    setStage(id, dayStage(3, 5));
+    expect(getJobStage(id)).toBe("day:3/5");
+    clearStage(id);
+  });
+
+  it("未知 job（旧任务/升级前创建）→ undefined：前端据此降级不确定进度条", () => {
+    expect(getJobStage("job_never_seen_000")).toBeUndefined();
+  });
+
+  it("clearStage（失败/中断）后不再返回：僵死任务不留假装在跑的阶段", () => {
+    const id = "job_stage_cleared";
+    setStage(id, "day:1/5");
+    clearStage(id);
+    expect(getJobStage(id)).toBeUndefined();
+  });
+
+  it("互不串台：每个 job 的遥测独立", () => {
+    const a = "job_stage_a";
+    const b = "job_stage_b";
+    setStage(a, "outline");
+    setStage(b, "verify");
+    expect(getJobStage(a)).toBe("outline");
+    expect(getJobStage(b)).toBe("verify");
+    clearStage(a);
+    clearStage(b);
   });
 });
