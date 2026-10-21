@@ -22,8 +22,13 @@ RUN npx prisma generate \
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# font-noto-cjk：动态 OG 图（app/p/[id]/opengraph-image.tsx，Satori 渲染）
+# 里有中文城市名。node:22-alpine 不带 CJK 字体，容器里会渲染成豆腐块
+# （本地 macOS 有系统字体回退，看不出来）——分享到微信/Twitter 的卡片
+# 会直接不可读。装的是运行层：图路由在运行时才执行。
 RUN addgroup -g 1001 -S nodejs \
-  && adduser -S nextjs -u 1001
+  && adduser -S nextjs -u 1001 \
+  && apk add --no-cache font-noto-cjk
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
