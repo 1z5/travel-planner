@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createJob } from "@/lib/jobs";
 import { consume, refund } from "@/lib/ratelimit";
 import { readSession } from "@/lib/auth/session";
+import { validateProfile, type TravelProfile } from "@/lib/profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +88,14 @@ const InputSchema = z
         .max(3)
         .default([]),
     ),
+    // 旅行档案（切片3 · 旅行档案）：客户端 localStorage 里的长期记忆
+    // （体力/忌口/作息/通勤耐受/推断偏好）。**校验不在这里做**——档案
+    // 的校验是字段级白名单（lib/profile.ts 的 validateProfile，与
+    // city/hotel 同等的防注入口径），放进 zod 里 schema 会膨胀且错误
+    // 文案不好给。下面 POST 里显式校验：传了但不过 → 400（配额退还）。
+    // z.unknown() 保留原值不剥离（zod 默认剥未知字段，档案会被丢掉）。
+    // 不传 = 原样不带：无档案时全链路行为与本字段加入前完全一致。
+    profile: z.unknown().optional(),
   })
   .refine((d) => d.endAt > d.startAt, { message: "结束时间必须晚于开始时间" })
   .refine((d) => deriveDays(d.startAt, d.endAt) <= (d.scope === "region" ? 10 : 7), {
@@ -131,9 +140,35 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 2b) 旅行档案校验（切片3）：档案字段（忌口/推断文案）会进 LLM prompt，
+  //     必须过字符白名单（与 city/hotel 同口径）。校验失败走 400 而不是
+  //     静默丢字段——「改了档案却没用上」无声发生是最伤信任的失败。
+  let profile: TravelProfile | undefined;
+  if (input.profile !== undefined) {
+    const checked = validateProfile(input.profile);
+    if (!checked) {
+      await refund(q.key);
+      return NextResponse.json(
+        {
+          error:
+            "旅行档案格式不正确（体力/忌口/作息/通勤上限/推断偏好之一不合法），请在「我的档案」里重新填写",
+        },
+        { status: 400 },
+      );
+    }
+    profile = checked;
+  }
+
   // 3) 创建异步任务（days 由起止时间推导），立即返回
   const job = await createJob(
-    { ...input, days: deriveDays(input.startAt, input.endAt) },
+    {
+      ...input,
+      days: deriveDays(input.startAt, input.endAt),
+      // 档案显式覆盖 input 里的 zod unknown 原值：传下去的是校验+归一化
+      // 后的档案；没传档案时这里是 undefined，等于本字段加入前完全一致。
+      // createJob → generatePlan/validateDay 是 input 整体透传，无需下游改动。
+      profile,
+    },
     q.key,
     q.limit,
     () => void refund(q.key),

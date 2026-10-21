@@ -1,4 +1,6 @@
 // ---------- 用户输入 ----------
+import type { TravelProfile } from "./profile";
+
 export interface PlanInput {
   city: string; // 目的地城市，如 "成都"
   days: number; // 天数（由起止时间推导，1-4）
@@ -12,6 +14,21 @@ export interface PlanInput {
   scope?: "city" | "region"; // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）
   events?: PlanEvent[]; // 用户指定的重点活动（演唱会/赛事/展览等，需编进行程）
   transportMode?: TransportMode; // 交通方式：决定每天各景点间怎么走（默认 driving）
+  /**
+   * 旅行档案（切片3 · 旅行档案）：客户端 localStorage 里的长期记忆
+   * （体力/忌口/作息/通勤耐受/推断偏好），随请求带上。
+   *
+   * 为什么是可选字段：无档案时全链路行为与切片 3 之前完全一致（向后
+   * 兼容红线——planner/validate 看到 undefined 就一行档案行都不加）。
+   * 有档案时 planner.baseLines 追加档案行、validate 按 stamina 调整
+   * 节奏阈值。类型放在这里（而不是 planner/validate 内部 cast）是为了
+   * 让「档案是输入的一等字段」在类型层可见——避免「改一处漏一处」的
+   * 历史坑（见 planner.ts SpotSchema 的注释）。
+   *
+   * 服务端不信任这个字段的值：会进 prompt 的用户数据必须过字符白名单
+   * （lib/profile.ts 的 validateProfile，与 city/hotel 同等口径）。
+   */
+  profile?: TravelProfile;
 }
 
 /** 交通方式：景点间路段用哪种方式串起来。公交/地铁当前高德 key 未开放，先不做 */

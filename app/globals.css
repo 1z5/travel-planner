@@ -3735,6 +3735,434 @@ a.spot-action:hover {
    切片3 · 旅行档案（owner: profile · 第二波）
    ============================================================ */
 
+/* 悬浮入口（FAB）：fixed 定位让组件自包含——挂载位置不挑。
+   为什么放右下角：首页主流程是「填表单 → 生成」，档案是低频但重要的
+   常驻入口，右下角拇指区不抢表单焦点；未填过档案时切换为暖橙主按钮
+   （唯一强调色）+ 一行 hint——冷启动引导必须显眼，但不用弹窗轰炸
+   （AGENTS 核心原则：显式引导，不自动替用户做选择）。 */
+.profile-fab-wrap {
+  position: fixed;
+  right: max(var(--sp-4), env(safe-area-inset-right));
+  bottom: max(var(--sp-4), env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.profile-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 44px; /* 拇指可点区域 */
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface-solid);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.profile-fab:hover {
+  border-color: var(--accent-ring);
+  color: var(--ink);
+}
+/* 未填过档案：暖橙实底（与 clone-btn 同族的主按钮语言） */
+.profile-fab.is-new {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #09090b;
+}
+.profile-fab.is-new:hover {
+  background: var(--accent-hover);
+}
+.profile-fab-hint {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+
+/* 遮罩 + 抽屉：右侧滑出（桌面），移动端转底部抽屉。
+   为什么 backdrop 用半透明黑 + 玻璃模糊而不是纯黑：深色 Premium 设计
+   语言里，遮罩过重会显得「弹窗警告」——档案是常驻设置不是警告。 */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+.profile-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-solid);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-lg);
+  animation: profile-slide-in 0.18s ease-out;
+}
+@keyframes profile-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+/* 尊重「减少动态效果」的系统偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .profile-drawer {
+    animation: none;
+  }
+}
+
+.profile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+.profile-head h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  line-height: 1.4;
+}
+.profile-sub {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.profile-icon-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.profile-icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+/* 顶部状态条：未填过 = 引导（暖橙软底）；已填过 = 就绪（绿软底）。
+   两态都用语义色不用纯文字——扫一眼就知道档案在不在。 */
+.profile-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--sp-4) var(--sp-5) 0;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+.profile-banner strong {
+  color: var(--ink);
+}
+.profile-banner.is-saved {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--ok-bg);
+  border-color: var(--ok-line);
+  color: var(--ok-ink);
+}
+
+.profile-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-4) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+/* fieldset 去掉浏览器默认边框/间距——卡片式分组全靠留白分层 */
+.profile-field {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.profile-field legend {
+  padding: 0 0 var(--sp-2);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+.profile-note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+.profile-empty {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-4);
+}
+
+/* 分段控件（体力/作息）：与 clone-cta 的 .segmented 同族，选中态用
+   暖橙软底而不是实底——档案设置是「选择」不是「行动」，实底会和
+   主保存按钮抢注意力。 */
+.profile-seg {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--sp-2);
+}
+.profile-seg button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.profile-seg button:hover {
+  border-color: var(--line-strong);
+}
+.profile-seg button.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--ink);
+}
+.profile-seg button strong {
+  font-size: var(--fs-small);
+}
+.profile-seg button small {
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+
+/* 偏好列表（忌口/推断）：每行 = 内容 + 内联操作（改/删）。
+   可手改可删除是红线——操作按钮常驻可见（不藏进 hover 菜单），
+   手机上 hover 不存在，藏起来等于没有。 */
+.profile-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profile-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+.profile-list li > span:first-child {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+.profile-edit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--r-sm);
+}
+.profile-edit-row input {
+  flex: 1;
+  min-width: 0;
+}
+.profile-inferred {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* 推断徽章：暖黄（--warn-* 语义色）而不是强调橙——「这是推测不是
+   你的原话」，颜色就要区别于显式偏好（暖橙 = 用户确认过的动作色） */
+.profile-badge {
+  align-self: flex-start;
+  font-size: var(--fs-caption);
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.profile-source {
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+
+.profile-add-row {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.profile-add-row input {
+  flex: 1;
+  min-width: 0;
+}
+.profile-add-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+.profile-add-btn:hover {
+  border-color: var(--accent-ring);
+  color: var(--ink);
+}
+.profile-error {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--err-ink);
+}
+
+/* 滑杆：accent-color 一行搞定轨道/滑块配色（现代浏览器原生支持），
+   不手搓 -webkit-slider-thumb——少 20 行且各平台原生触感正确 */
+.profile-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.profile-foot {
+  padding: var(--sp-4) var(--sp-5) max(var(--sp-5), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.profile-flash {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ok-ink);
+}
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+/* 主保存：暖橙实底（与 clone-btn 同族）；disabled 时降透明度——
+   没有改动就不给点，避免「保存了空气」的困惑 */
+.profile-save {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-5);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-md);
+  color: #09090b;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-save:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.profile-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* 清空：幽灵按钮（无底色），二次确认时切红——不可逆操作的视觉警示 */
+.profile-clear {
+  border: none;
+  background: none;
+  color: var(--ink-4);
+  font-size: var(--fs-small);
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-1);
+}
+.profile-clear:hover {
+  color: var(--ink-2);
+}
+.profile-clear.is-armed {
+  color: var(--err-ink);
+  font-weight: 700;
+}
+.profile-dirty {
+  font-size: var(--fs-caption);
+  color: var(--warn-ink);
+}
+
+/* 移动端：右侧抽屉转底部抽屉（拇指区 + 不遮挡整屏），
+   hint 收起（底部空间优先给抽屉本身） */
+@media (max-width: 640px) {
+  .profile-fab-hint {
+    display: none;
+  }
+  .profile-drawer {
+    top: auto;
+    left: 0;
+    width: 100%;
+    max-height: 88vh;
+    border-left: none;
+    border-top: 1px solid var(--line-strong);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    animation: profile-slide-up 0.18s ease-out;
+  }
+  @keyframes profile-slide-up {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+@media print {
+  /* 档案是交互设置（生成前的准备动作），打印只输出行程本体 */
+  .profile-fab-wrap,
+  .profile-overlay {
+    display: none !important;
+  }
+}
+
 /* ============================================================
    切片5 · 流式生长体验（owner: live · 第二波）
    ============================================================ */

@@ -2,6 +2,7 @@ import "server-only";
 import { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes, type PoiInfo } from "./amap";
 import { mapLimit } from "./concurrency";
 import { checkOpenHours } from "./poi-hours";
+import { STAMINA_PACE_FACTOR, validateProfile } from "./profile";
 import {
   checkDaySchedule,
   isHoursWarning,
@@ -482,9 +483,30 @@ export async function validateDay(
   const active = day.spots.reduce((s, x) => s + x.durationMin, 0) + transit;
   const pace = input.pace ?? "balanced";
   if (!transitUnknown) {
-    if (active > PACE_DAY_MIN[pace]) {
+    // 档案（切片3 · 旅行档案）：日净游玩时长上限按 stamina 调整——pace 是
+    // 这次请求的密度，stamina 是用户的身体事实，两者独立。用户可能请求紧凑
+    // 节奏但体力只够适中，此时按 stamina 收紧上限，才能同时尊重请求与体力。
+    // 无档案（validateProfile 返回 null）时系数恒为 1、文案一字不变：行为
+    // 与切片 3 之前完全一致（向后兼容红线，既有 708 单测 + 427 e2e 原样通过）。
+    // 调整后取整到整小时：阈值是体验口径不需要分钟级精度，取整后文案里的
+    // 「X 小时」保持整数（10.4 小时这种数字只会让预警显得像 bug）。
+    const profile = validateProfile(input.profile);
+    const factor = profile ? STAMINA_PACE_FACTOR[profile.stamina] : 1;
+    const limit = Math.round((PACE_DAY_MIN[pace] * factor) / 60) * 60;
+    if (active > limit) {
+      // stamina 调整过上限时把话说透：这个数字为什么和「行程节奏」里写的
+      // 不一样（档案收紧/放宽了）——体检摊开说是核心原则。系数为 1 时
+      // 文案与历史逐字一致（fix-actions/warn-tag/既有 e2e 都按原文匹配）。
+      const note =
+        factor < 1 ? "，已按你的体力上限收紧" : factor > 1 ? "，已按你的体力上限放宽" : "";
+      const advice =
+        factor < 1
+          ? // 上限是档案收紧出来的，就别劝用户「改选更紧凑节奏」——正确的
+            // 出路是减点，或者去档案里改体力上限（偏好可手改）。
+            "可删减 1 个景点，或在档案里把体力上限调高"
+          : "可删减 1 个景点或改选更紧凑节奏";
       warnings.push(
-        `第 ${day.day} 天安排约 ${fmtMin(active)}，超出${PACE_LABEL[pace]}节奏上限（${PACE_DAY_MIN[pace] / 60} 小时），可删减 1 个景点或改选更紧凑节奏`,
+        `第 ${day.day} 天安排约 ${fmtMin(active)}，超出${PACE_LABEL[pace]}节奏上限（${limit / 60} 小时${note}），${advice}`,
       );
     } else if (active < LOOSE_DAY_MIN) {
       warnings.push(`第 ${day.day} 天安排约 ${fmtMin(active)}，偏松，可加一个景点或放慢节奏`);

@@ -2,6 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
 import { renderGroundingPrompt, type Grounding } from "./grounding";
+import { renderProfileLines, validateProfile } from "./profile";
 import type { Plan, PlanInput, PlanSpot } from "./types";
 
 // ============================================================
@@ -462,6 +463,17 @@ export function baseLines(input: PlanInput): string[] {
       );
     }
   }
+  // 档案行（切片3 · 旅行档案）追加在请求级约束的末尾：档案是「关于这个
+  // 人」的长期记忆，本次请求的具体约束（住所/必游地/活动）优先于它。
+  // 在 baseLines 里统一读取（而不是让调用方传参）：三条生成路径与
+  // refine/copilot 共用本函数，档案骑在 input 上一处读取、所有调用方
+  // 同时受益——不会出现「生成带档案、改行程不带」的漂移。
+  // 校验再走一遍 validateProfile：档案来自客户端 localStorage，服务端
+  // 不信任它（会进 prompt 的用户输入必须有白名单）；undefined/null
+  // 与校验失败都返回 null = 当作没有档案，一行都不加——无档案 = 全链路
+  // 行为与切片 3 之前完全一致（向后兼容红线）。
+  const profile = validateProfile(input.profile);
+  if (profile) lines.push(...renderProfileLines(profile));
   return lines;
 }
 
