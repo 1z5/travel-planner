@@ -143,8 +143,12 @@ export async function POST(req: NextRequest) {
   // 2b) 旅行档案校验（切片3）：档案字段（忌口/推断文案）会进 LLM prompt，
   //     必须过字符白名单（与 city/hotel 同口径）。校验失败走 400 而不是
   //     静默丢字段——「改了档案却没用上」无声发生是最伤信任的失败。
+  //     null 与 undefined 一样视为「没传」：档案存储层（lib/profile-store）
+  //     用 null 表达「用户没填过」，JSON.stringify 也会把 null 带进请求体
+  //     ——对 null 报 400 的话，集成方（home-client）每次生成都会被拒，
+  //     这是边界上不该让调用方自己防的坑。
   let profile: TravelProfile | undefined;
-  if (input.profile !== undefined) {
+  if (input.profile !== undefined && input.profile !== null) {
     const checked = validateProfile(input.profile);
     if (!checked) {
       await refund(q.key);

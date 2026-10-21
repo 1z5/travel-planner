@@ -103,6 +103,13 @@ export async function runSlice({ check, api, mode }) {
     JSON.stringify(r4.body),
   );
 
+  // null = 「没填过档案」（存储层语义），边界上必须与「没传」同等对待——
+  // 否则集成方（home-client）带 null 提交会被 400 拒掉每次生成
+  const r4b = await api.post(suzhou({ profile: null }));
+  check("profile: null → 202（与「没传」同等对待，不误拒）", r4b.status === 202, `got ${r4b.status}`);
+  const j4b = await api.waitJob(r4b.body.jobId);
+  check("null 档案：任务 done 且 prompt 无档案行", j4b.status === "done" && !(await lastUserMsg()).includes("我的体力上限"), JSON.stringify(j4b).slice(0, 120));
+
   // ---- 5) 体检阈值随 stamina 变化 ----
   // 收紧方向（两种模式都成立）：packed 节奏（780）本不报，relaxed 体力把
   // 上限收到 600（780×0.8 取整），Day1 净时长必然 > 600 → 报且带收紧标注。
