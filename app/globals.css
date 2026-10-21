@@ -3607,6 +3607,130 @@ a.spot-action:hover {
    切片6 · 行中重规划（owner: replan）
    ============================================================ */
 
+/* 「接下来怎么走」求解面板：路口场景的第一眼是「按钮」，算完才展开清单。
+   保留/放弃用两个小标题分开，放弃项带真实约束理由（闭馆时间/路程分钟/
+   锚点时间）——理由是求解器的产出，不是装饰文案。 */
+.replan-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--sp-2);
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.replan-result {
+  margin-top: var(--sp-3);
+}
+.replan-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.replan-sub-ok svg {
+  color: var(--ok-ink);
+}
+.replan-sub-drop svg {
+  color: var(--err-ink);
+}
+.replan-kept,
+.replan-dropped,
+.replan-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.replan-kept li,
+.replan-dropped li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-small);
+}
+.replan-kept li:first-child,
+.replan-dropped li:first-child {
+  border-top: none;
+}
+.replan-kept li {
+  flex-wrap: wrap;
+}
+/* 新时刻是求解结果里最该先被看到的数字：等宽数字 + 暖橙 */
+.replan-time {
+  flex: none;
+  width: 96px;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.replan-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.replan-dropped li {
+  flex-wrap: wrap;
+}
+.replan-dropped .replan-name {
+  flex: none;
+}
+/* 放弃理由必须紧跟名字：独占一行，完整读完（截断会把「为什么」藏起来） */
+.replan-dropped .replan-reason {
+  flex-basis: 100%;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+}
+.replan-notes {
+  margin-top: var(--sp-2);
+}
+.replan-notes li {
+  padding: 3px 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+/* 免责声明放显著位置：这是建议、没改行程——用户必须一眼看到 */
+.replan-disclaimer {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+.replan-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--err-bg);
+  border: 1px solid var(--err-line);
+  color: var(--err-ink);
+  font-size: var(--fs-small);
+}
+.replan-error svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+@media (max-width: 640px) {
+  /* 手机上拇指可点区域：与其它行中按钮同规格 */
+  .replan-btn {
+    min-height: 44px;
+  }
+}
+@media print {
+  /* 重排是交互建议（未落库、依赖「现在」），打印只输出行程本体 */
+  .replan-card {
+    display: none !important;
+  }
+}
+
 /* ============================================================
    切片3 · 旅行档案（owner: profile · 第二波）
    ============================================================ */

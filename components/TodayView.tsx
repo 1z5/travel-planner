@@ -8,6 +8,7 @@ import {
   Bike,
   CalendarDays,
   Car,
+  Check,
   CloudRain,
   Compass,
   Footprints,
@@ -15,10 +16,12 @@ import {
   Loader2,
   MapPin,
   Navigation,
+  Route,
   ShoppingBag,
   TrainFront,
   Utensils,
   Wallet,
+  X,
 } from "lucide-react";
 import type { Plan, PlanDay, PlanLeg, PlanSpot, TransportMode } from "@/lib/types";
 import {
@@ -32,6 +35,10 @@ import {
   type TripToday,
 } from "@/lib/trip-day";
 import { formatHoursShort } from "@/lib/poi-hours";
+import { parseTimeRange } from "@/lib/schedule";
+// 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
+// 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
+import type { ReplanResult } from "@/lib/replan";
 
 // ============================================================
 // 行中模式（/t/<token>）：旅行当天的「执行视角」。
@@ -86,6 +93,13 @@ function fmtDate(iso: string | undefined): string {
   return `${m}月${d}日`;
 }
 
+/** 分钟数 → "HH:MM"（重排结果面板里标注「按几点算的」用） */
+function fmtClock(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 /**
  * 「导航到这里」：高德 URI（手机浏览器唤起高德 App，桌面打开网页版）。
  * 与 PlanView 同一拼法——同一个点从规划页和行中页点进去必须落到同一个导航目标，
@@ -135,6 +149,16 @@ type LocateState =
   | { status: "locating" }
   | { status: "done"; distances: Array<{ location: string; meters: number }> }
   | { status: "error"; reason: string };
+
+/**
+ * 行中重规划的状态机：idle 未问 / loading 求解中 / done 有建议 / error（带服务端文案）。
+ * 结果只是建议（服务端不落库），所以 done 里不带 revision——没有任何东西被保存。
+ */
+type ReplanState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; result: ReplanResult }
+  | { status: "error"; error: string };
 
 /**
  * 两个行程点之间的路段条：方式 + 距离 + 时长 + 可展开的分步指令。
@@ -221,6 +245,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
   const [fix, setFix] = useState<FixState>({ status: "idle" });
   const [locate, setLocate] = useState<LocateState>({ status: "idle" });
+  // 重规划建议同样只在点击时求解（毫秒级，但也没有「页面一打开就该算」的理由）
+  const [replan, setReplan] = useState<ReplanState>({ status: "idle" });
 
   const days: PlanDay[] = Array.isArray(viewPlan.days) ? viewPlan.days : [];
   const city = typeof viewPlan.city === "string" && viewPlan.city.trim() ? viewPlan.city : "行程";
@@ -235,6 +261,12 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   // 清掉定位结果，宁可让用户重新点一次，也不把旧距离贴在新景点上。
   useEffect(() => {
     setLocate({ status: "idle" });
+  }, [viewPlan]);
+
+  // 同理：行程被改过后，旧的「接下来怎么走」建议对应的是旧点位/旧时间，
+  // 不再可信——清空，让用户按新安排重新问一次（不自动重算：那是猜用户还要不要）。
+  useEffect(() => {
+    setReplan({ status: "idle" });
   }, [viewPlan]);
 
   /**
@@ -344,6 +376,47 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
     );
+  }
+
+  /**
+   * 「重新安排接下来」：把「今天第几天 + 现在几点（本地时钟）」发给求解器。
+   * 服务端只读行程做确定性求解——毫秒级返回、不调模型、不扣配额、不落库。
+   * 422（缺真实路段）等失败透传服务端可行动文案；网络异常如实说。
+   */
+  async function askReplan(): Promise<void> {
+    setReplan({ status: "loading" });
+    try {
+      const r = await fetch("/api/plan/replan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId, day: dayNo, nowMin: clock?.minutes ?? 0 }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setReplan({
+          status: "error",
+          error: typeof d?.error === "string" && d.error ? d.error : "重排失败，请稍后重试",
+        });
+        return;
+      }
+      // 契约上 200 必带 kept/dropped；缺字段视为坏响应，诚实说没算出来
+      if (!Array.isArray(d?.kept) || !Array.isArray(d?.dropped)) {
+        setReplan({ status: "error", error: "服务端返回不完整，建议未生成" });
+        return;
+      }
+      setReplan({
+        status: "done",
+        result: {
+          ok: d.ok !== false,
+          kept: d.kept,
+          dropped: d.dropped,
+          notes: Array.isArray(d.notes) ? d.notes : [],
+          ...(typeof d.message === "string" ? { message: d.message } : {}),
+        } as ReplanResult,
+      });
+    } catch {
+      setReplan({ status: "error", error: "网络异常，请稍后重试" });
+    }
   }
 
   /** 无日期依据 / 今日数据缺失时的统一降级页：不猜「今天」，只给完整行程入口 */
@@ -557,6 +630,14 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   };
 
   const hasLocatableSpot = spots.some((s) => typeof s.location === "string" && s.location !== "");
+
+  // 还没走的点（开始时间严格晚于现在）：求解只针对它们——已走过/正在走
+  // 的点是既成事实（正在走的点由服务端按「现在的位置」纳入推算）。
+  // 时间解析不出的点保守算未来（服务端同口径），不擅自排除。
+  const futureSpots: PlanSpot[] = spots.filter((s) => {
+    const r = parseTimeRange(s.time);
+    return r ? r.start > clock.minutes : true;
+  });
 
   return (
     <div className="today-root">
@@ -863,6 +944,110 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
           </p>
         </div>
       </section>
+
+      {/* ===== 重新安排接下来：确定性求解的建议面板（不落库） ===== */}
+      {/* 只有「今天还有没走的点」才值得问——走完了再问没有意义。
+          求解在服务端纯计算完成（毫秒级、不调模型、不扣配额），结果只是
+          建议：保留什么、放弃什么、为什么，全部引用真实约束数据。 */}
+      {futureSpots.length > 0 && (
+        <section className="card replan-card">
+          <div className="card-body">
+            <h2 className="today-section-title">
+              <Route size={16} aria-hidden="true" />
+              接下来怎么走
+            </h2>
+            <p className="today-helper">
+              站在路口时按现在的时间重新算一遍：还剩 {futureSpots.length} 个没走的点，
+              看看哪些还来得及、哪些要放弃、为什么。
+            </p>
+            <button
+              type="button"
+              className="btn replan-btn"
+              aria-label="重新安排接下来的行程"
+              disabled={replan.status === "loading"}
+              onClick={() => void askReplan()}
+            >
+              {replan.status === "loading" ? (
+                <>
+                  <Loader2 size={14} className="spin" aria-hidden="true" />
+                  正在计算…
+                </>
+              ) : (
+                <>
+                  <Route size={14} aria-hidden="true" />
+                  重新安排接下来
+                </>
+              )}
+            </button>
+
+            {replan.status === "error" && (
+              <p className="replan-error" role="alert">
+                <AlertTriangle size={14} aria-hidden="true" />
+                {replan.error}
+              </p>
+            )}
+
+            {replan.status === "done" && (
+              <div className="replan-result">
+                <p className="today-helper">
+                  按 {fmtClock(clock.minutes)} 的现在算的；过一会儿情况变了可以再算一遍。
+                </p>
+
+                <h3 className="replan-sub replan-sub-ok">
+                  <Check size={13} aria-hidden="true" />
+                  保留的点（新时刻）
+                </h3>
+                {replan.result.kept.length > 0 ? (
+                  <ul className="replan-kept">
+                    {replan.result.kept.map((k, i) => (
+                      <li key={`${k.spot.name}-${i}`}>
+                        <span className="replan-time">{k.newTime}</span>
+                        <span className="replan-name">{k.spot.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="today-degrade">
+                    按现在的约束，后面的点一个都保不住——见下面的放弃清单。
+                  </p>
+                )}
+
+                <h3 className="replan-sub replan-sub-drop">
+                  <X size={13} aria-hidden="true" />
+                  放弃的点（为什么）
+                </h3>
+                {replan.result.dropped.length > 0 ? (
+                  <ul className="replan-dropped">
+                    {replan.result.dropped.map((d, i) => (
+                      <li key={`${d.name}-${i}`}>
+                        <span className="replan-name">{d.name}</span>
+                        <span className="replan-reason">{d.reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="today-helper">没有需要放弃的点，后面的安排都还来得及。</p>
+                )}
+
+                {replan.result.notes.length > 0 && (
+                  <ul className="replan-notes">
+                    {replan.result.notes.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                )}
+
+                {replan.result.message && <p className="today-degrade">{replan.result.message}</p>}
+
+                {/* 显著位置的免责声明：这是建议，没有改行程——采用需要用户主动操作 */}
+                <p className="replan-disclaimer">
+                  这是建议，未修改你的行程；想采用可对当天「一句话改」（在完整行程页操作）。
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <TodayLinks shareId={shareId} />
     </div>
