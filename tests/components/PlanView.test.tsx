@@ -68,6 +68,22 @@ describe("PlanView", () => {
     expect(screen.getByText(/未接高德/)).toBeInTheDocument();
   });
 
+  it("事实先行徽章：有 grounding 摘要时如实展示候选规模与避开的闭馆日", () => {
+    const plan = {
+      ...SAMPLE_PLAN,
+      grounding: { candidates: 18, closedSkipped: 3, closedOut: 1 },
+    };
+    render(<PlanView plan={plan} />);
+    expect(screen.getByText(/事实先行/)).toBeInTheDocument();
+    expect(screen.getByText(/18 个已核验候选/)).toBeInTheDocument();
+    expect(screen.getByText(/避开 3 个闭馆日/)).toBeInTheDocument();
+  });
+
+  it("没有事实层时不显示徽章（不假装用过）", () => {
+    render(<PlanView plan={SAMPLE_PLAN} />);
+    expect(screen.queryByText(/事实先行/)).not.toBeInTheDocument();
+  });
+
   it("KPI 三张统计卡：人均总花费 / 行程天数 / 景点餐点，各带图标", () => {
     const { container } = render(<PlanView plan={SAMPLE_PLAN} />);
     // 同上：KPI 标签与预算透视的兜底文案都是「人均总花费」

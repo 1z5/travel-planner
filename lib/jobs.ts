@@ -1,6 +1,12 @@
 import "server-only";
 import { generatePlan, generateOutline, generateDay } from "./planner";
 import { generateDraftPlan } from "./draft-plan";
+import {
+  collectGrounding,
+  groundingSummary,
+  groundingSummaryOf,
+  type Grounding,
+} from "./grounding";
 import { validatePlan, validateDay, finalizePlan, type DayCheck } from "./validate";
 import { mapLimit } from "./concurrency";
 import { AMAP_MOCK } from "./amap";
@@ -171,6 +177,34 @@ function clonePlan(plan: Plan): Plan {
   return { ...plan, days: plan.days.map((d) => ({ ...d, spots: d.spots.map((s) => ({ ...s })) })) };
 }
 
+/**
+ * 取事实清单（事实先行的原料）：真实 POI + 真实营业时间 + 闭馆日。
+ *
+ * **永远不能阻断生成**：新增能力必须是无单点故障的增强。拿不到清单时
+ * 返回 undefined，生成链路退回「盲写 + 体检兜底」的老路径——那依然能出
+ * 行程，只是闭馆日之类的冲突要等体检报出来。
+ */
+async function safeGrounding(
+  input: PlanInput,
+  opts?: { extraKeywords?: string[]; seed?: Grounding["candidates"] },
+): Promise<Grounding | undefined> {
+  try {
+    const g = await collectGrounding(input, opts);
+    if (g.state !== "ok") {
+      console.log(`[job] 事实清单不可用（${g.state}）：${g.note ?? "无候选"}——退回常规生成`);
+      return undefined;
+    }
+    const closed = g.candidates.filter((c) => c.closedOn).length;
+    console.log(
+      `[job] 事实清单就绪：${g.candidates.length} 个候选（检索 ${g.queries.length} 组关键词，其中 ${closed} 个含闭馆日已标注）`,
+    );
+    return g;
+  } catch (e) {
+    console.log(`[job] 事实清单采集异常（已跳过，不影响生成）：${(e as Error).message}`);
+    return undefined;
+  }
+}
+
 export async function getJob(id: string) {
   return getStore().jobs.get(id);
 }
@@ -206,7 +240,10 @@ export async function createJob(
         console.log(`[job] ${job.id} 即时草稿已发布（${draft.days.length} 天预览）`);
 
         // LLM 真实生成（3-5 分钟），完成后替换草稿
-        const plan = await validatePlan(await generatePlan(input), input);
+        // 事实先行：先把高德的真实素材清单交给模型，再让它排行程
+        const grounding = await safeGrounding(input);
+        const plan = await validatePlan(await generatePlan(input, grounding), input);
+        plan.grounding = groundingSummary(grounding);
         await completeWithWeather(store, job.id, plan, input, key);
       }
       console.log(`[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -241,6 +278,25 @@ async function runStreaming(
 ): Promise<void> {
   const t0 = Date.now();
   const outline = await generateOutline(input);
+
+  // 事实先行（多天）：城市级清单是主力——模型要跨天分配地点，得先看见全城
+  // 有哪些真实可用的点；每天再按主题/区域补一轮，作为当天的加权补充。
+  const cityGrounding = await safeGrounding(input);
+  const dayGrounding = new Map<number, Grounding | undefined>();
+  await mapLimit(
+    outline.days.map((_, i) => i),
+    2,
+    async (i) => {
+      const d = outline.days[i];
+      dayGrounding.set(
+        i,
+        await safeGrounding(input, {
+          extraKeywords: [d.theme, d.area],
+          seed: cityGrounding?.candidates,
+        }),
+      );
+    },
+  );
 
   // 骨架 plan：大纲一出来就落库，前端可立即展示概览与「即将生成 N 天」
   const plan: Plan = {
@@ -321,7 +377,7 @@ async function runStreaming(
       // 重试一百次也不会好）。错误信息要能指导用户的下一步动作。
       let phase = "生成";
       try {
-        const raw = await generateDay(input, outline, i);
+        const raw = await generateDay(input, outline, i, dayGrounding.get(i));
         const day: PlanDay = {
           ...raw,
           spots: raw.spots as PlanSpot[],
@@ -360,6 +416,8 @@ async function runStreaming(
     missCount,
     poiTotal,
   });
+  // 事实先行摘要（城市级 + 各天清单的并集）
+  plan.grounding = groundingSummaryOf([cityGrounding, ...[...dayGrounding.values()]]);
   // 天气提示 + 持久化分享 + 标记完成（共用逻辑，与单次路径一致）
   await completeWithWeather(store, jobId, plan, input, ownerKey);
 }

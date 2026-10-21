@@ -42,10 +42,11 @@ app/
 lib/
   planner.ts            两条生成路径：≤4 天单次 / ≥5 天大纲+分日
   jobs.ts               异步任务 + 分日流式 + 心跳/陈旧自愈 + 收尾持久化
+  grounding.ts          事实先行：生成前取真实素材清单（POI/营业时间/闭馆日）
   refine.ts             改行程：prompt 构造 / 解析校验 / 硬约束保护 / 重体检
   copilot.ts            行程管家：行程事实摘要 + step-5 问答 + 结构化建议
   validate.ts           幻觉治理 + 体检：绕路/节奏/预算/营业时间/时间轴
-  amap.ts               POI 验真（extensions=all）+ 通勤 + 路段，三态 hit/miss/error
+  amap.ts               POI 验真（extensions=all）+ 候选检索 + 通勤 + 路段，三态 hit/miss/error
   poi-hours.ts          营业时间文本解析与判定（client-safe）
   schedule.ts           时间轴冲突检测 / 确定性顺延（client-safe）
   fix-actions.ts        体检「一键修复」识别与模板化指令（client-safe）
@@ -79,8 +80,8 @@ components/
 ```bash
 npm run typecheck      # TypeScript strict
 npm run lint           # ESLint（0 error 0 warning）
-npm run test:unit      # Vitest 596 条（组件 + 纯逻辑）
-npm test               # e2e 290 条（桩 LLM + 桩高德 + 隔离服务器）
+npm run test:unit      # Vitest 623 条（组件 + 纯逻辑）
+npm test               # e2e 295 条（桩 LLM + 桩高德 + 隔离服务器）
 npm run test:coverage  # 覆盖率报告
 ```
 
@@ -103,6 +104,8 @@ e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM
 - **Plan 持久化**：行程是一等聚合（share token + revision），Job 是一次性执行记录。
 - **三态原则**：POI 查询 hit/miss/error，只有 miss 告警，error 归系统提示。
 - **确定性修复**：时间轴顺延不调模型（adjust），LLM 修复用模板化指令（fix）。
+- **事实先行**：生成前先用高德取真实素材清单（名称/营业时间/闭馆日）注入 prompt，
+  行程天生可执行；拿不到事实就退回旧路径，绝不编造候选。详见 ADR-006。
 
 ## 环境变量
 

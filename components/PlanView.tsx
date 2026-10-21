@@ -26,6 +26,7 @@ import {
   Car,
   Sparkles,
   TimerReset,
+  ShieldCheck,
 } from "lucide-react";
 import type { Plan, TransportMode } from "@/lib/types";
 import {
@@ -608,6 +609,23 @@ export function PlanView({
             >
               {VERIFY_LABEL[verification]}
             </span>
+            {/* 事实先行徽章：如实告诉用户这份行程是在多少个「高德已核验」候选上排出来的。
+                没有事实层（未接高德 / 检索失败）时整块不渲染——不假装用过。 */}
+            {viewPlan.grounding && viewPlan.grounding.candidates > 0 && (
+              <span
+                className="grounding-badge"
+                title={
+                  viewPlan.grounding.closedSkipped > 0
+                    ? `生成前用高德实时数据核验了 ${viewPlan.grounding.candidates} 个候选地点，其中 ${viewPlan.grounding.closedSkipped} 个含闭馆日已提示避开，${viewPlan.grounding.closedOut} 个全程闭馆已剔除`
+                    : `生成前用高德实时数据核验了 ${viewPlan.grounding.candidates} 个候选地点（名称、营业时间、评分、人均均已核实）`
+                }
+              >
+                <ShieldCheck size={12} />
+                事实先行 · {viewPlan.grounding.candidates} 个已核验候选
+                {viewPlan.grounding.closedSkipped > 0 &&
+                  ` · 避开 ${viewPlan.grounding.closedSkipped} 个闭馆日`}
+              </span>
+            )}
             {revision !== null && <span className="rev-badge">已更新 · 第 {revision} 版</span>}
           </div>
 

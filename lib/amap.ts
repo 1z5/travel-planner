@@ -32,6 +32,9 @@ export interface PoiInfo {
   location: string; // "经度,纬度"
   adname: string; // 所在区
   verified: boolean;
+  // 高德 type 原文（如 "风景名胜|公园广场"）。用于把 POI 归类成景点/餐饮——
+  // 归类只看高德自己的分类字段，不靠名字猜。
+  poiType?: string;
   // ---- 以下来自 extensions=all 的 biz_ext / POI 顶层字段，全部可选 ----
   // 语义与 PlanSpot.poi（SpotPoiMeta）一致：有数据才填，高德返回空数组 `[]`
   // 或缺字段时就是 undefined——不填 ≠ 0 分 / 24 小时营业这类默认值。
@@ -46,6 +49,18 @@ export interface PoiInfo {
 /** POI 查询三态：hit=命中 / miss=高德明确无结果 / error=网络或上游异常（≠不存在） */
 export type PoiLookup =
   { state: "hit"; poi: PoiInfo } | { state: "miss" } | { state: "error"; reason: string };
+
+/** 候选检索入参 */
+export interface PoiSearchOptions {
+  city: string;
+  keywords: string;
+  scope?: "city" | "region";
+  limit?: number;
+}
+
+/** 候选检索三态（语义与 PoiLookup 一致） */
+export type PoiSearchResult =
+  { state: "hit"; pois: PoiInfo[] } | { state: "miss" } | { state: "error"; reason: string };
 
 /** 通勤估算两态：unknown 时调用方必须跳过该天的通勤/节奏判定，不能拿假数据填 */
 export type TransitResult = { state: "ok"; minutes: number } | { state: "unknown"; reason: string };
@@ -63,6 +78,9 @@ const CACHE_MAX = 500;
 // 「98 小时通勤」这类荒唐预警。详见 transitMinutes 里的实测说明。
 const MAX_TRANSIT_METERS = 150_000;
 const poiCache = new Map<string, { t: number; v: PoiLookup }>();
+// 候选检索单独缓存：关键词检索比单点验真更"宽"（同一城市多个品类关键词），
+// 重复检索的代价一样高（个人 key 有 QPS），但缓存键与验真不同，不能混用。
+const searchCache = new Map<string, { t: number; v: PoiSearchResult }>();
 
 function ttlFor(v: PoiLookup): number {
   return v.state === "error" ? ERROR_CACHE_TTL_MS : CACHE_TTL_MS;
@@ -243,6 +261,9 @@ function parsePoiDetails(poi: Record<string, unknown>, name: string): Partial<Po
   if (tel) details.tel = tel;
   // 高德用名称表达停业状态（实测「金沙遗址博物馆(暂停开放)」）
   if (isTemporarilyClosedName(name)) details.temporarilyClosed = true;
+  // 分类字段：归类景点/餐饮只看高德自己的 type，不靠名称猜
+  const type = bizText(poi.type);
+  if (type) details.poiType = type;
   return details;
 }
 
@@ -331,6 +352,73 @@ export async function lookupPoi(
   } finally {
     inflight.delete(cacheKey);
   }
+}
+
+/**
+ * 候选检索：问「这个城市/区域里有哪些可用的景点和餐厅」，返回**列表**。
+ *
+ * 为什么与 lookupPoi 并存（两者不是一回事）：
+ * - lookupPoi = 验真，问「这个名字存在吗」，取 top1，用于**生成之后**核对；
+ * - searchPois = 取材，问「有哪些可选」，用于**生成之前**给模型一份真实清单。
+ * 「事实先行」需要后者：模型手上必须有真实存在、营业时间已核验的地点，
+ * 才能排出天生可执行的行程，而不是先编再验。
+ *
+ * 三态语义与 lookupPoi 完全一致：miss=高德明确无结果；error=网络/上游异常
+ * （**不等于**不存在，调用方不得据此下任何结论）。
+ *
+ * MOCK 模式返回 error 而不是编造候选：没有数据源时给出假清单，
+ * 等于把「假装验真过」写进了生成过程。
+ */
+export async function searchPois(opts: PoiSearchOptions): Promise<PoiSearchResult> {
+  const scope = opts.scope ?? "city";
+  const limit = Math.max(1, Math.min(20, opts.limit ?? 10));
+  if (AMAP_MOCK) {
+    return { state: "error", reason: "MOCK 模式：未接入高德，无真实 POI 候选" };
+  }
+
+  const cacheKey = `${scope}|${opts.city}|${opts.keywords}|${limit}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached) {
+    const ttl = cached.v.state === "error" ? ERROR_CACHE_TTL_MS : CACHE_TTL_MS;
+    if (Date.now() - cached.t < ttl) return cached.v;
+  }
+
+  const params: Record<string, string> = {
+    keywords: opts.keywords,
+    offset: "1",
+    page_size: String(limit),
+    // 与验真同一口径：候选也要带 biz_ext（营业时间/评分/人均），否则清单里
+    // 只是一串名字，拿不到「事实先行」真正要的那部分。
+    extensions: "all",
+  };
+  if (scope === "city") {
+    params.city = opts.city;
+    params.citylimit = "true";
+  }
+
+  const r = await amapGetRetry("/v3/place/text", params);
+  let result: PoiSearchResult;
+  if (!r.ok) {
+    result = { state: "error", reason: r.detail };
+  } else {
+    const data = r.data as { pois?: Array<Record<string, unknown>> };
+    const pois = (data.pois ?? []).slice(0, limit).map((poi) => ({
+      name: String(poi.name ?? ""),
+      address: typeof poi.address === "string" ? poi.address : "",
+      location: String(poi.location ?? ""),
+      adname: String(poi.adname ?? ""),
+      verified: true,
+      ...parsePoiDetails(poi, String(poi.name ?? "")),
+    }));
+    result = pois.length ? { state: "hit", pois } : { state: "miss" };
+  }
+
+  if (searchCache.size >= CACHE_MAX && !searchCache.has(cacheKey)) {
+    const oldest = searchCache.keys().next().value; // Map 迭代序即插入序
+    if (oldest !== undefined) searchCache.delete(oldest);
+  }
+  searchCache.set(cacheKey, { t: Date.now(), v: result });
+  return result;
 }
 
 /**

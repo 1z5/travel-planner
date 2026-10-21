@@ -80,6 +80,16 @@ export interface PlanLeg {
   steps: string[]; // 关键分步指令（取前几条，够跟着走）
 }
 
+/**
+ * 事实先行的核验摘要：生成前喂给模型的那份「真实素材清单」有多大。
+ * 用于在 UI 上如实告诉用户「这份行程是在多少个已核验候选上排出来的」。
+ */
+export interface PlanGrounding {
+  candidates: number; // 清单里的候选地点数
+  closedSkipped: number; // 其中标了闭馆日、已提示模型避开的数量
+  closedOut: number; // 全程闭馆、直接从清单剔除的数量
+}
+
 export interface Plan {
   city: string;
   startDate?: string; // 行程首日 "YYYY-MM-DD"（日历导出/结果卡/分享页展示）
@@ -98,4 +108,5 @@ export interface Plan {
   verified: boolean; // 是否走了真实高德数据（false = mock 模式）
   verification?: "mock" | "ok" | "partial" | "pending";
   draft?: boolean; // true = 即时草稿预览（LLM 真实行程生成后替换） // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动部分未核 / pending=流式生成中尚未收尾
+  grounding?: PlanGrounding; // 事实先行摘要（生成前用真实 POI 事实约束过模型）
 }

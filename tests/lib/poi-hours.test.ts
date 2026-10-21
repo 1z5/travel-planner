@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { checkOpenHours, formatHoursShort, isTemporarilyClosedName } from "@/lib/poi-hours";
+import {
+  checkDayAvailability,
+  checkOpenHours,
+  formatHoursShort,
+  isTemporarilyClosedName,
+} from "@/lib/poi-hours";
 
 // 本文件里的复杂营业时间文本**全部是 2026-10 用真实高德 key + extensions=all
 // 实测拿到的原文**（苏州/成都 POI），原样引用——解析器必须按真机格式设计，
@@ -448,5 +453,73 @@ describe("formatHoursShort（UI 展示用，拿不准就不显示）", () => {
     expect(formatHoursShort({})).toBeUndefined();
     expect(formatHoursShort({ openTime2: "详见公告" })).toBeUndefined();
     expect(formatHoursShort(null)).toBeUndefined();
+  });
+});
+
+// ============================================================
+// checkDayAvailability：当天可用性（事实先行用）
+//
+// 与 checkOpenHours 的分工：
+//   checkOpenHours 回答「我 10:30 到，它开不开门」
+//   checkDayAvailability 回答「这一天它要不要被排除在行程之外」
+// 两者不能混用：09:00-17:00 的博物馆在 00:00 到达，前者给「outside」
+// （还没开门），后者给「closed」（今天不开）。
+// ============================================================
+describe("checkDayAvailability：当天开不开（事实先行的地基）", () => {
+  it("周一闭馆的博物馆：周一 closed、周二 open", () => {
+    const museum = { name: "苏州博物馆", openTime2: "周二至周日 09:00-17:00；周一 全天不开放" };
+    expect(checkDayAvailability(museum, "2026-10-19").state).toBe("closed"); // 周一
+    expect(checkDayAvailability(museum, "2026-10-20").state).toBe("open"); // 周二
+    expect(checkDayAvailability(museum, "2026-10-20")).toEqual({
+      state: "open",
+      windows: "09:00-17:00",
+    });
+  });
+
+  it("闭馆理由要说清是哪天闭（人话，不是原始 JSON）", () => {
+    const museum = { name: "苏州博物馆", openTime2: "周二至周日 09:00-17:00；周一 全天不开放" };
+    const r = checkDayAvailability(museum, "2026-10-19");
+    expect(r.state).toBe("closed");
+    if (r.state === "closed") expect(r.reason).toContain("周一");
+  });
+
+  it("日期段闭馆（整段行程临时闭馆）→ 命中那天 closed", () => {
+    const poi = { name: "临时闭馆景点", openTime2: "09:00-17:00；10/19-10/21 全天不开放" };
+    expect(checkDayAvailability(poi, "2026-10-19").state).toBe("closed");
+    expect(checkDayAvailability(poi, "2026-10-21").state).toBe("closed");
+    expect(checkDayAvailability(poi, "2026-10-25").state).toBe("open");
+  });
+
+  it("24 小时营业 → 当天 open（00:00-24:00）", () => {
+    expect(checkDayAvailability(平江路, "2026-10-19")).toEqual({
+      state: "open",
+      windows: "00:00-24:00",
+    });
+  });
+
+  it("午休分段（中餐厅 10:30-13:30,16:30-21:00）→ 当天 open，两段都在", () => {
+    const r = checkDayAvailability(石家饭店, "2026-10-19");
+    expect(r.state).toBe("open");
+    if (r.state === "open") expect(r.windows).toContain("10:30-13:30");
+  });
+
+  it("暂停开放（名称或字段）→ closed", () => {
+    expect(checkDayAvailability(金沙遗址博物馆, "2026-10-19").state).toBe("closed");
+    expect(
+      checkDayAvailability({ name: "某店(暂停营业)", openTime2: "09:00-17:00" }, "2026-10-19")
+        .state,
+    ).toBe("closed");
+  });
+
+  it("读不懂 / 无数据 / 非法日期 → unknown（绝不猜）", () => {
+    expect(checkDayAvailability({ openTime2: "详见公告" }, "2026-10-19").state).toBe("unknown");
+    expect(checkDayAvailability({}, "2026-10-19").state).toBe("unknown");
+    expect(checkDayAvailability(null, "2026-10-19").state).toBe("unknown");
+    expect(checkDayAvailability(平江路, "不是日期").state).toBe("unknown");
+  });
+
+  it("季节分段规则（拙政园）→ 仍有窗口就是 open（具体时刻交给 checkOpenHours）", () => {
+    expect(checkDayAvailability(拙政园, "2026-10-19").state).toBe("open");
+    expect(checkDayAvailability(拙政园, "2026-02-19").state).toBe("open");
   });
 });

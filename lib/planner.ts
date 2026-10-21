@@ -1,6 +1,7 @@
 import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
+import { renderGroundingPrompt, type Grounding } from "./grounding";
 import type { Plan, PlanInput, PlanSpot } from "./types";
 
 // ============================================================
@@ -119,6 +120,13 @@ export const SYSTEM_PROMPT = `你是资深国内旅行行程规划师，为单�
 - 每个景点给真实合理的人均花费（含门票），没有门票填 0。
 - 每天净游玩时间（景点停留 + 通勤）不超过 10 小时；宁松勿满。
 
+【事实先行 · 有真实素材清单时必须遵守】
+当用户消息里附带「真实素材清单」时，那是高德实时数据（名称、位置、营业时间、评分、人均均已核验）：
+- 行程点**优先从清单里选**；清单确实满足不了需求时才用清单外的地点，且必须是真实存在的知名地点（仍会照常验真）。
+- 清单里标了「某天闭馆」的地点，**不要排到那天**（可以换到它开门的日子）；标了「全程闭馆，不要安排」的地点一律不要排。
+- 清单里的营业时间是硬约束：到达时间必须落在营业时段内，且不能晚于最晚进入时间。
+- 花费按清单给出的真实人均/票价填，**不要自己编价格**；评分可作为选点理由。
+
 用户约束（若提供，优先级高于上述默认规则）：
 - 住所：用户已指定住宿地点。全程以此为基地：第一天入住的酒店 spot 必须直接使用用户指定的住所（不要替换成其他酒店），后续每天的交通 spot 从该住所出发组织（如「住所→景点」）。住宿总价按该住所档次计入 costCny。
 - 期望必游地：列出的地点**必须全部出现**在行程中（按所在区域分配到各天，与你的推荐融合排期）。不得以任何理由静默丢弃；若某必游地你判断不存在或明显无法安排（如闭馆），放在 tips 里显式说明，不要假装安排了。
@@ -200,6 +208,7 @@ export const DAY_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，现�
 - 餐饮选本地人常去、有代表性的店，避开"XX 小吃一条街"这类游客陷阱。
 - 每个景点给真实合理的人均花费（含门票），没有门票填 0。
 - 每天净游玩时间（景点停留 + 通勤）不超过用户选定节奏的上限；宁松勿满。
+- 【事实先行】若附带「真实素材清单」：优先从清单里选点（清单标了某天闭馆的就别排那天，标了全程闭馆的一律不排）；营业时间是硬约束，到达必须落在营业时段内；花费按清单给的真实人均填，不要自己编。
 - 住宿只在这一天安排：行程第一天，且只此一次（type=hotel，用具体酒店名）。
 - 不要输出 totalCostCny 和 tips——那是整个行程层面的，由大纲负责。
 `;
@@ -456,8 +465,12 @@ export function baseLines(input: PlanInput): string[] {
   return lines;
 }
 
-function buildUserPrompt(input: PlanInput, correction?: string): string {
+function buildUserPrompt(input: PlanInput, correction?: string, grounding?: Grounding): string {
   const lines = ["请规划行程：", ...baseLines(input)];
+  // 事实清单放在最后：它是最具体、最不容出错的信息，靠近生成点时模型最容易照做。
+  // 没有清单时这一段整体不出现——生成链路与「事实先行」之前完全一致。
+  const sheet = grounding ? renderGroundingPrompt(grounding) : "";
+  if (sheet) lines.push("", sheet);
   if (correction) {
     lines.push(
       `- 上一次输出不符合要求：${correction}。本次必须严格输出 ${input.days} 天，day 字段从 1 连续编号，每天至少 1 个行程点。`,
@@ -498,6 +511,7 @@ function buildDayPrompt(
   outline: Outline,
   dayIdx: number,
   correction?: string,
+  grounding?: Grounding,
 ): string {
   const day = outline.days[dayIdx];
   const others = outline.days
@@ -551,6 +565,9 @@ function buildDayPrompt(
       `- 上一次输出不符合要求：${correction}。本次必须输出第 ${day.day} 天，day 字段为 ${day.day}，且至少 1 个行程点。`,
     );
   }
+  // 事实清单放在最后（同 buildUserPrompt）：当天要用的事实离生成点最近。
+  const sheet = grounding ? renderGroundingPrompt(grounding) : "";
+  if (sheet) lines.push("", sheet);
   return lines.filter((l) => l !== "").join("\n");
 }
 
@@ -612,7 +629,7 @@ function structuralProblem(plan: Plan, input: PlanInput): string | null {
   return null;
 }
 
-export async function generatePlan(input: PlanInput): Promise<Plan> {
+export async function generatePlan(input: PlanInput, grounding?: Grounding): Promise<Plan> {
   const llm = client();
   // 重试纠正指令：跨 attempt 保留（声明在循环外，否则第一次的纠正会在
   // 第二次迭代时被重置丢掉）
@@ -623,7 +640,7 @@ export async function generatePlan(input: PlanInput): Promise<Plan> {
     const { content, tokens: totalTokens } = await streamChatRetry(
       llm,
       input.scope === "region" ? `${SYSTEM_PROMPT}\n${REGION_RULES}` : SYSTEM_PROMPT,
-      buildUserPrompt(input, correction),
+      buildUserPrompt(input, correction, grounding),
       input.city,
       `第${attempt}次`,
     );
@@ -745,6 +762,7 @@ export async function generateDay(
   input: PlanInput,
   outline: Outline,
   dayIdx: number,
+  grounding?: Grounding,
 ): Promise<DayPlan> {
   const llm = client();
   const expectedDay = dayIdx + 1;
@@ -754,7 +772,7 @@ export async function generateDay(
     const { content, tokens } = await streamChatRetry(
       llm,
       input.scope === "region" ? `${DAY_SYSTEM_PROMPT}\n${REGION_RULES}` : DAY_SYSTEM_PROMPT,
-      buildDayPrompt(input, outline, dayIdx, correction),
+      buildDayPrompt(input, outline, dayIdx, correction, grounding),
       input.city,
       `第${expectedDay}天 第${attempt}次`,
     );

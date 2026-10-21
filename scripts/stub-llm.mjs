@@ -70,14 +70,101 @@ function planForRequestedDays(userMsg) {
   const m = userMsg.match(/天数：(\d+)\s*天/);
   const n = m ? Number(m[1]) : CANNED_PLAN.days.length;
   if (!Number.isInteger(n) || n < 1 || n === CANNED_PLAN.days.length) {
-    return city === CANNED_PLAN.city ? CANNED_PLAN : { ...CANNED_PLAN, city };
+    return applyGrounding(
+      city === CANNED_PLAN.city ? CANNED_PLAN : { ...CANNED_PLAN, city },
+      userMsg,
+    );
   }
   const days = [];
   for (let i = 0; i < n; i++) {
     const src = CANNED_PLAN.days[Math.min(i, CANNED_PLAN.days.length - 1)];
     days.push({ ...src, day: i + 1, spots: src.spots.map((s) => ({ ...s })) });
   }
-  return { ...CANNED_PLAN, city, days };
+  return applyGrounding({ ...CANNED_PLAN, city, days }, userMsg);
+}
+
+// ---------- 事实先行（grounding）：按真实素材清单选点 ----------
+//
+// 模拟「模型拿到了高德核验过的事实清单，于是照着清单排行程」：
+// 从 user prompt 里解析【真实素材清单】块，把景点/餐饮的名字换成清单里的。
+//
+// 只在偏好含「照清单走」时启用：默认路径必须继续返回 fixture 的真实 POI
+// （拙政园/苏州博物馆/桃花源记…）——那些 e2e 断言验证的是别的能力
+// （验真、未命中预警、营业时间体检），被清单替换掉就测不到它们了。
+
+/**
+ * 开关词只从「用户可控字段」里取：目的地 + 出行偏好。
+ *
+ * 为什么不能对整条 prompt 做 includes：prompt 现在会带上真实素材清单
+ * （景点名、营业时间原文），里面天然出现「空」（全天不开放）这类字样——
+ * 对整条 prompt 匹配会把清单里的普通文字误判成测试开关，把正常链路
+ * 改成 garbage/empty。踩过两次：清单文案里的「才用清单外的地点」命中了
+ * 开关词，导致所有行程点被替换成清单里的桩数据。
+ *
+ * 所有生成路径的开关词都由 city / preferences 注入（见 run-tests.mjs），
+ * 所以只认这两行既覆盖全部开关，又不会被 prompt 正文误伤。
+ * refine 的开关（「故意失败」「故意删硬约束」）在 refineContent 里单独匹配，
+ * 不走这里。
+ */
+function switchSource(userMsg) {
+  const lines = userMsg.split("\n");
+  const pick = (prefix) => {
+    const line = lines.find((l) => l.trim().startsWith(prefix));
+    return line ? line.trim() : "";
+  };
+  return `${pick("- 目的地：")} ${pick("- 出行偏好：")}`;
+}
+
+function groundingNames(userMsg) {
+  const idx = userMsg.indexOf("【真实素材清单");
+  if (idx < 0) return null;
+  const block = userMsg.slice(idx);
+  const sights = [];
+  const foods = [];
+  let bucket = null;
+  for (const raw of block.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("景点：")) {
+      bucket = sights;
+      continue;
+    }
+    if (line.startsWith("餐饮：")) {
+      bucket = foods;
+      continue;
+    }
+    if (line.startsWith("【")) {
+      bucket = null; // 进入新分块（如「全程闭馆，不要安排」）
+      continue;
+    }
+    if (bucket && line.startsWith("- ")) {
+      const name = line.slice(2).split("｜")[0].trim();
+      if (name) bucket.push(name);
+    }
+  }
+  if (!sights.length && !foods.length) return null;
+  return { sights, foods };
+}
+
+/** 把行程里的景点/餐饮换成清单里的名字（住宿与活动保持 fixture 原样） */
+function applyGrounding(plan, userMsg) {
+  if (!switchSource(userMsg).includes("照清单走")) return plan;
+  const g = groundingNames(userMsg);
+  if (!g) return plan;
+  let si = 0;
+  let fi = 0;
+  const days = plan.days.map((d) => ({
+    ...d,
+    spots: d.spots.map((s) => {
+      if (s.type === "sight" && g.sights.length) {
+        return { ...s, name: g.sights[si++ % g.sights.length] };
+      }
+      if (s.type === "food" && g.foods.length) {
+        return { ...s, name: g.foods[fi++ % g.foods.length] };
+      }
+      return s;
+    }),
+  }));
+  return { ...plan, days };
 }
 
 // 乱序 + 跳号响应：数组顺序 [Day2, Day3, Day1]，day 字段 [5, 9, 2]。
@@ -128,7 +215,7 @@ function dayForRequested(userMsg) {
   // 住宿只应出现在第一天：循环补齐时第 4/5 天会复用 fixture 的第 1 天，
   // 把酒店 spot 剔掉，避免桩数据自相矛盾
   if (dayNum > 1) spots = spots.filter((s) => s.type !== "hotel");
-  return { day: dayNum, theme: src.theme, spots };
+  return applyGrounding({ day: dayNum, theme: src.theme, spots }, userMsg);
 }
 
 // 高区域分散的一天：5 个景点分属 5 个不同区县，确定触发区域分散度预警（阈值 4）。
@@ -548,9 +635,12 @@ const server = createServer((req, res) => {
       /* 空 body 按 valid 处理 */
     }
 
+    // 开关词只看用户可控字段（目的地/出行偏好），不看 prompt 正文——见 switchSource 注释
+    const sw = switchSource(userMsg);
+
     // 「挂起」测试城市：只握手不吐 chunk，验证 planner 的「流式总时长兜底」。
     // 必须放在所有 mode 分流之前——它连 JSON 都不返回。
-    if (userMsg.includes("挂起")) {
+    if (sw.includes("挂起")) {
       hangStream(req, res);
       return;
     }
@@ -566,15 +656,15 @@ const server = createServer((req, res) => {
     let mode = "valid";
     if (isCopilotCall) mode = "copilot";
     else if (isRefineCall) mode = "refine";
-    else if (userMsg.includes("垃圾")) mode = "garbage";
-    else if (userMsg.includes("空")) mode = "empty";
-    else if (userMsg.includes("故障")) mode = "http500";
-    else if (userMsg.includes("编号乱序")) mode = "scrambled";
-    else if (userMsg.includes("天数错")) mode = "wrongdays";
+    else if (sw.includes("垃圾")) mode = "garbage";
+    else if (sw.includes("空")) mode = "empty";
+    else if (sw.includes("故障")) mode = "http500";
+    else if (sw.includes("编号乱序")) mode = "scrambled";
+    else if (sw.includes("天数错")) mode = "wrongdays";
     // 单日阶段故障：第 2 天起返回垃圾（测「已生成几天后中途失败 → 任务 error + 退还配额」）。
     // 触发词刻意避开「故障」——那个词会被上面的 http500 模式先截走，
     // 导致大纲阶段就失败，测不到「中途」失败。
-    else if (isDayCall && userMsg.includes("单日坏")) {
+    else if (isDayCall && sw.includes("单日坏")) {
       const dm = userMsg.match(/第 (\d+) 天的时刻表/);
       if (dm && Number(dm[1]) >= 2) mode = "garbage";
     }
@@ -582,26 +672,30 @@ const server = createServer((req, res) => {
     //   「持续断流」每次都掐 → 重试也救不回来，验证失败信息带进度
     //   「断流」只掐第一次   → 重试后恢复，验证长任务不被一次抖动全废
     // 注意「持续断流」含「断流」，必须先判断，否则被后者截走。
-    else if (isDayCall && userMsg.includes("持续断流")) mode = "terminate-forever";
-    else if (isDayCall && userMsg.includes("断流")) {
+    else if (isDayCall && sw.includes("持续断流")) mode = "terminate-forever";
+    else if (isDayCall && sw.includes("断流")) {
       const dm = userMsg.match(/第 (\d+) 天的时刻表/);
       if (dm && Number(dm[1]) >= 2) mode = "terminate";
     }
     // 「乱序完成」：让后面的天比前面的天更早返回，专门考验并发下的前缀发布。
     // 触发词用「逆序」而非「乱序」——后者含「序」会和上面的「编号乱序」冲突。
-    else if (isDayCall && userMsg.includes("逆序完成")) mode = "reversed";
+    else if (isDayCall && sw.includes("逆序完成")) mode = "reversed";
     // 「区域散」：当天的景点跨 5 个不同区县，确定触发区域分散度预警。
     // fixture 每天最多 3 个景点，到不了阈值 4，所以这里直接构造。
-    else if (isDayCall && userMsg.includes("区域散")) mode = "scattered";
+    else if (isDayCall && sw.includes("区域散")) mode = "scattered";
     // 活动晚点：把活动排在开始时间之后（测「错过开场」告警）
-    else if (userMsg.includes("活动编排")) mode = "event-ok";
+    else if (sw.includes("活动编排")) mode = "event-ok";
     // 活动别名：用户写简称，模型落成场馆全称（真机踩过的假预警场景）
-    else if (userMsg.includes("活动别名")) mode = "event-alias";
+    else if (sw.includes("活动别名")) mode = "event-alias";
     // 必游地别名：同一类坑的另一处（用户写简称、模型落成规范全称）
-    else if (userMsg.includes("必游地别名")) mode = "mv-alias";
-    else if (userMsg.includes("活动晚点")) mode = "event-late";
+    else if (sw.includes("必游地别名")) mode = "mv-alias";
+    else if (sw.includes("活动晚点")) mode = "event-late";
     // 活动漏排：整个行程不含该活动（测漏排告警）
-    else if (userMsg.includes("活动漏排")) mode = "event-missing";
+    else if (sw.includes("活动漏排")) mode = "event-missing";
+    // 事实先行：偏好含「用清单」时，prompt 里**必须**带真实素材清单。
+    // 清单缺失就返回垃圾输出——让 e2e 能反证「清单确实进了 prompt」，
+    // 而不是断言桩自己的想象。
+    else if (sw.includes("照清单走") && !groundingNames(userMsg)) mode = "garbage";
     const refineKind = isRefineCall ? (systemMsg.includes("单点替换") ? " (swap)" : " (day)") : "";
     console.log(
       `[stub] ${mode}${refineKind}${isOutlineCall ? " (outline)" : ""}${isDayCall ? " (day)" : ""}${isStream ? " (stream)" : ""}`,

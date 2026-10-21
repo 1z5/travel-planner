@@ -111,6 +111,33 @@ const server = createServer((req, res) => {
       res.end(JSON.stringify({ status: "1", info: "OK", count: "0", pois: [] }));
       return;
     }
+    // 候选检索（事实先行）：带 page_size 的请求要返回**列表**——
+    // 这正是「生成前取材」与「生成后验真」在 API 形状上的区别（见 lib/amap.ts
+    // 的 searchPois 与 lookupPoi）。没带 page_size 的仍是单点验真，形状不变。
+    const pageSize = Number(url.searchParams.get("page_size") ?? "0");
+    if (pageSize > 1) {
+      const isFood = /餐厅|美食|小吃|餐饮/.test(keywords);
+      // 候选名跟着检索词走（不同品类 → 不同地点），同名同址的会被上层去重
+      const label = keywords.replace(/^\S+\s*/, "").trim() || "地点";
+      const count = Math.min(pageSize, 6);
+      const pois = Array.from({ length: count }, (_, i) => ({
+        name: `${label}${i + 1}`,
+        address: `${label}${i + 1} 地址`,
+        location: mockLocation(`${label}${i + 1}`, i),
+        adname: "测试区",
+        city: city || "成都市",
+        pname: "四川省",
+        // 高德 type 字段是「大类|小类」中文名，上层靠它归类景点/餐饮
+        type: isFood ? "餐饮服务|中餐厅" : "风景名胜|公园广场",
+        biz_ext: isFood
+          ? { open_time: [], opentime2: "周一至周日 10:30-22:00", cost: "65.00", rating: "4.5" }
+          : // 景点带「周一闭馆」：让 e2e 能断言「闭馆日已在生成前被标注出来」
+            { open_time: [], opentime2: "周二至周日 09:00-17:00；周一 全天不开放", rating: "4.7" },
+      }));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "1", info: "OK", count: String(pois.length), pois }));
+      return;
+    }
     // offset>1 时（补全接口）返回多条建议，让 suggest 的下游逻辑可测
     const offset = Number(url.searchParams.get("offset") ?? "1");
     const pois =

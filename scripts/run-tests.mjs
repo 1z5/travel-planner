@@ -1348,6 +1348,56 @@ async function phaseB(api) {
     JSON.stringify(plan.warnings),
   );
 
+  // ---- 事实先行（grounding）：生成前先取真实事实，而不是写完再验 ----
+  //
+  // 断言分三层：
+  // 1. 真实模式下确实拿到了事实清单（候选规模如实上报到 Plan.grounding）；
+  // 2. 清单真的进了 prompt（桩 LLM 在偏好含「用清单」时若看不到清单就返回
+  //    垃圾输出 → 任务失败。所以「任务 done」本身就是清单存在的反证）；
+  // 3. 照着清单排出来的行程，景点/餐饮全部来自清单，且闭馆日已被标注。
+  check(
+    "事实先行：行程带 grounding 摘要（候选规模如实上报）",
+    typeof plan.grounding?.candidates === "number" && plan.grounding.candidates > 0,
+    JSON.stringify(plan.grounding),
+  );
+
+  const jg = await api.waitJob(
+    (
+      await api.post({
+        city: "成都",
+        days: 3,
+        budget: 1000,
+        preferences: ["照清单走"],
+        startAt: "2026-10-19T09:00", // 周一 → 高德桩里的景点「周一闭馆」应被标注
+        endAt: "2026-10-21T20:00",
+      })
+    ).body.jobId,
+  );
+  check(
+    "事实先行：照清单选点的任务成功（清单确实进了 prompt）",
+    jg.status === "done",
+    JSON.stringify(jg).slice(0, 160),
+  );
+  const gp = jg.plan ?? {};
+  const gSpots = (gp.days ?? []).flatMap((d) => d.spots ?? []);
+  const gSightFood = gSpots.filter((s) => s.type === "sight" || s.type === "food");
+  check(
+    "事实先行：行程的景点/餐饮全部来自已核验清单",
+    gSightFood.length > 0 &&
+      gSightFood.every((s) => /^(景点|博物馆|古镇|公园|餐厅)\d+$/.test(String(s.name))),
+    JSON.stringify(gSpots.map((s) => `${s.type}:${s.name}`)),
+  );
+  check(
+    "事实先行：行程期内闭馆的地点已被标注（周一闭馆不排那天）",
+    (gp.grounding?.closedSkipped ?? 0) > 0,
+    JSON.stringify(gp.grounding),
+  );
+  check(
+    "事实先行：闭馆提示没有变成噪声告警（清单已排除，不需要体检再报一次）",
+    !(gp.warnings ?? []).some((w) => w.includes("闭馆")),
+    JSON.stringify(gp.warnings),
+  );
+
   // ---- 实时定位（逆地理编码）----
   // 真实模式下才跑：MOCK 模式没有高德 key，reverseGeocode 直接返回 null。
   // 覆盖两个实测坑：普通城市的「市」后缀剥离、直辖市的 city 空数组回退。

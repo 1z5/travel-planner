@@ -336,6 +336,13 @@ Base URL：`/api`（与前端同源）
   verification?: "mock" | "ok" | "partial" | "pending";
                                      // 验真完成度。pending 仅出现在分日流式的 running 响应里
                                      // （生成中，尚未收尾）——此时不能误显示成「MOCK 模式」
+  grounding?: {                       // 事实先行摘要（生成前用高德真实数据喂给模型的素材清单规模）
+    candidates: number;               // 清单里的候选地点数
+    closedSkipped: number;            // 其中标了闭馆日、已提示模型避开的数量
+    closedOut: number;                // 全程闭馆、直接从清单剔除的数量
+  };
+                                     // 缺失 = 本次生成**没有**使用事实层（未接高德 / 检索失败 / MOCK 模式）
+                                     // ——前端要能区分「没用」与「用了但很少」，不能一律显示徽章
 }
 ```
 

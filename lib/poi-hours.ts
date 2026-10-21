@@ -723,6 +723,79 @@ export function checkOpenHours(
   }
 }
 
+/** 当天可用性：这一天到底有没有营业（与「几点到几点」无关）。
+ *  open=当天有营业时段；closed=当天闭馆；unknown=数据不足/规则矛盾，不猜。 */
+export type DayAvailability =
+  { state: "open"; windows: string } | { state: "closed"; reason: string } | { state: "unknown" };
+
+/**
+ * 判断某个 POI 在指定日期**当天**是否营业（不看具体到达时刻）。
+ *
+ * 为什么需要它：checkOpenHours 回答的是「我 10:30 到，它开不开门」，
+ * 而「事实先行」要回答的是另一个问题——**这一天它要不要被排除在行程之外**
+ * （周一闭馆的博物馆，整天的周一都不能排）。用 checkOpenHours 问不出这个：
+ * 09:00-17:00 的博物馆在 00:00 到达会得到「outside」（还没开门），
+ * 而不是「closed」（今天不开）。两者的产品含义完全不同，不能混用。
+ *
+ * 判定口径与 checkOpenHours 的前 4 步完全一致（同一份解析结果、同样的
+ * 具体度优先级、同样的「矛盾即 unknown」），只把「到达/离开时刻是否落在
+ * 窗口内」换成「当天是否存在任何窗口」。
+ *
+ * 三态诚实红线：只有确信「当天闭馆」才返回 closed；节假日例外只提示
+ * 「以官方公告为准」，不假装知道放假安排。
+ */
+export function checkDayAvailability(
+  poi: HoursPoiInput | null | undefined,
+  isoDate: string,
+): DayAvailability {
+  try {
+    if (!poi) return { state: "unknown" };
+    const ctx = parseIsoDate(isoDate);
+    if (!ctx) return { state: "unknown" };
+
+    const name = typeof poi.name === "string" ? poi.name : "";
+    const nameMarker = name.match(/暂停开放|暂停营业|已关闭/);
+    if (nameMarker) return { state: "closed", reason: `名称显示「${nameMarker[0]}」` };
+    if (poi.temporarilyClosed === true) {
+      return { state: "closed", reason: "高德数据标记为暂停开放" };
+    }
+
+    const rich = asText(poi.openTime2);
+    const text = rich ?? asText(poi.openTime);
+    if (!text) return { state: "unknown" };
+    const parsed = parseSchedule(text);
+    if (!parsed) return { state: "unknown" };
+
+    const active = parsed.rules.filter((r) => r.kind !== "note" && isActive(r, ctx));
+    const closedRules = active.filter((r) => r.kind === "closed");
+    const windowRules = active.filter((r) => r.kind === "windows");
+
+    // 1) 带日期/月份限定的闭馆：命中今天 → closed
+    const dateClosed = closedRules.find((r) => r.dateRanges.length || r.monthRanges.length);
+    if (dateClosed) {
+      return { state: "closed", reason: withCaveat(closedReason(dateClosed), parsed.caveat) };
+    }
+
+    // 2) 选出今天实际生效的窗口（矛盾 → unknown，不猜）
+    const { selected, ambiguous } = selectWindows(windowRules);
+    if (ambiguous) return { state: "unknown" };
+
+    // 3) 普通「周几闭馆」优先于营业窗口；但若今天有带日期/月份限定的
+    //    营业窗口（特殊日期开放），说明当天另有安排 → 不判闭馆。
+    const specialDateOpen = windowRules.some((r) => r.dateRanges.length || r.monthRanges.length);
+    if (closedRules.length && !specialDateOpen) {
+      return { state: "closed", reason: withCaveat(closedReason(closedRules[0]), parsed.caveat) };
+    }
+
+    // 4) 今天有窗口 → 当天开门（具体时刻是否来得及由 checkOpenHours 管）
+    if (!selected.length) return { state: "unknown" };
+    return { state: "open", windows: windowsText(selected.map((s) => s.win)) };
+  } catch {
+    // 红色底线：这个函数只回答「开/关/不知道」，永远不能把调用方一起弄崩
+    return { state: "unknown" };
+  }
+}
+
 /**
  * 提取简短人话的营业时间（UI 展示用），如「09:00-17:00，周一闭馆」。
  * 解析不出 / 内容无法用一句话概括（季节性分段、日期段规则、多组矛盾）→ undefined。
