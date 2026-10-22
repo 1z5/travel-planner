@@ -110,7 +110,11 @@ describe("Home 表单", () => {
     await waitFor(
       () =>
         expect(
-          screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`),
+          // 首屏的产品预览窗也含「苏州 · 3 天行程」；这里只认结果区文档头，
+          // 避免全局 getByText 撞到 hero 的预览面板。
+          screen.getByRole("heading", {
+            name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
+          }),
         ).toBeInTheDocument(),
       { timeout: 5000 },
     );
@@ -186,7 +190,11 @@ describe("Home 最近行程", () => {
     await waitFor(
       () =>
         expect(
-          screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`),
+          // 首屏的产品预览窗也含「苏州 · 3 天行程」；这里只认结果区文档头，
+          // 避免全局 getByText 撞到 hero 的预览面板。
+          screen.getByRole("heading", {
+            name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
+          }),
         ).toBeInTheDocument(),
       { timeout: 5000 },
     );
@@ -274,7 +282,11 @@ describe("Home 最近行程", () => {
     await waitFor(
       () =>
         expect(
-          screen.getByText(`${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`),
+          // 首屏的产品预览窗也含「苏州 · 3 天行程」；这里只认结果区文档头，
+          // 避免全局 getByText 撞到 hero 的预览面板。
+          screen.getByRole("heading", {
+            name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
+          }),
         ).toBeInTheDocument(),
       { timeout: 5000 },
     );

@@ -75,11 +75,23 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
   return (
     <main className="container">
-      <p style={{ margin: "8px 0 16px" }}>
-        <Link href="/" style={{ color: "var(--accent)", fontSize: 14, textDecoration: "none" }}>
-          ← 行程规划师
+      <div className="page-meta">
+        <Link href="/" className="page-back">
+          ← 首页
         </Link>
-      </p>
+        <span className="pm-sep" aria-hidden="true" />
+        <span>旅程报告</span>
+        <span className="pm-sep" aria-hidden="true" />
+        <span>
+          {plan.city} · {plan.days.length} 天
+        </span>
+        <span className="pm-sep" aria-hidden="true" />
+        <span className={plan.verification === "ok" ? "pm-ok" : "pm-muted"}>
+          {plan.verification === "ok" ? "POI 已核验" : "数据未核验"}
+        </span>
+        <span className="pm-sep" aria-hidden="true" />
+        <span className="pm-source">数据来源 高德开放平台</span>
+      </div>
       {/* 状态（upcoming/ongoing/past）由 TripReport 在客户端按本地时区判定，
           SSR 只渲染与日期无关的内容——与行中模式 /t 同一模式。 */}
       <TripReport plan={plan} shareId={id} />

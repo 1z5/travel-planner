@@ -73,11 +73,29 @@ export default async function SharePage({
 
   return (
     <main className="container">
-      <p style={{ margin: "8px 0 16px" }}>
-        <Link href="/" style={{ color: "var(--accent)", fontSize: 14, textDecoration: "none" }}>
-          ← 行程规划师
+      {/* 页面元信息：面包屑 + 核验状态 + 数据来源。
+          企业级分享页要让打开的人立刻知道「这是什么、可信度如何」。 */}
+      <div className="page-meta">
+        <Link href="/" className="page-back">
+          ← 首页
         </Link>
-      </p>
+        <span className="pm-sep" aria-hidden="true" />
+        <span>分享行程</span>
+        <span className="pm-sep" aria-hidden="true" />
+        <span>
+          {plan.city} · {plan.days.length} 天
+        </span>
+        <span className="pm-sep" aria-hidden="true" />
+        <span className={plan.verification === "ok" ? "pm-ok" : "pm-muted"}>
+          {plan.verification === "ok"
+            ? "POI 已核验"
+            : plan.verification === "mock"
+              ? "MOCK 模式 · 未核验"
+              : "核验状态未知"}
+        </span>
+        <span className="pm-sep" aria-hidden="true" />
+        <span className="pm-source">数据来源 高德开放平台</span>
+      </div>
       {/* 传播型 CTA：看到别人行程的人，一键生成自己的 */}
       <div className="share-cta">
         <div className="share-cta-text">
@@ -95,7 +113,7 @@ export default async function SharePage({
 
       <TripAlert plan={plan} />
 
-      <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck />
+      <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck hideCover />
     </main>
   );
 }

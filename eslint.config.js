@@ -30,6 +30,7 @@ export default [
       "node_modules/**",
       ".next/**",
       ".next-t-*/**",
+      ".next-visual/**",
       ".next-verify/**",
       "out/**",
       "coverage/**",

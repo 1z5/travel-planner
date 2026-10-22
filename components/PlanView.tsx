@@ -41,7 +41,6 @@ import {
   type TripToday,
 } from "@/lib/trip-day";
 import { warnTag } from "@/lib/warn-tag";
-import { cityImage } from "@/lib/city-images";
 import { ownsRecentTrip } from "@/lib/recent-trips";
 import { RouteMap } from "./RouteMap";
 import { PlanCopilot } from "./PlanCopilot";
@@ -196,6 +195,7 @@ export function PlanView({
   shareId,
   editable = false,
   ownerCheck = false,
+  hideCover = false,
   onPlanChange,
 }: {
   plan: Plan;
@@ -204,6 +204,8 @@ export function PlanView({
   shareId?: string;
   editable?: boolean;
   ownerCheck?: boolean;
+  /** 分享页专用：顶部已有海报封面，PlanView 不再重复渲染文档头 */
+  hideCover?: boolean;
   onPlanChange?: (plan: Plan) => void;
 }) {
   // 本地视图态：修改行程后立刻渲染新版本，不必回源刷新页面。
@@ -583,25 +585,26 @@ export function PlanView({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}
       >
-        <div className="result-cover">
-          <img src={cityImage(viewPlan.city)} alt="" />
-          <div className="result-cover-veil" />
-          <div className="result-cover-text">
-            <h2>
-              {viewPlan.city} · {viewPlan.days.length} 天行程
-            </h2>
-            {viewPlan.startDate && (
-              <div className="result-cover-dates">
-                <CalendarDays size={14} />
-                {fmtDate(viewPlan.startDate)}
-                {viewPlan.endDate ? ` – ${fmtDate(viewPlan.endDate)}` : ""}
-                {viewPlan.startAt && viewPlan.endAt
-                  ? ` · ${viewPlan.startAt.slice(11)} – ${viewPlan.endAt.slice(11)}`
-                  : ""}
-              </div>
-            )}
+        {!hideCover && (
+          <div className="result-cover">
+            <div className="result-cover-text">
+              <span className="result-cover-eyebrow">行程 · ITINERARY</span>
+              <h2>
+                {viewPlan.city} · {viewPlan.days.length} 天行程
+              </h2>
+              {viewPlan.startDate && (
+                <div className="result-cover-dates">
+                  <CalendarDays size={14} />
+                  {fmtDate(viewPlan.startDate)}
+                  {viewPlan.endDate ? ` – ${fmtDate(viewPlan.endDate)}` : ""}
+                  {viewPlan.startAt && viewPlan.endAt
+                    ? ` · ${viewPlan.startAt.slice(11)} – ${viewPlan.endAt.slice(11)}`
+                    : ""}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="card-body">
           <div className="plan-head">

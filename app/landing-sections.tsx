@@ -27,7 +27,7 @@ import {
 export function LandingSections() {
   return (
     <>
-      <section className="how">
+      <section className="how" id="how">
         <div className="legend">怎么做到的</div>
         <div className="how-grid">
           <div className="how-item">
@@ -71,7 +71,63 @@ export function LandingSections() {
         </div>
       </section>
 
-      <section className="how">
+      {/* 数据可信：企业级产品的信任区。只写真实存在的事实——
+          数据来源、核验方式、测试规模、隐私边界，不写客户 logo / 奖项。 */}
+      <section className="trust" id="trust">
+        <div className="legend">数据可信</div>
+        <div className="trust-grid">
+          <div className="trust-card">
+            <h3>数据来源</h3>
+            <p>
+              POI 名称、营业时间、闭馆日、评分、人均与路况全部来自
+              <strong>高德开放平台</strong>。拿不到数据时如实降级，不编造候选。
+            </p>
+            <span className="trust-meta">高德 Web 服务 API · 实时检索</span>
+          </div>
+          <div className="trust-card">
+            <h3>核验在生成之前</h3>
+            <p>
+              先取真实素材清单（名称 / 营业时间 / 闭馆日），再让模型在清单上排行程——
+              闭馆日在源头就被排除，体检只是兜底。
+            </p>
+            <span className="trust-meta">事实先行 · 5 个已核验候选起排</span>
+          </div>
+          <div className="trust-card">
+            <h3>体检而非隐瞒</h3>
+            <p>
+              绕路、节奏、预算、营业时间、时间轴接不上——所有风险摊开告诉你；
+              能修的一键修，修不了的老实说修不了，不制造假动作。
+            </p>
+            <span className="trust-meta">7 类真实世界体检</span>
+          </div>
+          <div className="trust-card">
+            <h3>工程化验收</h3>
+            <p>
+              1,200+ 自动化测试覆盖输入边界、上游故障、分日流式与分享链路； CI
+              逐次跑类型检查、构建与全量测试。
+            </p>
+            <span className="trust-meta">781 单测 + 506 端到端断言</span>
+          </div>
+          <div className="trust-card">
+            <h3>隐私边界</h3>
+            <p>
+              「最近行程」「旅行档案」只存在你自己的浏览器里，未登录也能用；
+              分享链接可随时不再传播，服务端不保存你的账号画像。
+            </p>
+            <span className="trust-meta">本地优先 · 未登录可用</span>
+          </div>
+          <div className="trust-card">
+            <h3>诚实降级</h3>
+            <p>
+              高德波动、境外无覆盖、MOCK 模式——拿不到真实数据时明确标注「未核验」，
+              不用默认值把空洞填成看起来完整的样子。
+            </p>
+            <span className="trust-meta">三态：hit / miss / error</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="how" id="cap">
         <div className="legend">能力</div>
         <div className="cap-grid">
           <div className="cap-item">
@@ -156,7 +212,7 @@ export function LandingSections() {
         </div>
       </section>
 
-      <section className="faq">
+      <section className="faq" id="faq">
         <div className="legend">常见问题</div>
         {[
           [
@@ -206,11 +262,6 @@ export function LandingSections() {
           </details>
         ))}
       </section>
-
-      <footer className="foot">
-        <span>行程规划师 · AI 行程规划平台</span>
-        <span>国内城市 1-7 天 · POI / 营业时间 / 路况 / 地图数据来自高德开放平台</span>
-      </footer>
     </>
   );
 }

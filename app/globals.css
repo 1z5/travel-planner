@@ -1,58 +1,66 @@
 /* ============================================================
-   设计系统 v5 —— 纸上行程 · 旅行杂志（浅色编辑风）
-   暖纸底 · 白卡面 · 陶土橙强调 · 大字号衬线 · 充足留白
+   设计系统 v5.1 —— 纸上行程 · 企业级精度
+   中性纸底 · 纯白卡面 · 单一强调色 · 衬线仅用于「刊物性」标题
 
-   为什么从深色改成浅色：这是旅行产品，传播物（分享海报/旅程报告）
-   要能被截图、打印、收藏——浅色纸面天然适合；深色面板下真实地图
-   只能靠 CSS 反相压暗，既失真又难看。浅色 + 衬线 + 地图天然色，
-   才像一本「行程杂志」而不是后台详情页。
+   为什么从 v5 再收一版：v5 的暖纸 + 大圆角 + 大衬线偏「生活方式博客」，
+   用户反馈仍有「玩具感」。企业级的信号是**精度**而不是装饰：
+   - 圆角收敛（18 → 12/8/6），卡片像「面板」而不是「气泡」；
+   - 中性纸底（去掉偏黄的暖调），色温不抢内容；
+   - 阴影几乎不可见（1px hairline + 极浅投影），层级靠细线和留白；
+   - 字号阶梯更密（正文 15px，信息密度上来）；
+   - 等宽数字（tabular-nums）+ 元信息用 mono，像工程产品的数据面。
    ============================================================ */
 
 :root {
-  /* 纸面基底：暖白，比纯白有温度；正文墨色不用纯黑（#000 太硬） */
-  --bg: #f6f0e4;
-  --bg-2: #efe6d4;
-  --surface: #fffdf7;
-  --surface-solid: #fffdf7;
-  --surface-2: #f3ecdd;
-  --ink: #221d16;
-  --ink-2: #4b4337;
-  --ink-3: #7c7160;
-  --ink-4: #a99e8b;
-  --line: rgba(34, 29, 22, 0.12);
-  --line-strong: rgba(34, 29, 22, 0.22);
+  /* 中性纸底 + 纯白卡面：色温中性，内容（地图/照片）才是颜色来源 */
+  --bg: #f6f5f2;
+  --bg-2: #eeede8;
+  --surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-2: #f4f3ef;
+  --ink: #1a1815;
+  --ink-2: #45413b;
+  /* 辅助文字对比度按 WCAG AA 校准：#625d55 纸面 5.99:1，#736d64 纸面 4.70:1 */
+  --ink-3: #625d55;
+  --ink-4: #736d64;
+  --line: rgba(26, 24, 21, 0.1);
+  --line-strong: rgba(26, 24, 21, 0.2);
 
-  /* 唯一强调色：陶土橙。浅底上 #fb923c 对比度不够，压深到 #c2410c */
+  /* 唯一强调色：陶土橙。浅底上亮橙对比度不够，压深到 #c2410c */
   --accent: #c2410c;
   --accent-hover: #9a3412;
-  --accent-soft: rgba(194, 65, 12, 0.08);
-  --accent-ring: rgba(194, 65, 12, 0.25);
+  --accent-soft: rgba(194, 65, 12, 0.07);
+  --accent-ring: rgba(194, 65, 12, 0.22);
+  /* 企业级数据面用的深色强调：主按钮/链接在浅底上更稳 */
+  --ink-strong: #100f0d;
 
   /* 语义色（浅底可读版） */
-  --warn-bg: #fdf3d7;
-  --warn-line: #e3c66c;
-  --warn-ink: #7a5410;
-  --ok-bg: #e9f3e4;
-  --ok-line: #a3c79c;
-  --ok-ink: #2f5d2b;
-  --err-bg: #fbe9e7;
-  --err-line: #e2a19a;
-  --err-ink: #8c2f26;
+  --warn-bg: #fdf6e3;
+  --warn-line: #e2c56f;
+  --warn-ink: #75520f;
+  --ok-bg: #e9f2e6;
+  --ok-line: #a3c29a;
+  --ok-ink: #2c5628;
+  --err-bg: #faebe8;
+  --err-line: #dfa39a;
+  --err-ink: #872d24;
 
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
+  /* 等宽：只用于 ID / 版本号 / 时间戳 / 数据元信息（工程产品语感） */
+  --font-mono: "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
 
-  /* 字号阶梯：标题用衬线，正文 16px 起——杂志的「可读感」优先 */
-  --fs-display: clamp(42px, 6vw, 76px);
-  --fs-h1: clamp(32px, 4.4vw, 52px);
-  --fs-h2: clamp(24px, 3vw, 34px);
-  --fs-h3: 20px;
-  --fs-title: 18px;
-  --fs-body: 16px;
-  --fs-small: 14.5px;
-  --fs-caption: 13px;
+  /* 字号阶梯：UI 面更密（15px 正文），标题保留衬线但收敛 */
+  --fs-display: clamp(40px, 5.4vw, 64px);
+  --fs-h1: clamp(30px, 4vw, 46px);
+  --fs-h2: clamp(22px, 2.6vw, 30px);
+  --fs-h3: 18px;
+  --fs-title: 16px;
+  --fs-body: 15px;
+  --fs-small: 13.5px;
+  --fs-caption: 12.5px;
 
   --sp-1: 4px;
   --sp-2: 8px;
@@ -63,14 +71,15 @@
   --sp-7: 48px;
   --sp-8: 64px;
   --sp-9: 96px;
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
+  /* 圆角收敛：面板感而非气泡感 */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
 
-  /* 纸上的阴影：很浅、偏暖，靠「纸层叠」而不是发光 */
-  --shadow-sm: 0 1px 2px rgba(34, 29, 22, 0.05);
-  --shadow-md: 0 2px 6px rgba(34, 29, 22, 0.05), 0 14px 36px rgba(34, 29, 22, 0.07);
-  --shadow-lg: 0 4px 12px rgba(34, 29, 22, 0.06), 0 28px 72px rgba(34, 29, 22, 0.1);
+  /* 层级靠细线，不靠发光：企业级产品的阴影几乎不可见 */
+  --shadow-sm: 0 1px 1px rgba(26, 24, 21, 0.04);
+  --shadow-md: 0 1px 2px rgba(26, 24, 21, 0.04), 0 8px 24px rgba(26, 24, 21, 0.06);
+  --shadow-lg: 0 2px 6px rgba(26, 24, 21, 0.05), 0 24px 56px rgba(26, 24, 21, 0.08);
   --glass-blur: blur(10px);
 }
 
@@ -166,11 +175,12 @@ a {
 .masthead-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--accent);
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
   background: transparent;
   border: none;
   backdrop-filter: none;
@@ -178,24 +188,35 @@ a {
   border-radius: 0;
   margin-bottom: var(--sp-4);
 }
+/* 眉题前的小方点：企业级的状态标记语法（方点而非圆点/闪光图标） */
+.eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  display: inline-block;
+}
 .masthead h1 {
+  /* 企业级主张句：比情绪化口号克制，字号收到 48px 上限——
+     标题是「定位」不是「海报」，留白与结构负责气势。 */
   font-family: var(--font-serif);
-  /* 六字标题 + 全角逗号在 968px 版心双栏里要能一行放下：
-     64px 是「去哪儿，都放心」不折行的上限，再大就是孤字换行。 */
-  font-size: clamp(40px, 5.2vw, 64px);
+  font-size: clamp(32px, 4.2vw, 48px);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.06;
+  letter-spacing: -0.015em;
+  line-height: 1.18;
   margin: 0 0 var(--sp-4);
   color: var(--ink);
   text-shadow: none;
+  max-width: 12em;
+  /* 中文标题按「词」断行：word-break: keep-all 只在标点处断，
+     避免「都经得 / 起核验」这种把词劈开的排版事故。 */
+  word-break: keep-all;
 }
 .masthead-sub {
-  font-size: 18px;
-  color: var(--ink-2);
-  max-width: 34em;
+  font-size: 15.5px;
+  color: var(--ink-3);
+  max-width: 36em;
   margin: 0 0 var(--sp-5);
-  line-height: 1.8;
+  line-height: 1.85;
 }
 .masthead-points {
   display: flex;
@@ -213,94 +234,142 @@ a {
   color: var(--accent);
 }
 
-/* ---------- 首屏样张卡：把「产品长什么样」放进第一屏 ---------- */
+/* ---------- 首屏产品预览窗：把真实界面搬进第一屏 ---------- */
 
-.masthead-specimen {
+/* 企业级的首屏证据不是插画，而是「产品本身」。这块用真实示例行程的
+   数据渲染成一个产品面板（标题栏 / 元信息 / 三日列表 / 核验说明），
+   点开即进入完整示例——访客 3 秒内知道自己在用什么。 */
+.product-preview {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
-  padding: var(--sp-5) var(--sp-5) var(--sp-4);
-  transform: rotate(-0.6deg);
-  transition: transform 0.25s ease;
+  overflow: hidden;
+  transition: border-color 0.15s;
 }
-.masthead-specimen:hover {
-  transform: rotate(0deg) translateY(-2px);
+.product-preview:hover {
+  border-color: var(--line-strong);
 }
-/* 样张卡顶部的小字栏：栏目名 + 天数，杂志封面语法 */
-.specimen-top {
+/* 面板标题栏：像应用窗口的 header，而不是海报 */
+.pp-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--sp-2);
-  padding-bottom: var(--sp-3);
+  gap: var(--sp-3);
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
 }
-.specimen-kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--accent);
-}
-.specimen-days-count {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--ink-4);
-}
-.specimen-city {
-  font-family: var(--font-serif);
-  font-size: clamp(44px, 5vw, 64px);
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  margin-top: var(--sp-4);
-}
-.specimen-stats {
-  margin: var(--sp-2) 0 var(--sp-4);
+.pp-title {
   font-size: var(--fs-small);
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--ink);
 }
-.specimen-days {
+.pp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--ok-ink);
+}
+.pp-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ok-ink);
+}
+.pp-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+  letter-spacing: 0.01em;
+}
+.pp-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--line-strong);
+}
+.pp-days {
   list-style: none;
   margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--line);
+  padding: 4px 0;
 }
-.specimen-days li {
-  display: flex;
+.pp-days li {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
   align-items: baseline;
   gap: var(--sp-3);
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 10px 16px;
 }
-.specimen-num {
-  font-family: var(--font-serif);
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  color: var(--accent);
+.pp-days li + li {
+  border-top: 1px solid var(--line);
+}
+.pp-dayno {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
   letter-spacing: 0.08em;
-}
-.specimen-theme {
-  font-family: var(--font-serif);
-  font-size: 15.5px;
-  color: var(--ink-2);
-}
-.specimen-cta {
-  margin-top: var(--sp-4);
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: var(--fs-small);
-  font-weight: 700;
   color: var(--accent);
-  cursor: pointer;
 }
-.specimen-cta:hover {
-  text-decoration: underline;
+.pp-theme {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.pp-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.pp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  flex-wrap: wrap;
+}
+.pp-note {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+/* ---------- 信任条：真实实测数字，不做营销话术 ---------- */
+
+.trust-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-4) 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-4);
+}
+.trust-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--line-strong);
+}
+@media (max-width: 640px) {
+  .trust-strip {
+    gap: var(--sp-2) var(--sp-3);
+    font-size: 11px;
+  }
+  .trust-sep:nth-of-type(even) {
+    display: none;
+  }
 }
 
 @media (max-width: 860px) {
@@ -309,9 +378,8 @@ a {
     gap: var(--sp-6);
     padding-top: 56px;
   }
-  .masthead-specimen {
-    transform: none;
-    max-width: 440px;
+  .product-preview {
+    max-width: 520px;
   }
 }
 
@@ -368,10 +436,12 @@ a {
 }
 /* 首页栏目编号：怎么做到的(01) / 能力(02) / 常见问题(03) */
 .how,
+.trust,
 .faq {
   counter-increment: section;
 }
 .how > .legend::before,
+.trust > .legend::before,
 .faq > .legend::before {
   content: counter(section, decimal-leading-zero);
   font-family: var(--font-serif);
@@ -4590,9 +4660,8 @@ a.spot-action:hover {
   .poster-badges {
     row-gap: var(--sp-3);
   }
-  /* 样张卡在手机上不再旋转（斜卡片在窄屏上像错位） */
-  .masthead-specimen {
-    transform: none;
+  .product-preview {
+    max-width: none;
   }
 }
 
@@ -4602,4 +4671,494 @@ a.spot-action:hover {
 .cost-chart svg,
 .route-map-wrap svg {
   max-width: 560px;
+}
+
+/* ============================================================
+   企业级应用外壳：全站顶栏 + 页脚
+   ============================================================ */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: rgba(246, 245, 242, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.site-header-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+/* 品牌标记：一枚方形「印章」，与分享海报的刊物语感同族 */
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.brand-name {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--ink-4);
+  line-height: 1;
+}
+.site-nav {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.site-nav a {
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: 13.5px;
+  padding: 6px 11px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.site-nav a:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+/* 小号按钮：顶栏/卡片内动作（表单主按钮仍是 52px 大按钮） */
+.btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: var(--fs-small);
+  border-radius: var(--r-sm);
+}
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-2);
+}
+.btn-ghost:hover {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--ink);
+}
+/* 顶栏的主 CTA：宽度自适应（表单里的 .btn-primary 是 100% 通栏） */
+.btn-primary.btn-sm {
+  width: auto;
+  height: 32px;
+  padding: 0 14px;
+  font-size: var(--fs-small);
+  font-weight: 650;
+  border-radius: var(--r-sm);
+  box-shadow: none;
+}
+
+.site-footer {
+  margin-top: var(--sp-9);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.site-footer-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--sp-7) 24px var(--sp-6);
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 0.6fr));
+  gap: var(--sp-6);
+}
+.footer-desc {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  line-height: 1.75;
+  max-width: 34em;
+}
+.footer-cols {
+  display: contents;
+}
+.footer-col h4 {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.footer-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.footer-col a {
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: var(--fs-small);
+}
+.footer-col a:hover {
+  color: var(--accent);
+}
+.site-footer-bottom {
+  border-top: 1px solid var(--line);
+}
+.site-footer-bottom {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--sp-4) 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: 0.02em;
+}
+
+/* 移动端：导航收起为横向滚动，页脚堆叠 */
+@media (max-width: 860px) {
+  .site-header-inner {
+    gap: 12px;
+    padding: 10px 16px;
+  }
+  .site-nav {
+    display: none; /* 手机端首屏以 CTA 优先，不塞四条导航链接 */
+  }
+  .site-header-actions .btn-ghost {
+    display: none;
+  }
+  .site-footer-inner {
+    grid-template-columns: 1fr;
+    padding: var(--sp-6) 16px var(--sp-5);
+    gap: var(--sp-5);
+  }
+  .site-footer-bottom {
+    padding: var(--sp-4) 16px;
+    flex-direction: column;
+  }
+}
+@media print {
+  .site-header,
+  .site-footer {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   企业级内容区：指标带 + 数据可信
+   ============================================================ */
+
+/* 指标带：企业级不是「大数字海报」，而是可核对的数据条——
+   小号衬线数字 + 等宽标签 + 细线分隔，信息密度优先。 */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  backdrop-filter: none;
+  box-shadow: none;
+  margin-bottom: var(--sp-7);
+  overflow: hidden;
+}
+.stat {
+  padding: var(--sp-4) var(--sp-5);
+  text-align: left;
+  border-right: 1px solid var(--line);
+}
+.stat:last-child {
+  border-right: none;
+}
+.stat-num {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--ink);
+  display: block;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-4);
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+  display: block;
+}
+
+/* 数据可信：六格信任矩阵。用 1px 网格线连成一张表，而不是六张浮卡——
+   表格感本身就是「工程化」的视觉信号。 */
+.trust {
+  margin: var(--sp-8) 0;
+  counter-reset: none;
+}
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.trust-card {
+  background: var(--surface);
+  padding: var(--sp-5);
+}
+.trust-card h3 {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0 0 var(--sp-2);
+  color: var(--ink);
+}
+.trust-card p {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  line-height: 1.72;
+  margin: 0;
+}
+.trust-card strong {
+  color: var(--ink-2);
+  font-weight: 650;
+}
+.trust-meta {
+  display: block;
+  margin-top: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-4);
+}
+@media (max-width: 860px) {
+  .trust-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .stat {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .stat:last-child {
+    border-bottom: none;
+  }
+}
+
+/* ============================================================
+   表单动作栏：代价与产出先行，主按钮居中
+   ============================================================ */
+
+.form-actions {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--line);
+}
+.form-actions-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: 0.02em;
+}
+.fa-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--line-strong);
+}
+.form-actions .btn-primary {
+  margin-top: 0;
+}
+.form-actions-note {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+  line-height: 1.7;
+}
+.form-actions-note .btn-link {
+  font-size: var(--fs-caption);
+  margin: 0 2px;
+}
+
+/* ============================================================
+   页面元信息条（分享页 / 报告页顶部）
+   ============================================================ */
+
+.page-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: var(--sp-5) 0 var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-4);
+}
+.page-back {
+  color: var(--ink-2);
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+}
+.page-back:hover {
+  color: var(--accent);
+}
+.pm-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--line-strong);
+}
+.pm-ok {
+  color: var(--ok-ink);
+  font-weight: 600;
+}
+.pm-muted {
+  color: var(--ink-4);
+}
+.pm-source {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .pm-source {
+    margin-left: 0;
+  }
+}
+
+/* 结果页文档头：眉题 + 标题 + 日期，像一份文档的页眉 */
+.result-cover-eyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+/* ============================================================
+   结果态：规划表单折叠为一行摘要
+   ============================================================ */
+
+.form-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.form-fold-info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.form-fold-title {
+  font-size: var(--fs-small);
+  font-weight: 650;
+  color: var(--ink);
+}
+.form-fold-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.panel.panel-hidden {
+  display: none;
+}
+
+/* 结果态：页面从「落地页」切换为「工作区」——隐藏 hero 与信任条，
+   让结果成为第一屏内容（否则用户生成完还要滚过营销区）。 */
+main.has-result .masthead,
+main.has-result .trust-strip {
+  display: none;
+}
+main.has-result .container {
+  padding-top: var(--sp-5);
+}
+
+/* ============================================================
+   可访问性基线（企业级产品必须）
+   ============================================================ */
+
+/* 键盘焦点必须可见：统一 2px 强调色 ring，而不是浏览器默认（或没有） */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* 链接/按钮获得焦点时同样可见（部分浏览器 focus-visible 默认不覆盖 a） */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 尊重系统「减少动效」：入场动画与过渡全部近乎瞬时。
+   注意：只压缩时长，不 display:none——否则依赖动画回调的元素可能停在初始态。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
