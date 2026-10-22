@@ -359,7 +359,7 @@ npm run dev             # http://localhost:3000
 - `ADJUST_HOURLY_LIMIT`：「一键顺延时间轴」的小时限流（默认 60；不调模型、不占生成配额）
 - `LLM_STREAM_DEADLINE_MS`：单次流式调用的总时长兜底（默认 10 分钟）——上游挂住不发 chunk 时中止任务并退配额
 - `JOB_STALE_MS`：任务心跳超时阈值（默认 12 分钟），超过判定中断并退配额
-- `DATA_STORE`：`memory`（默认，dev/单机）| `postgres`（生产；**本轮新增 `Plan` 表，升级后需 `npm run db:push`**）
+- `DATA_STORE`：`memory`（默认，dev/单机）| `postgres`（生产；建表走 `npm run db:migrate`（迁移基线 `prisma/migrations/`），勿用 `db push`）
 
 ## 常见问题排查
 

@@ -2091,6 +2091,44 @@ async function phaseP(api) {
   check("PG：任务 done（job 落库）", j1.status === "done", JSON.stringify(j1).slice(0, 100));
   check("PG：行程内容完整", (j1.plan?.days ?? []).length === 3);
 
+  // —— Plan 是一等聚合：完成即落库，done 响应带持久分享 token ——
+  // memory 实现下 shareId 也在，但只有连真库才验得到「另一个进程/请求能读回」：
+  // 分享页 /p/<token> 走 plan-repo → PlanStore，而不是 2 小时 TTL 的 Job 兜底。
+  const shareId = j1.shareId;
+  check(
+    "PG：done 带持久 shareId（Plan 聚合落库）",
+    typeof shareId === "string" && shareId.startsWith("share_"),
+    JSON.stringify(shareId),
+  );
+  const sharePage = await fetch(`${api.baseUrl}/p/${shareId}`);
+  const shareHtml = await sharePage.text();
+  check(
+    "PG：分享页从 Plan 表读回行程（非 Job 兜底）",
+    sharePage.status === 200 && shareHtml.includes("成都"),
+    `status=${sharePage.status}`,
+  );
+
+  // —— revision 原子自增：PG 实现靠数据库 increment，读-改-写会并发丢更新 ——
+  // 用 swap（桩 LLM 对 refine 有确定响应，与 phase B 同一路径）。
+  const rf = await fetch(`${api.baseUrl}/api/plan/refine`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId, action: "swap", day: 1, spotIndex: 0 }),
+  });
+  const rfBody = await rf.json().catch(() => ({}));
+  check(
+    "PG：改行程 200 且 revision=2（数据库原子自增）",
+    rf.status === 200 && rfBody.revision === 2,
+    `status=${rf.status} revision=${rfBody.revision}`,
+  );
+  // 改行程是原地替换：token 不变，不会因为修改产生第二份 Plan
+  const st = await (await fetch(`${api.baseUrl}/api/plan/status?id=${r1.body.jobId}`)).json();
+  check(
+    "PG：改行程后 token 不变（同一聚合，无重复落库）",
+    st.shareId === shareId,
+    JSON.stringify(st.shareId),
+  );
+
   // 配额持久化：limit=2，第 3 次必须 429（PG 侧 upsert 计数）
   const r2 = await api.post({ city: "成都", budget: 2000 });
   check("PG：第 2 次提交 202（limit=2）", r2.status === 202, `got ${r2.status}`);
@@ -2131,6 +2169,11 @@ async function main() {
   spawnCmd("node", ["scripts/sms-stub.mjs", String(SMS_STUB_PORT)]);
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.mock)], {
     NEXT_DIST_DIR: `.next-t-mock`,
+    // 显式 memory：CI 的 test-postgres job 在 job 级注入 DATA_STORE=postgres，
+    // 子进程经 {...process.env,...env} 全部继承——不显式回退的话这 5 台也会连
+    // 同一个库，和 PG 阶段共享 QuotaBucket（ip:local 桶被前面的阶段用掉后，
+    // 「陌生人前 3 次应 202」这类断言直接 429）。PG 契约只由 3108 那台验。
+    DATA_STORE: "memory",
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
@@ -2148,6 +2191,7 @@ async function main() {
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.real)], {
     NEXT_DIST_DIR: `.next-t-real`,
+    DATA_STORE: "memory", // 与 mock 同口径：PG job 下不回退会继承 postgres，见上方注释
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
@@ -2159,6 +2203,7 @@ async function main() {
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.auth)], {
     NEXT_DIST_DIR: `.next-t-auth`,
+    DATA_STORE: "memory", // 与 mock 同口径：PG job 下不回退会继承 postgres，见上方注释
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
@@ -2166,6 +2211,7 @@ async function main() {
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.wx)], {
     NEXT_DIST_DIR: `.next-t-wx`,
+    DATA_STORE: "memory", // 与 mock 同口径：PG job 下不回退会继承 postgres，见上方注释
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",
@@ -2191,6 +2237,7 @@ async function main() {
   }
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.sms)], {
     NEXT_DIST_DIR: `.next-t-sms`,
+    DATA_STORE: "memory", // 与 mock 同口径：PG job 下不回退会继承 postgres，见上方注释
     LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
     LLM_API_KEY: "stub-key",
     LLM_MODEL: "step-5-preview",

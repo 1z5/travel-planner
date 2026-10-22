@@ -59,3 +59,48 @@ jobs:
       # 跑的是 test:unit，阈值形同虚设。
       - name: 组件测试 + 覆盖率门禁（Vitest + RTL）
         run: npm run test:coverage
+
+  # Postgres 路径契约：内存实现（默认）掩盖了「真实生产存储」的差异——
+  # Plan 落库/分享页读回、revision 原子自增都只有连真库才验得到。
+  # 本 job 起一个 postgres service，跑迁移基线后全量 e2e（run-tests 里
+  # HAS_PG 为真时会追加 phaseP：Plan 持久化 + revision 递增；其余阶段的
+  # 服务器显式 DATA_STORE=memory，与 PG 阶段隔离，不共享配额桶）。
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: travel_planner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 生成 Prisma Client
+        run: npx prisma generate
+
+      - name: 应用迁移基线（无迁移历史的库在这里就会暴露）
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/travel_planner_test
+
+      - name: 端到端测试（含 Postgres 契约 phaseP）
+        run: npm test
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/travel_planner_test
+          DATA_STORE: postgres

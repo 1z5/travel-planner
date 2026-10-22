@@ -129,19 +129,23 @@ node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链�
 
 **本轮新增持久化行程（Plan）**：行程不再寄生在 2 小时 TTL 的 Job 里，而是独立落库（`Plan` 表：share token 主键 + `input` 原始条件 + `revision` 修订号 + 时间戳）。这带来两个部署含义：
 
-1. **建表**：升级既有部署后必须重新 `npm run db:push`（或 `prisma migrate deploy`），否则 `/p/<token>` 与「改行程」会因缺表失败；
+1. **建表**：升级既有部署后必须应用数据库迁移（`npm run db:migrate`，即 `prisma migrate deploy`），否则 `/p/<token>` 与「改行程」会因缺表失败。迁移历史在 `prisma/migrations/`，schema 变更必须通过 `prisma migrate dev` 生成新迁移——**不要再直接用 `db push`**（push 不留迁移历史，生产 schema 演进无法审计与回滚）；
 2. **分享链接不再过期**：旧链接（`/p/<jobId>`）仍兼容，但只有新链接是持久 token；生产 Postgres 模式不设过期时间（内存模式保留 30 天）。
 
 切换到 Postgres：
 
 ```bash
-# 1. 建表（新环境用 db push；有迁移历史的环境用 db:migrate）
-DATABASE_URL=postgres://... npm run db:push
+# 1. 建表（新环境：应用迁移基线；CI 与生产都走这条）
+DATABASE_URL=postgres://... npm run db:migrate
 # 2. 环境变量加两行
 DATA_STORE=postgres
 DATABASE_URL=postgres://...
 # 3. 验证：/api/health 应返回 "store":"postgres"
 ```
+
+> **历史库兜底**：如果是 v8.1 之前用 `db push` 直接建过表的库（没有 `_prisma_migrations`
+> 记录），先执行一次 `npx prisma migrate resolve --applied 20261022000000_init`
+> 告诉 Prisma「基线已在」，再跑 `npm run db:migrate` 就不会重复建表。
 
 契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径的 e2e 断言不受影响）。
 

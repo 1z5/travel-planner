@@ -1,0 +1,2 @@
+# Prisma Migrate 锁文件：固定迁移的数据库提供方，防止误在别的数据库上跑迁移
+provider = "postgresql"
