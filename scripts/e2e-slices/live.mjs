@@ -74,11 +74,7 @@ export async function runSlice({ check, api, mode }) {
   if (gen.status !== 202) return;
 
   const { final, observations } = await pollObserve(api.baseUrl, gen.body.jobId);
-  check(
-    "流式：任务最终 done",
-    final.status === "done",
-    JSON.stringify(final).slice(0, 120),
-  );
+  check("流式：任务最终 done", final.status === "done", JSON.stringify(final).slice(0, 120));
   check(
     "流式：最终 5 天齐全",
     (final.plan?.days ?? []).length === 5,
@@ -155,7 +151,9 @@ export async function runSlice({ check, api, mode }) {
     .map((o) => /^day:(\d+)\/(\d+)$/.exec(o.stage))
     .filter(Boolean)
     .map((m) => Number(m[1]));
-  const readySeq = [...new Set(running.map((o) => o.daysReady).filter((v) => typeof v === "number"))];
+  const readySeq = [
+    ...new Set(running.map((o) => o.daysReady).filter((v) => typeof v === "number")),
+  ];
   check(
     "流式：观测到逐日推进（day:N/M 递增或 daysReady 递增）",
     (dayObs.length > 0 && new Set(dayObs).size >= 2) || readySeq.length >= 2,
@@ -179,7 +177,10 @@ export async function runSlice({ check, api, mode }) {
     running.every((o) => {
       const p = o.plan?.days;
       if (!Array.isArray(p) || p.length === 0) return true;
-      return p.map((x) => x.day).join(",") === Array.from({ length: p.length }, (_, i) => i + 1).join(",");
+      return (
+        p.map((x) => x.day).join(",") ===
+        Array.from({ length: p.length }, (_, i) => i + 1).join(",")
+      );
     }),
   );
 

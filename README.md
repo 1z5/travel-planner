@@ -306,11 +306,14 @@ LLM 排的时间轴经常物理上不可能——真实桩数据里 `拙政园 1
 ## 测试
 
 ```bash
-npm test          # e2e：自包含（自动启动桩 LLM + 桩高德 + 5 台隔离测试服务器），跑完自动清理
-npm run test:unit # Vitest 单测
+npm run gate       # 一键验收：typecheck + lint + format:check + 单测 + e2e（提交前跑它）
+npm test           # e2e：自包含（自动启动桩 LLM + 桩高德 + 5 台隔离测试服务器），跑完自动清理
+npm run test:unit  # Vitest 单测
+npm run gate:visual # 视觉/可访问性回归（自起环境 + 种子数据；检查溢出/触控/对比度/异常）
+npm run check:env  # 环境变量体检（格式 / .env.example 漂移 / 生产安全）
 ```
 
-覆盖 **506 条 e2e 断言 + 781 条单测**：
+覆盖 **506 条 e2e 断言 + 793 条单测**：
 
 - **输入边界**（含防 prompt 注入的字符白名单、必游地/活动/节奏校验）
 - **故障注入**：垃圾输出 / 空 content / 上游 500 / 配额退还算术 / 天数不符 / 分日中途失败不交付半成品

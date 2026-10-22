@@ -9,6 +9,7 @@ next-env.d.ts
 eval-results/
 .next-t-*/
 .next-visual/
+.next-visual-check/
 coverage/
 .e2e-lock/
 .DS_Store

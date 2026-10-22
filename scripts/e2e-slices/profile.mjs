@@ -46,7 +46,9 @@ async function lastUserMsg() {
 /** 节奏类预警（超出上限）——filter 复用 orchestrator 的既有口径 */
 function paceWarnings(plan) {
   const warnings = Array.isArray(plan?.warnings) ? plan.warnings : [];
-  return warnings.filter((w) => typeof w === "string" && w.includes("超出") && w.includes("节奏上限"));
+  return warnings.filter(
+    (w) => typeof w === "string" && w.includes("超出") && w.includes("节奏上限"),
+  );
 }
 
 /** 苏州 3 天（fixture：Day1 净停留 610 分钟，≤4 天走单次调用路径） */
@@ -62,7 +64,11 @@ export async function runSlice({ check, api, mode }) {
   check("档案：任务 done", j1.status === "done", JSON.stringify(j1).slice(0, 120));
   const u1 = await lastUserMsg();
   check("prompt 含体力行（偏紧凑）", u1.includes("我的体力上限：偏紧凑"), u1.slice(-400));
-  check("prompt 含忌口行（必须避开的硬约束措辞）", u1.includes("饮食忌口：海鲜过敏（全程餐饮安排必须避开这些）"), u1.slice(-400));
+  check(
+    "prompt 含忌口行（必须避开的硬约束措辞）",
+    u1.includes("饮食忌口：海鲜过敏（全程餐饮安排必须避开这些）"),
+    u1.slice(-400),
+  );
   check("prompt 含作息行（夜猫型）", u1.includes("我的作息：夜猫型"));
   check("prompt 含通勤耐受行（90 分钟）", u1.includes("通勤可接受上限：90 分钟"));
   check(
@@ -106,9 +112,17 @@ export async function runSlice({ check, api, mode }) {
   // null = 「没填过档案」（存储层语义），边界上必须与「没传」同等对待——
   // 否则集成方（home-client）带 null 提交会被 400 拒掉每次生成
   const r4b = await api.post(suzhou({ profile: null }));
-  check("profile: null → 202（与「没传」同等对待，不误拒）", r4b.status === 202, `got ${r4b.status}`);
+  check(
+    "profile: null → 202（与「没传」同等对待，不误拒）",
+    r4b.status === 202,
+    `got ${r4b.status}`,
+  );
   const j4b = await api.waitJob(r4b.body.jobId);
-  check("null 档案：任务 done 且 prompt 无档案行", j4b.status === "done" && !(await lastUserMsg()).includes("我的体力上限"), JSON.stringify(j4b).slice(0, 120));
+  check(
+    "null 档案：任务 done 且 prompt 无档案行",
+    j4b.status === "done" && !(await lastUserMsg()).includes("我的体力上限"),
+    JSON.stringify(j4b).slice(0, 120),
+  );
 
   // ---- 5) 体检阈值随 stamina 变化 ----
   // 收紧方向（两种模式都成立）：packed 节奏（780）本不报，relaxed 体力把

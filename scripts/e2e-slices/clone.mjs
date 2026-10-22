@@ -18,9 +18,7 @@
 /** 原行程时间 +7 天错峰（与 CloneCTA 默认值同口径：保留星期几、错开档期） */
 const SHIFT = 7;
 function shiftDate(date, days) {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 }
 
 export async function runSlice({ check, api, mode }) {
@@ -44,8 +42,15 @@ export async function runSlice({ check, api, mode }) {
   // ---- 2) 真克隆：覆盖日期（+7 天错峰），走完整生成管线 ----
   const newStart = `${shiftDate(base.plan.startDate ?? "2026-10-10", SHIFT)}T10:00`;
   const newEnd = `${shiftDate(base.plan.endDate ?? "2026-10-12", SHIFT)}T18:00`;
-  const c1 = await clonePost({ shareId: srcShareId, overrides: { startAt: newStart, endAt: newEnd } });
-  check("克隆：提交 202 + 返回 jobId", c1.status === 202 && typeof c1.body.jobId === "string", JSON.stringify(c1.body).slice(0, 120));
+  const c1 = await clonePost({
+    shareId: srcShareId,
+    overrides: { startAt: newStart, endAt: newEnd },
+  });
+  check(
+    "克隆：提交 202 + 返回 jobId",
+    c1.status === 202 && typeof c1.body.jobId === "string",
+    JSON.stringify(c1.body).slice(0, 120),
+  );
   const j1 = await api.waitJob(c1.body.jobId);
   check(
     "克隆：任务 done（走完整生成管线，不是同步复制）",
@@ -101,7 +106,11 @@ export async function runSlice({ check, api, mode }) {
 
   // ---- 5) 错误路径：非法 / 不存在 / 旧链接 / 超天数 ----
   const badFmt = await clonePost({ shareId: "非法!id" });
-  check("克隆：非法 shareId → 400", badFmt.status === 400, `got ${badFmt.status} ${JSON.stringify(badFmt.body).slice(0, 80)}`);
+  check(
+    "克隆：非法 shareId → 400",
+    badFmt.status === 400,
+    `got ${badFmt.status} ${JSON.stringify(badFmt.body).slice(0, 80)}`,
+  );
 
   const missing = await clonePost({ shareId: "share_does_not_exist_000000" });
   check("克隆：不存在的 shareId → 404", missing.status === 404, `got ${missing.status}`);

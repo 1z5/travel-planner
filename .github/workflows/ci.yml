@@ -53,6 +53,9 @@ jobs:
       - name: 端到端测试（边界 + 故障注入）
         run: npm test
 
-      # 组件测试（Vitest + RTL）：表单交互、提交载荷、PlanView 渲染
-      - name: 组件测试（Vitest + RTL）
-        run: npm run test:unit
+      # 组件测试（Vitest + RTL）：表单交互、提交载荷、PlanView 渲染。
+      # 用 test:coverage 而不是 test:unit：vitest.config 里配置的覆盖率阈值
+      # （lines/functions 50、branches 40）只在带 coverage 时生效——此前 CI
+      # 跑的是 test:unit，阈值形同虚设。
+      - name: 组件测试 + 覆盖率门禁（Vitest + RTL）
+        run: npm run test:coverage

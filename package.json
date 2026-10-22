@@ -29,6 +29,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:coverage": "vitest run --coverage",
+    "gate": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit && npm test",
+    "gate:visual": "node scripts/visual-check.mjs",
+    "check:env": "node --env-file-if-exists=.env scripts/check-env.mjs",
     "prepare": "husky"
   },
   "dependencies": {

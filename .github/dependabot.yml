@@ -1,0 +1,22 @@
+# 依赖更新：AI 开发的项目最容易在依赖上「漂移」——模型记不住版本，
+# 手工升级又容易漏。让 Dependabot 每周开 PR，CI 的 audit/lint/build/test
+# 会替我们把关；npm 与 GitHub Actions 分开更新，方便独立回滚。
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+      prisma:
+        patterns:
+          - "prisma"
+          - "@prisma/*"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

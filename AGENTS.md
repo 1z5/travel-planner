@@ -67,8 +67,9 @@ components/
 
 ## 开工前先看这里（当前状态）
 
-- **v5「事实先行」已落地**（提交 `ad502fe`）：生成前用高德真实素材清单（名称/营业时间/闭馆日）约束模型，行程天生可执行。代码与测试全绿（625 单测 + 295 e2e），但**尚未用真实高德 key 验收**——验收清单见 [NEXT_STEPS.md](NEXT_STEPS.md) 的「v5 专项验收清单」。
-- **下一轮三条赛道**（旅行档案 / 行中重规划求解器 / 出行准备包）的可执行切片——含要碰的文件、验收标准、最容易踩的坑——见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md) 第五节。产品判断与优先级见同文件第一~四节。
+- **产品已到 v8.1**：完整能力链（事实先行生成 / 可执行性体检 / 一键修复 / 行程管家 / 分享克隆 / 旅程报告 / 旅行档案 / 行中重规划 / 流式生长 / 出行准备包）+ 全站「纸面杂志」视觉系统（ADR-007/008）。测试基线 **793 单测 + 506 e2e**。
+- **下一轮候选**：表单三步向导（目前只是分章）、行中页细节、桌面端 QA 清单落地。产品判断与优先级见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md) 第五节。
+- **v5 事实层的真实高德 key 验收仍未做**（MOCK 下功能全绿，但「真实世界事实」要真 key 才闭环）：清单见 [NEXT_STEPS.md](NEXT_STEPS.md)「v5 专项验收清单」。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
 
 ## 如何添加新功能
@@ -84,11 +85,14 @@ components/
 ## 如何测试
 
 ```bash
+npm run gate           # 一键验收：typecheck + lint + format:check + 单测 + e2e（提交前必须全绿）
 npm run typecheck      # TypeScript strict
 npm run lint           # ESLint（0 error 0 warning）
-npm run test:unit      # Vitest 623 条（组件 + 纯逻辑）
-npm test               # e2e 295 条（桩 LLM + 桩高德 + 隔离服务器）
-npm run test:coverage  # 覆盖率报告
+npm run test:unit      # Vitest 793 条（组件 + 纯逻辑）
+npm test               # e2e 506 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
+npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，4 页 × 桌面/手机）
+npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
+npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
 ```
 
 e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM 和高德，不烧真 token、不需要真 key。桩按请求内容切换行为（城市名/关键词），让故障注入测试秒级完成。
@@ -130,3 +134,48 @@ e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM
 - **server-only**：lib 下的服务端模块 import "server-only"，客户端组件不能 import
 - **client-safe**：poi-hours/schedule/fix-actions/budget/map-view 是纯函数，客户端可用
 - **不要提交 .env**：.gitignore 已排除
+
+## AI 协作基建（并行开发与验收协议）
+
+这个项目主要由 AI 代理开发。上面的原则之外，以下协议是**并行代理不互相踩踏**的前提。
+
+### 验收：提交前必须跑 `npm run gate`
+
+一条命令跑完四道门（typecheck / lint / format / 单测 / e2e）。CI 跑同样的门
+（外加 `npm audit`、生产构建、覆盖率阈值）。**看到失败先修，不要跳过**——
+上一轮“局部看起来对”的改动，往往是 e2e 抓到的最低级错误。
+
+### 视觉与可访问性回归：`npm run gate:visual`
+
+UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 dist 目录，
+不干扰别人正在跑的 dev server），生成种子行程后对 4 个页面 × 2 个视口检查：
+
+- 横向溢出（scrollWidth > clientWidth）
+- 触控目标 < 40px 的控件
+- 关键文本对比度（普通 < 4.5:1 / 大字号 < 3:1）
+- 控制台异常与未捕获异常
+- 页面关键元素存在性（防整块被误删）
+
+截图与 JSON 报告落在 `eval-results/visual/`。加新页面/新控件时，把选择器补进
+`scripts/visual-check.mjs` 的 `CONTRAST_SELECTORS` / 页面 `required` 列表。
+
+### 并行代理协议（血泪教训）
+
+- **文件所有权**：每个任务在任务板上声明 write scopes；只改自己范围内的文件。
+  共享文件 `app/globals.css` 按已有锚点节/区块追加，避免大段重排。
+- **git**：只 `git add` 自己改的文件；**禁止 `git add -A`**；提交前 `git status`
+  确认暂存内容；**禁止 amend 别人的提交**。多个代理共用一个 index，并发提交
+  会互相劫持（曾导致一个提交混进另一个切片的改动）。
+- **e2e 锁**：`scripts/run-tests.mjs` 用 `.e2e-lock` 串行化整场 e2e（固定端口
+  3103-3108 不能并发）。桩端口（8898+）会自动挑空闲端口——不要再假设 8898。
+- **不要杀别人的进程**：重启 dev server 前先确认端口的进程是不是自己的；
+  视觉/QA 脚本一律用独立 dist 目录与动态端口。
+- **任务板**：开工先 `team_task_list` → `claim`，完成 `complete`；报告里写清
+  改了哪些文件、验证结果、给集成者的注意事项。
+
+### 给 AI 代理的「诚实工程」检查
+
+- 新增 UI 数字必须可溯源（来自 plan/高德/配置），拿不到就整块不渲染；
+- 空态、降级、失败路径都要有文案，不许用默认值把空洞填成“看起来完整”；
+- 新增 prompt 行要能解释「为什么加」并配测试；桩测试的开关词只能从
+  「目的地 / 出行偏好」两行取（见「如何测试」的警告）。
