@@ -250,7 +250,9 @@ export function RealMap({ points, label, fallback, className }: RealMapProps) {
             src={`/api/map?loc=${locText}&w=${size.w}&h=${size.h}&scale=2`}
             width={size.w}
             height={size.h}
-            alt=""
+            /* 底图是路线的视觉载体：给一个可读 alt（与容器 aria-label 同源），
+               读屏用户能知道这里是一张真实路线图而不是装饰图。 */
+            alt={ariaLabel}
             onLoad={() => setStatus("ready")}
             onError={() => setStatus("error")}
           />

@@ -313,7 +313,7 @@ a {
 }
 .pp-dayno {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--accent);
@@ -701,7 +701,8 @@ input {
 }
 .btn-primary:disabled {
   background: var(--bg-2);
-  color: var(--ink-4);
+  /* 首屏主 CTA 的默认呈现就是禁用态：文字用 ink-3（5.99:1）而不是 ink-4 */
+  color: var(--ink-3);
   box-shadow: none;
   cursor: not-allowed;
   transform: none;
@@ -776,7 +777,8 @@ input {
   color: var(--accent);
   font-size: var(--fs-small);
   cursor: pointer;
-  padding: 0;
+  /* 手机端行内文字链接也要有可点高度；行内元素加 padding 不影响行高布局 */
+  padding: 8px 0;
   text-decoration: none;
 }
 .btn-link:hover {
@@ -889,7 +891,7 @@ input {
   font-variant-numeric: tabular-nums;
 }
 .kpi-label {
-  font-size: var(--fs-caption);
+  font-size: 12px;
   color: var(--ink-4);
   margin-top: 2px;
 }
@@ -1077,15 +1079,16 @@ input {
   border-top: none;
 }
 .spot-time {
-  font-size: var(--fs-caption);
+  /* 起止时间分两行显示（markup 用 \n 分隔，靠 pre-line 生效）：
+     「08:00\n10:00」在 52-62px 的时间列里既放得下又比「08:00-10:00」
+     一条挤满更易扫读。之前为了防折行加的 nowrap 会把 \n 吃掉、并让
+     11 字符宽的时间溢出压到类型徽章上——那是错的解法。 */
+  font-size: 12.5px;
   color: var(--ink-4);
   font-variant-numeric: tabular-nums;
-  padding-top: 4px;
-  line-height: 1.55;
-  /* 「08:00-10:00」在 62px 列里会被折成两行，看起来像坏掉的排版——
-     时间是一个整体，禁止断行；字号也压到 12.5px 保证放得下。 */
-  white-space: nowrap;
-  font-size: 12.5px;
+  padding-top: 3px;
+  line-height: 1.45;
+  white-space: pre-line;
   letter-spacing: -0.01em;
 }
 .spot-rail {
@@ -1148,34 +1151,37 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
+  font-size: 12px;
   padding: 1px 8px;
   border-radius: 6px;
   font-weight: 600;
 }
+/* 徽章配色：15% 同色浅底 + 700 深色字（实测对比度 4.77–6.70:1）。
+   旧版用的是 300 粉彩色，压在 15% 浅底上只有 1.4–1.8:1——浅色主题下
+   完全不可读（QA 实测 16 处）。 */
 .type-sight {
   background: rgba(14, 165, 233, 0.15);
-  color: #7dd3fc;
+  color: #0369a1;
 }
 .type-food {
   background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
+  color: #92400e;
 }
 .type-hotel {
-  background: rgba(139, 92, 246, 0.16);
-  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.15);
+  color: #6d28d9;
 }
 .type-transport {
-  background: rgba(148, 163, 184, 0.16);
-  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.15);
+  color: #475569;
 }
 .type-shopping {
   background: rgba(236, 72, 153, 0.15);
-  color: #f9a8d4;
+  color: #be185d;
 }
 .type-activity {
   background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
+  color: #047857;
 }
 
 .day-foot {
@@ -1230,6 +1236,10 @@ input {
   font-weight: 600;
   list-style: none;
   user-select: none;
+  /* 行中场景（户外/单手）需要够大的点击目标：22px 太窄 */
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 .leg-steps summary::-webkit-details-marker {
   display: none;
@@ -1746,11 +1756,13 @@ a.btn-link-wechat {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink);
   cursor: pointer;
   list-style: none;
+  min-height: 40px;
+  padding: 4px 0;
 }
 .faq summary::-webkit-details-marker {
   display: none;
@@ -1931,6 +1943,7 @@ a.btn-link-wechat {
   align-items: center;
   gap: 4px;
   font-size: var(--fs-caption);
+  min-height: 40px;
 }
 .spot-action:disabled {
   opacity: 0.5;
@@ -2417,7 +2430,7 @@ a.spot-action:hover {
   gap: 4px;
   padding: 1px 8px;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.6;
   background: var(--surface-2);
@@ -2426,7 +2439,8 @@ a.spot-action:hover {
   font-variant-numeric: tabular-nums;
 }
 .poi-chip-rating {
-  color: #fcd34d;
+  /* 白底上必须用深琥珀：旧的 #fcd34d 只有 1.44:1（QA 实测 16 处不可读） */
+  color: #b45309;
   background: rgba(245, 158, 11, 0.12);
   border-color: rgba(245, 158, 11, 0.3);
 }
@@ -2928,6 +2942,7 @@ a.spot-action:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 40px;
   padding: 4px 8px;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
@@ -2973,7 +2988,7 @@ a.spot-action:hover {
   gap: var(--sp-2);
 }
 .copilot-chip {
-  padding: 5px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--surface-2);
@@ -2982,6 +2997,10 @@ a.spot-action:hover {
   font-size: var(--fs-caption);
   cursor: pointer;
   transition: 0.15s;
+  /* 移动端点击目标：推荐问题 chip 提高到 40px（QA 实测 34px 偏小） */
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
 }
 .copilot-chip:hover:not(:disabled) {
   border-color: var(--accent);
@@ -3459,6 +3478,7 @@ a.spot-action:hover {
   gap: 5px;
   font-size: var(--fs-small);
   font-weight: 650;
+  min-height: 40px;
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px solid transparent;
@@ -4729,7 +4749,7 @@ a.spot-action:hover {
 }
 .brand-sub {
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 10px;
   letter-spacing: 0.2em;
   color: var(--ink-4);
   line-height: 1;
@@ -4831,6 +4851,9 @@ a.spot-action:hover {
   color: var(--ink-2);
   text-decoration: none;
   font-size: var(--fs-small);
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
 }
 .footer-col a:hover {
   color: var(--accent);
@@ -4917,7 +4940,7 @@ a.spot-action:hover {
 }
 .stat-label {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--ink-4);
   letter-spacing: 0.06em;
   margin-top: 4px;
@@ -4964,7 +4987,7 @@ a.spot-action:hover {
   display: block;
   margin-top: var(--sp-3);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--ink-4);
 }
@@ -5049,6 +5072,9 @@ a.spot-action:hover {
   text-decoration: none;
   font-family: var(--font-sans);
   font-size: var(--fs-small);
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 .page-back:hover {
   color: var(--accent);
@@ -5078,7 +5104,7 @@ a.spot-action:hover {
 .result-cover-eyebrow {
   display: block;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.16em;
   color: var(--accent);
@@ -5322,7 +5348,7 @@ summary:focus-visible,
 }
 .packing-source {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--ink-4);
   text-align: right;
   max-width: 46%;
@@ -5343,5 +5369,25 @@ summary:focus-visible,
   .packing-source {
     max-width: 100%;
     text-align: left;
+  }
+}
+
+/* 可点击的 POI chip（电话/详情）在移动端要够得着：只对 a 元素放大触控区，
+   纯信息 chip 保持紧凑（视觉密度不受影响）。 */
+a.poi-chip {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+@media (max-width: 640px) {
+  a.poi-chip {
+    min-height: 44px;
+  }
+}
+
+/* 手机端底部：个人档案 FAB 固定在右下角，滚到页底时会压住页脚版权行。
+   给页脚底部留出 FAB 的高度（48px 按钮 + 上下留白），文字就不会被盖住。 */
+@media (max-width: 860px) {
+  .site-footer-bottom {
+    padding-bottom: 104px;
   }
 }
