@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { RouteMap } from "@/components/RouteMap";
 
-// RouteMap 重写（暗色主题 + 移动端自适应 + 去死代码）后补的单测。钉住：
-// 空数据不渲染、圆点数=站数、暗色用 var(--surface-solid)、有路径、
-// viewBox 宽度随站数自适应、站名/编号标签不越出 viewBox（修裁切）。
+// RouteMap 在「纸上行程」重做后补的单测。钉住的是**编辑式路线条**的契约：
+// 空数据不渲染、编号圆点数=站数、没有暗色底/没有正弦曲线（浅色主题不冒充
+// 地理路径）、有水平基线、viewBox 宽度随站数自适应、标签不越出 viewBox。
 
 describe("RouteMap", () => {
   const stops = [
@@ -13,7 +13,7 @@ describe("RouteMap", () => {
     { name: "平江路", type: "food" },
   ];
   const stationDots = (c: HTMLElement) =>
-    [...c.querySelectorAll("circle")].filter((x) => x.getAttribute("r") === "11");
+    [...c.querySelectorAll("circle")].filter((x) => x.getAttribute("r") === "12");
   const viewBox = (c: HTMLElement) =>
     (c.querySelector("svg")?.getAttribute("viewBox") ?? "").split(" ").map(Number);
 
@@ -28,19 +28,22 @@ describe("RouteMap", () => {
     for (const s of stops) expect(container.textContent).toContain(s.name);
   });
 
-  it("暗色主题：底与圆点用 var(--surface-solid)（不再用亮蓝渐变）", () => {
+  it("浅色编辑式：没有暗色底矩形，节点用纸面色 + 强调色描边", () => {
     const { container } = render(<RouteMap stops={stops} />);
-    expect(container.querySelector("rect")?.getAttribute("style")).toContain(
-      "var(--surface-solid)",
-    );
-    expect(stationDots(container)[0]?.getAttribute("style")).toContain("var(--surface-solid)");
+    // 浅色主题不再铺暗色底（旧版有一块 var(--surface-solid) 的 rect）
+    expect(container.querySelector("rect")).toBeNull();
+    const dot = stationDots(container)[0];
+    expect(dot?.getAttribute("style")).toContain("var(--surface)");
+    expect(dot?.getAttribute("style")).toContain("var(--accent)");
   });
 
-  it("有平滑路线路径", () => {
+  it("路线是水平基线（细线），不再画正弦曲线冒充地图", () => {
     const { container } = render(<RouteMap stops={stops} />);
-    const path = container.querySelector("path");
-    expect(path).not.toBeNull();
-    expect(path?.getAttribute("d")).toMatch(/^M .* C /); // 含三次贝塞尔
+    expect(container.querySelector("path")).toBeNull();
+    const baseline = container.querySelector("line");
+    expect(baseline).not.toBeNull();
+    expect(baseline?.getAttribute("y1")).toBe(baseline?.getAttribute("y2"));
+    expect(baseline?.getAttribute("style")).toContain("var(--line-strong)");
   });
 
   it("viewBox 宽度随站数自适应：站多则图宽（移动端更清晰）", () => {

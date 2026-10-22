@@ -1,44 +1,59 @@
 /* ============================================================
-   设计系统 v4 —— 深色 Premium（AI 官网设计语言）
-   近黑底 · 玻璃表面 · 电影级封面 · 暖橙强调 · 大字号衬线
+   设计系统 v5 —— 纸上行程 · 旅行杂志（浅色编辑风）
+   暖纸底 · 白卡面 · 陶土橙强调 · 大字号衬线 · 充足留白
+
+   为什么从深色改成浅色：这是旅行产品，传播物（分享海报/旅程报告）
+   要能被截图、打印、收藏——浅色纸面天然适合；深色面板下真实地图
+   只能靠 CSS 反相压暗，既失真又难看。浅色 + 衬线 + 地图天然色，
+   才像一本「行程杂志」而不是后台详情页。
    ============================================================ */
 
 :root {
-  /* 深色基底 */
-  --bg: #09090b;
-  --surface: rgba(255, 255, 255, 0.035);
-  --surface-solid: #101014;
-  --surface-2: rgba(255, 255, 255, 0.06);
-  --ink: #fafafa;
-  --ink-2: #d4d4d8;
-  --ink-3: #a1a1aa;
-  --ink-4: #71717a;
-  --line: rgba(255, 255, 255, 0.09);
-  --line-strong: rgba(255, 255, 255, 0.16);
+  /* 纸面基底：暖白，比纯白有温度；正文墨色不用纯黑（#000 太硬） */
+  --bg: #f6f0e4;
+  --bg-2: #efe6d4;
+  --surface: #fffdf7;
+  --surface-solid: #fffdf7;
+  --surface-2: #f3ecdd;
+  --ink: #221d16;
+  --ink-2: #4b4337;
+  --ink-3: #7c7160;
+  --ink-4: #a99e8b;
+  --line: rgba(34, 29, 22, 0.12);
+  --line-strong: rgba(34, 29, 22, 0.22);
 
-  /* 唯一强调色：旅行暖橙 */
-  --accent: #fb923c;
-  --accent-hover: #fdba74;
-  --accent-soft: rgba(251, 146, 60, 0.14);
-  --accent-ring: rgba(251, 146, 60, 0.22);
+  /* 唯一强调色：陶土橙。浅底上 #fb923c 对比度不够，压深到 #c2410c */
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: rgba(194, 65, 12, 0.08);
+  --accent-ring: rgba(194, 65, 12, 0.25);
 
-  /* 语义色（深色底适配） */
-  --warn-bg: rgba(251, 191, 36, 0.1);
-  --warn-line: rgba(251, 191, 36, 0.35);
-  --warn-ink: #fcd34d;
-  --ok-bg: rgba(52, 211, 153, 0.1);
-  --ok-line: rgba(52, 211, 153, 0.35);
-  --ok-ink: #6ee7b7;
-  --err-bg: rgba(248, 113, 113, 0.1);
-  --err-line: rgba(248, 113, 113, 0.35);
-  --err-ink: #fca5a5;
+  /* 语义色（浅底可读版） */
+  --warn-bg: #fdf3d7;
+  --warn-line: #e3c66c;
+  --warn-ink: #7a5410;
+  --ok-bg: #e9f3e4;
+  --ok-line: #a3c79c;
+  --ok-ink: #2f5d2b;
+  --err-bg: #fbe9e7;
+  --err-line: #e2a19a;
+  --err-ink: #8c2f26;
 
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
-  --fs-display: 34px;
-  --fs-title: 20px;
-  --fs-body: 15px;
-  --fs-small: 13.5px;
-  --fs-caption: 12.5px;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+
+  /* 字号阶梯：标题用衬线，正文 16px 起——杂志的「可读感」优先 */
+  --fs-display: clamp(42px, 6vw, 76px);
+  --fs-h1: clamp(32px, 4.4vw, 52px);
+  --fs-h2: clamp(24px, 3vw, 34px);
+  --fs-h3: 20px;
+  --fs-title: 18px;
+  --fs-body: 16px;
+  --fs-small: 14.5px;
+  --fs-caption: 13px;
+
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -47,12 +62,16 @@
   --sp-6: 32px;
   --sp-7: 48px;
   --sp-8: 64px;
+  --sp-9: 96px;
   --r-sm: 8px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
-  --glass-blur: blur(16px);
+  --r-md: 12px;
+  --r-lg: 18px;
+
+  /* 纸上的阴影：很浅、偏暖，靠「纸层叠」而不是发光 */
+  --shadow-sm: 0 1px 2px rgba(34, 29, 22, 0.05);
+  --shadow-md: 0 2px 6px rgba(34, 29, 22, 0.05), 0 14px 36px rgba(34, 29, 22, 0.07);
+  --shadow-lg: 0 4px 12px rgba(34, 29, 22, 0.06), 0 28px 72px rgba(34, 29, 22, 0.1);
+  --glass-blur: blur(10px);
 }
 
 * {
@@ -65,103 +84,125 @@ body {
 }
 
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(1100px 520px at 82% -8%, rgba(194, 65, 12, 0.055), transparent 62%),
+    radial-gradient(900px 480px at 6% 2%, rgba(31, 78, 95, 0.045), transparent 58%), var(--bg);
   color: var(--ink);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--fs-body);
-  line-height: 1.7;
+  line-height: 1.75;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* 容器：max-width 保证桌面端可读宽度，流体 padding + 安全区适配刘海屏
-   （viewportFit: "cover" 下内容会延伸到刘海区域，需用 env(safe-area-inset-*)
-   把边缘内容推回安全区内） */
+::selection {
+  background: var(--accent);
+  color: #fffdf7;
+}
+
+/* 标题统一走衬线：杂志的「编辑感」来自标题与正文的字体对比 */
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  color: var(--ink);
+  line-height: 1.22;
+  letter-spacing: 0.005em;
+  margin: 0;
+}
+h2 {
+  font-size: var(--fs-h2);
+}
+h3 {
+  font-size: var(--fs-h3);
+}
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* 容器：桌面端 960px 编辑版心（原 720px 对杂志排版太窄）；
+   流体 padding + 安全区适配刘海屏 */
 .container {
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 max(var(--sp-4), env(safe-area-inset-left))
     max(var(--sp-8), env(safe-area-inset-bottom));
 }
 
-/* ---------- 全屏封面 Hero（电影级） ---------- */
+/* ---------- Hero：纸面编辑排版（不再用背景图） ---------- */
 
 .masthead {
   position: relative;
-  min-height: 560px;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-  color: #fff;
-  background: #09090b;
+  min-height: 0;
+  display: block;
+  overflow: visible;
+  color: var(--ink);
+  background: transparent;
 }
-.masthead-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 35%;
-}
+/* 旧版电影级背景图/蒙版：浅色杂志风不需要，保留类名（组件仍在渲染）但隐藏 */
+.masthead-bg,
 .masthead-veil {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(251, 146, 60, 0.14), transparent 70%),
-    linear-gradient(
-      180deg,
-      rgba(9, 9, 11, 0.05) 0%,
-      rgba(9, 9, 11, 0.28) 40%,
-      rgba(9, 9, 11, 0.88) 86%,
-      var(--bg) 100%
-    );
+  display: none;
 }
 .masthead-inner {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 0 var(--sp-4) 112px;
+  padding: 88px var(--sp-4) 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+}
+.masthead-copy {
+  min-width: 0;
 }
 .masthead-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: var(--fs-caption);
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: var(--glass-blur);
-  padding: 4px 14px;
-  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  padding: 0;
+  border-radius: 0;
   margin-bottom: var(--sp-4);
 }
 .masthead h1 {
   font-family: var(--font-serif);
-  font-size: 64px;
+  /* 六字标题 + 全角逗号在 968px 版心双栏里要能一行放下：
+     64px 是「去哪儿，都放心」不折行的上限，再大就是孤字换行。 */
+  font-size: clamp(40px, 5.2vw, 64px);
   font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 1.12;
-  margin: 0 0 var(--sp-3);
-  text-shadow: 0 2px 32px rgba(0, 0, 0, 0.5);
+  letter-spacing: -0.02em;
+  line-height: 1.06;
+  margin: 0 0 var(--sp-4);
+  color: var(--ink);
+  text-shadow: none;
 }
 .masthead-sub {
-  font-size: 17px;
-  color: rgba(255, 255, 255, 0.82);
-  max-width: 32em;
+  font-size: 18px;
+  color: var(--ink-2);
+  max-width: 34em;
   margin: 0 0 var(--sp-5);
-  line-height: 1.7;
+  line-height: 1.8;
 }
 .masthead-points {
   display: flex;
   gap: var(--sp-5);
   flex-wrap: wrap;
   font-size: var(--fs-small);
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ink-3);
 }
 .masthead-points span {
   display: inline-flex;
@@ -172,47 +213,187 @@ body {
   color: var(--accent);
 }
 
-/* ---------- 玻璃表单卡片 ---------- */
+/* ---------- 首屏样张卡：把「产品长什么样」放进第一屏 ---------- */
+
+.masthead-specimen {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  transform: rotate(-0.6deg);
+  transition: transform 0.25s ease;
+}
+.masthead-specimen:hover {
+  transform: rotate(0deg) translateY(-2px);
+}
+/* 样张卡顶部的小字栏：栏目名 + 天数，杂志封面语法 */
+.specimen-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+}
+.specimen-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+.specimen-days-count {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink-4);
+}
+.specimen-city {
+  font-family: var(--font-serif);
+  font-size: clamp(44px, 5vw, 64px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-top: var(--sp-4);
+}
+.specimen-stats {
+  margin: var(--sp-2) 0 var(--sp-4);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.specimen-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.specimen-days li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.specimen-num {
+  font-family: var(--font-serif);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.specimen-theme {
+  font-family: var(--font-serif);
+  font-size: 15.5px;
+  color: var(--ink-2);
+}
+.specimen-cta {
+  margin-top: var(--sp-4);
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--accent);
+  cursor: pointer;
+}
+.specimen-cta:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .masthead-inner {
+    grid-template-columns: 1fr;
+    gap: var(--sp-6);
+    padding-top: 56px;
+  }
+  .masthead-specimen {
+    transform: none;
+    max-width: 440px;
+  }
+}
+
+/* ---------- 规划面板：纸卡 + 编辑式分章 ---------- */
 
 .panel {
   position: relative;
   z-index: 2;
   background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow:
-    var(--shadow-lg),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  padding: var(--sp-5);
-  margin-top: -80px;
-  margin-bottom: var(--sp-6);
+  box-shadow: var(--shadow-md);
+  padding: var(--sp-6) var(--sp-6) var(--sp-5);
+  margin-top: var(--sp-2);
+  margin-bottom: var(--sp-7);
+  counter-reset: chapter;
 }
 
 .field-group {
-  padding: var(--sp-4) 0;
+  padding: var(--sp-5) 0;
   border-top: 1px solid var(--line);
+  counter-increment: chapter;
 }
 .field-group:first-of-type {
   border-top: none;
   padding-top: 0;
 }
 
+/* 章节标题：01 / 02 / 03 —— 用 CSS 计数器生成，不必改组件结构。
+   杂志的分章感来自大号衬线标题 + 编号，而不是一行灰色小标签。
+   注意编号只作用于「表单章节」与「首页栏目」（见下方 .how/.faq 规则），
+   不能泄漏到结果页/预算卡里的 .legend——那会冒出莫名其妙的「00」。 */
 .legend {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  margin-bottom: var(--sp-4);
+}
+/* 表单章节编号：counter 在 .panel 上 reset、在 .field-group 上递增 */
+.field-group .legend::before {
+  content: counter(chapter, decimal-leading-zero);
+  font-family: var(--font-serif);
   font-size: var(--fs-caption);
   font-weight: 700;
   letter-spacing: 0.14em;
+  color: var(--accent);
+}
+/* 首页栏目编号：怎么做到的(01) / 能力(02) / 常见问题(03) */
+.how,
+.faq {
+  counter-increment: section;
+}
+.how > .legend::before,
+.faq > .legend::before {
+  content: counter(section, decimal-leading-zero);
+  font-family: var(--font-serif);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+.optional-tag {
+  font-family: var(--font-sans);
+  font-size: var(--fs-caption);
+  font-weight: 400;
   color: var(--ink-4);
-  margin-bottom: var(--sp-3);
+  letter-spacing: 0;
 }
 
 label {
   display: block;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-3);
-  letter-spacing: 0.01em;
+  font-weight: 650;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
   margin: var(--sp-4) 0 var(--sp-2);
 }
 .field-group label:first-of-type {
@@ -223,40 +404,32 @@ input,
 textarea,
 select {
   width: 100%;
-  height: 40px;
-  padding: 0 11px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 6px;
-  font-size: 14px;
-  background: #0b0b0f;
+  height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font-size: 15px;
+  font-family: var(--font-sans);
+  background: var(--surface);
   color: var(--ink);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-sm);
   transition:
     border-color 0.12s ease,
     box-shadow 0.12s ease;
-  color-scheme: dark;
+  color-scheme: light;
 }
 input::placeholder {
-  color: #52525b;
+  color: var(--ink-4);
 }
 input:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(34, 29, 22, 0.32);
 }
-input:focus {
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.35),
-    0 0 0 3px rgba(251, 146, 60, 0.16);
-}
-/* 深色下的原生日期选择器图标 */
-input::-webkit-calendar-picker-indicator {
-  filter: invert(0.55);
-  cursor: pointer;
-  opacity: 0.7;
-}
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 /* 数字输入去箭头（预算） */
 input::-webkit-outer-spin-button,
@@ -272,6 +445,7 @@ input {
   font-size: var(--fs-caption);
   color: var(--ink-4);
   margin-top: var(--sp-1);
+  line-height: 1.6;
 }
 
 /* ---------- 地址自动补全（combobox） ---------- */
@@ -373,32 +547,32 @@ input {
 }
 
 .chip {
-  padding: 6px 14px;
+  padding: 7px 15px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: #141418;
+  background: var(--surface);
   font-size: var(--fs-small);
   color: var(--ink-2);
   cursor: pointer;
   user-select: none;
   transition: all 0.15s;
+  box-shadow: var(--shadow-sm);
 }
 .chip:hover {
-  border-color: rgba(255, 255, 255, 0.24);
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .chip.on {
   background: var(--ink);
   border-color: var(--ink);
-  color: #09090b;
+  color: var(--surface);
   font-weight: 600;
 }
 
 .segmented {
   display: flex;
   gap: var(--sp-1);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   padding: var(--sp-1);
@@ -409,7 +583,7 @@ input {
   border: none;
   background: transparent;
   border-radius: var(--r-sm);
-  padding: 9px 8px;
+  padding: 10px 8px;
   font-size: var(--fs-small);
   color: var(--ink-3);
   cursor: pointer;
@@ -421,15 +595,13 @@ input {
   display: block;
   font-size: var(--fs-caption);
   color: var(--ink-4);
+  margin-top: 1px;
 }
 .segmented button.on {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface);
   color: var(--ink);
   font-weight: 650;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 .segmented button.on small {
   color: var(--ink-3);
@@ -439,25 +611,29 @@ input {
 
 .btn-primary {
   width: 100%;
-  height: 50px;
+  height: 52px;
   border: none;
   border-radius: var(--r-md);
   background: var(--accent);
-  color: #18181b;
-  font-size: 15px;
+  color: #fffdf7;
+  font-family: var(--font-sans);
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 6px rgba(154, 52, 18, 0.22);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
   transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(154, 52, 18, 0.26);
 }
 .btn-primary:disabled {
-  opacity: 0.6;
-  cursor: wait;
+  background: var(--bg-2);
+  color: var(--ink-4);
+  box-shadow: none;
+  cursor: not-allowed;
   transform: none;
 }
 
@@ -475,7 +651,7 @@ input {
 .wait-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  background: linear-gradient(90deg, var(--accent), #e07a3f);
   transition: width 0.6s ease;
 }
 .wait-bar-fill.indeterminate {
@@ -504,23 +680,24 @@ input {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 14px;
+  height: 38px;
+  padding: 0 15px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface);
   color: var(--ink-2);
   font-size: var(--fs-small);
   cursor: pointer;
   text-decoration: none;
   transition: all 0.15s;
+  box-shadow: var(--shadow-sm);
 }
 .btn:hover {
-  border-color: var(--ink-4);
+  border-color: var(--ink-3);
   color: var(--ink);
 }
 .btn-tall {
-  height: 40px;
+  height: 44px;
 }
 
 .btn-link {
@@ -540,13 +717,11 @@ input {
 
 .card {
   background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow:
-    var(--shadow-md),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   margin-bottom: var(--sp-4);
 }
@@ -554,41 +729,34 @@ input {
   padding: var(--sp-5);
 }
 
-/* ---------- 行程结果：玻璃杂志 ---------- */
+/* ---------- 行程结果：编辑式封面（纸面，不再用暗色照片） ---------- */
 
 .result-cover {
   position: relative;
-  height: 156px;
+  height: auto;
   flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: var(--sp-6) var(--sp-5) var(--sp-4);
 }
-.result-cover img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 38%;
-}
+/* 旧版城市照片/品牌深色背景：浅色杂志风里不适用，隐藏 */
+.result-cover img,
 .result-cover-veil {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(9, 9, 11, 0.08) 0%, rgba(9, 9, 11, 0.78) 100%);
+  display: none;
 }
 .result-cover-text {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: var(--sp-4) var(--sp-5);
-  color: #fff;
+  position: static;
+  padding: 0;
+  color: var(--ink);
 }
 .result-cover-text h2 {
-  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.5);
+  text-shadow: none;
+  font-size: var(--fs-h2);
 }
 .result-cover-dates {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink-3);
   font-size: var(--fs-small);
-  margin-top: 2px;
+  margin-top: 4px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -843,7 +1011,12 @@ input {
   color: var(--ink-4);
   font-variant-numeric: tabular-nums;
   padding-top: 4px;
-  line-height: 1.5;
+  line-height: 1.55;
+  /* 「08:00-10:00」在 62px 列里会被折成两行，看起来像坏掉的排版——
+     时间是一个整体，禁止断行；字号也压到 12.5px 保证放得下。 */
+  white-space: nowrap;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
 }
 .spot-rail {
   display: flex;
@@ -868,8 +1041,10 @@ input {
   margin-top: var(--sp-1);
 }
 .spot-name {
-  font-weight: 650;
-  font-size: 15.5px;
+  /* 行程点名称用衬线：与城市/天数标题同族，正文无衬线的对比让列表有「杂志目录」感 */
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 17px;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -1049,13 +1224,71 @@ input {
   flex-shrink: 0;
   padding: 1px 8px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--surface);
   border: 1px solid var(--warn-line);
   font-size: var(--fs-caption);
   font-weight: 700;
   color: var(--warn-ink);
   white-space: nowrap;
   transform: translateY(-1px);
+}
+
+/* ---------- 体检卡（浅色编辑式：一行摘要 + 可展开逐条） ---------- */
+
+.checkup {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+}
+.checkup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--warn-ink);
+}
+.checkup-head::-webkit-details-marker {
+  display: none;
+}
+.checkup-icon {
+  flex-shrink: 0;
+  color: var(--warn-ink);
+}
+.checkup-title {
+  flex: 1;
+  min-width: 0;
+}
+.checkup-toggle {
+  font-weight: 400;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+.checkup[open] .checkup-toggle {
+  display: none;
+}
+.checkup-chevron {
+  flex-shrink: 0;
+  color: var(--ink-4);
+  transition: transform 0.15s;
+}
+.checkup[open] .checkup-chevron {
+  transform: rotate(180deg);
+}
+.checkup .warn-list {
+  margin: 0;
+  padding: 2px 18px 8px;
+  border-top: 1px solid var(--line);
+}
+.checkup .warn-list li {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
 }
 
 .tips {
@@ -1823,14 +2056,13 @@ a.spot-action:hover {
   background: var(--surface-solid);
   overflow: hidden;
 }
-/* 底图暗色化：高德静态图是浅色，整站是深色 Premium——用 CSS filter 反相 + 色相
-   回正，把「白底浅色地图」变成深色地图；覆盖层（标记/路线）不做 filter，
-   所以语义色保持准确。打印时由上面的 @media print 覆盖回正常色。 */
+/* 底图：浅色杂志风直接用高德原色（自然的水绿/路网灰）。
+   旧版深色主题用 CSS filter 反相压暗，浅底上会把地图变成一块脏黑图片——
+   反相本来是给暗色主题打补丁，现在主题是纸色，原色才是对的。 */
 .realmap-img {
   display: block;
   width: 100%;
   height: auto;
-  filter: invert(0.93) hue-rotate(180deg) saturate(0.55) brightness(0.92) contrast(1.08);
 }
 .realmap-skeleton {
   display: block;
@@ -2078,7 +2310,7 @@ a.spot-action:hover {
   padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--warn-line);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--surface);
   color: var(--warn-ink);
   font-size: var(--fs-caption);
   font-weight: 600;
@@ -2729,7 +2961,7 @@ a.spot-action:hover {
 }
 .copilot-msg-user .copilot-msg-text {
   background: var(--accent);
-  color: #18181b;
+  color: #fffdf7;
   border-bottom-right-radius: 3px;
 }
 .copilot-msg-assistant .copilot-msg-text {
@@ -2820,7 +3052,7 @@ a.spot-action:hover {
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--surface-2);
   color: var(--ink);
   font: inherit;
   font-size: var(--fs-small);
@@ -2850,7 +3082,7 @@ a.spot-action:hover {
   border: 1px solid var(--accent);
   border-radius: var(--r-md);
   background: var(--accent);
-  color: #18181b;
+  color: #fffdf7;
   font: inherit;
   font-size: var(--fs-small);
   font-weight: 700;
@@ -2976,7 +3208,7 @@ a.spot-action:hover {
   align-items: center;
   padding: var(--sp-2) var(--sp-5);
   background: var(--accent);
-  color: #09090b;
+  color: #fffdf7;
   font-weight: 700;
   font-size: var(--fs-small);
   border-radius: var(--r-md);
@@ -3025,77 +3257,92 @@ a.spot-action:hover {
    切片1 · 海报分享页（owner: poster）
    ============================================================ */
 
-/* 海报根：深色玻璃 + 顶部暖橙辉光（与 masthead 的 radial-gradient 同一手法），
-   圆角与阴影对齐设计系统。整块是「传播物」而不是功能面板：内边距给足，
-   截图时四周留白，不会贴边。 */
+/* 海报根：一张「纸」——白卡面 + 细边框 + 顶部编辑标记。
+   整块是传播物而不是功能面板：内边距给足，截图时四周留白，不贴边。 */
 .poster {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  background:
-    radial-gradient(ellipse 90% 55% at 50% 0%, rgba(251, 146, 60, 0.13), transparent 70%),
-    var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow:
-    var(--shadow-lg),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  background: var(--surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--shadow-md);
+  padding: var(--sp-6) var(--sp-6) var(--sp-5);
   margin-bottom: var(--sp-4);
 }
-/* 城市大标题：设计系统的大衬线（--font-serif），与 day-num / kpi-value 同族。
+/* 封面顶部的小字编辑标记：杂志封面的「栏目名」，让海报一眼有刊物的感觉 */
+.poster::before {
+  content: "行程海报 · ITINERARY";
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+/* 城市大标题：杂志封面主视觉——超大衬线字，占满版心。
    overflow-wrap 兜底超长区域名（如「丝绸之路河西走廊段」9 字）在窄屏折行。 */
 .poster-city {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: 56px;
+  font-size: clamp(56px, 8vw, 88px);
   font-weight: 700;
-  line-height: 1.12;
-  letter-spacing: 0.01em;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
   color: var(--ink);
   overflow-wrap: anywhere;
 }
 .poster-sub {
-  margin: var(--sp-2) 0 0;
+  margin: var(--sp-3) 0 0;
   font-size: 17px;
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 
-/* 数据徽章：上排「图标 + 大数字」、下排小标签，与 kpi 卡同一视觉语法。 */
+/* 数据规格行：杂志的「规格表」——数字大、标签小、行间细线，不用卡片框 */
 .poster-badges {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--sp-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
   margin-top: var(--sp-5);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 .poster-badge {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  gap: 1px;
+  padding: 0 var(--sp-5);
+  border-left: 1px solid var(--line);
+  background: transparent;
+  border-radius: 0;
+}
+.poster-badge:first-child {
+  border-left: none;
+  padding-left: 0;
 }
 .poster-badge-icon {
   color: var(--accent);
-  margin-bottom: var(--sp-1);
+  margin-bottom: 2px;
 }
 .poster-badge-value {
   font-family: var(--font-serif);
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.1;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .poster-badge-label {
   font-size: var(--fs-caption);
   color: var(--ink-4);
+  letter-spacing: 0.04em;
 }
 /* 预算使用率的语义色（口径同 lib/budget.ts 的 budgetTone：超支红 / 偏紧宽松黄 /
    达标绿 / 无数据中性）。超支海报用红色大数字——传播出去的截图同样要说真话。 */
@@ -3109,7 +3356,7 @@ a.spot-action:hover {
   color: var(--err-ink);
 }
 
-/* 路线概览：RealMap 自带暗色底图（.realmap），这里只加画框与说明。
+/* 路线概览：自然色地图（去掉深色滤镜后就是高德原色），画框 + 说明。
    说明文字写「第 N 天」与当天主题——路线只画首日，标题必须说清是哪天。 */
 .poster-map-wrap {
   margin-top: var(--sp-5);
@@ -3117,6 +3364,7 @@ a.spot-action:hover {
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
 }
 .poster-map-cap {
   margin: 0;
@@ -3126,14 +3374,14 @@ a.spot-action:hover {
   color: var(--ink-3);
 }
 
-/* 底部传播入口：旅行报告链接（/r/<shareId>）。右侧对齐，
-   左侧留白是 CloneCTA 的挂载位（见 PosterCover.tsx 内注释）。 */
+/* 底部传播入口：克隆 CTA + 旅行报告链接 */
 .poster-foot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--sp-3);
   margin-top: var(--sp-5);
+  flex-wrap: wrap;
 }
 .poster-report-link {
   display: inline-flex;
@@ -3151,22 +3399,30 @@ a.spot-action:hover {
 }
 
 @media (max-width: 640px) {
-  /* 手机：城市标题缩到 40px（56px 在 340px 屏上 4 字就换行），徽章改 2×2 */
+  /* 手机：城市标题缩到 44px，规格行改 2×2 网格 */
   .poster {
     padding: var(--sp-5) var(--sp-4) var(--sp-4);
   }
   .poster-city {
-    font-size: 40px;
+    font-size: 44px;
   }
   .poster-sub {
     font-size: 15px;
   }
   .poster-badges {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--sp-2);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-3) 0;
+  }
+  .poster-badge {
+    padding: 0 var(--sp-4);
+  }
+  .poster-badge:nth-child(odd) {
+    border-left: none;
+    padding-left: 0;
   }
   .poster-badge-value {
-    font-size: 20px;
+    font-size: 24px;
   }
 }
 
@@ -3189,8 +3445,7 @@ a.spot-action:hover {
 .clone-cta {
   margin: var(--sp-4) 0 var(--sp-5);
   padding: var(--sp-5);
-  background:
-    linear-gradient(135deg, var(--accent-soft) 0%, rgba(255, 255, 255, 0.02) 60%), var(--surface);
+  background: linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 60%);
   border: 1px solid var(--accent-ring);
   border-radius: var(--r-lg);
 }
@@ -3213,7 +3468,7 @@ a.spot-action:hover {
   min-height: 44px;
   padding: var(--sp-3) var(--sp-5);
   background: var(--accent);
-  color: #09090b;
+  color: #fffdf7;
   border: none;
   border-radius: var(--r-md);
   font-size: var(--fs-body);
@@ -3377,11 +3632,7 @@ a.spot-action:hover {
   border-radius: var(--r-lg);
   background:
     radial-gradient(ellipse 90% 55% at 50% 0%, var(--accent-soft), transparent 70%), var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow:
-    var(--shadow-lg),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-md);
   padding: var(--sp-5);
   margin-bottom: var(--sp-4);
 }
@@ -3564,7 +3815,7 @@ a.spot-action:hover {
   font-weight: 700;
   text-decoration: none;
   background: var(--accent);
-  color: #09090b;
+  color: #fffdf7;
   transition: background 0.15s;
 }
 .report-cta-btn:hover {
@@ -3776,7 +4027,7 @@ a.spot-action:hover {
 .profile-fab.is-new {
   background: var(--accent);
   border-color: var(--accent);
-  color: #09090b;
+  color: #fffdf7;
 }
 .profile-fab.is-new:hover {
   background: var(--accent-hover);
@@ -3794,9 +4045,7 @@ a.spot-action:hover {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: rgba(34, 29, 22, 0.35);
 }
 .profile-drawer {
   position: absolute;
@@ -4094,7 +4343,7 @@ a.spot-action:hover {
   background: var(--accent);
   border: none;
   border-radius: var(--r-md);
-  color: #09090b;
+  color: #fffdf7;
   font-size: var(--fs-body);
   font-weight: 700;
   cursor: pointer;
@@ -4303,4 +4552,54 @@ a.spot-action:hover {
   .live-progress {
     display: none !important;
   }
+}
+
+/* ============================================================
+   响应式修正（浅色杂志风）
+   ============================================================ */
+
+/* 为什么追加在末尾：本文件历史上有多个媒体查询写在基础规则「之前」，
+   同优先级下会被后面的基础规则覆盖（例：.cap-grid 的移动端单列被
+   1628 行的三列基础规则盖掉）——手机上的能力矩阵因此一直是挤成三列。
+   这里统一放在文件最后，保证覆盖顺序正确。 */
+@media (max-width: 640px) {
+  .how-grid,
+  .cap-grid {
+    grid-template-columns: 1fr;
+  }
+  /* 旧版的 -64px 负边距是为「深色 hero 压住面板」设计的；
+     浅色杂志风 hero 变成正常文档流，负边距会把表单顶进 hero 里。 */
+  .panel {
+    margin-top: var(--sp-2);
+    padding: var(--sp-4);
+  }
+  .masthead {
+    min-height: 0;
+  }
+  .masthead-inner {
+    padding-top: 48px;
+    padding-bottom: var(--sp-5);
+  }
+  .masthead h1 {
+    font-size: clamp(34px, 9.4vw, 44px);
+  }
+  .masthead-sub {
+    font-size: 15.5px;
+  }
+  /* 手机端规格行改 2×2 时，分隔线只保留每行左侧一条 */
+  .poster-badges {
+    row-gap: var(--sp-3);
+  }
+  /* 样张卡在手机上不再旋转（斜卡片在窄屏上像错位） */
+  .masthead-specimen {
+    transform: none;
+  }
+}
+
+/* SVG 图表在宽版心会被等比放大：3 天柱状图从 276 宽 viewBox 拉到 900px 时，
+   12px 的字变成 39px（整页最抢眼的是柱顶数字，而不是图表本身）。给图表
+   一个编辑式最大宽度，剩余空间留白。 */
+.cost-chart svg,
+.route-map-wrap svg {
+  max-width: 560px;
 }

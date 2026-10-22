@@ -220,7 +220,10 @@ describe("Home 最近行程", () => {
     render(<Home />);
     await waitFor(() => expect(screen.getByText("最近行程")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /从最近行程中移除 苏州/ }));
-    await waitFor(() => expect(screen.queryByText("苏州")).not.toBeInTheDocument());
+    // 只断言「最近行程」列表里不再有苏州——首屏样张卡也含「苏州」
+    // （SAMPLE_PLAN），全局 queryByText 会被它误伤。
+    const recentList = document.querySelector(".recent-list");
+    await waitFor(() => expect(recentList?.textContent ?? "").not.toContain("苏州"));
     expect(screen.getByText("成都")).toBeInTheDocument();
     const raw = window.localStorage.getItem("tp.recent-trips.v1") ?? "";
     expect(raw).toContain("share_keep01");

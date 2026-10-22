@@ -27,6 +27,7 @@ import {
   Sparkles,
   TimerReset,
   ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 import type { Plan, TransportMode } from "@/lib/types";
 import {
@@ -727,64 +728,67 @@ export function PlanView({
         </div>
       )}
 
-      {/* ===== 体检预警 ===== */}
+      {/* ===== 体检预警 =====
+          浅色杂志风的编辑式「体检」卡：默认收起为一行摘要（标题保留原文案，
+          测试依赖），展开是逐条问题 + 一键修复。
+          为什么默认收起：11 条预警铺开是一堵黄墙，会把整份行程压垮——但
+          「体检而非隐瞒」的红线不能破：摘要行明确写出问题数，详情一键可达。
+          少量问题（≤2）时默认展开，避免为了美观藏起关键信息。 */}
       {viewPlan.warnings.length > 0 && (
-        <div className="alert alert-warn">
-          <AlertTriangle size={18} style={{ marginTop: 2, flexShrink: 0 }} />
-          <div>
-            <div className="alert-title">行程体检发现 {viewPlan.warnings.length} 个问题</div>
-            <ul className="warn-list">
-              {viewPlan.warnings.map((w, i) => {
-                const tag = warnTag(w);
-                const key = `warn:${i}`;
-                // 只有「可编辑的持久化行程」才提供修复入口：示例行程（无 shareId）
-                // 和别人的只读分享链接（canEdit=false）都不显示按钮，避免点了必失败。
-                const fix = canEdit ? suggestFix(w) : null;
-                const scheduleFix = canEdit && isScheduleWarning(w);
-                const busyThis = fixBusy === key;
-                return (
-                  <li key={i}>
-                    {tag && <span className="warn-tag">{tag}</span>}
-                    <span className="warn-text">{w}</span>
-                    {scheduleFix && (
-                      <button
-                        type="button"
-                        className="warn-fix"
-                        disabled={!!fixBusy}
-                        onClick={() => void fixWarning(w, key)}
-                        title="按真实路段时长重排当天时间轴——不调模型、不扣次数"
-                      >
-                        {busyThis ? (
-                          <Loader2 size={12} className="spin" />
-                        ) : (
-                          <TimerReset size={12} />
-                        )}
-                        一键顺延
-                      </button>
-                    )}
-                    {!scheduleFix && fix && (
-                      <button
-                        type="button"
-                        className="warn-fix"
-                        disabled={!!fixBusy}
-                        onClick={() => void fixWarning(w, key)}
-                        title={fix.hint}
-                      >
-                        {busyThis ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
-                        {fix.label}
-                      </button>
-                    )}
-                    {fixSuccess?.key === key && (
-                      <p className="warn-fixed" role="status">
-                        {fixSuccess.text}
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </div>
+        <details className="checkup" open={viewPlan.warnings.length <= 2}>
+          <summary className="checkup-head">
+            <AlertTriangle size={17} className="checkup-icon" />
+            <span className="checkup-title">行程体检发现 {viewPlan.warnings.length} 个问题</span>
+            <span className="checkup-toggle">展开逐条看</span>
+            <ChevronDown size={15} className="checkup-chevron" />
+          </summary>
+          <ul className="warn-list">
+            {viewPlan.warnings.map((w, i) => {
+              const tag = warnTag(w);
+              const key = `warn:${i}`;
+              // 只有「可编辑的持久化行程」才提供修复入口：示例行程（无 shareId）
+              // 和别人的只读分享链接（canEdit=false）都不显示按钮，避免点了必失败。
+              const fix = canEdit ? suggestFix(w) : null;
+              const scheduleFix = canEdit && isScheduleWarning(w);
+              const busyThis = fixBusy === key;
+              return (
+                <li key={i}>
+                  {tag && <span className="warn-tag">{tag}</span>}
+                  <span className="warn-text">{w}</span>
+                  {scheduleFix && (
+                    <button
+                      type="button"
+                      className="warn-fix"
+                      disabled={!!fixBusy}
+                      onClick={() => void fixWarning(w, key)}
+                      title="按真实路段时长重排当天时间轴——不调模型、不扣次数"
+                    >
+                      {busyThis ? <Loader2 size={12} className="spin" /> : <TimerReset size={12} />}
+                      一键顺延
+                    </button>
+                  )}
+                  {!scheduleFix && fix && (
+                    <button
+                      type="button"
+                      className="warn-fix"
+                      disabled={!!fixBusy}
+                      onClick={() => void fixWarning(w, key)}
+                      title={fix.hint}
+                    >
+                      {busyThis ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
+                      {fix.label}
+                    </button>
+                  )}
+                  {fixSuccess?.key === key && (
+                    <p className="warn-fixed" role="status">
+                      {fixSuccess.text}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
 
       {/* ===== 行程管家（step-5）：基于这份行程回答 / 给一个可执行建议 ===== */}

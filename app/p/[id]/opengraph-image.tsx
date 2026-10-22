@@ -3,7 +3,8 @@ import { resolvePlan } from "@/lib/plan-repo";
 import { formatCny, summarizeBudget } from "@/lib/budget";
 
 // 分享卡片图：分享到微信/Twitter 时渲染「城市 + 天数 + 概览」而非裸链接。
-// 视觉对齐 globals.css 的深色 Premium 设计系统（--bg/--accent/--ink）。
+// 视觉对齐 globals.css 的「纸上行程」设计系统（暖纸底 / 墨色 / 陶土橙）——
+// 分享卡片是传播物，必须和点开后的页面是同一套纸面语言。
 //
 // 中文字体：next/og 只内置 Geist（拉丁字形），实测 Satori 会回退到系统
 // CJK 字体正常渲染中文，无需在仓库里搬一个几 MB 的字体文件。
@@ -42,9 +43,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        background: "#09090b",
+        background: "#f6f0e4",
         padding: "64px 72px",
         fontFamily: "sans-serif",
+        borderTop: "10px solid #c2410c",
       }}
     >
       {/* 顶部：品牌行 */}
@@ -55,10 +57,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             width: 10,
             height: 10,
             borderRadius: 999,
-            background: "#fb923c",
+            background: "#c2410c",
           }}
         />
-        <div style={{ display: "flex", fontSize: 26, color: "#a1a1aa", letterSpacing: 2 }}>
+        <div style={{ display: "flex", fontSize: 26, color: "#7c7160", letterSpacing: 2 }}>
           AI 行程规划平台
         </div>
       </div>
@@ -71,14 +73,14 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               display: "flex",
               fontSize: 108,
               fontWeight: 700,
-              color: "#fafafa",
+              color: "#221d16",
               lineHeight: 1.05,
             }}
           >
             {city}
           </div>
           {days > 0 && (
-            <div style={{ display: "flex", fontSize: 52, fontWeight: 600, color: "#fb923c" }}>
+            <div style={{ display: "flex", fontSize: 52, fontWeight: 600, color: "#c2410c" }}>
               {`${days} 天行程`}
             </div>
           )}
@@ -87,7 +89,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           style={{
             display: "flex",
             fontSize: 32,
-            color: "#d4d4d8",
+            color: "#4b4337",
             lineHeight: 1.5,
           }}
         >
@@ -101,7 +103,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               display: "flex",
               fontSize: 32,
               fontWeight: 600,
-              color: "#fb923c",
+              color: "#c2410c",
             }}
           >
             {`预算 ${formatCny(budget.budget ?? 0)} · 用掉 ${budget.usedPct}%`}
@@ -114,28 +116,28 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         {plan && (
           <>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <div style={{ display: "flex", fontSize: 40, fontWeight: 700, color: "#fafafa" }}>
+              <div style={{ display: "flex", fontSize: 40, fontWeight: 700, color: "#221d16" }}>
                 {`¥${plan.totalCostCny.toLocaleString()}`}
               </div>
-              <div style={{ display: "flex", fontSize: 22, color: "#71717a" }}>人均总花费</div>
+              <div style={{ display: "flex", fontSize: 22, color: "#7c7160" }}>人均总花费</div>
             </div>
             <div
               style={{
                 display: "flex",
                 width: 1,
                 height: 40,
-                background: "rgba(255,255,255,0.16)",
+                background: "rgba(34,29,22,0.18)",
               }}
             />
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <div
-                style={{ display: "flex", fontSize: 40, fontWeight: 700, color: "#fafafa" }}
+                style={{ display: "flex", fontSize: 40, fontWeight: 700, color: "#221d16" }}
               >{`${spots}`}</div>
-              <div style={{ display: "flex", fontSize: 22, color: "#71717a" }}>个行程点</div>
+              <div style={{ display: "flex", fontSize: 22, color: "#7c7160" }}>个行程点</div>
             </div>
           </>
         )}
-        <div style={{ display: "flex", marginLeft: "auto", fontSize: 22, color: "#71717a" }}>
+        <div style={{ display: "flex", marginLeft: "auto", fontSize: 22, color: "#7c7160" }}>
           行程规划师
         </div>
       </div>

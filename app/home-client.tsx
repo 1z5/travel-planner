@@ -15,7 +15,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { cityImage } from "@/lib/city-images";
+import { formatCny } from "@/lib/budget";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
 import { LiveProgress } from "@/components/LiveProgress";
@@ -41,6 +41,14 @@ const PREF_OPTIONS = [
   "亲子友好",
   "夜生活",
 ];
+
+// 首屏样张的站点数：按名称去重（同一家酒店连住多天只算一站，与海报/报告同口径）。
+// 模块级算一次即可——SAMPLE_PLAN 是静态 fixture。
+const SAMPLE_STOPS = (() => {
+  const seen = new Set<string>();
+  for (const d of SAMPLE_PLAN.days) for (const s of d.spots) seen.add(s.name);
+  return seen.size;
+})();
 
 // 等待期的阶段提示已移入 LiveProgress：管线遥测（stage）存在时展示**真实
 // 阶段清单**，无遥测（旧任务）时才轮换泛化提示。这里不再保留按时间轮换的
@@ -454,45 +462,63 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           表单提交；fixed 定位也让它在首页任何滚动位置都可唤起。 */}
       <ProfileDrawer />
       <header className="masthead">
-        <motion.img
-          key={city}
-          className="masthead-bg"
-          src={cityImage(city)}
-          alt=""
-          initial={{ scale: 1.08, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.9, ease: "easeOut" }}
-        />
-        <div className="masthead-veil" />
         <motion.div
           className="masthead-inner"
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
         >
-          <span className="masthead-eyebrow">
-            <Sparkles size={13} />
-            AI 行程规划平台
-          </span>
-          <h1>去哪儿，都放心</h1>
-          <p className="masthead-sub">
-            任何目的地、任何天数——几分钟内得到一份经过事实核查的行程：
-            每个景点真实存在，每段路线距离可信。
-          </p>
-          <div className="masthead-points">
-            <span>
-              <ShieldCheck size={15} />
-              POI 真实性验核
+          <div className="masthead-copy">
+            <span className="masthead-eyebrow">
+              <Sparkles size={13} />
+              AI 行程规划平台
             </span>
-            <span>
-              <Route size={15} />
-              通勤距离实测
-            </span>
-            <span>
-              <Stethoscope size={15} />
-              绕路与节奏体检
-            </span>
+            <h1>去哪儿，都放心</h1>
+            <p className="masthead-sub">
+              任何目的地、任何天数——几分钟内得到一份经过事实核查的行程：
+              每个景点真实存在，每段路线距离可信。
+            </p>
+            <div className="masthead-points">
+              <span>
+                <ShieldCheck size={15} />
+                POI 真实性验核
+              </span>
+              <span>
+                <Route size={15} />
+                通勤距离实测
+              </span>
+              <span>
+                <Stethoscope size={15} />
+                绕路与节奏体检
+              </span>
+            </div>
           </div>
+
+          {/* 样张卡：把「产品长什么样」直接放在首屏——不是营销插画，而是
+              一份真实示例行程的骨架（城市/天数/站点/每日主题，全部来自
+              SAMPLE_PLAN 这份真实生成的 fixture）。点到即看完整示例。 */}
+          <aside className="masthead-specimen" aria-label="示例行程">
+            <div className="specimen-top">
+              <span className="specimen-kicker">示例行程 · SAMPLE</span>
+              <span className="specimen-days-count">{SAMPLE_PLAN.days.length} DAYS</span>
+            </div>
+            <div className="specimen-city">{SAMPLE_PLAN.city}</div>
+            <p className="specimen-stats">
+              {SAMPLE_PLAN.days.length} 天 · {SAMPLE_STOPS} 站 · 人均{" "}
+              {formatCny(SAMPLE_PLAN.totalCostCny)}
+            </p>
+            <ol className="specimen-days">
+              {SAMPLE_PLAN.days.map((d) => (
+                <li key={d.day}>
+                  <span className="specimen-num">{String(d.day).padStart(2, "0")}</span>
+                  <span className="specimen-theme">{d.theme}</span>
+                </li>
+              ))}
+            </ol>
+            <button type="button" className="specimen-cta" onClick={() => setSampleMode(true)}>
+              看完整示例 →
+            </button>
+          </aside>
         </motion.div>
       </header>
 
