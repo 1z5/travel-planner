@@ -13,13 +13,44 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const STUB_PORT = 8898; // 桩 LLM
-const AMAP_STUB_PORT = 8899; // 桩高德
-const WECHAT_STUB_PORT = 8900; // 桩微信
-const SMS_STUB_PORT = 8901; // 桩腾讯云短信
+// 桩端口不能写死：本机经常还有别的开发环境（或另一场 e2e / QA 会话）占着
+// 8898-8901。桩进程绑不上会直接退出，但测试会继续打到「别人家的桩」上——
+// 现象是分日流式看不到中间态（别人的桩没有延迟配置），排查会浪费很久。
+// 因此 main 启动时动态挑空闲端口（let 绑定，供后面的 spawn/URL 使用）。
+let STUB_PORT = 8898; // 桩 LLM
+let AMAP_STUB_PORT = 8899; // 桩高德
+let WECHAT_STUB_PORT = 8900; // 桩微信
+let SMS_STUB_PORT = 8901; // 桩腾讯云短信
+
+/** 端口是否可绑定（真正 listen 一次再关闭，避免只查进程表的竞态） */
+async function portFree(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.once("error", () => resolve(false));
+    srv.once("listening", () => srv.close(() => resolve(true)));
+    srv.listen(port, "127.0.0.1");
+  });
+}
+
+// 已经分配出去的端口：pickPort 必须跳过它们，否则 LLM 桩占了 8899 之后
+// 高德桩又会挑到 8899（两个桩互相抢端口 → 测试大面积假阴性）。
+const usedPorts = new Set();
+
+/** 从 start 起找一个可绑定且未被分配的端口（最多试 200 个） */
+async function pickPort(start) {
+  for (let p = start; p < start + 200; p += 1) {
+    if (usedPorts.has(p)) continue;
+    if (await portFree(p)) {
+      usedPorts.add(p);
+      return p;
+    }
+  }
+  throw new Error(`从 ${start} 起找不到空闲端口`);
+}
 const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106, sms: 3107, pg: 3108 };
 const HAS_PG = Boolean(process.env.DATABASE_URL);
 const APP = (k) => `http://127.0.0.1:${PORTS[k]}`;
@@ -2075,11 +2106,25 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  // 动态端口：见上方 STUB_PORT 注释（避免打到别人家的桩上导致假阴性）
+  STUB_PORT = await pickPort(8898);
+  AMAP_STUB_PORT = await pickPort(8899);
+  WECHAT_STUB_PORT = await pickPort(8900);
+  SMS_STUB_PORT = await pickPort(8901);
+  // 把动态端口回写进环境变量：切片模块（scripts/e2e-slices/profile.mjs）会
+  // 读 process.env.STUB_PORT 去回看桩的 /_last_user。只改常量不写环境变量，
+  // 切片就会去敲默认的 8898（可能正是别人的桩），拿到过期的 prompt——表现
+  // 为「档案没进 prompt」的假阴性。
+  process.env.STUB_PORT = String(STUB_PORT);
+  process.env.AMAP_STUB_PORT = String(AMAP_STUB_PORT);
+  if (STUB_PORT !== 8898) {
+    console.log(`  ⚠️ 8898 被占用，桩 LLM 改用 ${STUB_PORT}（避免测试打到别的桩上）`);
+  }
   console.log("启动桩服务与两台测试服务器（MOCK 3103 / 真实 3104）……");
   // 单日响应加延迟：分日流式的核心价值是「逐天出现」，桩若秒回则整个任务
-  // 瞬间完成，e2e 无法观测中间状态。注入 1500ms/天，5 天约 7.5 秒——
-  // 留足余量是因为 dev server 首次请求要现编译路由，会吃掉几百毫秒，
-  // 延迟太窄会让「渐进」观测退化成「只看到 1 或直接 done」。
+  // 瞬间完成，e2e 无法观测中间状态。注入 1500ms/天，5 天约 7.5 秒。
+  // 注意：真正会毁掉观测的不是这个延迟的长短，而是「端口被占用导致测试
+  // 打到没延迟的桩上」——已在 main 里用动态端口消除。
   spawnCmd("node", ["scripts/stub-llm.mjs", String(STUB_PORT)], { STUB_DAY_DELAY_MS: "1500" });
   spawnCmd("node", ["scripts/amap-stub.mjs", String(AMAP_STUB_PORT)]);
   spawnCmd("node", ["scripts/wechat-stub.mjs", String(WECHAT_STUB_PORT)]);

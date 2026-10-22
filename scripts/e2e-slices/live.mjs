@@ -143,15 +143,23 @@ export async function runSlice({ check, api, mode }) {
     JSON.stringify(ahead.map((o) => ({ stage: o.stage, daysReady: o.daysReady })).slice(0, 5)),
   );
 
-  // 观测到逐日推进：day:N/M 出现且 N 至少递增过一次（真正逐天长出来）
+  // 观测到逐日推进：N 至少递增过一次（真正逐天长出来）。
+  // 证据可以是两种之一，二者都是「用户能看到天在长出来」的真实信号：
+  //   a) day:N/M 出现至少两个不同 N（阶段遥测推进）；
+  //   b) daysReady 出现至少两个不同值（部分行程在轮询中增长）。
+  // 为什么不一刀切要求 a：并发生成（DAY_CONCURRENCY=3）下前缀发布会成批
+  // 推进（0→3→5），而最后一批发布与 finalizing 几乎同 tick——轮询能否
+  // 恰好抓到中间值是调度运气，不是产品行为。b 与 a 同源（都来自同一份
+  // 快照），用任一证据即可证明「渐进交付」没有退化成「等全量」。
   const dayObs = withStage
     .map((o) => /^day:(\d+)\/(\d+)$/.exec(o.stage))
     .filter(Boolean)
     .map((m) => Number(m[1]));
+  const readySeq = [...new Set(running.map((o) => o.daysReady).filter((v) => typeof v === "number"))];
   check(
-    "流式：观测到逐日推进（day:N/M 且 N 递增）",
-    dayObs.length > 0 && new Set(dayObs).size >= 2,
-    JSON.stringify(dayObs),
+    "流式：观测到逐日推进（day:N/M 递增或 daysReady 递增）",
+    (dayObs.length > 0 && new Set(dayObs).size >= 2) || readySeq.length >= 2,
+    JSON.stringify({ dayObs, daysReady: readySeq }),
   );
 
   // daysReady 单调不减 + 始终是连续前缀（与编排器用例 14 同口径，防回归）

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { MotionPref } from "@/components/MotionPref";
 
 // metadataBase 让 OG/分享链接生成绝对地址（部署时用 NEXT_PUBLIC_SITE_URL 覆盖）。
 // openGraph/twitter 的标题与描述在这里统一给默认值，子路由（分享页/报告页）各自覆盖。
@@ -40,9 +41,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="zh-CN">
       <body>
-        <SiteHeader />
-        {children}
-        <SiteFooter />
+        <MotionPref>
+          <SiteHeader />
+          {children}
+          <SiteFooter />
+        </MotionPref>
       </body>
     </html>
   );
