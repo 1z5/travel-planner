@@ -5162,3 +5162,186 @@ summary:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   兜底页面：404 / 错误边界 / 路由 loading
+   ============================================================ */
+
+.fault-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--sp-9) 0 var(--sp-8);
+  text-align: left;
+}
+.fault-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin-bottom: var(--sp-3);
+}
+.fault-title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h1);
+  line-height: 1.2;
+  margin: 0 0 var(--sp-3);
+}
+.fault-desc {
+  font-size: var(--fs-body);
+  color: var(--ink-3);
+  line-height: 1.85;
+  margin: 0 0 var(--sp-5);
+}
+.fault-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  margin: calc(-1 * var(--sp-3)) 0 var(--sp-5);
+}
+.fault-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.fault-actions .btn-primary.btn-sm {
+  width: auto;
+  padding: 0 16px;
+}
+
+/* 路由 loading 骨架：只用灰条与卡片轮廓，不假装具体内容 */
+.route-skeleton {
+  padding: var(--sp-8) 0;
+  max-width: 720px;
+}
+.sk-line {
+  background: var(--surface-2);
+  border-radius: 4px;
+  height: 14px;
+  margin-bottom: 12px;
+}
+.sk-eyebrow {
+  width: 140px;
+  height: 10px;
+}
+.sk-title {
+  width: 60%;
+  height: 36px;
+  margin-bottom: 16px;
+}
+.sk-sub {
+  width: 80%;
+  margin-bottom: 32px;
+}
+.sk-card {
+  height: 180px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  margin-bottom: var(--sp-4);
+}
+.sk-card-short {
+  height: 96px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .route-skeleton .sk-line,
+  .route-skeleton .sk-card {
+    animation: sk-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes sk-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+/* ============================================================
+   出发前准备（PackingList）
+   ============================================================ */
+
+.packing-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+.packing-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+  margin: 0;
+}
+.packing-title svg {
+  color: var(--accent);
+}
+.packing-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: 0.02em;
+}
+.packing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.packing-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.packing-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.packing-label {
+  font-size: var(--fs-body);
+  font-weight: 650;
+  color: var(--ink);
+}
+.packing-reason {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+.packing-source {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-4);
+  text-align: right;
+  max-width: 46%;
+  line-height: 1.5;
+}
+.packing-empty {
+  margin: var(--sp-2) 0;
+  font-size: var(--fs-small);
+}
+.packing-degrade {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+  border-top: 1px dashed var(--line);
+  padding-top: var(--sp-2);
+}
+@media (max-width: 640px) {
+  .packing-source {
+    max-width: 100%;
+    text-align: left;
+  }
+}

@@ -48,6 +48,7 @@ import type { CopilotSuggestion } from "@/lib/copilot-types";
 import { RealMap } from "./RealMap";
 import { BudgetInsight } from "./BudgetInsight";
 import { CostChart } from "./CostChart";
+import { PackingList } from "./PackingList";
 import { summarizeBudget } from "@/lib/budget";
 import { suggestFix } from "@/lib/fix-actions";
 import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
@@ -1166,6 +1167,9 @@ export function PlanView({
           </ul>
         </div>
       )}
+
+      {/* ===== 出发前准备（确定性推导，不调模型；每项带依据与来源） ===== */}
+      <PackingList plan={viewPlan} />
     </>
   );
 }

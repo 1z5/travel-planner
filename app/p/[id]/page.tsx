@@ -56,16 +56,22 @@ export default async function SharePage({
   if (!plan) {
     return (
       <main className="container">
-        <div className="card">
-          <h2>链接已失效</h2>
-          <p className="muted">
-            这个行程不存在或已被删除。可能是链接地址有误，或创建者删除了行程。
+        {/* 无效链接与 404 同一套语言：说清发生了什么、数据是否还在、下一步去哪 */}
+        <div className="fault-page">
+          <div className="fault-eyebrow">SHARE LINK · 链接已失效</div>
+          <h1 className="fault-title">这个分享链接打不开</h1>
+          <p className="fault-desc">
+            这份行程不存在，或已被创建者删除。可能是链接地址有误——请让分享者重新发一次链接。
+            已生成的行程本身是持久保存的，不会因为时间过期。
           </p>
-          <p>
-            <Link href="/" style={{ color: "var(--accent)" }}>
-              去生成自己的行程 →
+          <div className="fault-actions">
+            <Link href="/" className="btn btn-primary btn-sm">
+              去生成自己的行程
             </Link>
-          </p>
+            <Link href="/#faq" className="btn btn-sm">
+              查看常见问题
+            </Link>
+          </div>
         </div>
       </main>
     );

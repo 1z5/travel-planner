@@ -58,16 +58,17 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     // 不同给出两套说法。不承诺「过期时间」——持久化 Plan 并不会过期。
     return (
       <main className="container">
-        <div className="card">
-          <h2>链接已失效</h2>
-          <p className="muted">
-            这个行程不存在或已被删除。可能是链接地址有误，或创建者删除了行程。
+        <div className="fault-page">
+          <div className="fault-eyebrow">TRAVEL REPORT · 链接已失效</div>
+          <h1 className="fault-title">这份旅程报告打不开</h1>
+          <p className="fault-desc">
+            报告对应的行程不存在，或已被创建者删除。可能是链接地址有误——请让分享者重新发一次链接。
           </p>
-          <p>
-            <Link href="/" style={{ color: "var(--accent)" }}>
-              去生成自己的行程 →
+          <div className="fault-actions">
+            <Link href="/" className="btn btn-primary btn-sm">
+              去生成自己的行程
             </Link>
-          </p>
+          </div>
         </div>
       </main>
     );
