@@ -2139,14 +2139,33 @@ async function phaseP(api) {
   // 旧实现跨天不重置（只 upsert +1 并改 date）会继续累加 → 必 429；修好后应
   // 重置为 1/2。memory 实现整桶替换，单测与 memory e2e 都覆盖不到这个分支，
   // 只能连真库改行来验。
+  // key 必须从 job 记录里取：真实请求的 IP key 由运行环境决定（Next 服务器
+  // 可能带 x-forwarded-for），硬编码 "ip:local" 会预置到另一行、测了个寂寞。
   const { PrismaClient } = await import("@prisma/client");
   const { PrismaPg } = await import("@prisma/adapter-pg");
   const db = new PrismaClient({ adapter: new PrismaPg(process.env.DATABASE_URL) });
+  let quotaKey;
   try {
+    const jobRow = await db.job.findUnique({
+      where: { id: r1.body.jobId },
+      select: { key: true },
+    });
+    quotaKey = jobRow?.key;
+    check(
+      "PG：能定位到本次请求的配额桶 key",
+      typeof quotaKey === "string",
+      JSON.stringify(quotaKey),
+    );
     await db.quotaBucket.updateMany({
-      where: { key: "ip:local" },
+      where: { key: quotaKey },
       data: { date: "2000-01-01", count: 99 },
     });
+    const seeded = await db.quotaBucket.findUnique({ where: { key: quotaKey } });
+    check(
+      "PG：跨天测试预置成功（昨天 + 已用 99 次）",
+      seeded?.count === 99 && seeded?.date === "2000-01-01",
+      JSON.stringify(seeded),
+    );
   } finally {
     await db.$disconnect();
   }
