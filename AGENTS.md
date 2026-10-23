@@ -29,7 +29,7 @@ AI 行程规划平台：用户输入目的地/时间/预算/偏好 → step-5 �
 app/
   (app)/page.tsx        我的行程（产品入口，读 localStorage 索引）
   (app)/new/page.tsx    新建行程（产品态壳 + 客户端表单）
-  (app)/w/[id]/          Trip Workspace（规划/地图/今日三镜头）
+  (app)/w/[id]/          Trip Workspace（规划/地图/调整/今日四镜头）
   (app)/p/[id]/         分享页（只读行程工件）
   (app)/t/[id]/         行中模式（同一行程的执行镜头）
   (app)/r/[id]/         旅程报告
@@ -64,7 +64,8 @@ lib/
 
 components/
   AppShell.tsx          产品壳（紧凑顶栏：我的行程 / 新建），只在 (app) 用
-  TripWorkspace.tsx     行程工作台：Trip Header + 规划/地图/今日镜头
+  TripWorkspace.tsx     行程工作台：Trip Header + 规划/地图/调整/今日镜头
+  DayArrange.tsx        调整镜头：拖拽/↑↓ 重排当天点位 + 确定性重算 + 撤销
   TripsHome.tsx         我的行程列表/空态（localStorage）
   PlanView.tsx          行程展示（结果页/分享页共用）
   PlanCopilot.tsx       行程管家对话面板
@@ -76,7 +77,7 @@ components/
 ## 开工前先看这里（当前状态）
 
 - **Phase 0（官网/产品分离）已落地**：`/` 是「我的行程」、`/new` 是新建、`/about` 才是营销页；根布局不再挂站点头尾，产品页用 `AppShell`。下一步是 Trip Workspace（双栏 + 直接操纵），不要再把营销区块加回产品页。
-- **产品已到 v8.1**：完整能力链（事实先行生成 / 可执行性体检 / 一键修复 / 行程管家 / 分享克隆 / 旅程报告 / 旅行档案 / 行中重规划 / 流式生长 / 出行准备包）+ 全站「纸面杂志」视觉系统（ADR-007/008）。测试基线 **798 单测 + 506 e2e**。
+- **产品已到 v8.1**：完整能力链（事实先行生成 / 可执行性体检 / 一键修复 / 行程管家 / 分享克隆 / 旅程报告 / 旅行档案 / 行中重规划 / 流式生长 / 出行准备包）+ 全站「纸面杂志」视觉系统（ADR-007/008）。测试基线 **804 单测 + 511 e2e**。
 - **下一轮候选（Phase 2）**：工作台内的直接操纵（拖拽排序/跨天/改时长/锁定 + 确定性重算 + diff/撤销）、候选池、生成中可编辑骨架、行中通知。产品判断见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md)。
 - **v5 事实层的真实高德 key 验收仍未做**（MOCK 下功能全绿，但「真实世界事实」要真 key 才闭环）：清单见 [NEXT_STEPS.md](NEXT_STEPS.md)「v5 专项验收清单」。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
@@ -97,7 +98,7 @@ components/
 npm run gate           # 一键验收：typecheck + lint + format:check + 单测 + e2e（提交前必须全绿）
 npm run typecheck      # TypeScript strict
 npm run lint           # ESLint（0 error 0 warning）
-npm run test:unit      # Vitest 798 条（组件 + 纯逻辑）
+npm run test:unit      # Vitest 804 条（组件 + 纯逻辑）
 npm test               # e2e 506 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，7 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）

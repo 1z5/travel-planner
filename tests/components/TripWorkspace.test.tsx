@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 // CloneCTA 用 useRouter 做克隆后跳转——jsdom 里没有 App Router 上下文
+let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => searchParams,
 }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -44,6 +46,13 @@ describe("Trip Workspace", () => {
     render(<TripWorkspace plan={SAMPLE_PLAN} shareId="share_ws01" />);
     await userEvent.click(screen.getByRole("tab", { name: /今日/ }));
     expect(screen.getAllByText("行中模式").length).toBeGreaterThan(0);
+  });
+
+  it("深链 ?view=map 直接落到地图镜头（不执行自动 heuristic）", () => {
+    searchParams = new URLSearchParams("view=map");
+    render(<TripWorkspace plan={SAMPLE_PLAN} shareId="share_ws01" />);
+    expect(screen.getByRole("tab", { name: /地图/ })).toHaveAttribute("aria-selected", "true");
+    searchParams = new URLSearchParams();
   });
 
   it("复制链接：写入剪贴板并反馈已复制", async () => {

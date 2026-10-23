@@ -1819,6 +1819,45 @@ async function phaseB(api) {
   });
   check("一键顺延：行程不存在 → 404", adjMissing.status === 404, `got ${adjMissing.status}`);
 
+  // ---- 直接操纵：重排当天点位（确定性，不调模型）----
+  const n1 = days[0].spots.length;
+  const reversedOrder = [...Array(n1).keys()].reverse();
+  const re1 = await (
+    await fetch(`${api.baseUrl}/api/plan/adjust`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shareId: j.shareId, op: "reorder", day: 1, order: reversedOrder }),
+    })
+  ).json();
+  check(
+    "重排：200 + 顺序被置换（首点变成原最后一点）",
+    (re1.plan?.days ?? [])[0]?.spots?.[0]?.name === days[0].spots[n1 - 1].name,
+    JSON.stringify(re1).slice(0, 160),
+  );
+  check(
+    "重排：revision 递增（落库，分享页/日历同步）",
+    typeof re1.revision === "number" && re1.revision > adj2.revision,
+    `got ${re1.revision} prev=${adj2.revision}`,
+  );
+  check(
+    "重排：notes 如实说明（缺路段时不假装算动时间轴）",
+    Array.isArray(re1.notes),
+    JSON.stringify(re1.notes).slice(0, 160),
+  );
+
+  const reBadPerm = await fetch(`${api.baseUrl}/api/plan/adjust`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: j.shareId, op: "reorder", day: 1, order: [0, 0] }),
+  });
+  check("重排：非置换 → 400", reBadPerm.status === 400, `got ${reBadPerm.status}`);
+  const reNoOrder = await fetch(`${api.baseUrl}/api/plan/adjust`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: j.shareId, op: "reorder", day: 1 }),
+  });
+  check("重排：缺 order → 400", reNoOrder.status === 400, `got ${reNoOrder.status}`);
+
   // ---- 体检一键修复（服务端模板化指令 → AI 改一天 → 自动重体检）----
   // 用新的 share：fix 会走 refine 链路，独立 plan 便于断言 revision/appliedFix。
   const jFix = await api.waitJob(

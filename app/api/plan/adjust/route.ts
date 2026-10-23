@@ -4,7 +4,7 @@ import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
 import { RetimeUnavailableError, retimeDay, type RetimeResult } from "@/lib/schedule";
 import { refreshTimeWarnings } from "@/lib/validate";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
-import type { Plan } from "@/lib/types";
+import type { Plan, PlanDay } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,8 +43,11 @@ const UNAVAILABLE =
 
 const BodySchema = z.object({
   shareId: z.string().regex(/^[A-Za-z0-9_-]{6,40}$/, "行程链接格式不正确"),
-  op: z.enum(["retime"], { message: "op 只能是 retime" }),
+  op: z.enum(["retime", "reorder"], { message: "op 只能是 retime 或 reorder" }),
   day: z.number().int().min(1, "天数不合法").max(10, "天数不合法"),
+  // reorder 专用：新的点位顺序，用「当前下标的置换」表示（不用名称数组——
+  // 同名点位会歧义）。缺省/非置换一律 400，不猜用户想怎么排。
+  order: z.array(z.number().int().min(0).max(30)).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -62,7 +65,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const { shareId, day } = parsed.data;
+  const { shareId, day, op, order } = parsed.data;
 
   // 2) 读可编辑行程。只认持久化 Plan（share token）；旧 job 链接是只读历史结果
   const record = await getPlanForEdit(shareId);
@@ -99,30 +102,58 @@ export async function POST(req: NextRequest) {
   // 5) 确定性重排（纯算术，毫秒级）
   const t0 = Date.now();
   let result: RetimeResult;
-  try {
-    result = retimeDay(record.plan, record.input, day);
-  } catch (e) {
-    await refund(winKey); // 失败不消耗名额（与 refine/生成同口径）
-    if (e instanceof RetimeUnavailableError) {
-      // day_not_found 是防御性分支（上面已先校验）：仍按 400 返回，语义准确
-      const status = e.code === "day_not_found" ? 400 : 422;
+  if (op === "reorder") {
+    // 先按用户给的置换重排当天点位，再尽量重算时间轴。缺真实路段时不假装
+    // 算得动：保留原时间、把原因写进 notes，顺序变更本身仍然生效（时间冲突
+    // 由随后的预警刷新如实暴露，再由用户决定顺延或让 AI 重排）。
+    const n = targetDay.spots.length;
+    if (!order || order.length !== n || new Set(order).size !== n || order.some((i) => i >= n)) {
       return NextResponse.json(
-        { error: e.code === "day_not_found" ? e.message : UNAVAILABLE },
-        { status },
+        { error: `重排需要当天 ${n} 个点位的一个完整置换（0-${n - 1} 各一次）` },
+        { status: 400 },
       );
     }
-    console.error(
-      `[adjust] ${shareId} 第 ${day} 天 retime 未预期失败: ${(e as Error)?.message ?? e}`,
-    );
-    return NextResponse.json(
-      { error: "顺延时间轴失败：服务暂时不可用，请稍后重试" },
-      { status: 500 },
-    );
+    const reorderedDay: PlanDay = {
+      ...targetDay,
+      spots: order.map((i) => targetDay.spots[i]),
+    };
+    const reorderedPlan: Plan = {
+      ...record.plan,
+      days: record.plan.days.map((d) => (d.day === day ? reorderedDay : d)),
+    };
+    try {
+      result = retimeDay(reorderedPlan, record.input, day);
+    } catch (e) {
+      const reason = e instanceof RetimeUnavailableError ? e.message : String(e);
+      result = { day: reorderedDay, changed: true, notes: [reason] };
+    }
+  } else {
+    try {
+      result = retimeDay(record.plan, record.input, day);
+    } catch (e) {
+      await refund(winKey); // 失败不消耗名额（与 refine/生成同口径）
+      if (e instanceof RetimeUnavailableError) {
+        // day_not_found 是防御性分支（上面已先校验）：仍按 400 返回，语义准确
+        const status = e.code === "day_not_found" ? 400 : 422;
+        return NextResponse.json(
+          { error: e.code === "day_not_found" ? e.message : UNAVAILABLE },
+          { status },
+        );
+      }
+      console.error(
+        `[adjust] ${shareId} 第 ${day} 天 retime 未预期失败: ${(e as Error)?.message ?? e}`,
+      );
+      return NextResponse.json(
+        { error: "顺延时间轴失败：服务暂时不可用，请稍后重试" },
+        { status: 500 },
+      );
+    }
   }
 
   // 6) 无需改动：不落库、不涨 revision。前端据此提示「时间轴本来就是接得上的」
+  //    （reorder 至少改变顺序；只有 order 与原顺序完全一致时才可能走到这里）
   if (!result.changed) {
-    console.log(`[adjust] ${shareId} 第 ${day} 天 retime changed=false 用时 ${Date.now() - t0}ms`);
+    console.log(`[adjust] ${shareId} 第 ${day} 天 ${op} changed=false 用时 ${Date.now() - t0}ms`);
     return NextResponse.json({
       plan: record.plan,
       revision: record.revision,
@@ -147,7 +178,7 @@ export async function POST(req: NextRequest) {
   }
 
   console.log(
-    `[adjust] ${shareId} 第 ${day} 天 retime changed=true 用时 ${Date.now() - t0}ms revision=${saved.revision}${result.notes.length ? ` 说明=${result.notes.join("；")}` : ""}`,
+    `[adjust] ${shareId} 第 ${day} 天 ${op} changed=true 用时 ${Date.now() - t0}ms revision=${saved.revision}${result.notes.length ? ` 说明=${result.notes.join("；")}` : ""}`,
   );
   return NextResponse.json({
     plan: saved.plan,
