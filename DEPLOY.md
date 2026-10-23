@@ -149,6 +149,27 @@ DATABASE_URL=postgres://...
 
 契约测试：设了 `DATABASE_URL` 后跑 `npm test`，会自动起一台 postgres 模式的服务器执行任务持久化/配额计数的契约断言（阶段 P）；没设则自动跳过（memory 路径的 e2e 断言不受影响）。
 
+### 备份与恢复（Postgres，商业化前的硬性要求）
+
+行程是**用户资产**（分享链接长期有效），丢了就是事故。一人公司的最低标准：
+
+```bash
+# ① 每日备份（cron 或云托管的定时任务）：压缩 + 保留 14 天
+pg_dump "$DATABASE_URL" | gzip > "backups/travel-planner-$(date +%Y%m%d).sql.gz"
+
+# ② 恢复（先停服务再恢复；standalone 是无状态进程，重启即可）
+gunzip -c backups/travel-planner-20261024.sql.gz | psql "$DATABASE_URL"
+
+# ③ 恢复演练（每季度一次，只做不做记录等于没做）
+#    用备份在新库起一套：prisma migrate deploy → 灌备份 → node scripts/smoke-deployed.mjs https://staging
+```
+
+保留策略：备份 14 天 + 每周一份月度备份保留 6 个月。数据库本身按云厂商的自动快照再兜一层。
+
+> `memory` 模式没有备份概念（重启即丢）——它只适合本地/测试。生产必须 `DATA_STORE=postgres`。
+> 健康检查现在会真的连库（`/api/health` 返回 `db:ok|error`，失败 503），DB 挂掉时云托管会把实例摘掉，
+> 不会再往一个必然 500 的服务导流。
+
 ## 数据源与外部依赖（v3 起）
 
 - **高德 POI 详情**：`/v3/place/text` 以 `extensions=all` 请求，获取评分/营业时间/人均/电话；响应体比 base 大但请求数不变，结果只缓存解析后的结构（`poiCache` 30 分钟）。

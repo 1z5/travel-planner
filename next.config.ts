@@ -13,7 +13,31 @@ const nextConfig: NextConfig = {
   // distDir，否则共用 .next 会互相踩踏构建状态（随机编译失败/挂起）
   distDir: process.env.NEXT_DIST_DIR || ".next",
   async headers() {
-    // 面向陌生人的公共部署：最小安全头集
+    // 面向陌生人的公共部署：安全头集。
+    //
+    // CSP 的口径（刻意不用 nonce，用 'unsafe-inline'）：
+    // - 站点自身不执行用户输入，XSS 面主要来自「POI 名称/理由」等模型输出文本，
+    //   而 React 默认转义 + 这些字段都会经过服务端校验，脚本注入面很小；
+    // - framer-motion 的入场动画靠内联 style；Next 的 hydration 脚本在部分版本
+    //   也需要 'unsafe-inline'。为了不把产品搞挂，这里取「可用的严格」而非
+    //   「最严但会坏」；真正的加固点是输入白名单（app/api/plan 已有）与服务端转义。
+    // - 地图/OG 图片都走本站 /api/map 代理，所以 img-src 不需要放行高德域名
+    //   （key 也不出服务端）；data: 给内嵌 SVG/占位图。
+    // - 'unsafe-eval' 只在开发环境放行：React 在 development 下要用 eval 做
+    //   Fast Refresh（生产构建不需要）。加上它生产就白紧了，所以按 NODE_ENV 区分。
+    const isDev = process.env.NODE_ENV !== "production";
+    const csp = [
+      "default-src 'self'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
     return [
       {
         source: "/(.*)",
@@ -21,6 +45,14 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Content-Security-Policy", value: csp },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+          // HSTS 只在 HTTPS 下有意义；没有自定义域名/证书时先不开，
+          // 否则 http 环境会被浏览器记住并强制跳 https（本地开发会坏）。
+          // 部署到 HTTPS 域名后取消下面这行注释即可。
+          // ...(process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")
+          //   ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]
+          //   : []),
         ],
       },
     ];

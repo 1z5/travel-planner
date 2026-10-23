@@ -60,6 +60,21 @@ jobs:
       - name: 组件测试 + 覆盖率门禁（Vitest + RTL）
         run: npm run test:coverage
 
+  # 密钥泄露扫描：代码里出现过真实 key / token 是商业化产品最致命的事故之一。
+  # 用官方二进制（固定版本），不引入需要付费 license 的第三方 action。
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks 需要完整历史才能扫到「曾经提交过又删掉」的密钥
+      - name: 安装 Gitleaks（固定版本）
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: 扫描密钥泄露
+        run: gitleaks detect --source . --redact --exit-code 1 --verbose
+
   # Postgres 路径契约：内存实现（默认）掩盖了「真实生产存储」的差异——
   # Plan 落库/分享页读回、revision 原子自增都只有连真库才验得到。
   # 本 job 起一个 postgres service，跑迁移基线后全量 e2e（run-tests 里

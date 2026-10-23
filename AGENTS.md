@@ -100,7 +100,7 @@ npm run typecheck      # TypeScript strict
 npm run lint           # ESLint（0 error 0 warning）
 npm run test:unit      # Vitest 804 条（组件 + 纯逻辑）
 npm test               # e2e 506 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
-npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，7 页 × 桌面/手机）
+npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，9 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
 ```
@@ -158,7 +158,7 @@ e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM
 ### 视觉与可访问性回归：`npm run gate:visual`
 
 UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 dist 目录，
-不干扰别人正在跑的 dev server），生成种子行程后对 7 个页面 × 2 视口检查：
+不干扰别人正在跑的 dev server），生成种子行程后对 9 个页面 × 2 视口检查：
 
 - 横向溢出（scrollWidth > clientWidth）
 - 触控目标 < 40px 的控件

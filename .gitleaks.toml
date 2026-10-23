@@ -1,0 +1,25 @@
+# Gitleaks 配置：CI 的 secret-scan job 使用。
+#
+# 目的：拦住「真实密钥被提交」这类事故，同时不把项目里**故意的占位符**
+# 当成漏洞刷屏。误报太多会让人养成忽略 CI 的习惯，那比漏报更危险。
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "项目内已知占位符/示例值（非真实密钥）"
+paths = [
+  '''\.env\.example$''',
+  '''DEPLOY\.md$''',
+  '''lib/auth/session\.ts$''',
+  '''scripts/check-env\.mjs$''',
+  '''scripts/preflight\.mjs$''',
+  '''scripts/run-tests\.mjs$''',
+]
+regexes = [
+  '''在这里填你的key''',
+  '''dev-only-insecure-secret''',
+  '''sk-xxx''',
+  '''stub-key''',
+  '''stub-amap-key''',
+]

@@ -391,6 +391,8 @@ async function main() {
         path: "/about",
         required: [".about-hero", ".trust-grid", ".site-footer"],
       },
+      { name: "privacy", path: "/privacy", required: [".legal-page", ".site-footer"] },
+      { name: "terms", path: "/terms", required: [".legal-page", ".site-footer"] },
       {
         name: "workspace",
         path: `/w/${shareId}`,

@@ -6182,3 +6182,120 @@ main.has-result .new-head {
     grid-row: 1 / span 3;
   }
 }
+
+/* ============================================================
+   法务页（隐私政策 / 用户协议）：ToC 合规必备
+   ============================================================ */
+
+.legal-page {
+  padding: var(--sp-8) 0 var(--sp-9);
+}
+.legal-inner {
+  max-width: 760px;
+}
+.legal-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--ink-4);
+  margin: 0 0 12px;
+}
+.legal-page h1 {
+  font-family: var(--font-serif);
+  font-size: 40px;
+  line-height: 1.2;
+  margin: 0 0 8px;
+}
+.legal-updated {
+  font-size: 12.5px;
+  color: var(--ink-4);
+  margin: 0 0 var(--sp-6);
+}
+.legal-page h2 {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  margin: var(--sp-7) 0 12px;
+}
+.legal-page p,
+.legal-page li {
+  font-size: 14.5px;
+  line-height: 1.9;
+  color: var(--ink-2);
+}
+.legal-page ul {
+  padding-left: 20px;
+  margin: 0 0 12px;
+}
+.legal-page li {
+  margin-bottom: 8px;
+}
+.legal-page code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 16px;
+  font-size: 13.5px;
+}
+.legal-table th,
+.legal-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.legal-table th {
+  color: var(--ink-4);
+  font-weight: 500;
+}
+.legal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: var(--sp-7);
+}
+.legal-actions .btn {
+  width: auto;
+}
+
+/* 产品壳底部的法务入口：产品页没有营销页脚，但法律链接必须可达 */
+.app-foot {
+  border-top: 1px solid var(--line);
+  padding: 18px 24px 28px;
+}
+.app-foot-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  font-size: 12.5px;
+  color: var(--ink-4);
+}
+.app-foot a {
+  color: var(--ink-3);
+  text-decoration: none;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+.app-foot a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .legal-page h1 {
+    font-size: 30px;
+  }
+  .legal-table th,
+  .legal-table td {
+    padding: 8px 6px;
+  }
+}

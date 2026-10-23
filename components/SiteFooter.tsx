@@ -41,6 +41,12 @@ export function SiteFooter() {
               <li>
                 <Link href="/about#faq">常见问题</Link>
               </li>
+              <li>
+                <Link href="/privacy">隐私政策</Link>
+              </li>
+              <li>
+                <Link href="/terms">用户协议</Link>
+              </li>
             </ul>
           </div>
           <div className="footer-col">

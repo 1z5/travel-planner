@@ -30,6 +30,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {children}
+      {/* 法务入口：产品页没有营销页脚，但隐私政策/用户协议必须可达（ToC 合规） */}
+      <footer className="app-foot">
+        <div className="app-foot-inner">
+          <span>© 2026 行程规划师</span>
+          <Link href="/about">关于产品</Link>
+          <Link href="/privacy">隐私政策</Link>
+          <Link href="/terms">用户协议</Link>
+          <span>POI / 营业时间 / 路况数据来自高德开放平台</span>
+        </div>
+      </footer>
     </div>
   );
 }
