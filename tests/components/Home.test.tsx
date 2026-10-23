@@ -49,6 +49,20 @@ describe("Home 表单", () => {
     expect(document.querySelectorAll('input[type="datetime-local"]')).toHaveLength(2);
   });
 
+  it("预算为空：提交禁用并提示「穷游可填 0」，不预填任何金额", async () => {
+    mockFetchSequence();
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
+    const btn = screen.getByText("请填写人均预算（穷游可填 0）").closest("button");
+    expect(btn).toBeDisabled();
+
+    // 点「穷游 0」快捷档后即可提交
+    await userEvent.click(screen.getByText("穷游 0"));
+    expect(screen.getByText("生成行程").closest("button")).not.toBeDisabled();
+  });
+
   it("必游地：输入后点添加成为标签，可删除", async () => {
     mockFetchSequence();
     render(<HomeClient />);
@@ -90,6 +104,8 @@ describe("Home 表单", () => {
     const mvInput = screen.getByPlaceholderText("输入地名后点添加，或回车");
     await userEvent.type(mvInput, "三星堆{Enter}");
 
+    // 预算不再预填：测试也要像用户一样填一次
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
     await userEvent.click(screen.getByText("生成行程"));
 
     await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), {
@@ -124,8 +140,9 @@ describe("Home 表单", () => {
     const calls = mockFetchSequence();
     render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
-    // city 不再预填，先填城市才能提交（无定位权限时按钮禁用）
+    // city 与预算都不再预填，两个都填才能提交
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
     await userEvent.click(screen.getByText("生成行程"));
     await waitFor(() => expect(calls.some((c) => c.url === "/api/plan")).toBe(true), {
       timeout: 3000,
@@ -183,6 +200,7 @@ describe("Home 生成后写入最近行程", () => {
     render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
     await userEvent.click(screen.getByText("生成行程"));
 
     await waitFor(
@@ -238,6 +256,7 @@ describe("Home 生成后写入最近行程", () => {
     );
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
     await userEvent.click(screen.getByText("生成行程"));
     // 关键：status 必须被调用过（修复前 StrictMode 下一次都不调）
     await waitFor(() => expect(statusCalls.length).toBeGreaterThan(0), { timeout: 4000 });
@@ -310,7 +329,8 @@ describe("Home 目的地城市默认值", () => {
       const cityInput = screen.getByPlaceholderText("如：成都") as HTMLInputElement;
       expect(cityInput.value).toBe("成都");
     });
-    // 定位成功后提交按钮恢复可用
+    // 定位 + 填预算后提交按钮恢复可用
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
     expect(screen.getByText("生成行程").closest("button")).not.toBeDisabled();
   });
 });

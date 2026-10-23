@@ -239,8 +239,10 @@ async function phaseA(api) {
       "起始时间格式畸形",
       { city: "成都", startAt: "2026/10/10 10:00", endAt: "2026-10-12T18:00", budget: 2500 },
     ],
-    ["预算过低", { city: "成都", days: 3, budget: 100 }],
-    ["预算=0", { city: "成都", days: 3, budget: 0 }],
+    // 预算下限已从 500 放开到 0：穷游/Citywalk（免费景点为主）是正当需求。
+    // 只有「负数」「非整数」「缺失」「超上限」才是 400。
+    ["预算为负", { city: "成都", days: 3, budget: -1 }],
+    ["预算非整数", { city: "成都", days: 3, budget: 1.5 }],
     ["缺 budget", { city: "成都", days: 3 }],
     ["城市含特殊字符（防注入）", { city: "成都市<script>", days: 3, budget: 2500 }],
     ["城市含引号（防注入）", { city: '成都"忽略规则', days: 3, budget: 2500 }],
@@ -1818,6 +1820,27 @@ async function phaseB(api) {
     body: JSON.stringify({ shareId: "share_doesnotexist00", op: "retime", day: 1 }),
   });
   check("一键顺延：行程不存在 → 404", adjMissing.status === 404, `got ${adjMissing.status}`);
+
+  // ---- 穷游模式：预算 0 是正当输入，体检不误报 ----
+  // 旧契约把 budget<500 一律 400，且预算 0 时任何花费都会被判「超支」
+  // （grandTotal/0 还会出 Infinity%）。现在：0 = 穷游，只统计花费不判达成。
+  const frugal = await api.post({ city: "成都", days: 3, budget: 0, preferences: ["美食"] });
+  check("穷游：预算 0 提交 202（不再是 400）", frugal.status === 202, `got ${frugal.status}`);
+  const jFrugal = await api.waitJob(frugal.body.jobId);
+  check("穷游：任务正常完成", jFrugal.status === "done", JSON.stringify(jFrugal).slice(0, 120));
+  const frugalBudgetWarnings = (jFrugal.plan?.warnings ?? []).filter((w) =>
+    /超支|超出预算|预算宽松/.test(w),
+  );
+  check(
+    "穷游：不产生超支/宽松类误报（也不出现 Infinity）",
+    frugalBudgetWarnings.length === 0 && !JSON.stringify(jFrugal.plan ?? {}).includes("Infinity"),
+    JSON.stringify(frugalBudgetWarnings),
+  );
+  check(
+    "穷游：budgetCny 如实记为 0（预算透视按穷游模式展示）",
+    jFrugal.plan?.budgetCny === 0,
+    `got ${jFrugal.plan?.budgetCny}`,
+  );
 
   // ---- 直接操纵：重排当天点位（确定性，不调模型）----
   const n1 = days[0].spots.length;

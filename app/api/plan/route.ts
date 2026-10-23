@@ -24,7 +24,11 @@ const InputSchema = z
     city: z.string().regex(/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/, "城市名格式不正确"),
     startAt: z.string().regex(DT_RE, "起始时间格式不正确"),
     endAt: z.string().regex(DT_RE, "结束时间格式不正确"),
-    budget: z.coerce.number().int().min(500).max(200000),
+    // 下限 0 而不是 500：穷游/Citywalk/免费景点为主是正当需求（预算 0 = 明确
+    // 选择少花钱）。原来的 min(500) 会把「周末进城逛免费博物馆」直接拒掉。
+    // 预算为 0 时 planner/validate/budget 都切换成「穷游模式」：优先免费低价、
+    // 不判超支、不算使用率（见 lib/planner.ts 的 isFrugalBudget）。
+    budget: z.coerce.number().int().min(0, "预算不能为负").max(200000),
     // 偏好标签同样进 prompt：白名单 + 数量上限
     preferences: z
       .array(z.string().regex(/^[\u4e00-\u9fa5A-Za-z]{1,10}$/))

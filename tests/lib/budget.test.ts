@@ -212,15 +212,22 @@ describe("summarizeBudget：预算状态", () => {
     expect(s.perDay[0].pctOfBudget).toBeUndefined();
   });
 
-  it("预算为 0 / 负数：视为无效预算，notes 第一句就说清原因，不除零、不出 Infinity", () => {
-    for (const bad of [0, -100]) {
-      const s = summarizeBudget(makePlan([{ spots: [spot("food", 100)] }], { budgetCny: bad }));
-      expect(s.status).toBe("unknown");
-      expect(s.budget).toBeUndefined();
-      expect(s.usedPct).toBeUndefined();
-      expect(Number.isFinite(s.total)).toBe(true);
-      expect(s.notes[0]).toContain("无法计算使用率");
-    }
+  it("预算为 0：穷游模式（有效输入），只统计花费不判达成，不除零、不出 Infinity", () => {
+    const s = summarizeBudget(makePlan([{ spots: [spot("food", 100)] }], { budgetCny: 0 }));
+    expect(s.status).toBe("unknown");
+    expect(s.budget).toBeUndefined();
+    expect(s.usedPct).toBeUndefined();
+    expect(Number.isFinite(s.total)).toBe(true);
+    // 0 是用户的明确选择（少花钱），不是故障：说「穷游模式」而不是「预算无效」
+    expect(s.notes[0]).toContain("穷游模式");
+    expect(s.notes[0]).not.toContain("无效");
+  });
+
+  it("预算为负数：无效值，notes 说清为什么没有使用率", () => {
+    const s = summarizeBudget(makePlan([{ spots: [spot("food", 100)] }], { budgetCny: -100 }));
+    expect(s.status).toBe("unknown");
+    expect(s.usedPct).toBeUndefined();
+    expect(s.notes[0]).toContain("无法计算使用率");
   });
 
   it("预算为非有限值（NaN）：等同缺失，按「未记录预算」降级，不除零", () => {

@@ -27,6 +27,9 @@ const PREF_OPTIONS = [
   "夜生活",
 ];
 
+/** 预算快捷档（元）。0 = 穷游，是合法输入而非异常值 */
+const BUDGET_PRESETS = [0, 1000, 3000, 8000];
+
 // 等待期的阶段提示已移入 LiveProgress：管线遥测（stage）存在时展示**真实
 // 阶段清单**，无遥测（旧任务）时才轮换泛化提示。这里不再保留按时间轮换的
 // WAITING_TIPS——真实进度比泛化提示诚实，两者并存会互相矛盾。
@@ -61,7 +64,9 @@ export function HomeClient() {
     const d = new Date(Date.now() + 4 * 86400000); // 明天出发 + 4 天 = 5 个日历日中的 4 天行程
     return `${d.toISOString().slice(0, 10)}T18:00`;
   });
-  const [budget, setBudget] = useState(3000);
+  // 预算不预填：原来的 3000 是「替用户做决定」，也让人以为这是默认值/最低消费。
+  // 空着 + 占位符给口径，提交前拦截（与城市同一套路），并提供快捷档（含穷游 0）。
+  const [budget, setBudget] = useState("");
   const [prefs, setPrefs] = useState<string[]>(["美食", "历史文化"]);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,6 +76,11 @@ export function HomeClient() {
   // 分享/日历/继续编辑都用它。不再用 jobId——任务只有 2 小时生命周期，拿它做分享
   // 链接会让「分享给朋友」在两小时后变成「链接已失效」。
   const [shareId, setShareId] = useState<string | null>(null);
+  // 预算解析：空/非整数/负数/超上限都算「没填好」——按钮禁用并给可行动文案，
+  // 不让用户提交后才收到一条 400。
+  const budgetNum = Number(budget);
+  const budgetOk =
+    budget.trim() !== "" && Number.isInteger(budgetNum) && budgetNum >= 0 && budgetNum <= 200000;
   const [elapsed, setElapsed] = useState(0);
   // 管线阶段遥测（服务端在真实节点写入，见 lib/jobs.ts JobStage）：
   // undefined = 旧任务/无遥测 → LiveProgress 降级为不确定进度条。
@@ -395,7 +405,7 @@ export function HomeClient() {
           city,
           startAt,
           endAt,
-          budget,
+          budget: budgetNum,
           preferences: prefs,
           hotel: hotel.trim() || undefined,
           mustVisit,
@@ -520,11 +530,34 @@ export function HomeClient() {
                   id="budget"
                   type="number"
                   value={budget}
-                  min={500}
-                  step={100}
-                  onChange={(e) => setBudget(Number(e.target.value))}
+                  min={0}
+                  step={50}
+                  placeholder="如：1500；穷游/免费为主可填 0"
+                  onChange={(e) => setBudget(e.target.value)}
                   required
                 />
+                {/* 快捷档：把「我大概这个量级」变成一次点击；穷游 0 放在第一档，
+                    因为它正是被 min(500) 挡掉的那部分用户 */}
+                <div className="chips" style={{ marginTop: 8 }}>
+                  {BUDGET_PRESETS.map((v) => (
+                    <span
+                      key={v}
+                      className={`chip ${budget === String(v) ? "on" : ""}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={budget === String(v)}
+                      onClick={() => setBudget(String(v))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setBudget(String(v));
+                        }
+                      }}
+                    >
+                      {v === 0 ? "穷游 0" : v.toLocaleString("zh-CN")}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -898,8 +931,14 @@ export function HomeClient() {
               <span className="fa-sep" aria-hidden="true" />
               <span>结果永久保存 · 可分享</span>
             </div>
-            <button className="btn-primary" disabled={loading || !city.trim()}>
-              {loading ? "生成中…" : city.trim() ? "生成行程" : "请先填写目的地城市"}
+            <button className="btn-primary" disabled={loading || !city.trim() || !budgetOk}>
+              {loading
+                ? "生成中…"
+                : !city.trim()
+                  ? "请先填写目的地城市"
+                  : !budgetOk
+                    ? "请填写人均预算（穷游可填 0）"
+                    : "生成行程"}
             </button>
             {loading && (
               <>

@@ -603,11 +603,14 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
     }
   }
 
-  if (grandTotal > input.budget * BUDGET_OVER) {
+  // 穷游/未设预算：budget<=0 时不做「超支/宽松」判断——任何花费都会被判超支，
+  // 且 grandTotal/budget 会出 Infinity。预算为 0 是用户的明确选择（少花钱），
+  // 不是需要警告的异常；花费构成由 BudgetInsight 如实展示。
+  if (input.budget > 0 && grandTotal > input.budget * BUDGET_OVER) {
     warnings.push(
       `行程合计人均约 ${grandTotal} 元，超出预算 ${input.budget} 元 ${Math.round((grandTotal / input.budget - 1) * 100)}%，注意控制`,
     );
-  } else if (grandTotal < input.budget * BUDGET_UNDER) {
+  } else if (input.budget > 0 && grandTotal < input.budget * BUDGET_UNDER) {
     // 与超预算对称的提示。定位是「信息性」而非风险——钱没花完不是坏事，
     // 但意味着可能漏掉了预算本可覆盖的体验（住得更好/多一个项目），
     // 或者用户的预算估值本身偏高。给可行动的建议，不做价值判断。

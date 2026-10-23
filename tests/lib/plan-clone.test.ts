@@ -331,8 +331,11 @@ describe("CloneOverridesSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("拒绝非法节奏与过低预算", () => {
+  it("拒绝非法节奏与负预算（穷游 0 是合法输入）", () => {
     expect(CloneOverridesSchema.safeParse({ pace: "extreme" }).success).toBe(false);
-    expect(CloneOverridesSchema.safeParse({ budget: 100 }).success).toBe(false);
+    // 下限已从 500 放开到 0：穷游/Citywalk 是正当需求；只有负数与非整数被拒
+    expect(CloneOverridesSchema.safeParse({ budget: -1 }).success).toBe(false);
+    expect(CloneOverridesSchema.safeParse({ budget: 1.5 }).success).toBe(false);
+    expect(CloneOverridesSchema.safeParse({ budget: 0 }).success).toBe(true);
   });
 });

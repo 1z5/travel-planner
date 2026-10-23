@@ -48,7 +48,8 @@ export const CloneOverridesSchema = z
   .object({
     startAt: z.string().regex(DT_RE, "起始时间格式不正确").optional(),
     endAt: z.string().regex(DT_RE, "结束时间格式不正确").optional(),
-    budget: z.coerce.number().int().min(500).max(200000).optional(),
+    // 下限 0：与 /api/plan 对齐——穷游（预算 0）是正当输入，不是要拒绝的异常
+    budget: z.coerce.number().int().min(0).max(200000).optional(),
     pace: z.enum(["relaxed", "balanced", "packed"]).optional(),
   })
   .strict();
@@ -68,7 +69,7 @@ const InputSchema = z
     city: z.string().regex(/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/, "城市名格式不正确"),
     startAt: z.string().regex(DT_RE, "起始时间格式不正确"),
     endAt: z.string().regex(DT_RE, "结束时间格式不正确"),
-    budget: z.coerce.number().int().min(500).max(200000),
+    budget: z.coerce.number().int().min(0).max(200000),
     // 偏好标签同样进 prompt：白名单 + 数量上限
     preferences: z
       .array(z.string().regex(/^[\u4e00-\u9fa5A-Za-z]{1,10}$/))

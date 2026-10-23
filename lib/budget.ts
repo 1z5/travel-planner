@@ -221,9 +221,12 @@ export function summarizeBudget(plan: Plan): BudgetSummary {
       }
     : undefined;
 
-  // 3) 预算使用率。无效预算（0/负数/NaN）= 无可用预算，不除零、不猜。
+  // 3) 预算使用率。0 预算是「穷游」的有效输入，不是无效值——只有负数/NaN
+  //    才叫无效。区分开：穷游要给一句人话（只统计花费、不判达成），
+  //    无效要说明「为什么没有使用率」。两者混成一句会把用户的选择说成故障。
   const rawBudget = plan.budgetCny;
   const budgetFilled = typeof rawBudget === "number" && Number.isFinite(rawBudget);
+  const frugal = budgetFilled && rawBudget === 0;
   const budget = budgetFilled && rawBudget >= 1 ? Math.round(rawBudget) : undefined;
   let status: BudgetStatus = "unknown";
   let usedPct: number | undefined;
@@ -243,7 +246,17 @@ export function summarizeBudget(plan: Plan): BudgetSummary {
   if (budget === undefined) {
     // 没有预算就不下「超支/富余」的判断，只讲能讲的事实。
     // 预算填了但无效（0/负数）时，先说清「为什么没有使用率」，再讲最大开销。
-    if (budgetFilled) {
+    if (frugal) {
+      notes.push("穷游模式：预算为 0，只统计实际花费，不做预算达成判断");
+      if (largest) {
+        notes.push(
+          `${largest.label}占 ${largest.pct}%，是最大开销（人均 ${formatCny(largest.amount)}）`,
+        );
+      }
+      if (total === 0) {
+        notes.push("这份行程没有记录花费——与穷游预算一致，可能是免费景点为主");
+      }
+    } else if (budgetFilled) {
       notes.push(`预算金额 ${String(rawBudget)} 无效，无法计算使用率——以下为实际花费构成`);
       if (largest) {
         notes.push(

@@ -431,6 +431,18 @@ export const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
  * 完全同源——否则「改行程」会按一套约束改、「生成」按另一套生成，改出来的
  * 行程和用户当初要求的预算/节奏/必游地对不上。
  */
+/**
+ * 穷游/低预算判定：预算 0，或日均不足 100 元。
+ *
+ * 为什么需要：原来的预算约束写死「总花费应落在 80%-100% 预算之间」，
+ * 预算 0 时会算出「应落在 1-0 元之间」这种自相矛盾的指令，模型只能瞎编；
+ * 低预算同理（「当天不要显著低于 1 元」）。穷游是正当需求（免费景点、
+ * 街区漫步、街头小吃），约束要从「贴近预算」切换成「优先免费低价、不凑数」。
+ */
+function isFrugalBudget(input: PlanInput): boolean {
+  return !Number.isFinite(input.budget) || input.budget <= 0 || input.budget < input.days * 100;
+}
+
 export function baseLines(input: PlanInput): string[] {
   const lines = [
     `- 目的地：${input.city}`,
@@ -474,6 +486,20 @@ export function baseLines(input: PlanInput): string[] {
   // 行为与切片 3 之前完全一致（向后兼容红线）。
   const profile = validateProfile(input.profile);
   if (profile) lines.push(...renderProfileLines(profile));
+  // 预算目标行放在 baseLines（而不是只在 buildUserPrompt 里）：改行程
+  // （refine）同样受这条约束，否则「生成时贴近预算、改行程时不管预算」会漂移。
+  // 穷游/低预算时切换口径：原来的「总花费落在 80%-100% 预算之间」在预算 0 时
+  // 会算出「应落在 1-0 元之间」的自相矛盾指令，模型只能瞎编。
+  if (isFrugalBudget(input)) {
+    lines.push(
+      `- 穷游/低预算模式：预算仅 ${input.budget} 元。优先免费与低价项目（免费景点、公园、街区漫步、博物馆免费开放日、街头小吃、公共交通），不为凑预算加项目，也没有「必须花掉预算」的压力；花费如实计算。`,
+    );
+  } else {
+    const totalLow = Math.max(1, Math.round(input.budget * 0.8));
+    lines.push(
+      `- 全程人均总花费应落在 ${totalLow}-${input.budget} 元之间：不要大幅低于预算（低于 ${totalLow} 元说明体验排得太省），也不要超出 ${input.budget} 元。`,
+    );
+  }
   return lines;
 }
 
@@ -506,13 +532,8 @@ function buildOutlinePrompt(input: PlanInput, correction?: string): string {
   } else {
     lines.push(`- 必须严格输出 ${input.days} 天，day 从 1 连续编号。`);
   }
-  // 预算目标：把「贴近预算」落成具体数值区间，与单日提示词的锚点区间同源。
-  // 这是分日锚点的上游——大纲不定调，后面每天只能各自为政。
-  // 同样只用锚点（区间），不让模型做算术题（见 buildDayPrompt 的教训注释）。
-  const totalLow = Math.max(1, Math.round(input.budget * 0.8));
-  lines.push(
-    `- 全程人均总花费应落在 ${totalLow}-${input.budget} 元之间：不要大幅低于预算（低于 ${totalLow} 元说明体验排得太省），也不要超出 ${input.budget} 元。`,
-  );
+  // 预算目标行已在 baseLines 里（与 refine 同源）；这里只负责拼装。
+  // 分日锚点的上游由大纲负责，见 buildDayPrompt 的锚点区间注释。
   return lines.join("\n");
 }
 
@@ -534,7 +555,8 @@ function buildDayPrompt(
   // 「至少用掉 80%、不超过 105%」契约。严格遵守 CHANGELOG 的教训——
   // 约束用锚点（具体数值区间），不让模型做算术题（百分比分配曾让
   // reasoning 从 1.3 万涨到 4 万+、生成从 250s 恶化到 600s+ 连续超时）。
-  const perDay = Math.max(1, Math.round(input.budget / input.days));
+  const frugal = isFrugalBudget(input);
+  const perDay = frugal ? 0 : Math.max(1, Math.round(input.budget / input.days));
   // 下限从 0.8 抬到 0.85：实测原 0.8 让模型可以「合规地保守」——取下限
   // 就达标，而分日路径下某天塌方（京都 5 天 D2 只花 ¥210，另一轮同参数
   // 是 ¥1520）没有跨天机制兜底，直接把全局利用率拉到 58%。
@@ -549,15 +571,19 @@ function buildDayPrompt(
   // 首日区间明确标注「含全程住宿总价」——否则模型会理解成 perDay 之外
   // 再加住宿，各天累计起来超出预算（原提示词的「约 X 元；住宿另计入」
   // 就有这个歧义）。
-  const budgetHint =
-    dayIdx === 0 && input.days > 1
+  const budgetHint = frugal
+    ? `当天人均总花费控制在 ${input.budget} 元以内即可（穷游模式：优先免费/低价项目，不凑数）`
+    : dayIdx === 0 && input.days > 1
       ? `当天人均总花费建议落在 ${low}-${high} 元（含全程住宿总价：晚均价 250-500 元 × ${input.days - 1} 晚，计入酒店 spot 的 costCny${hotelNote}）`
       : `当天人均总花费建议落在 ${low}-${high} 元（不含住宿）`;
   // 分日路径的跨天兜底：每天独立生成，某天保守（实测京都 D2 只花 ¥210，
   // 另一轮同参数 ¥1520）会直接拉低全局利用率，而没有任何机制会发现。
   // 在每天提示词里明确「不要显著低于下限」，并给出可执行的补齐方向
   // （加体验项目/提高餐饮住宿档次），而不是让模型自己意会。
-  const budgetFloorHint = `当天花费不要显著低于 ${low} 元——预算没用完往往意味着漏掉了本可安排的体验（多一个景点、更好的餐厅、一场演出）。若确实没有值得加的项目，也不必凑数。`;
+  // 穷游模式没有「下限」：逼低预算用户多花钱恰恰是反需求。
+  const budgetFloorHint = frugal
+    ? ""
+    : `当天花费不要显著低于 ${low} 元——预算没用完往往意味着漏掉了本可安排的体验（多一个景点、更好的餐厅、一场演出）。若确实没有值得加的项目，也不必凑数。`;
 
   const lines = [
     `现在生成行程中第 ${day.day} 天的时刻表（共 ${input.days} 天，这是第 ${dayIdx + 1} 天）。`,
@@ -570,7 +596,7 @@ function buildDayPrompt(
     "【本次请求的约束】",
     ...baseLines(input),
     `- ${budgetHint}`,
-    `- ${budgetFloorHint}`,
+    ...(budgetFloorHint ? [`- ${budgetFloorHint}`] : []),
   ];
   if (correction) {
     lines.push(
