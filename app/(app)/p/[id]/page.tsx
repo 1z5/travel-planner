@@ -108,9 +108,14 @@ export default async function SharePage({
           <strong>也想去{plan.city}？</strong>
           <span>输入你的时间和预算，30 秒生成专属行程</span>
         </div>
-        <Link href="/new" className="share-cta-btn">
-          生成我的行程 →
-        </Link>
+        <div className="share-cta-actions">
+          <Link href={`/w/${id}`} className="btn btn-sm">
+            在工作台打开
+          </Link>
+          <Link href="/new" className="share-cta-btn">
+            生成我的行程 →
+          </Link>
+        </div>
       </div>
 
       {/* 切片1 · 海报级分享页：传播飞轮的「值得截图」封面（见 components/PosterCover.tsx）。

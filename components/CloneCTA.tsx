@@ -181,7 +181,7 @@ export function CloneCTA({ plan, shareId }: { plan: Plan; shareId: string }) {
             summary: newPlan.summary,
             createdAt: Date.now(),
           });
-          router.push(`/p/${newShareId}?edit=1`);
+          router.push(`/w/${newShareId}`);
           return;
         }
         // 诚实降级：行程生成好了但持久化失败（shareId=null）——不装作能编辑

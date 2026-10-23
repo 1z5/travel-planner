@@ -5777,3 +5777,255 @@ main.has-result .new-head {
     font-size: 15px;
   }
 }
+
+/* ============================================================
+   Phase 1：Trip Workspace（一个行程，三个镜头）
+   ============================================================ */
+
+/* PlanView 的天卡片有了 id（workspace 的「跳到某一天」用），
+   滚动定位要给粘性顶栏留出高度，否则天标题被 tab 条盖住。 */
+.card[id^="day-"] {
+  scroll-margin-top: 132px;
+}
+
+.trip-workspace {
+  min-height: 100vh;
+}
+.ws-header {
+  border-bottom: 1px solid var(--line);
+  background: rgba(246, 245, 242, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.ws-header-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px 24px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.ws-back {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--ink-3);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.ws-back:hover {
+  color: var(--ink);
+}
+.ws-h1 {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0 0 10px;
+  letter-spacing: 0.01em;
+}
+.ws-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.ws-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--line-strong);
+}
+.ws-badge-ok {
+  color: #15803d;
+  border-color: rgba(21, 128, 61, 0.35);
+  background: rgba(21, 128, 61, 0.08);
+}
+.ws-badge-muted {
+  color: var(--ink-4);
+}
+.ws-meta-item {
+  white-space: nowrap;
+}
+.ws-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ws-actions .btn {
+  width: auto;
+}
+
+/* 视角切换：粘在应用顶栏下面，滚动时也在 */
+.ws-tabs {
+  position: sticky;
+  top: 53px;
+  z-index: 40;
+  background: rgba(246, 245, 242, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.ws-tabs-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+.ws-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.ws-tab:hover {
+  color: var(--ink);
+}
+.ws-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.ws-body {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px 24px 72px;
+}
+
+/* 天数 chips：规划镜头是「跳到某天」，地图镜头是「看哪天」 */
+.ws-daynav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 14px;
+  margin-bottom: 8px;
+}
+.ws-daychip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ws-daychip span {
+  color: var(--ink-4);
+  font-size: 12px;
+}
+.ws-daychip:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.ws-daychip-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.ws-daychip-active span {
+  color: var(--accent);
+}
+
+.ws-map-card {
+  padding: 18px;
+}
+.ws-spot-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ws-spot-list li {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.ws-spot-time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.ws-spot-name {
+  color: var(--ink);
+}
+.ws-spot-area {
+  color: var(--ink-4);
+  font-size: 12px;
+}
+.ws-empty-inline {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--ink-3);
+}
+
+/* 分享页 CTA 行：工作台入口 + 主 CTA 并排 */
+.share-cta-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .ws-header-inner {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 16px 12px;
+  }
+  .ws-actions {
+    width: 100%;
+  }
+  .ws-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .ws-h1 {
+    font-size: 24px;
+  }
+  .ws-tabs {
+    top: 53px;
+  }
+  .ws-tabs-inner {
+    padding: 0 12px;
+  }
+  .ws-body {
+    padding: 14px 16px 56px;
+  }
+  .ws-spot-list li {
+    grid-template-columns: 84px 1fr;
+  }
+  .ws-spot-area {
+    grid-column: 2;
+  }
+  .card[id^="day-"] {
+    scroll-margin-top: 116px;
+  }
+}

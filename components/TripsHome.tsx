@@ -70,7 +70,7 @@ export function TripsHome() {
           <section className="trips-list" aria-label="行程列表">
             {trips.map((trip) => (
               <article className="trip-card" key={trip.shareId}>
-                <Link className="trip-card-main" href={`/p/${trip.shareId}?edit=1`}>
+                <Link className="trip-card-main" href={`/w/${trip.shareId}`}>
                   <span className="trip-card-city">{trip.city}</span>
                   <span className="trip-card-meta">
                     <CalendarDays size={14} />

@@ -37,10 +37,7 @@ describe("我的行程", () => {
     render(<TripsHome />);
     await waitFor(() => expect(screen.getByText("成都")).toBeInTheDocument());
 
-    expect(screen.getByRole("link", { name: /成都/ })).toHaveAttribute(
-      "href",
-      "/p/share_keep01?edit=1",
-    );
+    expect(screen.getByRole("link", { name: /成都/ })).toHaveAttribute("href", "/w/share_keep01");
 
     await userEvent.click(screen.getByRole("button", { name: /从我的行程中移除 苏州/ }));
     await waitFor(() => expect(screen.queryByText("苏州")).not.toBeInTheDocument());

@@ -392,6 +392,11 @@ async function main() {
         required: [".about-hero", ".trust-grid", ".site-footer"],
       },
       {
+        name: "workspace",
+        path: `/w/${shareId}`,
+        required: [".trip-workspace", ".ws-tabs", ".ws-daynav"],
+      },
+      {
         name: "share",
         path: `/p/${shareId}`,
         required: [".poster", ".packing-card", ".day-head", ".app-topbar"],

@@ -879,6 +879,8 @@ export function PlanView({
         const dayBusy = busy === `day:${day.day}`;
         return (
           <motion.div
+            // id 供 Trip Workspace 的「跳到某一天」定位；scroll-margin 见 globals.css
+            id={`day-${day.day}`}
             className={`card${isToday ? " card-today" : ""}`}
             key={day.day}
             ref={isToday ? todayRef : undefined}
