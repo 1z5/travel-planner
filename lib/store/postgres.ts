@@ -155,11 +155,21 @@ function today(): string {
 const quotaStore = {
   async consume(key: string, limit: number) {
     const t = today();
+    // 跨天清零：date 不是今天就把计数重置为 0。
+    // 踩过的 P0：旧实现只 upsert +1 并把 date 改成今天，跨天后 count 继续累加，
+    // 「每日 3 次」在 Postgres 上变成永久 3 次（memory 实现整桶替换，所以单测
+    // 与 memory e2e 全绿，只有生产走 Postgres 才踩中）。
+    // 先 updateMany 再 upsert：PG 的 UPDATE 会等行锁并重新求值 WHERE，
+    // 并发请求只会重置一次，不会把别人的自增覆盖回 0；无行时 updateMany 是 no-op。
+    await prisma().quotaBucket.updateMany({
+      where: { key, date: { not: t } },
+      data: { date: t, count: 0 },
+    });
     // 原子自增：不存在则创建（upsert），存在则 +1
     const row = await prisma().quotaBucket.upsert({
       where: { key },
       create: { key, date: t, count: 1 },
-      update: { count: { increment: 1 }, date: t },
+      update: { count: { increment: 1 } },
     });
     return { allowed: row.count <= limit, remaining: Math.max(0, limit - row.count) };
   },

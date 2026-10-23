@@ -2,6 +2,24 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 工程底座修复：PG 每日配额跨天 + lint-staged 覆盖脚本
+
+### 1. Postgres 每日配额跨天不重置（P0）
+
+`lib/store/postgres.ts` 的 `quota.consume` 旧实现只 upsert `+1` 并把 `date` 改成今天，
+跨天后 `count` 继续累加——「每日 3 次」在 Postgres 上变成永久 3 次（memory 实现是整桶
+替换，所以单测与 memory e2e 全绿，只有生产走 Postgres 才踩中）。改为先按 `date != 今天`
+条件 `updateMany` 清零、再原子自增；PG 的 UPDATE 会等行锁并重新求值 WHERE，并发只会重置
+一次。phaseP 增加「伪造昨天已用满 → 今天应重置」的真库契约测试，旧实现必挂。
+
+### 2. lint-staged 覆盖 `.js/.mjs/.cjs`
+
+pre-commit 只格式化了 `*.{ts,tsx}` 与 `*.{json,md,css}`，e2e 切片脚本（`.mjs`）一直漏网，
+只能等 CI 的 `format:check` 抓（842bb05 的失败邮件即此因）。lint-staged 扩到
+`*.{js,mjs,cjs,ts,tsx}`，提交时即修。
+
+**验收**：typecheck / lint / format / 793 单测 / 506 e2e 全绿；PG 契约见 CI test-postgres。
+
 ## 2026-10 v8.1「出行准备包 + 产品完整性」
 
 ### 1. 出行准备包（确定性，不调模型）

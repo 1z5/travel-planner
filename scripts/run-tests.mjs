@@ -2134,6 +2134,26 @@ async function phaseP(api) {
   check("PG：第 2 次提交 202（limit=2）", r2.status === 202, `got ${r2.status}`);
   const r3 = await api.post({ city: "成都", budget: 2000 });
   check("PG：第 3 次提交 429（PG 配额生效）", r3.status === 429, `got ${r3.status}`);
+
+  // —— 跨天清零：把今天的桶伪造成「昨天 + 已用 99 次」，再提交一次 ——
+  // 旧实现跨天不重置（只 upsert +1 并改 date）会继续累加 → 必 429；修好后应
+  // 重置为 1/2。memory 实现整桶替换，单测与 memory e2e 都覆盖不到这个分支，
+  // 只能连真库改行来验。
+  const { PrismaClient } = await import("@prisma/client");
+  const { PrismaPg } = await import("@prisma/adapter-pg");
+  const db = new PrismaClient({ adapter: new PrismaPg(process.env.DATABASE_URL) });
+  try {
+    await db.quotaBucket.updateMany({
+      where: { key: "ip:local" },
+      data: { date: "2000-01-01", count: 99 },
+    });
+  } finally {
+    await db.$disconnect();
+  }
+  const r4 = await api.post({ city: "成都", budget: 2000 });
+  check("PG：跨天桶被重置（每日配额不会变永久）", r4.status === 202, `got ${r4.status}`);
+  const j4 = await api.waitJob(r4.body.jobId);
+  check("PG：跨天重置后剩余 = limit-1", j4.remaining === 1, `got ${j4.remaining}`);
 }
 
 // ---------------- 主流程 ----------------
