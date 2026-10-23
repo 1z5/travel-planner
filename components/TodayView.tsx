@@ -211,7 +211,7 @@ function TodayLinks({ shareId }: { shareId: string }) {
         查看完整行程
       </Link>
       <Link className="btn today-link today-link-home" href="/">
-        回首页
+        我的行程
       </Link>
     </nav>
   );

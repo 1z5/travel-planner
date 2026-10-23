@@ -33,13 +33,13 @@ export function SiteFooter() {
             <h4>产品</h4>
             <ul>
               <li>
-                <Link href="/#how">怎么工作</Link>
+                <Link href="/about#how">怎么工作</Link>
               </li>
               <li>
-                <Link href="/#cap">产品能力</Link>
+                <Link href="/about#cap">产品能力</Link>
               </li>
               <li>
-                <Link href="/#faq">常见问题</Link>
+                <Link href="/about#faq">常见问题</Link>
               </li>
             </ul>
           </div>
@@ -47,13 +47,13 @@ export function SiteFooter() {
             <h4>数据与核验</h4>
             <ul>
               <li>
-                <Link href="/#trust">数据来源</Link>
+                <Link href="/about#trust">数据来源</Link>
               </li>
               <li>
-                <Link href="/#trust">核验与体检</Link>
+                <Link href="/about#trust">核验与体检</Link>
               </li>
               <li>
-                <Link href="/#trust">隐私边界</Link>
+                <Link href="/about#trust">隐私边界</Link>
               </li>
             </ul>
           </div>
@@ -61,13 +61,13 @@ export function SiteFooter() {
             <h4>工程</h4>
             <ul>
               <li>
-                <Link href="/#trust">测试与验收</Link>
+                <Link href="/about#trust">测试与验收</Link>
               </li>
               <li>
-                <Link href="/#trust">诚实降级</Link>
+                <Link href="/about#trust">诚实降级</Link>
               </li>
               <li>
-                <Link href="/#faq">支持范围</Link>
+                <Link href="/about#faq">支持范围</Link>
               </li>
             </ul>
           </div>

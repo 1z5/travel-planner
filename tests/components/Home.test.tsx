@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import Home from "@/app/page";
+import { HomeClient } from "@/app/home-client";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 
 // Home 挂载时请求 /api/me；提交时 POST /api/plan 再轮询 status
@@ -34,7 +34,7 @@ describe("Home 表单", () => {
 
   it("渲染全部输入控件（含新增的时间选择器/节奏/住所/必游地）", async () => {
     mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
 
     expect(screen.getByPlaceholderText("如：成都")).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("Home 表单", () => {
 
   it("必游地：输入后点添加成为标签，可删除", async () => {
     mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/期望必游地/)).toBeInTheDocument());
 
     const input = screen.getByPlaceholderText("输入地名后点添加，或回车");
@@ -66,7 +66,7 @@ describe("Home 表单", () => {
 
   it("必游地：回车也可添加，且去重", async () => {
     mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/期望必游地/)).toBeInTheDocument());
 
     const input = screen.getByPlaceholderText("输入地名后点添加，或回车");
@@ -77,7 +77,7 @@ describe("Home 表单", () => {
 
   it("提交：载荷含起止时间/节奏/住所/必游地，轮询完成后渲染行程", async () => {
     const calls = mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
 
     await userEvent.clear(screen.getByPlaceholderText("如：成都"));
@@ -122,7 +122,7 @@ describe("Home 表单", () => {
 
   it("默认节奏为适中（提交载荷 pace=balanced）", async () => {
     const calls = mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
     // city 不再预填，先填城市才能提交（无定位权限时按钮禁用）
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
@@ -137,7 +137,7 @@ describe("Home 表单", () => {
 
   it("点「手机号登录」展开登录表单（手机号 + 验证码 + 获取验证码/登录）", async () => {
     mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
     await userEvent.click(screen.getByText(/手机号登录/));
     expect(screen.getByPlaceholderText("手机号")).toBeInTheDocument();
@@ -147,16 +147,15 @@ describe("Home 表单", () => {
   });
 });
 
-// 「最近行程」：未登录用户没有账号可查，但服务端为每份行程签发了持久分享 token，
-// 浏览器记住 token 就能在本机找回。这里验证「生成完成 → 写入 localStorage →
-// 列表可打开（带 ?edit=1 继续编辑入口）→ 可移除」的闭环。
-describe("Home 最近行程", () => {
+// 「最近行程」不再是新建页的 UI（入口在 / 我的行程），但生成完成后仍要写入
+// localStorage 索引——否则用户回 / 时找不到刚生成的行程。
+describe("Home 生成后写入最近行程", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
   });
 
-  it("生成完成后写入最近行程并展示入口（链接带 ?edit=1）", async () => {
+  it("生成完成后写入 localStorage（/ 据此恢复入口）", async () => {
     vi.stubGlobal("fetch", async (url: string) => {
       if (url === "/api/me") {
         return {
@@ -181,61 +180,24 @@ describe("Home 最近行程", () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
     await userEvent.click(screen.getByText("生成行程"));
 
-    // 结果渲染 + 最近行程卡片出现
     await waitFor(
       () =>
         expect(
-          // 首屏的产品预览窗也含「苏州 · 3 天行程」；这里只认结果区文档头，
-          // 避免全局 getByText 撞到 hero 的预览面板。
           screen.getByRole("heading", {
             name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
           }),
         ).toBeInTheDocument(),
       { timeout: 5000 },
     );
-    await waitFor(() => expect(screen.getByText("最近行程")).toBeInTheDocument());
-    const link = screen.getByRole("link", { name: new RegExp(SAMPLE_PLAN.city) });
-    expect(link).toHaveAttribute("href", "/p/share_test001?edit=1");
-
-    // localStorage 落盘（同设备下次打开还能找回）
-    const raw = window.localStorage.getItem("tp.recent-trips.v1") ?? "";
-    expect(raw).toContain("share_test001");
-  });
-
-  it("最近行程可移除（只清本地索引，不影响已分享链接）", async () => {
-    window.localStorage.setItem(
-      "tp.recent-trips.v1",
-      JSON.stringify([
-        { shareId: "share_keep01", city: "成都", days: 3, createdAt: Date.now() },
-        { shareId: "share_drop02", city: "苏州", days: 2, createdAt: Date.now() - 1000 },
-      ]),
-    );
-    vi.stubGlobal("fetch", async (url: string) => {
-      if (url === "/api/me") {
-        return {
-          ok: true,
-          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
+    await waitFor(() => {
+      const raw = window.localStorage.getItem("tp.recent-trips.v1") ?? "";
+      expect(raw).toContain("share_test001");
     });
-
-    render(<Home />);
-    await waitFor(() => expect(screen.getByText("最近行程")).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: /从最近行程中移除 苏州/ }));
-    // 只断言「最近行程」列表里不再有苏州——首屏样张卡也含「苏州」
-    // （SAMPLE_PLAN），全局 queryByText 会被它误伤。
-    const recentList = document.querySelector(".recent-list");
-    await waitFor(() => expect(recentList?.textContent ?? "").not.toContain("苏州"));
-    expect(screen.getByText("成都")).toBeInTheDocument();
-    const raw = window.localStorage.getItem("tp.recent-trips.v1") ?? "";
-    expect(raw).toContain("share_keep01");
-    expect(raw).not.toContain("share_drop02");
   });
 
   // 回归（真机踩过）：React StrictMode（dev 默认开）会 挂载→卸载→再挂载，
@@ -271,7 +233,7 @@ describe("Home 最近行程", () => {
     });
     render(
       <StrictMode>
-        <Home />
+        <HomeClient />
       </StrictMode>,
     );
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
@@ -304,7 +266,7 @@ describe("Home 目的地城市默认值", () => {
     // 不 stub geolocation → jsdom 里 navigator.geolocation 不存在，
     // 挂载的静默定位走「不支持」分支静默失败（不弹错误）
     mockFetchSequence();
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
 
     const cityInput = screen.getByPlaceholderText("如：成都") as HTMLInputElement;
@@ -343,7 +305,7 @@ describe("Home 目的地城市默认值", () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    render(<Home />);
+    render(<HomeClient />);
     await waitFor(() => {
       const cityInput = screen.getByPlaceholderText("如：成都") as HTMLInputElement;
       expect(cityInput.value).toBe("成都");

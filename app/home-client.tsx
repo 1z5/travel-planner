@@ -1,31 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { Plan, PlanEvent } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import {
-  AlertTriangle,
-  ShieldCheck,
-  Route,
-  Stethoscope,
-  MapPin,
-  History,
-  Trash2,
-  ArrowUpRight,
-} from "lucide-react";
+import { AlertTriangle, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatCny } from "@/lib/budget";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
 import { LiveProgress } from "@/components/LiveProgress";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
-import {
-  loadRecentTrips,
-  saveRecentTrip,
-  removeRecentTrip,
-  recentTripLabel,
-  type RecentTrip,
-} from "@/lib/recent-trips";
+import { saveRecentTrip } from "@/lib/recent-trips";
 import { loadProfile } from "@/lib/profile-store";
 
 const PREF_OPTIONS = [
@@ -40,14 +26,6 @@ const PREF_OPTIONS = [
   "亲子友好",
   "夜生活",
 ];
-
-// 首屏样张的站点数：按名称去重（同一家酒店连住多天只算一站，与海报/报告同口径）。
-// 模块级算一次即可——SAMPLE_PLAN 是静态 fixture。
-const SAMPLE_STOPS = (() => {
-  const seen = new Set<string>();
-  for (const d of SAMPLE_PLAN.days) for (const s of d.spots) seen.add(s.name);
-  return seen.size;
-})();
 
 // 等待期的阶段提示已移入 LiveProgress：管线遥测（stage）存在时展示**真实
 // 阶段清单**，无遥测（旧任务）时才轮换泛化提示。这里不再保留按时间轮换的
@@ -68,12 +46,10 @@ function fmtElapsed(sec: number): string {
   return m ? `${m} 分 ${s} 秒` : `${s} 秒`;
 }
 
-// 首页交互部分：封面 + 表单 + 轮询 + 行程展示。
-// 营销/FAQ/页脚（LandingSections）由服务端的 app/page.tsx 以 children
-// 传入，在本组件的表单之后渲染——这样那部分 JS 完全不进客户端包。
-// 注意：client component 直接 import 的模块仍会被打进客户端包（实测确认
-// 过），只有 children 传递才是真正的服务端组件边界。
-export function HomeClient({ children }: { children?: ReactNode }) {
+// 新建行程页的交互部分：表单 + 轮询 + 行程展示。
+// 产品入口 /（我的行程）负责回访与索引；营销故事在 /about。
+// 这个组件只在 (app)/new 使用，不再承担首页/落地页职责。
+export function HomeClient() {
   // 目的地城市默认不预填：挂载时尝试静默定位，拿到定位城市才填，拿不到
   // （无权限/不支持/失败）就空着让用户自己输——不拿一个硬编码城市冒充默认值。
   const [city, setCity] = useState("");
@@ -95,8 +71,6 @@ export function HomeClient({ children }: { children?: ReactNode }) {
   // 分享/日历/继续编辑都用它。不再用 jobId——任务只有 2 小时生命周期，拿它做分享
   // 链接会让「分享给朋友」在两小时后变成「链接已失效」。
   const [shareId, setShareId] = useState<string | null>(null);
-  // 本机生成过的行程索引（localStorage）：未登录用户回来后能一键找回自己的行程
-  const [recent, setRecent] = useState<RecentTrip[]>([]);
   const [elapsed, setElapsed] = useState(0);
   // 管线阶段遥测（服务端在真实节点写入，见 lib/jobs.ts JobStage）：
   // undefined = 旧任务/无遥测 → LiveProgress 降级为不确定进度条。
@@ -172,12 +146,6 @@ export function HomeClient({ children }: { children?: ReactNode }) {
       .then((r) => r.json())
       .then(setMe)
       .catch(() => setMe(null));
-  }, []);
-
-  // 「最近行程」只在客户端读：localStorage 在 SSR 不存在，放进 effect 避免
-  // hydration 前后 DOM 不一致（服务端渲染空列表，挂载后补上）。
-  useEffect(() => {
-    setRecent(loadRecentTrips());
   }, []);
 
   useEffect(() => {
@@ -363,16 +331,14 @@ export function HomeClient({ children }: { children?: ReactNode }) {
         // 记进「最近行程」：只认持久化 token（有 token 才谈得上长期分享/继续编辑）。
         // 写入失败（隐私模式/配额满）静默降级，不影响结果展示。
         if (data.shareId && donePlan) {
-          setRecent(
-            saveRecentTrip({
-              shareId: data.shareId,
-              city: donePlan.city,
-              days: donePlan.days.length,
-              startDate: donePlan.startDate,
-              summary: donePlan.summary,
-              createdAt: Date.now(),
-            }),
-          );
+          saveRecentTrip({
+            shareId: data.shareId,
+            city: donePlan.city,
+            days: donePlan.days.length,
+            startDate: donePlan.startDate,
+            summary: donePlan.summary,
+            createdAt: Date.now(),
+          });
         }
         return;
       }
@@ -464,90 +430,20 @@ export function HomeClient({ children }: { children?: ReactNode }) {
           挂在这里而不是表单内：档案是跨行程的长期资产，不属于任何一次
           表单提交；fixed 定位也让它在首页任何滚动位置都可唤起。 */}
       <ProfileDrawer />
-      <header className="masthead">
-        <motion.div
-          className="masthead-inner"
-          initial={{ opacity: 0, y: 28 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-        >
-          <div className="masthead-copy">
-            <span className="masthead-eyebrow">
-              <span className="eyebrow-dot" aria-hidden="true" />
-              事实先行 · 生成前先核验真实世界
-            </span>
-            <h1>每一份行程，都经得起核验</h1>
-            <p className="masthead-sub">
-              先取真实世界的事实——POI 是否存在、几点开门、哪天闭馆、两站之间要走多久——
-              再让模型在已核验的清单上排行程。体检是兜底，不是质检员。
-            </p>
-            <div className="masthead-points">
-              <span>
-                <ShieldCheck size={15} />
-                POI 真实性验核
-              </span>
-              <span>
-                <Route size={15} />
-                通勤距离实测
-              </span>
-              <span>
-                <Stethoscope size={15} />
-                绕路与节奏体检
-              </span>
-            </div>
-          </div>
-
-          {/* 样张卡：把「产品长什么样」直接放在首屏——不是营销插画，而是
-              一份真实示例行程的骨架（城市/天数/站点/每日主题，全部来自
-              SAMPLE_PLAN 这份真实生成的 fixture）。点到即看完整示例。 */}
-          <aside className="product-preview" aria-label="示例行程预览">
-            <div className="pp-bar">
-              <span className="pp-title">
-                {SAMPLE_PLAN.city} · {SAMPLE_PLAN.days.length} 天行程
-              </span>
-              <span className="pp-status">
-                <span className="pp-status-dot" aria-hidden="true" />
-                已核验
-              </span>
-            </div>
-            <div className="pp-meta">
-              <span>{SAMPLE_STOPS} 站</span>
-              <span className="pp-sep" aria-hidden="true" />
-              <span>人均 {formatCny(SAMPLE_PLAN.totalCostCny)}</span>
-              <span className="pp-sep" aria-hidden="true" />
-              <span>16/16 POI 已核验</span>
-            </div>
-            <ol className="pp-days">
-              {SAMPLE_PLAN.days.map((d) => (
-                <li key={d.day}>
-                  <span className="pp-dayno">DAY {String(d.day).padStart(2, "0")}</span>
-                  <span className="pp-theme">{d.theme}</span>
-                  <span className="pp-count">{d.spots.length} 站</span>
-                </li>
-              ))}
-            </ol>
-            <div className="pp-foot">
-              <span className="pp-note">数据来源：高德开放平台 · 事实先行生成</span>
-              <button type="button" className="btn btn-sm" onClick={() => setSampleMode(true)}>
-                查看完整示例 →
-              </button>
-            </div>
-          </aside>
-        </motion.div>
+      <header className="new-head">
+        <div className="container new-head-inner">
+          <Link href="/" className="new-back">
+            ← 我的行程
+          </Link>
+          <p className="new-eyebrow">NEW TRIP · 新建行程</p>
+          <h1 className="new-title">这次想去哪？</h1>
+          <p className="new-sub">
+            先核验真实世界，再排行程。生成约 2-4 分钟，期间可以离开页面，结果会留在这份行程里。
+          </p>
+        </div>
       </header>
 
       <div className="container">
-        {/* 信任条：只写仓库里真实存在的实测数字与数据来源，不编造客户/奖项 */}
-        <div className="trust-strip" role="list" aria-label="数据与验收">
-          <span role="listitem">20+ 城市实测通过</span>
-          <span className="trust-sep" aria-hidden="true" />
-          <span role="listitem">POI 验真率 99.7%</span>
-          <span className="trust-sep" aria-hidden="true" />
-          <span role="listitem">1,200+ 自动化测试</span>
-          <span className="trust-sep" aria-hidden="true" />
-          <span role="listitem">数据来自高德开放平台</span>
-        </div>
-
         {displayPlan && (
           <div className="form-fold">
             <div className="form-fold-info">
@@ -1035,47 +931,6 @@ export function HomeClient({ children }: { children?: ReactNode }) {
             </p>
           </div>
         </motion.form>
-
-        {/* 「最近行程」：本机生成过的行程索引（localStorage）。
-          未登录用户没有账号可查，但服务端已为每份行程签发持久分享 token，
-          记住 token 就够了——这里只做「这台设备上的我的行程」。
-          刻意放在表单之后、营销区块之前：回访用户一眼就能接着用。 */}
-        {recent.length > 0 && (
-          <div className="card recent-trips">
-            <div className="recent-head">
-              <span className="recent-title">
-                <History size={15} />
-                最近行程
-              </span>
-              <span className="recent-note">存在这台设备 · 链接不会过期</span>
-            </div>
-            <ul className="recent-list">
-              {recent.map((t) => (
-                <li className="recent-item" key={t.shareId}>
-                  <a className="recent-link" href={`/p/${t.shareId}?edit=1`}>
-                    <span className="recent-city">{t.city}</span>
-                    <span className="recent-meta">{recentTripLabel(t)}</span>
-                    {t.summary && <span className="recent-summary">{t.summary}</span>}
-                    <ArrowUpRight size={14} className="recent-open" />
-                  </a>
-                  <button
-                    type="button"
-                    className="recent-remove"
-                    aria-label={`从最近行程中移除 ${t.city}`}
-                    title="从这台设备移除（不影响已分享的链接）"
-                    onClick={() => setRecent(removeRecentTrip(t.shareId))}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* 营销/FAQ：服务端组件经 children 渲染在此，零客户端 JS。
-            结果态隐藏——生成完还往下卖产品会让「工作区」变成落地页。 */}
-        {!displayPlan && children}
 
         {error && (
           <div className="alert alert-error" role="alert">

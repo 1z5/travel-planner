@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import { MotionPref } from "@/components/MotionPref";
 
 // metadataBase 让 OG/分享链接生成绝对地址（部署时用 NEXT_PUBLIC_SITE_URL 覆盖）。
@@ -34,18 +32,19 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// 根布局 = 稳定应用外壳（全站顶栏 + 页脚）+ 页面内容。
-// 企业级产品的「壳」必须在所有路由上一致：品牌、导航、数据来源声明
-// 不应该随着进入分享页/报告页就消失。
+// 根布局只提供 <html>/<body> 与动效降级开关，不再挂营销站点头尾。
+//
+// 产品面和营销面是两种壳（见 app/(app)/layout.tsx 与 app/(marketing)/layout.tsx）：
+// - 产品壳：紧凑顶栏（我的行程 / 新建）+ 页面内容，没有营销导航与页脚；
+// - 营销壳：SiteHeader + SiteFooter，只在 /about 使用。
+//
+// 之前的错误：把「企业级应用外壳」实现成了全站营销导航 + 页脚，于是分享页、
+// 行中页、结果页都像官网子页面——这是「像公司官网」的结构性原因。
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
       <body>
-        <MotionPref>
-          <SiteHeader />
-          {children}
-          <SiteFooter />
-        </MotionPref>
+        <MotionPref>{children}</MotionPref>
       </body>
     </html>
   );

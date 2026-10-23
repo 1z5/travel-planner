@@ -203,7 +203,7 @@ export function TripReport({ plan, shareId }: { plan: Plan; shareId: string }) {
         <Link className="report-cta-btn" href={`/p/${shareId}`}>
           回到行程
         </Link>
-        <Link className="report-cta-btn report-cta-btn-ghost" href="/">
+        <Link className="report-cta-btn report-cta-btn-ghost" href="/new">
           规划我的下一趟 →
         </Link>
       </nav>

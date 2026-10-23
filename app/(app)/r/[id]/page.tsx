@@ -65,8 +65,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             报告对应的行程不存在，或已被创建者删除。可能是链接地址有误——请让分享者重新发一次链接。
           </p>
           <div className="fault-actions">
-            <Link href="/" className="btn btn-primary btn-sm">
-              去生成自己的行程
+            <Link href="/new" className="btn btn-primary btn-sm">
+              新建一份行程
             </Link>
           </div>
         </div>
@@ -78,7 +78,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     <main className="container">
       <div className="page-meta">
         <Link href="/" className="page-back">
-          ← 首页
+          ← 我的行程
         </Link>
         <span className="pm-sep" aria-hidden="true" />
         <span>旅程报告</span>

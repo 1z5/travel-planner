@@ -56,8 +56,8 @@ export default async function TodayPage({ params }: { params: Promise<{ id: stri
             这个行程不存在或已被删除。可能是链接地址有误，或创建者删除了行程。
           </p>
           <p>
-            <Link href="/" className="btn-link">
-              去生成自己的行程 →
+            <Link href="/new" className="btn-link">
+              新建一份行程 →
             </Link>
           </p>
         </div>

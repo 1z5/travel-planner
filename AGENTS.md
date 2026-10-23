@@ -27,8 +27,14 @@ AI 行程规划平台：用户输入目的地/时间/预算/偏好 → step-5 �
 
 ```
 app/
-  page.tsx              首页（服务端外壳 + 客户端表单）
-  home-client.tsx       表单 + 轮询 + 结果渲染 + 最近行程
+  (app)/page.tsx        我的行程（产品入口，读 localStorage 索引）
+  (app)/new/page.tsx    新建行程（产品态壳 + 客户端表单）
+  (app)/p/[id]/         分享页（只读行程工件）
+  (app)/t/[id]/         行中模式（同一行程的执行镜头）
+  (app)/r/[id]/         旅程报告
+  (marketing)/about/    营销/信任/FAQ（只有这里挂 SiteHeader/SiteFooter）
+  home-client.tsx       新建页表单 + 轮询 + 结果渲染
+  landing-sections.tsx  营销区块（服务端组件，只在 /about 用）
   api/plan/route.ts     POST → 创建异步任务 → 返回 jobId
   api/plan/status/      GET → 轮询任务状态（running/done/error + shareId）
   api/plan/refine/      POST → 换一个/一句话改/一键修复（LLM 改一天）
@@ -36,8 +42,6 @@ app/
   api/plan/chat/        POST → 行程管家（step-5 对话问答 + 修改建议）
   api/map/              GET → 高德静态地图代理
   api/weather/          GET → 天气预报
-  p/[id]/               分享页（持久 token）
-  t/[id]/               行中模式（出行当天执行视角）
 
 lib/
   planner.ts            两条生成路径：≤4 天单次 / ≥5 天大纲+分日
@@ -58,6 +62,8 @@ lib/
   map-view.ts           Web Mercator 视野拟合/像素投影（client-safe）
 
 components/
+  AppShell.tsx          产品壳（紧凑顶栏：我的行程 / 新建），只在 (app) 用
+  TripsHome.tsx         我的行程列表/空态（localStorage）
   PlanView.tsx          行程展示（结果页/分享页共用）
   PlanCopilot.tsx       行程管家对话面板
   TodayView.tsx         行中模式今日视图
@@ -67,8 +73,9 @@ components/
 
 ## 开工前先看这里（当前状态）
 
-- **产品已到 v8.1**：完整能力链（事实先行生成 / 可执行性体检 / 一键修复 / 行程管家 / 分享克隆 / 旅程报告 / 旅行档案 / 行中重规划 / 流式生长 / 出行准备包）+ 全站「纸面杂志」视觉系统（ADR-007/008）。测试基线 **793 单测 + 506 e2e**。
-- **下一轮候选**：表单三步向导（目前只是分章）、行中页细节、桌面端 QA 清单落地。产品判断与优先级见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md) 第五节。
+- **Phase 0（官网/产品分离）已落地**：`/` 是「我的行程」、`/new` 是新建、`/about` 才是营销页；根布局不再挂站点头尾，产品页用 `AppShell`。下一步是 Trip Workspace（双栏 + 直接操纵），不要再把营销区块加回产品页。
+- **产品已到 v8.1**：完整能力链（事实先行生成 / 可执行性体检 / 一键修复 / 行程管家 / 分享克隆 / 旅程报告 / 旅行档案 / 行中重规划 / 流式生长 / 出行准备包）+ 全站「纸面杂志」视觉系统（ADR-007/008）。测试基线 **794 单测 + 506 e2e**。
+- **下一轮候选**：Trip Workspace（`/w/[id]` 或 `/trip/[id]`：Trip Header + Plan/Map/Budget/Prep/Today 视图 + 拖拽/锁定/候选池）、生成中可编辑骨架、行中通知。产品判断见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md)。
 - **v5 事实层的真实高德 key 验收仍未做**（MOCK 下功能全绿，但「真实世界事实」要真 key 才闭环）：清单见 [NEXT_STEPS.md](NEXT_STEPS.md)「v5 专项验收清单」。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
 
@@ -88,9 +95,9 @@ components/
 npm run gate           # 一键验收：typecheck + lint + format:check + 单测 + e2e（提交前必须全绿）
 npm run typecheck      # TypeScript strict
 npm run lint           # ESLint（0 error 0 warning）
-npm run test:unit      # Vitest 793 条（组件 + 纯逻辑）
+npm run test:unit      # Vitest 794 条（组件 + 纯逻辑）
 npm test               # e2e 506 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
-npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，4 页 × 桌面/手机）
+npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，6 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
 ```
@@ -148,7 +155,7 @@ e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM
 ### 视觉与可访问性回归：`npm run gate:visual`
 
 UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 dist 目录，
-不干扰别人正在跑的 dev server），生成种子行程后对 4 个页面 × 2 个视口检查：
+不干扰别人正在跑的 dev server），生成种子行程后对 6 个页面 × 2 个视口检查：
 
 - 横向溢出（scrollWidth > clientWidth）
 - 触控目标 < 40px 的控件

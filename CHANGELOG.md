@@ -2,6 +2,25 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 产品面拆分：/ 我的行程，营销迁 /about
+
+用户反馈「现在像公司官网，我们想做的是供用户使用的产品」。根因不是视觉，是结构：
+所有路由继承同一个营销壳（站点头尾 + 营销导航 + 三栏页脚），首页是 hero + 表单 +
+营销区块，分享页/行中页都像官网子页面。
+
+Phase 0（本次）：
+
+- 路由拆成 `(app)` 与 `(marketing)` 两个组，根布局不再挂 SiteHeader/SiteFooter；
+- `/` = 我的行程（TripsHome，读 localStorage 索引，空态给新建与产品说明）；
+- `/new` = 新建行程（HomeClient 产品态头部，不再带 hero/信任条/营销区块）；
+- `/about` = 营销页（LandingSections + 营销壳）；
+- `/p`、`/t`、`/r` 迁入 `(app)`，共享紧凑 AppShell，页内「首页/去生成」链接改指
+  `/` 与 `/new`；
+- visual-check 页面清单更新为 trips/new/about/share/report/trip；新增 TripsHome 单测，
+  Home 单测改为断言「生成后写入 localStorage 索引」。
+
+验收：794 单测 + 506 e2e 全绿；`gate:visual` 6 页 × 2 视口 0 失败 / 0 警告。
+
 ## 2026-10 工程底座修复：PG 每日配额跨天 + lint-staged 覆盖脚本
 
 ### 1. Postgres 每日配额跨天不重置（P0）

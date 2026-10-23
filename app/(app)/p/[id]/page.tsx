@@ -65,10 +65,10 @@ export default async function SharePage({
             已生成的行程本身是持久保存的，不会因为时间过期。
           </p>
           <div className="fault-actions">
-            <Link href="/" className="btn btn-primary btn-sm">
-              去生成自己的行程
+            <Link href="/new" className="btn btn-primary btn-sm">
+              新建一份行程
             </Link>
-            <Link href="/#faq" className="btn btn-sm">
+            <Link href="/about#faq" className="btn btn-sm">
               查看常见问题
             </Link>
           </div>
@@ -83,7 +83,7 @@ export default async function SharePage({
           企业级分享页要让打开的人立刻知道「这是什么、可信度如何」。 */}
       <div className="page-meta">
         <Link href="/" className="page-back">
-          ← 首页
+          ← 我的行程
         </Link>
         <span className="pm-sep" aria-hidden="true" />
         <span>分享行程</span>
@@ -108,7 +108,7 @@ export default async function SharePage({
           <strong>也想去{plan.city}？</strong>
           <span>输入你的时间和预算，30 秒生成专属行程</span>
         </div>
-        <Link href="/" className="share-cta-btn">
+        <Link href="/new" className="share-cta-btn">
           生成我的行程 →
         </Link>
       </div>

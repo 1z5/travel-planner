@@ -377,17 +377,27 @@ async function main() {
 
     const PAGES = [
       {
-        name: "home",
+        name: "trips",
         path: "/",
-        required: [".product-preview", ".panel", ".site-footer", ".trust-grid"],
+        required: [".trips-home", ".app-topbar"],
+      },
+      {
+        name: "new",
+        path: "/new",
+        required: [".new-head", ".panel"],
+      },
+      {
+        name: "about",
+        path: "/about",
+        required: [".about-hero", ".trust-grid", ".site-footer"],
       },
       {
         name: "share",
         path: `/p/${shareId}`,
-        required: [".poster", ".packing-card", ".day-head", ".site-header"],
+        required: [".poster", ".packing-card", ".day-head", ".app-topbar"],
       },
-      { name: "report", path: `/r/${shareId}`, required: [".report-poster", ".site-footer"] },
-      { name: "trip", path: `/t/${shareId}`, required: [".today-root", ".site-header"] },
+      { name: "report", path: `/r/${shareId}`, required: [".report-poster", ".app-topbar"] },
+      { name: "trip", path: `/t/${shareId}`, required: [".today-root", ".app-topbar"] },
     ];
     const VIEWPORTS = [
       { name: "desktop", width: 1440, height: 900 },
