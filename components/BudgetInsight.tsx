@@ -9,6 +9,7 @@
 
 import { Wallet } from "lucide-react";
 import { budgetTone, formatCny, type BudgetStatus, type BudgetSummary } from "@/lib/budget";
+import { CostChart } from "./CostChart";
 
 /** 状态文案：只说事实，不渲染情绪。颜色由 lib 的 budgetTone 统一决定。 */
 const STATUS_LABEL: Record<BudgetStatus, string> = {
@@ -19,7 +20,19 @@ const STATUS_LABEL: Record<BudgetStatus, string> = {
   under: "预算宽松",
 };
 
-export function BudgetInsight({ summary }: { summary: BudgetSummary }) {
+/**
+ * @param summary summarizeBudget(plan) 的结果（口径只有一处，见文件头注释）
+ * @param days    可选。给了就在卡内渲染「每日人均花费」分布——把它并进来的原因：
+ *                结果页原来有三块讲钱（KPI 卡 / 预算透视 / 每日花费图），总价被
+ *                重复三遍、首屏被图表占满。合并后一处讲完，信息密度下降但可读性上升。
+ */
+export function BudgetInsight({
+  summary,
+  days,
+}: {
+  summary: BudgetSummary;
+  days?: { day: number; dailyCostCny: number }[];
+}) {
   const { total, budget, usedPct, categories, notes, status } = summary;
   const tone = budgetTone(status);
   const hasBudget = budget !== undefined && usedPct !== undefined;
@@ -111,6 +124,19 @@ export function BudgetInsight({ summary }: { summary: BudgetSummary }) {
       )}
 
       {categories.length === 0 && !notes[0] && <p className="budget-empty">这份行程暂无花费记录</p>}
+
+      {/* 每日分布：>1 天才渲染（单日行程没有「分布」可言） */}
+      {days && days.length > 1 && (
+        <div className="budget-daily">
+          <div className="budget-daily-head">
+            <span>每日人均花费</span>
+            <span className="budget-daily-peak">
+              峰值 ¥{Math.max(...days.map((d) => d.dailyCostCny)).toLocaleString("zh-CN")}
+            </span>
+          </div>
+          <CostChart days={days} />
+        </div>
+      )}
 
       {notes[0] && <p className="budget-conclusion">{notes[0]}</p>}
     </section>

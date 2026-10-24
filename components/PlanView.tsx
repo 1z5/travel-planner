@@ -636,12 +636,10 @@ export function PlanView({
 
           <p className="plan-summary">{viewPlan.summary}</p>
 
+          {/* 行程速览：一行三个数字。
+              为什么不再放「人均总花费」：它就在下面的预算透视里，同一个数字在
+              首屏出现两遍是噪音（改前出现了三遍：KPI / 预算透视 / 每日花费图）。 */}
           <div className="kpi-row">
-            <div className="kpi">
-              <Wallet size={15} className="kpi-icon" />
-              <span className="kpi-value">¥{viewPlan.totalCostCny.toLocaleString()}</span>
-              <span className="kpi-label">人均总花费</span>
-            </div>
             <div className="kpi">
               <CalendarDays size={15} className="kpi-icon" />
               <span className="kpi-value">{viewPlan.days.length} 天</span>
@@ -654,17 +652,19 @@ export function PlanView({
               </span>
               <span className="kpi-label">景点 / 餐点</span>
             </div>
-          </div>
-
-          {/* 预算透视：使用率 + 分类构成（「钱花在哪」第一次可见） */}
-          <BudgetInsight summary={budgetSummary} />
-
-          <div className="cost-chart">
-            <div className="legend" style={{ marginBottom: 4 }}>
-              每日人均花费
+            <div className="kpi">
+              <Wallet size={15} className="kpi-icon" />
+              <span className="kpi-value">
+                {viewPlan.days.length > 0
+                  ? `¥${Math.round(viewPlan.totalCostCny / viewPlan.days.length).toLocaleString("zh-CN")}`
+                  : "—"}
+              </span>
+              <span className="kpi-label">日均花费</span>
             </div>
-            <CostChart days={viewPlan.days} />
           </div>
+
+          {/* 预算透视：使用率 + 分类构成 + 每日分布（合并了原「每日人均花费」图） */}
+          <BudgetInsight summary={budgetSummary} days={viewPlan.days} />
 
           <div className="plan-actions">
             <button
@@ -1068,7 +1068,8 @@ export function PlanView({
                       {s.rainBackup && (
                         <div className="spot-backup">
                           <CloudRain size={12} />
-                          雨天备选：{s.rainBackup}
+                          <span className="spot-backup-label">雨天备选</span>
+                          <span className="spot-backup-text">{s.rainBackup}</span>
                         </div>
                       )}
                       {(canEdit || s.location) && (

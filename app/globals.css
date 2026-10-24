@@ -6622,3 +6622,85 @@ main.has-result .new-head {
     flex: 1;
   }
 }
+
+/* ============================================================
+   预算透视：每日分布（原结果页独立「每日人均花费」块合并进来）
+   ============================================================ */
+
+.budget-daily {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+.budget-daily-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.budget-daily-peak {
+  font-family: var(--font-mono);
+  color: var(--ink-4);
+}
+.budget-daily .cost-chart-bars {
+  gap: 4px;
+}
+.budget-daily .cost-chart-bar {
+  min-height: 3px;
+}
+
+/* ============================================================
+   景点卡：雨天备选改为弱化一行（原来是每张卡一条横幅，视觉噪音大）
+   ============================================================ */
+
+.spot-backup {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+  margin-top: var(--sp-2);
+  background: none;
+  border: none;
+  border-left: 2px solid var(--line-strong);
+  border-radius: 0;
+  padding: 0 0 0 8px;
+}
+.spot-backup svg {
+  flex-shrink: 0;
+  align-self: center;
+}
+.spot-backup-label {
+  color: var(--ink-3);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.spot-backup-text {
+  min-width: 0;
+}
+
+/* ============================================================
+   行程页信息密度收敛（丑的根因是重复 + 间距过大）
+   ============================================================ */
+
+/* 景点卡之间收紧：每张卡的文本层数不变，但纵向呼吸更合理 */
+.spot {
+  padding: var(--sp-3) 0;
+}
+.spot + .spot {
+  border-top: 1px solid var(--line);
+}
+/* 卡片内首行（时间列）与内容顶部对齐 */
+.spot-time {
+  padding-top: 2px;
+}
+/* 每日路线图与时间线之间留白收敛 */
+.route-map-wrap {
+  margin: var(--sp-3) 0 var(--sp-2);
+}
+/* 预算卡内每日分布的柱子更细（它现在是辅助信息，不是主视觉） */
+.budget-daily .cost-chart-bar {
+  border-radius: 2px 2px 0 0;
+}

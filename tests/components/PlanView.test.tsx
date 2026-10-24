@@ -131,13 +131,15 @@ describe("PlanView", () => {
     expect(screen.queryByText(/月.*日 –/)).not.toBeInTheDocument();
   });
 
-  it("雨天备选标注渲染", () => {
+  it("雨天备选标注渲染（弱化一行：标签与内容分开，不再是一张卡的横幅）", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     const withBackup = SAMPLE_PLAN.days.flatMap((d) => d.spots).find((s) => s.rainBackup);
     if (withBackup) {
+      // 多个室外景点都会带雨天备选：用 getAllByText 断言「至少一条且文案完整」
+      expect(screen.getAllByText("雨天备选").length).toBeGreaterThan(0);
       expect(
-        screen.getByText(new RegExp(`雨天备选：${withBackup.rainBackup}`.slice(0, 12))),
-      ).toBeInTheDocument();
+        screen.getAllByText(new RegExp(withBackup.rainBackup!.slice(0, 10))).length,
+      ).toBeGreaterThan(0);
     }
   });
 
