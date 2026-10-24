@@ -221,9 +221,12 @@ export function HomeClient() {
     setPrefs((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
   }
 
-  // 添加期望必游地：回车与点「添加」按钮共用。上限 5 个、去重、忽略空白。
-  function addMustVisit() {
-    const v = mvInput.trim();
+  // 添加期望必游地：回车、点「添加」、**选中补全建议**三条路共用。
+  // 上限 5 个、去重、忽略空白。选中建议必须直接入库——此前只填进输入框，
+  // 用户以为选了就是加了，请求里 mustVisit 其实是空的（线上实测踩过：
+  // 选了「兰桂坊」结果行程里没有，且没有任何告警）。
+  function addMustVisit(value?: string) {
+    const v = (value ?? mvInput).trim();
     if (v && mustVisit.length < 5 && !mustVisit.includes(v)) {
       setMustVisit((cur) => [...cur, v]);
       setMvInput("");
@@ -412,6 +415,14 @@ export function HomeClient() {
       // 点生成，缓存会旧。localStorage 读取是廉价的，换来的是一致性。
       // 拿不到（没填过/坏数据）= 不传 = 与加档案前逐字一致的行为。
       const profile = loadProfile();
+      // 兜底：输入框里还有没点「添加」的地名，submit 时一并入库——
+      // 否则用户以为填了、实际没进请求（与选中建议即入库同一类问题）。
+      const pendingMv = mvInput.trim();
+      const submitMustVisit =
+        pendingMv && mustVisit.length < 5 && !mustVisit.includes(pendingMv)
+          ? [...mustVisit, pendingMv]
+          : mustVisit;
+      if (submitMustVisit.length !== mustVisit.length) setMustVisit(submitMustVisit);
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -422,7 +433,7 @@ export function HomeClient() {
           budget: budgetNum,
           preferences: prefs,
           hotel: hotel.trim() || undefined,
-          mustVisit,
+          mustVisit: submitMustVisit,
           pace,
           scope,
           transportMode,
@@ -798,7 +809,10 @@ export function HomeClient() {
             <div className="legend">
               你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span>
             </div>
-            <label htmlFor="hotel">我的住所</label>
+            <label htmlFor="hotel">
+              我的住所
+              <span className="optional-tag">选填 · 行程每天从这儿出发；住在别的城市也能用</span>
+            </label>
             <AddressInput
               id="hotel"
               label="我的住所"
@@ -846,10 +860,11 @@ export function HomeClient() {
                 placeholder="输入地名后点添加，或回车"
                 maxLength={20}
                 onSubmit={addMustVisit}
+                onPicked={(name) => addMustVisit(name)}
               />
               <button
                 type="button"
-                onClick={addMustVisit}
+                onClick={() => addMustVisit()}
                 style={{ flex: "0 0 auto" }}
                 className="btn btn-tall"
               >

@@ -439,6 +439,42 @@ export const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
  * 低预算同理（「当天不要显著低于 1 元」）。穷游是正当需求（免费景点、
  * 街区漫步、街头小吃），约束要从「贴近预算」切换成「优先免费低价、不凑数」。
  */
+/** 两串的最长公共子串长度（小字符串，O(n*m) 足够） */
+function lcsLen(a: string, b: string): number {
+  let prev = new Array<number>(b.length + 1).fill(0);
+  let best = 0;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = new Array<number>(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        cur[j] = prev[j - 1] + 1;
+        if (cur[j] > best) best = cur[j];
+      }
+    }
+    prev = cur;
+  }
+  return best;
+}
+
+/**
+ * 名称是否「大概率已安排」（生成侧重试判定用）。
+ *
+ * 与 lib/validate.ts 的 nameCovered **刻意不同**：这里只要最长公共子串 ≥2
+ * 就算覆盖（「苏博」↔「苏州博物馆」、「住平江附近」↔「平江历史街区」都算），
+ * 因为它的用途是决定「要不要再烧一次 LLM 调用」——误报的代价是白花一次生成；
+ * 而体检侧要决定「要不要告诉用户你没排」，误报的代价是用户错过必去点。
+ * 宁可少重试，不可多重试。
+ */
+function looselyCovered(name: string, candidates: readonly string[]): boolean {
+  const a = String(name ?? "").trim();
+  if (!a) return false;
+  return candidates.some((c) => {
+    const b = String(c ?? "").trim();
+    if (!b) return false;
+    return a.includes(b) || b.includes(a) || lcsLen(a, b) >= 2;
+  });
+}
+
 /**
  * 跨城行程：第 dayNumber 天属于哪座城市（按 cities 的 days 顺序累计）。
  * 无 cities = 单城市，返回 input.city——所有调用方因此不需要判空。
@@ -483,7 +519,14 @@ export function baseLines(input: PlanInput): string[] {
     }
   }
   if (input.hotel?.trim()) {
-    lines.push(`- 我的住所（已定好，全程以此为基地，不要换成别的酒店）：${input.hotel.trim()}`);
+    const hotel = input.hotel.trim();
+    lines.push(`- 我的住所（已定好，全程以此为基地，不要换成别的酒店）：${hotel}`);
+    // 出发点硬约束：用户「住在大冲、想去香港」时，行程必须从他家门口开始，
+    // 而不是模型自己挑一个口岸。城际耗时以用户提供的班次为准（我们没有跨境
+    // 路线数据），没有就不写具体分钟数。
+    lines.push(
+      `- 出发点：第一天第一个行程点必须是从「${hotel}」出发的交通段（住所在「${hotel}」；若与目的地不同城，先写从住所到口岸/车站的城际段，城际耗时以用户提供的班次时间为准，没有就不要写具体分钟数）`,
+    );
   }
   if (input.mustVisit?.length) {
     lines.push(`- 期望必游地（必须全部安排进行程）：${input.mustVisit.join("、")}`);
@@ -716,6 +759,31 @@ function structuralProblem(plan: Plan, input: PlanInput): string | null {
   return null;
 }
 
+/**
+ * 硬约束核对（zod 与结构之外）：用户明确要求的东西必须出现在行程里。
+ *
+ * 为什么需要：必游地与住所在旧版里只靠 validate 的告警——「没排进去」就说一句
+ * 「未出现在行程中」，然后照常交付。对用户这是硬伤（他明确说了要去兰桂坊），
+ * 对产品是失信（文档写着"硬约束"）。这里在生成侧就发现并带纠正指令重试一次，
+ * 救不回来仍然交付 + 告警（不假装成功，也不无限重烧 token）。
+ *
+ * 返回 null = 合格；否则返回要回灌给模型的纠正指令。
+ */
+export function constraintProblem(plan: Plan, input: PlanInput): string | null {
+  const names = plan.days.flatMap((d) => d.spots.map((s) => s.name));
+  const missingMv = (input.mustVisit ?? []).filter((mv) => !looselyCovered(mv, names));
+  if (missingMv.length) {
+    return `必须把必游地「${missingMv.join("、")}」排进行程，并使用当地通用名称（如「兰桂坊」不要改成别的店名）`;
+  }
+  const hotel = input.hotel?.trim();
+  if (hotel && !looselyCovered(hotel, names)) {
+    // 住所在地与目的地不同城（深居港游）时，第一站必须是从住所出发的城际段；
+    // 城际耗时以用户提供的班次为准，没有就不写具体分钟数（我们没有跨境数据）。
+    return `行程必须以「${hotel}」为出发点：第一个行程点必须是从它出发的交通段（住所在「${hotel}」，与目的地不同城时先写从住所到口岸/车站的城际段；城际耗时以用户提供的班次时间为准，没有就不要写具体分钟数）`;
+  }
+  return null;
+}
+
 export async function generatePlan(input: PlanInput, grounding?: Grounding): Promise<Plan> {
   const llm = client();
   // 重试纠正指令：跨 attempt 保留（声明在循环外，否则第一次的纠正会在
@@ -751,7 +819,7 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
       continue;
     }
 
-    // 结构核对：不符则把具体原因回灌进 prompt 重试一次（比原样重试更可能救回来）
+    // 结构不符：带原因重试；第二次仍不符 → 抛错（结构错的行程没法用）。
     const problem = structuralProblem(plan, input);
     if (problem) {
       if (attempt === 2) {
@@ -760,6 +828,18 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
       correction = problem;
       console.log(`[llm] ${citiesRoute(input)} 结构不符（${problem}），带纠正指令重试`);
       continue;
+    }
+    // 硬约束（必游地/住所）不符：带纠正指令重试一次。第二次仍不符 → **照常交付**，
+    // 由 validate 的告警如实告诉用户「没排进去」——把任务判失败会让用户连行程都
+    // 看不到，而告警 + 可重试才是诚实的产品行为（也不无限重烧 token）。
+    const constraint = constraintProblem(plan, input);
+    if (constraint) {
+      if (attempt === 1) {
+        correction = constraint;
+        console.log(`[llm] ${citiesRoute(input)} 硬约束不符（${constraint}），带纠正指令重试`);
+        continue;
+      }
+      console.log(`[llm] ${citiesRoute(input)} 硬约束仍未满足（${constraint}），按原样交付并告警`);
     }
     return plan;
   }

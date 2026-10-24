@@ -34,6 +34,7 @@ export function AddressInput({
   id: providedId,
   maxLength = 40,
   onSubmit,
+  onPicked,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -45,6 +46,12 @@ export function AddressInput({
   maxLength?: number;
   /** 按回车且无高亮项时的回调（如「添加为标签」）。不传则回车照常提交表单 */
   onSubmit?: () => void;
+  /** 选中建议项时回调（传入名称）。
+   *
+   *  为什么需要：必游地字段此前的行为是「选中只填进输入框」，用户以为选了
+   *  就是加了，结果 mustVisit 始终是空——请求里根本没有这项，校验也不响，
+   *  最后行程里没有那个地方，用户完全无法理解。选中即入库，别让用户多点一次。 */
+  onPicked?: (name: string) => void;
 }) {
   const reactId = useId();
   const inputId = providedId ?? `addr-${reactId}`;
@@ -97,6 +104,7 @@ export function AddressInput({
 
   function pick(item: Suggestion) {
     onChange(item.name);
+    onPicked?.(item.name);
     setOpen(false);
     setItems([]);
     setActive(-1);
