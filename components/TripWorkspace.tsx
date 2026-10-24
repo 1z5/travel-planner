@@ -117,7 +117,9 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
               ← 我的行程
             </Link>
             <h1 className="ws-h1">
-              {plan.city} · {days.length} 天行程
+              {plan.cities?.length
+                ? `${plan.cities.map((c) => c.city).join(" → ")} · ${days.length} 天行程`
+                : `${plan.city} · ${days.length} 天行程`}
             </h1>
             <p className="ws-meta">
               <span className={`ws-badge ${verify.cls}`}>{verify.label}</span>
@@ -208,7 +210,7 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
                       onClick={() => setDayNo(d.day)}
                     >
                       Day {d.day}
-                      <span>{d.theme}</span>
+                      <span>{d.city ?? d.theme}</span>
                     </button>
                   ))}
                 </nav>

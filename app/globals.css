@@ -6299,3 +6299,107 @@ main.has-result .new-head {
     padding: 8px 6px;
   }
 }
+
+/* ============================================================
+   跨城/多城市：城市行编辑器
+   ============================================================ */
+
+.multi-cities {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.multi-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.multi-row input {
+  flex: 1;
+  min-width: 0;
+}
+.multi-city {
+  flex: 1;
+  font-size: 14px;
+  color: var(--ink);
+}
+.multi-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.multi-days button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.multi-days button:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.multi-days button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.multi-days b {
+  min-width: 44px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.multi-remove {
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-4);
+  font-size: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.multi-remove:hover {
+  color: var(--accent);
+}
+.multi-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.multi-sum {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-4);
+}
+
+@media (max-width: 640px) {
+  .multi-row {
+    flex-wrap: wrap;
+  }
+  .multi-row input {
+    flex-basis: 100%;
+  }
+}
+
+/* 跨城行程：天数卡片上的城市徽章（与「今天」徽章同族，弱化处理） */
+.day-city-badge {
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+  font-weight: 500;
+}

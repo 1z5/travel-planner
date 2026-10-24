@@ -12,6 +12,19 @@ export interface PlanInput {
   mustVisit?: string[]; // 期望必游地（硬约束，必须全部出现在行程中）
   pace?: "relaxed" | "balanced" | "packed"; // 行程节奏：轻松/适中/紧凑（默认适中）
   scope?: "city" | "region"; // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）
+  /**
+   * 跨城/多城市行程（有序）：如深圳 2 天 + 香港 2 天。
+   *
+   * 为什么不是复用 region：region 是「一个松散区域内的环线」（川西、关西），
+   * POI 检索要关掉 citylimit；跨城是「几座具体城市按天串段」，每座城仍按
+   * city 模式精确检索（citylimit 开着），否则深圳的POI会混进香港段。
+   *
+   * days 之和必须等于由起止时间推导的总天数（API 校验）。出现该字段即视为
+   * 跨城模式：prompt 按天分配城市、事实层逐城检索、体检按天所属城市验真。
+   * 跨境段（深港）**不估算通勤**——高德不做跨境路线，用户提供的班次时间
+   * 以重点活动（events）形式作为锚点，我们不编造口岸排队/检录时间。
+   */
+  cities?: TripCity[];
   events?: PlanEvent[]; // 用户指定的重点活动（演唱会/赛事/展览等，需编进行程）
   transportMode?: TransportMode; // 交通方式：决定每天各景点间怎么走（默认 driving）
   /**
@@ -33,6 +46,12 @@ export interface PlanInput {
 
 /** 交通方式：景点间路段用哪种方式串起来。公交/地铁当前高德 key 未开放，先不做 */
 export type TransportMode = "walking" | "bicycling" | "driving";
+
+/** 跨城行程中的一座城市及其天数（有序，days 之和 = 总天数） */
+export interface TripCity {
+  city: string;
+  days: number;
+}
 
 /** 用户指定的重点活动。时间可选——给了就围绕它倒推动线，没给则由 AI 建议 */
 export interface PlanEvent {
@@ -79,6 +98,8 @@ export interface SpotPoiMeta {
 
 export interface PlanDay {
   day: number;
+  /** 跨城行程：这一天所属城市（finalizePlan 按 input.cities 回填；单城市为 undefined） */
+  city?: string;
   theme: string;
   spots: PlanSpot[];
   transitMin: number; // 当天站点间通勤合计（validate 回填真实估算）
@@ -108,7 +129,9 @@ export interface PlanGrounding {
 }
 
 export interface Plan {
-  city: string;
+  city: string; // 目的地（跨城行程为首站城市；plan.cities 才是完整分段）
+  /** 跨城/多城市分段（有序；单城市行程为 undefined） */
+  cities?: TripCity[];
   startDate?: string; // 行程首日 "YYYY-MM-DD"（日历导出/结果卡/分享页展示）
   endDate?: string; // 行程末日 "YYYY-MM-DD"
   startAt?: string; // 完整起始时间 "YYYY-MM-DDTHH:mm"（结果卡展示）

@@ -1842,6 +1842,60 @@ async function phaseB(api) {
     `got ${jFrugal.plan?.budgetCny}`,
   );
 
+  // ---- 跨城/多城市：按天分配城市（深港典型场景）----
+  // 契约：cities 天数之和必须等于总天数；跨城行程 202；城际段不编造通勤。
+  // 注意：api.post 会铺默认 3 天日期，跨城用例必须显式给 4 天区间，
+  // 否则「cities 天数之和 ≠ 推导天数」会把合法请求拒掉（和 bad-sum 混为一谈）。
+  const MC_TIME = { startAt: "2026-10-10T09:00", endAt: "2026-10-13T20:00" }; // 4 个日历日
+  const cities = [
+    { city: "深圳", days: 2 },
+    { city: "香港", days: 2 },
+  ];
+  const mc = await api.post({
+    ...MC_TIME,
+    city: "深圳",
+    budget: 3000,
+    preferences: ["美食"],
+    cities,
+  });
+  check("跨城：提交 202（cities 天数之和 = 总天数）", mc.status === 202, `got ${mc.status}`);
+  const jMc = await api.waitJob(mc.body.jobId);
+  check("跨城：任务正常完成", jMc.status === "done", JSON.stringify(jMc).slice(0, 120));
+  check(
+    "跨城：plan.cities 记录分段（分享页/日历按天展示用）",
+    JSON.stringify(jMc.plan?.cities) === JSON.stringify(cities),
+    JSON.stringify(jMc.plan?.cities),
+  );
+  check(
+    "跨城：每天带所属城市（逐城验真的依据）",
+    (jMc.plan?.days ?? []).map((d) => d.city).join(",") === "深圳,深圳,香港,香港",
+    JSON.stringify((jMc.plan?.days ?? []).map((d) => d.city)),
+  );
+
+  const mcBadSum = await api.post({
+    ...MC_TIME,
+    city: "深圳",
+    budget: 3000,
+    preferences: ["美食"],
+    cities: [
+      { city: "深圳", days: 2 },
+      { city: "香港", days: 1 },
+    ],
+  });
+  check("跨城：天数之和 ≠ 总天数 → 400", mcBadSum.status === 400, `got ${mcBadSum.status}`);
+  const mcOneCity = await api.post({
+    ...MC_TIME,
+    city: "深圳",
+    budget: 3000,
+    preferences: ["美食"],
+    cities: [{ city: "深圳", days: 4 }],
+  });
+  check(
+    "跨城：只有一座城市 → 400（至少两座）",
+    mcOneCity.status === 400,
+    `got ${mcOneCity.status}`,
+  );
+
   // ---- 直接操纵：重排当天点位（确定性，不调模型）----
   const n1 = days[0].spots.length;
   const reversedOrder = [...Array(n1).keys()].reverse();

@@ -10,6 +10,7 @@ import {
   parseTimeRange,
   type ScheduleConflict,
 } from "./schedule";
+import { dayCityOf } from "./planner";
 import type { Plan, PlanDay, PlanInput, PlanLeg, SpotPoiMeta, TransportMode } from "./types";
 
 // 幻觉治理 + 行程体检。
@@ -365,9 +366,12 @@ export async function validateDay(
         day: day.day,
         warn: WARN_TYPES.has(s.type),
       }));
+    // 跨城行程：按「这一天所属城市」验真——否则香港的点会用深圳的 citylimit 去搜，
+    // 全量 miss 把可执行性体检变成噪音。
+    const dayCity = dayCityOf(input, day.day);
     const results = await mapLimit(targets, VERIFY_CONCURRENCY, async (t) => ({
       t,
-      r: await lookupPoi(plan.city, t.name, input.scope),
+      r: await lookupPoi(dayCity, t.name, input.scope),
     }));
     for (const { t, r } of results) {
       if (r.state === "miss") {
@@ -408,7 +412,7 @@ export async function validateDay(
       }
       const segResults = await mapLimit(segments, VERIFY_CONCURRENCY, async (seg) => ({
         seg,
-        r: await transitMinutes(plan.city, seg.from, seg.to, input.scope),
+        r: await transitMinutes(dayCityOf(input, day.day), seg.from, seg.to, input.scope),
       }));
       for (const { r } of segResults) {
         if (r.state === "unknown") transitUnknown = true;
@@ -596,7 +600,7 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
       .map((x) => x.name)
       .join("、");
     warnings.push(
-      `「${plan.city}」疑似境外或无 POI 覆盖的目的地：${poiTotal} 个景点/餐厅全部未在高德检索到。本产品的 POI 验真与通勤估算依赖高德（仅覆盖国内），因此这份行程的**景点真实性未经核查、站点间通勤为估算兜底值**，都需要你自行核实——下方逐条「未检索到」是这个原因，不是名称打错`,
+      `「${input.cities?.length ? input.cities.map((c) => c.city).join("、") : plan.city}」疑似境外或无 POI 覆盖的目的地：${poiTotal} 个景点/餐厅全部未在高德检索到。本产品的 POI 验真与通勤估算依赖高德（仅覆盖国内），因此这份行程的**景点真实性未经核查、站点间通勤为估算兜底值**，都需要你自行核实——下方逐条「未检索到」是这个原因，不是名称打错`,
     );
     if (names) {
       warnings.push(`未检索到的地点包括：${names} 等 ${poiTotal} 个，均为境外/无覆盖数据所致`);
@@ -695,6 +699,13 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   }
 
   plan.totalCostCny = grandTotal;
+  // 跨城行程：把城市分段与「每天所属城市」落到 plan 上——分享页/工作台/日历
+  // 都按这个字段展示，validate 的逐城验真也以它为准（单一事实来源）。
+  if (input.cities?.length) {
+    plan.cities = input.cities;
+    for (const d of plan.days) d.city = dayCityOf(input, d.day);
+  }
+
   // 回填用户预算：预算使用率（lib/budget.ts）的唯一依据。
   // 放在 totalCostCny 旁边——两者是同一组「钱」的数据，避免上游遗漏这一行。
   plan.budgetCny = input.budget;

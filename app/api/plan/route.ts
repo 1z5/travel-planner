@@ -58,6 +58,23 @@ const InputSchema = z
         .max(5)
         .default([]),
     ),
+    // 跨城/多城市（选填，有序）：深圳 2 天 + 香港 2 天这类「按天串段」的行程。
+    // days 之和必须等于由起止时间推导的总天数（下面 refine 校验），否则前端
+    // 天数分配和实际日期对不上。每座城市仍是 city 模式精确检索（citylimit 开着），
+    // 与 region（松散环线、关 citylimit）是两种不同的东西。
+    cities: z.preprocess(
+      (v) => (v === "" || v == null ? undefined : v),
+      z
+        .array(
+          z.object({
+            city: z.string().regex(/^[\u4e00-\u9fa5A-Za-z·\s]{2,20}$/, "城市名格式不正确"),
+            days: z.number().int().min(1).max(10),
+          }),
+        )
+        .min(2, "跨城行程至少两座城市")
+        .max(4, "跨城行程最多四座城市（更长的请拆成多段分别规划）")
+        .optional(),
+    ),
     // 行程节奏：轻松/适中/紧凑（影响 prompt 密度与体检阈值）
     pace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
     // 规划范围：city=单城市（默认）/ region=区域环线（如川西环线、关西）。
@@ -104,7 +121,18 @@ const InputSchema = z
   .refine((d) => d.endAt > d.startAt, { message: "结束时间必须晚于开始时间" })
   .refine((d) => deriveDays(d.startAt, d.endAt) <= (d.scope === "region" ? 10 : 7), {
     message: "城市行程支持 1-7 天，区域行程支持 1-10 天；更长的请拆成多段分别规划",
-  });
+  })
+  .refine(
+    (d) => {
+      if (!d.cities?.length) return true;
+      // 天数分配必须正好覆盖整个日期区间：少一天就有一天没有城市，多一天就排不下
+      return d.cities.reduce((s, c) => s + c.days, 0) === deriveDays(d.startAt, d.endAt);
+    },
+    {
+      message: "各城市天数之和必须等于行程总天数（按起止日期计算）",
+      path: ["cities"],
+    },
+  );
 
 // 配额双轨：登录用户按手机号计数（默认 10 次/天），陌生人按 IP（默认 3 次/天）
 function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolean } {

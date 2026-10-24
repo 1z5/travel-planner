@@ -894,6 +894,7 @@ export function PlanView({
                 {day.day}
               </div>
               {isToday && <span className="today-badge">今天</span>}
+              {day.city && <span className="today-badge day-city-badge">{day.city}</span>}
               <span className="day-theme">{day.theme}</span>
               {canEdit && (
                 <div className="day-tools">

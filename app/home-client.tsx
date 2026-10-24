@@ -105,8 +105,14 @@ export function HomeClient() {
   const [transportMode, setTransportMode] = useState<"walking" | "bicycling" | "driving">(
     "driving",
   );
-  // 规划范围：单城市 / 区域环线（影响 prompt、POI 验真方式与天数上限）
-  const [scope, setScope] = useState<"city" | "region">("city");
+  // 规划范围：单城市 / 区域环线 / 跨城多城市（影响 prompt、POI 验真方式与天数上限）
+  const [scope, setScope] = useState<"city" | "region" | "multi">("city");
+  // 跨城模式：第一座城市就是上面的 city（保留定位填充），后面几座在这里追加。
+  // days 之和必须等于 derivedDays——差一天就有一天没有城市，API 会拒。
+  const [extraCities, setExtraCities] = useState<Array<{ city: string; days: number }>>([
+    { city: "", days: 2 },
+  ]);
+  const multiCities = [{ city, days: 2 }, ...extraCities.filter((c) => c.city.trim())];
   // POI 补全的城市收窄口径：区域模式下目的地是「川西环线」这类区域名而不是
   // 城市，传给高德会被静默忽略（实测 infocode 10000 / count 1000，直接返回
   // 全国结果）——既收窄不到，还可能把恰好同名的真实城市误当成约束、排掉
@@ -385,6 +391,14 @@ export function HomeClient() {
     return Math.round((en - s) / 86400000) + 1;
   })();
 
+  // 跨城模式：至少两座城市都填了，且天数之和正好等于行程总天数
+  const citiesOk =
+    scope !== "multi" ||
+    (multiCities.length >= 2 &&
+      multiCities.every((c) => c.city.trim().length >= 2) &&
+      derivedDays !== null &&
+      multiCities.reduce((s, c) => s + c.days, 0) === derivedDays);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -413,6 +427,7 @@ export function HomeClient() {
           scope,
           transportMode,
           events,
+          ...(scope === "multi" ? { cities: multiCities } : {}),
           ...(profile ? { profile } : {}),
         }),
       });
@@ -596,6 +611,7 @@ export function HomeClient() {
                 [
                   ["city", "单城市", "如：成都、京都"],
                   ["region", "区域环线", "如：川西环线、关西"],
+                  ["multi", "跨城/多城市", "如：深圳 2 天 + 香港 2 天"],
                 ] as const
               ).map(([value, label, desc]) => (
                 <button
@@ -613,8 +629,122 @@ export function HomeClient() {
             <p className="helper">
               {scope === "city"
                 ? "目前支持国内城市，1-7 天"
-                : "区域环线跨多个城市/景区，住宿随线路迁移，支持 1-10 天"}
+                : scope === "region"
+                  ? "区域环线跨多个城市/景区，住宿随线路迁移，支持 1-10 天"
+                  : "按天串段游览多座城市；城际交通以你提供的班次时间为准（我们不估算跨境通勤）"}
             </p>
+
+            {/* 跨城模式：城市行编辑器。第一座城市复用上面的目的地输入（保留定位
+                填充），后面几座在这里追加；每天归属哪座城市由天数决定。 */}
+            {scope === "multi" && (
+              <div className="multi-cities" role="group" aria-label="跨城城市与天数">
+                <div className="multi-row">
+                  <span className="multi-city">{city || "第一座城市（填在上面）"}</span>
+                  <span className="multi-days">
+                    <button
+                      type="button"
+                      aria-label="减少第一座城市天数"
+                      disabled={multiCities[0].days <= 1}
+                      onClick={() =>
+                        setExtraCities((cs) => [
+                          { ...cs[0], days: Math.max(1, cs[0].days - 1) },
+                          ...cs.slice(1),
+                        ])
+                      }
+                    >
+                      −
+                    </button>
+                    <b>{multiCities[0].days} 天</b>
+                    <button
+                      type="button"
+                      aria-label="增加第一座城市天数"
+                      disabled={multiCities[0].days >= 7}
+                      onClick={() =>
+                        setExtraCities((cs) => [
+                          { ...cs[0], days: Math.min(7, cs[0].days + 1) },
+                          ...cs.slice(1),
+                        ])
+                      }
+                    >
+                      ＋
+                    </button>
+                  </span>
+                </div>
+                {extraCities.map((c, i) => (
+                  <div className="multi-row" key={i}>
+                    <input
+                      aria-label={`第 ${i + 2} 座城市`}
+                      placeholder="如：香港"
+                      value={c.city}
+                      maxLength={20}
+                      onChange={(e) =>
+                        setExtraCities((cs) =>
+                          cs.map((x, j) => (j === i ? { ...x, city: e.target.value } : x)),
+                        )
+                      }
+                    />
+                    <span className="multi-days">
+                      <button
+                        type="button"
+                        aria-label={`减少第 ${i + 2} 座城市天数`}
+                        disabled={c.days <= 1}
+                        onClick={() =>
+                          setExtraCities((cs) =>
+                            cs.map((x, j) => (j === i ? { ...x, days: x.days - 1 } : x)),
+                          )
+                        }
+                      >
+                        −
+                      </button>
+                      <b>{c.days} 天</b>
+                      <button
+                        type="button"
+                        aria-label={`增加第 ${i + 2} 座城市天数`}
+                        disabled={c.days >= 7}
+                        onClick={() =>
+                          setExtraCities((cs) =>
+                            cs.map((x, j) => (j === i ? { ...x, days: x.days + 1 } : x)),
+                          )
+                        }
+                      >
+                        ＋
+                      </button>
+                    </span>
+                    <button
+                      type="button"
+                      className="multi-remove"
+                      aria-label={`移除第 ${i + 2} 座城市`}
+                      onClick={() => setExtraCities((cs) => cs.filter((_, j) => j !== i))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <div className="multi-foot">
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={multiCities.length >= 4}
+                    onClick={() => setExtraCities((cs) => [...cs, { city: "", days: 2 }])}
+                  >
+                    ＋ 再加一座城市（最多 4 座）
+                  </button>
+                  <span className="multi-sum">
+                    已分配 {multiCities.reduce((s, c) => s + c.days, 0)} 天 / 行程{" "}
+                    {derivedDays ?? "?"} 天
+                    {derivedDays !== null &&
+                    multiCities.reduce((s, c) => s + c.days, 0) !== derivedDays
+                      ? "（不相等，请调整）"
+                      : ""}
+                  </span>
+                </div>
+                {/* 跨境段的口径先说清：我们不编造高德没有的跨境通勤数据 */}
+                <p className="helper">
+                  跨境段（如深港）需要过关/高铁时间：请在「重点活动」里按班次添加，
+                  我们只排你到达之后的本地行程，不估算口岸排队。
+                </p>
+              </div>
+            )}
 
             <label id="pace-label">行程节奏</label>
             <div className="segmented" role="group" aria-labelledby="pace-label">
@@ -931,14 +1061,21 @@ export function HomeClient() {
               <span className="fa-sep" aria-hidden="true" />
               <span>结果永久保存 · 可分享</span>
             </div>
-            <button className="btn-primary" disabled={loading || !city.trim() || !budgetOk}>
+            <button
+              className="btn-primary"
+              disabled={loading || !city.trim() || !budgetOk || !citiesOk}
+            >
               {loading
                 ? "生成中…"
                 : !city.trim()
                   ? "请先填写目的地城市"
                   : !budgetOk
                     ? "请填写人均预算（穷游可填 0）"
-                    : "生成行程"}
+                    : !citiesOk
+                      ? derivedDays === null
+                        ? "请先选择出行日期"
+                        : "请把各城市天数配成总天数"
+                      : "生成行程"}
             </button>
             {loading && (
               <>

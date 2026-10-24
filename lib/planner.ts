@@ -439,13 +439,34 @@ export const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
  * 低预算同理（「当天不要显著低于 1 元」）。穷游是正当需求（免费景点、
  * 街区漫步、街头小吃），约束要从「贴近预算」切换成「优先免费低价、不凑数」。
  */
+/**
+ * 跨城行程：第 dayNumber 天属于哪座城市（按 cities 的 days 顺序累计）。
+ * 无 cities = 单城市，返回 input.city——所有调用方因此不需要判空。
+ */
+export function dayCityOf(input: PlanInput, dayNumber: number): string {
+  const cities = input.cities;
+  if (!cities?.length) return input.city;
+  let acc = 0;
+  for (const c of cities) {
+    acc += c.days;
+    if (dayNumber <= acc) return c.city;
+  }
+  return cities[cities.length - 1].city;
+}
+
+/** 跨城行程的「路线」摘要（日志/列表展示用）：深圳2天→香港2天 */
+export function citiesRoute(input: PlanInput): string {
+  if (!input.cities?.length) return input.city;
+  return input.cities.map((c) => `${c.city}${c.days}天`).join("→");
+}
+
 function isFrugalBudget(input: PlanInput): boolean {
   return !Number.isFinite(input.budget) || input.budget <= 0 || input.budget < input.days * 100;
 }
 
 export function baseLines(input: PlanInput): string[] {
   const lines = [
-    `- 目的地：${input.city}`,
+    `- 目的地：${input.cities?.length ? citiesRoute(input) : input.city}`,
     `- 天数：${input.days} 天`,
     `- 人均预算：${input.budget} 元（不含往返大交通，含当地吃住行玩）`,
     `- 出行偏好：${input.preferences.join("、") || "均衡体验"}`,
@@ -498,6 +519,22 @@ export function baseLines(input: PlanInput): string[] {
     const totalLow = Math.max(1, Math.round(input.budget * 0.8));
     lines.push(
       `- 全程人均总花费应落在 ${totalLow}-${input.budget} 元之间：不要大幅低于预算（低于 ${totalLow} 元说明体验排得太省），也不要超出 ${input.budget} 元。`,
+    );
+  }
+  // 跨城约束：按天分配城市 + 城际段的口径（诚实第一）
+  if (input.cities?.length) {
+    const segs: string[] = [];
+    let acc = 0;
+    for (const c of input.cities) {
+      const from = acc + 1;
+      acc += c.days;
+      segs.push(`第 ${from}${acc === from ? "" : `-${acc}`} 天 ${c.city}`);
+    }
+    lines.push(`- 跨城行程（按天分配城市）：${segs.join("；")}。每天的点位必须落在当天所属城市。`);
+    lines.push(
+      "- 跨城当天：上午收尾当前城市，下午前往下一城市，抵达后只安排 1-2 个轻松的点。" +
+        "城际交通（高铁/航班/口岸）**以用户提供的班次时间为准**；用户没有提供时，不要写具体通勤分钟数，" +
+        "也不要把口岸排队、检录、签注时间算进行程——这些数据我们没有，编造比留空更糟。",
     );
   }
   return lines;
@@ -585,8 +622,20 @@ function buildDayPrompt(
     ? ""
     : `当天花费不要显著低于 ${low} 元——预算没用完往往意味着漏掉了本可安排的体验（多一个景点、更好的餐厅、一场演出）。若确实没有值得加的项目，也不必凑数。`;
 
+  // 当天所属城市（跨城行程按天分配）；跨城日单独给口径
+  const dayCity = dayCityOf(input, day.day);
+  const prevCity = dayIdx > 0 ? dayCityOf(input, dayIdx) : undefined;
+  const crossCity = Boolean(input.cities?.length) && prevCity !== undefined && prevCity !== dayCity;
+
   const lines = [
     `现在生成行程中第 ${day.day} 天的时刻表（共 ${input.days} 天，这是第 ${dayIdx + 1} 天）。`,
+    "",
+    `【当天所属城市】${dayCity}（当天的点位必须都在 ${dayCity}，不要排到别的城市）`,
+    ...(crossCity
+      ? [
+          `【跨城日】今天从 ${prevCity} 前往 ${dayCity}：上午收尾 ${prevCity}，下午抵达后只安排轻松的点`,
+        ]
+      : []),
     "",
     `【整个行程的概览】${outline.summary}`,
     `【当天的安排思路】${day.theme} —— ${day.focus}`,
@@ -691,7 +740,7 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
     }
     // 成本可见：每次生成的 token 消耗（上线前盯账单用）
     console.log(
-      `[llm] ${input.city} ${input.days}天 第${attempt}次尝试 tokens=${totalTokens || "?"}`,
+      `[llm] ${citiesRoute(input)} ${input.days}天 第${attempt}次尝试 tokens=${totalTokens || "?"}`,
     );
 
     let plan: Plan;
@@ -709,7 +758,7 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
         throw new Error(`LLM 输出的行程结构与请求不符（${problem}），请重试或调整参数`);
       }
       correction = problem;
-      console.log(`[llm] ${input.city} 结构不符（${problem}），带纠正指令重试`);
+      console.log(`[llm] ${citiesRoute(input)} 结构不符（${problem}），带纠正指令重试`);
       continue;
     }
     return plan;
@@ -756,7 +805,7 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
       if (attempt === 2) throw new Error("LLM 大纲返回为空，请稍后重试");
       continue;
     }
-    console.log(`[llm] ${input.city} 大纲 第${attempt}次 tokens=${tokens || "?"}`);
+    console.log(`[llm] ${citiesRoute(input)} 大纲 第${attempt}次 tokens=${tokens || "?"}`);
 
     let outline: Outline;
     try {
@@ -775,7 +824,7 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
     if (problem) {
       if (attempt === 2) throw new Error(`LLM 大纲结构与请求不符（${problem}）`);
       correction = problem;
-      console.log(`[llm] ${input.city} 大纲结构不符（${problem}），带纠正指令重试`);
+      console.log(`[llm] ${citiesRoute(input)} 大纲结构不符（${problem}），带纠正指令重试`);
       continue;
     }
     return outline;
@@ -818,7 +867,9 @@ export async function generateDay(
       if (attempt === 2) throw new Error(`第 ${expectedDay} 天生成返回为空，请稍后重试`);
       continue;
     }
-    console.log(`[llm] ${input.city} 第${expectedDay}天 第${attempt}次 tokens=${tokens || "?"}`);
+    console.log(
+      `[llm] ${citiesRoute(input)} 第${expectedDay}天 第${attempt}次 tokens=${tokens || "?"}`,
+    );
 
     let day: DayPlan;
     try {

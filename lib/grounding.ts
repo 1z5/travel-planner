@@ -250,30 +250,42 @@ export async function collectGrounding(
   const scope: "city" | "region" = input.scope ?? "city";
   const dates = tripDates(input);
 
-  // 检索词：城市级品类词 + 追加词（主题/区域）。去重后限量。
-  const keywords: string[] = [];
-  const push = (kw: string) => {
+  // 跨城：每座城市各自检索（citylimit 开着，防止深圳的 POI 混进香港段）。
+  // 检索词总量仍受 12 词上限约束，按城市均摊，避免多城把配额打满。
+  const cityList = input.cities?.length ? input.cities.map((c) => c.city) : [input.city];
+  const perCity = Math.max(2, Math.floor(12 / cityList.length));
+  const tasks: Array<{ city: string; keywordsText: string }> = [];
+  const seenKw = new Set<string>();
+  const push = (city: string, kw: string) => {
     const k = kw.trim();
     if (!k) return;
-    if (!keywords.includes(k)) keywords.push(k);
+    const id = `${city}|${k}`;
+    if (seenKw.has(id)) return;
+    seenKw.add(id);
+    tasks.push({ city, keywordsText: k });
   };
-  for (const q of CITY_SIGHT_QUERIES) push(`${input.city} ${q}`);
-  for (const q of CITY_FOOD_QUERIES) push(`${input.city} ${q}`);
-  for (const q of opts.extraKeywords ?? []) push(q);
-  const capped = keywords.slice(0, 12);
+  for (const city of cityList) {
+    for (const q of CITY_SIGHT_QUERIES.slice(0, perCity)) push(city, `${city} ${q}`);
+    for (const q of CITY_FOOD_QUERIES.slice(0, perCity)) push(city, `${city} ${q}`);
+  }
+  for (const q of opts.extraKeywords ?? []) push(cityList[0], q);
+  const capped = tasks.slice(0, 12);
 
-  const results = await mapLimit(capped, SEARCH_CONCURRENCY, async (keywordsText) => {
+  const results = await mapLimit(capped, SEARCH_CONCURRENCY, async (task) => {
     try {
       const r = await search({
-        city: input.city,
-        keywords: keywordsText,
+        city: task.city,
+        keywords: task.keywordsText,
         scope,
         limit: QUERY_LIMIT,
       });
-      return { keywordsText, r };
+      return { keywordsText: task.keywordsText, city: task.city, r };
     } catch {
       // 单个检索词失败不影响整体（上游波动不该拖垮事实层）
-      return { keywordsText, r: { state: "error", reason: "检索异常" } as PoiSearchResult };
+      return {
+        keywordsText: task.keywordsText,
+        r: { state: "error", reason: "检索异常" } as PoiSearchResult,
+      };
     }
   });
 
@@ -281,14 +293,18 @@ export async function collectGrounding(
   const closedByKey = new Map<string, GroundingCandidate>();
   let hits = 0;
   let errors = 0;
+  // 逐城命中数：跨城时可能「深圳有覆盖、香港没有」，不能用一个全局 hits 掩盖
+  const hitsByCity = new Map<string, number>();
+  for (const c of cityList) hitsByCity.set(c, 0);
 
-  for (const { r } of results) {
+  for (const { r, city } of results as Array<{ r: PoiSearchResult; city: string }>) {
     if (r.state === "error") {
       errors++;
       continue;
     }
     if (r.state === "miss") continue;
     hits++;
+    hitsByCity.set(city, (hitsByCity.get(city) ?? 0) + 1);
     for (const poi of r.pois) {
       const kind = classifyPoi(poi.poiType);
       if (!kind) continue;
@@ -337,11 +353,11 @@ export async function collectGrounding(
       state: "unavailable",
       candidates: [],
       closedOut: [],
-      queries: capped,
+      queries: capped.map((t) => t.keywordsText),
       note:
         errors > 0
           ? "高德检索异常，本次未使用事实清单（行程照常生成，体检仍会兜底）"
-          : `高德未覆盖「${input.city}」，本次未使用事实清单（行程照常生成，体检仍会兜底）`,
+          : `高德未覆盖${cityList.map((c) => `「${c}」`).join("、")}，本次未使用事实清单（行程照常生成，体检仍会兜底）`,
     };
   }
   if (!candidates.length) {
@@ -351,13 +367,25 @@ export async function collectGrounding(
       state: "empty",
       candidates: [],
       closedOut,
-      queries: capped,
+      queries: capped.map((t) => t.keywordsText),
       note: closedOut.length
         ? `检索到的地点在行程日期内均闭馆，已列出禁排清单`
         : "高德检索到的地点都不属于景点/餐饮，未使用事实清单",
     };
   }
-  return { state: "ok", candidates, closedOut, queries: capped };
+  // 跨城时部分城市没有覆盖（典型：香港/境外）：如实说明，不要让用户以为全量核验过
+  const uncovered = cityList.filter((c) => (hitsByCity.get(c) ?? 0) === 0);
+  const coverageNote = uncovered.length
+    ? `高德未覆盖${uncovered.map((c) => `「${c}」`).join("、")}，该段 POI 未经核验（体检仍会兜底）`
+    : "";
+
+  return {
+    state: "ok",
+    candidates,
+    closedOut,
+    queries: capped.map((t) => t.keywordsText),
+    ...(coverageNote ? { note: coverageNote } : {}),
+  };
 }
 
 /**
