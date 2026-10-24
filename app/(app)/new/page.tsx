@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { HomeClient } from "@/app/home-client";
 
@@ -9,5 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default function NewTripPage() {
-  return <HomeClient />;
+  // useSearchParams 需要 Suspense 边界（否则构建期报错）
+  return (
+    <Suspense fallback={null}>
+      <HomeClient />
+    </Suspense>
+  );
 }

@@ -11,18 +11,21 @@ describe("我的行程", () => {
     window.localStorage.clear();
   });
 
-  it("空态：给出新建入口与产品说明", async () => {
+  it("新用户首屏：主张 + 唯一主 CTA + 可溯源的记忆点", async () => {
     render(<TripsHome />);
-    await waitFor(() => expect(screen.getByText("还没有行程")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: /新建我的第一份行程/ })).toHaveAttribute(
+    // 首屏必须回答「这是什么产品」：价值主张在首屏，而不是只剩一句「还没有行程」
+    await waitFor(() => expect(screen.getByText("先核验真实世界，再排行程")).toBeInTheDocument());
+    // 引导明确：主 CTA 唯一且指向新建
+    expect(screen.getByRole("link", { name: /说说你想去哪/ })).toHaveAttribute("href", "/new");
+    expect(screen.getByRole("link", { name: /看一份真实示例/ })).toHaveAttribute(
       "href",
-      "/new",
+      "/new?sample=1",
     );
-    // 不把「还没有」渲染成一句冷冰冰的空名字：要告诉用户下一步做什么
-    expect(screen.getByRole("link", { name: /先看看它是怎么工作的/ })).toHaveAttribute(
-      "href",
-      "/about",
-    );
+    // 记忆点必须可溯源：示例卡用真实 fixture，且如实标注「POI 未验真」
+    // （SAMPLE_PLAN 是 MOCK 数据，冒充已核验就是造假）
+    expect(screen.getByText("MOCK 高德 · POI 未验真")).toBeInTheDocument();
+    expect(screen.getByText("被体检拦下的问题")).toBeInTheDocument();
+    expect(screen.getAllByText(/第 [12] 天/).length).toBeGreaterThan(0);
   });
 
   it("列出最近行程：链接带 ?edit=1，可移除且只清本地索引", async () => {

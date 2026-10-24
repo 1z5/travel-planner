@@ -201,6 +201,8 @@ const PAGE_CHECK_FN = String.raw`
     '.footer-col a', '.trust-meta', '.stat-label', '.poster-sub', '.pp-meta', '.pp-note',
     '.pp-dayno', '.specimen-cta', '.kpi-label', '.helper', '.muted', '.fault-desc',
     '.day-theme', '.warn-text', '.warn-tag', '.day-foot', '.recent-summary',
+    '.firstscreen-title', '.firstscreen-lede', '.fs-card-tag', '.fs-card-note',
+    '.fs-card-body', '.fs-warn-list li', '.firstscreen-points span', '.more-options-hint',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);
@@ -377,14 +379,23 @@ async function main() {
 
     const PAGES = [
       {
+        // 新用户首屏验收标准：主张、主 CTA、可溯源证据都必须在场
+        // （缺一项就说明「第一屏传递重要信息/引导明确/可记忆亮点」被改坏了）
         name: "trips",
         path: "/",
-        required: [".trips-home", ".app-topbar"],
+        required: [
+          ".trips-home",
+          ".app-topbar",
+          ".firstscreen-title",
+          ".firstscreen-cta",
+          ".firstscreen-evidence",
+        ],
       },
       {
+        // 新建页：核心三字段 + 首屏内可见的主 CTA
         name: "new",
         path: "/new",
-        required: [".new-head", ".panel"],
+        required: [".new-head", ".new-core", ".new-core-actions", ".more-options"],
       },
       {
         name: "about",

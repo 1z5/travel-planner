@@ -1,4 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+
+// HomeClient 用 useSearchParams 读 ?sample=1 深链——jsdom 里没有 App Router 上下文
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
