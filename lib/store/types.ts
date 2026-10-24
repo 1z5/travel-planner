@@ -124,4 +124,30 @@ export interface Store {
   plans: PlanStore;
   quota: QuotaStore;
   codes: CodeStore;
+  events: EventStore;
+}
+
+// ---------- 产品事件（度量闭环） ----------
+
+/** 一条产品事件（只记行为，不记内容；字段含义见 lib/metrics.ts） */
+export interface TripEventRecord {
+  id: string;
+  name: string;
+  shareId?: string;
+  city?: string;
+  day?: number;
+  meta?: Record<string, unknown>;
+  createdAt: number;
+}
+
+export interface EventStore {
+  /** 写入一条事件。存储失败**不抛错**——埋点不能拖垮主流程（与 grounding 同口径） */
+  record(event: TripEventRecord): Promise<void>;
+  /** 按条件拉取（看板聚合用；内存实现有上限，postgres 走索引） */
+  list(filter: {
+    since?: number;
+    name?: string;
+    shareId?: string;
+    limit?: number;
+  }): Promise<TripEventRecord[]>;
 }

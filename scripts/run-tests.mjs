@@ -1821,6 +1821,49 @@ async function phaseB(api) {
   });
   check("一键顺延：行程不存在 → 404", adjMissing.status === 404, `got ${adjMissing.status}`);
 
+  // ---- 度量闭环：埋点写入 + 看板鉴权 ----
+  // 隐私口径：只收 shareId/城市/第几天；IP 只用于限流不进事件表。
+  const evPost = await fetch(`${api.baseUrl}/api/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "plan_opened", shareId: "share_metrics01", city: "香港" }),
+  });
+  check("埋点：合法事件 → 204（不返回体）", evPost.status === 204, `got ${evPost.status}`);
+  const evBadName = await fetch(`${api.baseUrl}/api/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "not_an_event" }),
+  });
+  check("埋点：未知事件名 → 400", evBadName.status === 400, `got ${evBadName.status}`);
+  const evBadShare = await fetch(`${api.baseUrl}/api/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "plan_opened", shareId: "x" }),
+  });
+  check("埋点：shareId 格式不对 → 400", evBadShare.status === 400, `got ${evBadShare.status}`);
+  // 看板：无 token / 错 token → 404，且响应体必须是 JSON（不是 Next 的 not-found 页）
+  const sumNoToken = await fetch(`${api.baseUrl}/api/events/summary`);
+  const sumNoTokenBody = await sumNoToken.text();
+  check(
+    "看板：无 token → 404（JSON，非 not-found 页）",
+    sumNoToken.status === 404 && sumNoTokenBody.includes("not found"),
+    `got ${sumNoToken.status}`,
+  );
+  const sumBadToken = await fetch(`${api.baseUrl}/api/events/summary?token=wrong`);
+  check("看板：错 token → 404", sumBadToken.status === 404, `got ${sumBadToken.status}`);
+  // 带正确 token → 200 + 指标结构（北极星与漏斗都在）
+  const sum = await (
+    await fetch(`${api.baseUrl}/api/events/summary?token=e2e-metrics-token`)
+  ).json();
+  check(
+    "看板：带 token → 200 且含北极星与漏斗",
+    typeof sum?.total === "number" &&
+      typeof sum?.northStar?.tripsWithToday === "number" &&
+      Array.isArray(sum?.funnel) &&
+      sum.funnel.length === 3,
+    JSON.stringify(sum).slice(0, 160),
+  );
+
   // ---- 穷游模式：预算 0 是正当输入，体检不误报 ----
   // 旧契约把 budget<500 一律 400，且预算 0 时任何花费都会被判「超支」
   // （grandTotal/0 还会出 Infinity%）。现在：0 = 穷游，只统计花费不判达成。
@@ -2343,6 +2386,10 @@ async function main() {
     // 高德 key，这台本该跑 MOCK 模式的服务器会悄悄进入 live 模式，导致
     // 「MOCK 模式 verified=false」等断言失败。显式空值优先于 .env（已验证）。
     AMAP_WEB_SERVICE_KEY: "",
+    // 看板 token：让 e2e 真验「带 token → 200 + 指标结构」。曾经的假阳性：
+    // summary 路由不存在时 Next 返回 text/html 404，「无 token → 404」照样通过
+    // ——所以必须同时验成功路径与响应体是 JSON。
+    METRICS_TOKEN: "e2e-metrics-token",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.real)], {
     NEXT_DIST_DIR: `.next-t-real`,
@@ -2352,6 +2399,8 @@ async function main() {
     LLM_MODEL: "step-5-preview",
     AMAP_WEB_SERVICE_KEY: "stub-amap-key",
     AMAP_BASE_URL: `http://127.0.0.1:${AMAP_STUB_PORT}`,
+    // 看板 token：度量闭环的 e2e 断言跑在本阶段（real），token 必须同台
+    METRICS_TOKEN: "e2e-metrics-token",
     // 本阶段要跑「营业时间/时间轴/一键修复/行中模式」多组用例，会多次提交生成任务；
     // 显式放大配额，避免被开发机 .env 的 DAILY_FREE_LIMIT 截断（与 mock 服务器同思路）。
     DAILY_FREE_LIMIT: "50",

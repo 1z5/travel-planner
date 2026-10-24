@@ -19,6 +19,7 @@ import { RealMap } from "./RealMap";
 import { RouteMap } from "./RouteMap";
 import { CloneCTA } from "./CloneCTA";
 import { DayArrange } from "./DayArrange";
+import { track } from "@/lib/track";
 
 // ============================================================
 // Trip Workspace：一个行程对象，四个镜头。
@@ -55,10 +56,24 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
   const requested = params.get("view");
   const explicitView = VIEWS.includes(requested as View) ? (requested as View) : null;
   const [view, setView] = useState<View>(explicitView ?? "plan");
+  // 切到「今日」镜头时上报（北极星的分母：行中打开过才知道有没有照着走）
+  const trackedToday = useRef(false);
+  useEffect(() => {
+    if (view !== "today" || trackedToday.current) return;
+    trackedToday.current = true;
+    track("today_opened", { shareId, city: plan.city });
+  }, [view, shareId, plan.city, plan.days]);
   const [dayNo, setDayNo] = useState(1);
   const [today, setToday] = useState<TripToday>({ kind: "unknown" });
   const [copied, setCopied] = useState<"idle" | "ok" | "fail">("idle");
   const autoSwitched = useRef(false);
+
+  // 埋点：打开行程（每台设备/每次访问一条；看板按 shareId 去重算漏斗）。
+  // 只在客户端跑——SSR 阶段没有「谁打开了」这个信息。
+  useEffect(() => {
+    track("plan_opened", { shareId, city: initialPlan.city });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只报一次，不随渲染重复
+  }, []);
 
   // 时钟相关状态只在客户端算：SSR 用服务端时区会把「今天」算错，
   // 也会让首屏与客户端不一致。出发当天自动进「今日」镜头（只自动一次，

@@ -223,6 +223,65 @@ Base URL：`/api`（与前端同源）
 
 > 顺延只按真实路段重排，**不读营业时间**：首站开始时间保持不变、关门早于结束的情况可能无解（这类请用「一键修复」的营业时间类别或手动调整）。
 
+## POST /api/events — 产品事件埋点
+
+度量闭环的写入端。**隐私口径**：只收 `shareId`（用户本就持有的 token）、城市、第几天、少量布尔/枚举 `meta`；**不收手机号、不收 IP 进事件表、不收行程内容**（IP 只用于限流）。
+
+### 请求体
+
+| 字段    | 类型   | 必填 | 约束                                                                     | 说明                      |
+| ------- | ------ | ---- | ------------------------------------------------------------------------ | ------------------------- |
+| name    | string | ✅   | `plan_created`/`plan_opened`/`today_opened`/`day_modified`/`trip_cloned` | 封闭事件名（未知 → 400）  |
+| shareId | string |      | 6-40 位 URL-safe                                                         | 关联行程（分享 token）    |
+| city    | string |      | ≤40 字符                                                                 | 目的地（看板按城市汇总）  |
+| day     | number |      | 1-30 整数                                                                | 第几天（行中/修改类事件） |
+| meta    | object |      | 少量键值（如 `{op:"swap"}`）                                             | 结构化补充                |
+
+**204** — 已记录（无响应体，前端 fire-and-forget）。埋点写入失败也返回 204：看板少一条可以，把用户操作拖坏不行。
+
+| HTTP | 场景                                              |
+| ---- | ------------------------------------------------- |
+| 400  | 未知事件名 / shareId 格式不正确                   |
+| 429  | 上报太频繁（`EVENT_HOURLY_LIMIT`，默认 300/h/IP） |
+
+> 服务端事件（`plan_created` 在生成完成时、`day_modified` 在 refine/adjust/reorder 落库时）由路由直接写入，不经过本接口。
+
+## GET /api/events/summary — 只读看板
+
+返回**聚合值**（不输出单条事件）。必须带 `?token=<METRICS_TOKEN>`；未配置 token 或 token 不匹配 → **404（JSON）**。
+
+```bash
+curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
+```
+
+```json
+{
+  "since": 1760000000000,
+  "total": 128,
+  "counts": {
+    "plan_created": 40,
+    "plan_opened": 31,
+    "today_opened": 12,
+    "day_modified": 9,
+    "trip_cloned": 3
+  },
+  "funnel": [
+    { "step": "plan_created", "trips": 40 },
+    { "step": "plan_opened", "trips": 31, "conversionFromPrev": 0.775 },
+    { "step": "today_opened", "trips": 12, "conversionFromPrev": 0.387 }
+  ],
+  "northStar": { "tripsWithToday": 12, "tripsUnmodified": 8, "rate": 0.667 },
+  "modifiedByDay": [{ "day": 2, "count": 5 }],
+  "topCities": [{ "city": "苏州", "created": 11 }]
+}
+```
+
+**`northStar.rate` 就是北极星「照着走完的比例」**：行中打开过、且没有任何 `day_modified` 的行程占比。分母只算「行中打开过」的行程——没打开过就不知道有没有照着走，把它算进分母是编数据；没有样本时 `rate` 为 `null`（不编 0% 也不编 100%）。
+
+| HTTP | 场景                                   |
+| ---- | -------------------------------------- |
+| 404  | 未配置 `METRICS_TOKEN` 或 token 不匹配 |
+
 ## POST /api/plan/clone — 一键克隆（分享页病毒飞轮）
 
 看到别人的行程 → 一键带出「按我的日期重排」的版本。与「复制 JSON 改日期」的假克隆的区别：**走完整生成管线**——事实层（高德检索）对新档期重新核验闭馆日与通勤，模型在新事实上重排。扣一次生成配额（克隆 = 一次生成）。

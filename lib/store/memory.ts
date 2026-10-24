@@ -1,5 +1,13 @@
 import "server-only";
-import type { CodeRecord, JobRecord, PlanRecord, QuotaRecord, Store } from "./types";
+import type {
+  CodeRecord,
+  EventStore,
+  JobRecord,
+  PlanRecord,
+  QuotaRecord,
+  Store,
+  TripEventRecord,
+} from "./types";
 
 // ============================================================
 // 内存实现：行为与原版（globalThis Map）完全一致，作为默认实现。
@@ -12,6 +20,7 @@ const g = globalThis as typeof globalThis & {
   __tpPlans?: Map<string, PlanRecord>;
   __tpQuota?: Map<string, QuotaRecord>;
   __tpCodes?: Map<string, CodeRecord>;
+  __tpEvents?: TripEventRecord[];
 };
 
 const jobs = (g.__tpJobs ??= new Map<string, JobRecord>());
@@ -19,6 +28,11 @@ const jobs = (g.__tpJobs ??= new Map<string, JobRecord>());
 const plans = (g.__tpPlans ??= new Map<string, PlanRecord>());
 const quota = (g.__tpQuota ??= new Map<string, QuotaRecord>());
 const codes = (g.__tpCodes ??= new Map<string, CodeRecord>());
+// 产品事件：内存实现是「够用的看板」而不是持久数仓——单机/dev 用，重启即丢。
+// 上限 5000 条（约等于几个月的低频事件量），超出丢最旧的：埋点丢一条无所谓，
+// 把进程内存撑爆才是事故。
+const events: TripEventRecord[] = (g.__tpEvents ??= []);
+const EVENT_CAP = 5000;
 
 /** 行程保留 30 天：比 job 的 2 小时长得多，覆盖「发给朋友过几天再打开」 */
 // 内存模式（dev/单机）保留 30 天：只是为了防长驻进程无限增长。
@@ -121,9 +135,32 @@ if (typeof setInterval === "function") {
   }, 600_000).unref?.();
 }
 
+const eventStore: EventStore = {
+  async record(event) {
+    try {
+      events.push(event);
+      if (events.length > EVENT_CAP) events.splice(0, events.length - EVENT_CAP);
+    } catch {
+      /* 埋点失败不影响主流程 */
+    }
+  },
+  async list(filter = {}) {
+    const { since, name, shareId, limit = 1000 } = filter;
+    return events
+      .filter(
+        (e) =>
+          (since === undefined || e.createdAt >= since) &&
+          (name === undefined || e.name === name) &&
+          (shareId === undefined || e.shareId === shareId),
+      )
+      .slice(-limit);
+  },
+};
+
 export const memoryStore: Store = {
   jobs: jobStore,
   plans: planStore,
   quota: quotaStore,
   codes: codeStore,
+  events: eventStore,
 };

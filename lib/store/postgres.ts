@@ -2,7 +2,15 @@ import "server-only";
 import type { Plan, PlanInput } from "../types";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import type { CodeRecord, JobRecord, PlanRecord, QuotaRecord, Store } from "./types";
+import type {
+  CodeRecord,
+  EventStore,
+  JobRecord,
+  PlanRecord,
+  QuotaRecord,
+  Store,
+  TripEventRecord,
+} from "./types";
 
 // ============================================================
 // PostgreSQL 实现（Prisma）。客户端懒实例化——只有 DATA_STORE=
@@ -219,10 +227,53 @@ async function sweep() {
   }
 }
 
+const eventStore: EventStore = {
+  async record(event) {
+    try {
+      await prisma().tripEvent.create({
+        data: {
+          id: event.id,
+          name: event.name,
+          shareId: event.shareId ?? null,
+          city: event.city ?? null,
+          day: event.day ?? null,
+          meta: (event.meta ?? undefined) as unknown as Prisma.InputJsonValue,
+          createdAt: new Date(event.createdAt),
+        },
+      });
+    } catch (e) {
+      // 埋点失败不抛错：看板少一条可以，主流程被拖垮不行
+      console.error(`[events] 写入失败（已忽略）: ${(e as Error)?.message ?? e}`);
+    }
+  },
+  async list(filter = {}) {
+    const { since, name, shareId, limit = 1000 } = filter;
+    const rows = await prisma().tripEvent.findMany({
+      where: {
+        ...(since !== undefined ? { createdAt: { gte: new Date(since) } } : {}),
+        ...(name !== undefined ? { name } : {}),
+        ...(shareId !== undefined ? { shareId } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      shareId: r.shareId ?? undefined,
+      city: r.city ?? undefined,
+      day: r.day ?? undefined,
+      meta: (r.meta as Record<string, unknown> | null) ?? undefined,
+      createdAt: r.createdAt.getTime(),
+    }));
+  },
+};
+
 export const postgresStore: Store = {
   jobs: jobStore,
   plans: planStore,
   quota: quotaStore,
   codes: codeStore,
+  events: eventStore,
 };
 export { sweep };

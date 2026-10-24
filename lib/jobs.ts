@@ -195,6 +195,15 @@ async function completeWithWeather(
   const snapshot = clonePlan(plan);
   // 行程持久化：失败只意味着「这次没有分享链接」，行程本体照常交付
   const shareId = await commitPlan(jobId, snapshot, input, ownerKey);
+  // 埋点：生成完成。用 store.events（memory/postgres 双实现），失败不影响交付。
+  await store.events.record({
+    id: `ev_${jobId}`,
+    name: "plan_created",
+    shareId: shareId ?? undefined,
+    city: plan.city,
+    day: plan.days.length,
+    createdAt: Date.now(),
+  });
   // 一次写入同时落 done + plan + shareId：轮询到 done 即拿到完整结果
   await store.jobs.update(jobId, {
     status: "done",

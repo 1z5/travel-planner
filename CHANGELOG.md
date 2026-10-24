@@ -2,6 +2,25 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 度量闭环：北极星「照着走完率」第一次可计算
+
+此前这个指标**无法计算**——stage 遥测只在进程内存，多实例即丢，也没有任何事件落库；
+产品迭代只能靠个别用户反馈猜。本轮补上最小闭环（一人公司够用、隐私口径明确）。
+
+- **事件模型**：`TripEvent`（name/shareId/city/day/meta/createdAt + 三个索引），Prisma 迁移
+  `20261024000000_trip_event`；Store 双实现（memory 上限 5000 条、postgres 走索引）。
+- **写入**：`POST /api/events`（封闭事件名枚举、IP 小时限流、失败不阻塞）；
+  服务端事件直接由路由写——`plan_created`（生成完成）、`day_modified`（refine/adjust/reorder
+  落库）、`trip_cloned`；前端 `lib/track.ts` fire-and-forget 上报 `plan_opened`/`today_opened`。
+- **看板**：`GET /api/events/summary?token=<METRICS_TOKEN>` 只读聚合（漏斗/北极星/改动集中日/
+  Top 城市），未配置 token 一律 404，timingSafeEqual 比对。
+- **北极星口径**（诚实优先）：分母只算「行中打开过」的行程，分子是其中没有任何
+  `day_modified` 的；没打开过就不知道有没有照着走，算进分母是编数据；无样本时 `rate=null`。
+- **隐私红线**：事件表不存手机号、不存 IP、不存行程内容；`meta` 只放少量布尔/枚举。
+
+验收：835 单测 + 527 e2e 全绿（指标纯函数 10 条 + 埋点/看板 e2e 6 条）；
+`gate:visual` 9 页 × 2 视口 0 失败 / 0 警告。
+
 ## 2026-10 硬约束修复：必游地/住所不再被静默丢弃（线上实测回归）
 
 用户实测复现的 case：香港穷游 + 必游地「兰桂坊」+ 住所「大冲城市花园」，

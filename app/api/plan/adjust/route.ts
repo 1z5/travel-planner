@@ -4,6 +4,8 @@ import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
 import { RetimeUnavailableError, retimeDay, type RetimeResult } from "@/lib/schedule";
 import { refreshTimeWarnings } from "@/lib/validate";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
+import { newEventId } from "@/lib/metrics";
+import { getStore } from "@/lib/store";
 import type { Plan, PlanDay } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -172,6 +174,16 @@ export async function POST(req: NextRequest) {
   nextPlan.warnings = refreshTimeWarnings(nextPlan, record.input);
 
   const saved = await replacePlan(shareId, nextPlan);
+  // 埋点：改了某一天（顺延/重排都算「用户动手改过」）
+  await getStore().events.record({
+    id: newEventId(),
+    name: "day_modified",
+    shareId,
+    city: record.plan.city,
+    day,
+    meta: { op },
+    createdAt: Date.now(),
+  });
   if (!saved) {
     await refund(winKey);
     return NextResponse.json({ error: "行程不存在或已被删除，修改未能保存" }, { status: 404 });

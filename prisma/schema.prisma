@@ -57,3 +57,28 @@ model SmsCode {
   code      String
   expiresAt DateTime
 }
+
+/// 产品事件（度量闭环的最小实现）。
+///
+/// 为什么需要：北极星指标「照着走完的比例」（出行期间未手动改过当天安排的行程占比）
+/// 此前**无法计算**——stage 遥测只在进程内存里，多实例即丢，也没有任何事件落库。
+/// 没有这个指标，产品迭代只能靠个别用户反馈猜。
+///
+/// 记录口径（诚实优先）：
+/// - 只记「行为」，不记内容：shareId（用户本就持有的 token）+ 城市 + 第几天 +
+///   少量布尔/枚举 meta。不存手机号、不存 POI 文本、不存 IP（IP 只用于限流，
+///   由 ratelimit 的 hourKey 承担，不进入本表）。
+/// - 事件名是封闭枚举（见 lib/metrics.ts 的 EVENT_NAMES），避免脏数据把看板搞糊。
+model TripEvent {
+  id        String   @id
+  name      String // 事件名（EVENT_NAMES 之一）
+  shareId   String? // 关联行程（分享 token；未登录/无行程的事件为 null）
+  city      String? // 目的地（冗余存储，看板按城市汇总时不用 join Plan）
+  day       Int? // 行程第几天（行中/修改类事件用）
+  meta      Json? // 少量结构化补充（如 { changed: true } / { op: "reorder" }）
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([shareId])
+  @@index([createdAt])
+}

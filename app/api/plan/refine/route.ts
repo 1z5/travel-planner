@@ -16,6 +16,8 @@ import {
   type RefineAction,
 } from "@/lib/refine";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
+import { newEventId } from "@/lib/metrics";
+import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -235,6 +237,16 @@ export async function POST(req: NextRequest) {
 
   // 6) 落库（revision+1，分享页/.ics/OG 会自动读到新 plan）。null = 链接刚被删掉
   const saved = await replacePlan(shareId, newPlan);
+  // 埋点：改了某一天（北极星「照着走完」的分子口径就是它的反面）
+  await getStore().events.record({
+    id: newEventId(),
+    name: "day_modified",
+    shareId,
+    city: record.plan.city,
+    day,
+    meta: { op: action },
+    createdAt: Date.now(),
+  });
   if (!saved) {
     await refund(winKey);
     return NextResponse.json({ error: "行程不存在或已被删除，修改未能保存" }, { status: 404 });
