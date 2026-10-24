@@ -81,3 +81,9 @@ prisma/         数据库 schema
 ## 环境变量
 
 参考 `.env.example`，复制为 `.env` 后填入实际值。**不要提交 `.env` 到 Git。**
+
+## 依赖更新
+
+Dependabot 每周一开 PR。合入门槛：CI 全绿；minor/patch 可直接合，major 需本地
+`npm run typecheck && npm run lint && npm run test:unit` 全绿后再合。改 workflow
+的 PR 需要 `workflow` scope，没有时手工应用同等升级。合并在 CHANGELOG 记一行。

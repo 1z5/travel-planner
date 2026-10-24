@@ -181,6 +181,15 @@ UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 di
 截图与 JSON 报告落在 `eval-results/visual/`。加新页面/新控件时，把选择器补进
 `scripts/visual-check.mjs` 的 `CONTRAST_SELECTORS` / 页面 `required` 列表。
 
+### 依赖更新节奏（Dependabot）
+
+- **每周一** review dependabot PR：CI 全绿的 **minor/patch 直接合**；major（如
+  `@types/node` 22→26、Next/React 主版本）**单独一次提交 + 本地跑 typecheck/lint/单测** 再合；
+- 改 `.github/workflows` 的 PR 需要 `workflow` scope 才能合——没有该 scope 时按 PR
+  内容手工应用同等升级并在 PR 里说明（曾因此挂了一周）；
+- 合完在 CHANGELOG 记一行（版本 + 动机），别让依赖变化无声无息；
+- **禁止**把 dependabot PR 挂超过两周：挂着 = 安全补丁没上车。
+
 ### 并行代理协议（血泪教训）
 
 - **文件所有权**：每个任务在任务板上声明 write scopes；只改自己范围内的文件。
