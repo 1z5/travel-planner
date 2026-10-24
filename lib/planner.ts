@@ -439,21 +439,23 @@ export const PACE_RULES: Record<NonNullable<PlanInput["pace"]>, string> = {
  * 低预算同理（「当天不要显著低于 1 元」）。穷游是正当需求（免费景点、
  * 街区漫步、街头小吃），约束要从「贴近预算」切换成「优先免费低价、不凑数」。
  */
-/** 两串的最长公共子串长度（小字符串，O(n*m) 足够） */
-function lcsLen(a: string, b: string): number {
+/**
+ * 两串的最长公共**子序列**长度（不是子串）。
+ *
+ * 为什么用子序列：中文简称几乎都是「抽字」而不是「连续片段」——「苏博」抽自
+ * 「苏州博物馆」、「住平江附近」对应「平江历史街区」。用连续子串会把这两个
+ * 都判成缺失，从而每次生成都白烧一次纠正重试（CI 实测抓到过这个误判）。
+ */
+function lcsSubseq(a: string, b: string): number {
   let prev = new Array<number>(b.length + 1).fill(0);
-  let best = 0;
   for (let i = 1; i <= a.length; i++) {
     const cur = new Array<number>(b.length + 1).fill(0);
     for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        cur[j] = prev[j - 1] + 1;
-        if (cur[j] > best) best = cur[j];
-      }
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
     }
     prev = cur;
   }
-  return best;
+  return prev[b.length];
 }
 
 /**
@@ -471,7 +473,7 @@ function looselyCovered(name: string, candidates: readonly string[]): boolean {
   return candidates.some((c) => {
     const b = String(c ?? "").trim();
     if (!b) return false;
-    return a.includes(b) || b.includes(a) || lcsLen(a, b) >= 2;
+    return a.includes(b) || b.includes(a) || lcsSubseq(a, b) >= 2;
   });
 }
 
