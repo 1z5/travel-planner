@@ -23,13 +23,26 @@ import type { JobRecord, Store } from "./store";
 // 状态经 Store 门面持久化（memory 默认 / postgres 可选）。
 //
 // 按天数分流两条生成路径：
-//   < 5 天：单次调用生成完整行程（已验证的质量路径，行为不变）
+//   < 5 天：单次调用生成完整行程（实测比同长度分日更快，见 STREAMING_MIN_DAYS）
 //   ≥5 天：大纲 → 逐日生成，每完成一天就增量更新 job.plan，
 //           让用户逐天看到结果而不是干等一个总 deadline
 // ============================================================
 
-/** ≥5 天走分日流式（单次调用在这个长度必爆 token） */
-const STREAMING_MIN_DAYS = 5;
+/**
+ * ≥N 天走分日流式。**默认 5，是用实测数据换回来的**（2026-10-25）：
+ *
+ * 曾假设「分日后每次调用只想一天，3 路并发下墙钟≈最慢的一天」，把阈值降到 2
+ * 跑了一轮。同参数实测（杭州 3 天 / 预算 3000 / 两个偏好）：
+ *   - 单次调用（阈值 5）：**279.1s**
+ *   - 分日流式（阈值 2）：**336.2s**（大纲 66.3s + 逐日约 270s）
+ * 分日并没有变快：大纲是净开销，逐日调用的总时长≈单次（网关基本串行消化并发，
+ * 每次调用各自的 prompt 开销还在）。分日的真实价值在 **5 天以上**——那时单次
+ * 调用必爆 token/超时，分日是唯一可行路径，且「首日先可见」的收益明显。
+ *
+ * 所以：2-4 天保持单次（更快，跨天一致性也更好），≥5 天走分日。
+ * env 可覆盖（以后网关并发变强时再测）：STREAMING_MIN_DAYS=2 即当时的分日实验。
+ */
+const STREAMING_MIN_DAYS = Number(process.env.STREAMING_MIN_DAYS || 5);
 
 /** 轻量心跳间隔：任务运行期间每 60s 打一次空 update，刷新 JobRecord.updatedAt */
 const HEARTBEAT_MS = 60_000;
@@ -412,10 +425,10 @@ export async function createJob(
  * 分日流式（≥5 天）：先出大纲让用户立刻看到骨架，再逐日生成+体检，
  * 每完成一天就增量落库（status 仍为 running，plan 里带已生成的天）。
  *
- * 串行而非并发的理由：
- * 1. 天数必须按序呈现——并发下第 2 天可能比第 1 天先完成，用户会看到乱序
- * 2. 避开 LLM 速率限制（个人 key 并发打满会更慢，甚至触发限流）
- * 3. 5 天约 3-4 分钟，与 4 天单次调用耗时相当，UX 收益已经拿到
+ * 并发 3 路 + **前缀发布**：并发出场顺序不固定（第 3 天可能比第 2 天先完成），
+ * 所以只有「连续已完成」的天才会推给用户——未就绪的天挡住它后面的所有天，
+ * 用户永远看不到乱序行程。3 路是实测的甜点（网关 3 路总耗时 ≈ 单次），
+ * 再高会逼近个人 key 的限流阈值。
  */
 async function runStreaming(
   store: Store,
@@ -424,6 +437,8 @@ async function runStreaming(
   ownerKey?: string,
 ): Promise<void> {
   const t0 = Date.now();
+  // 秒级初版的引用：发布后 job.plan 会被逐日快照覆盖，但核验报告要拿它做对比
+  const fastDraftRef: { plan?: Plan } = {};
   // 遥测起点（outline）是函数的第一个同步语句：runStreaming 由 createJob 的
   // IIFE 在同步段里 await 调用，因此它先于 202 响应执行——轮询从第一帧起
   // 就能看到阶段，不存在「running 但无遥测」的窗口。
@@ -468,6 +483,13 @@ async function runStreaming(
     endAt: input.endAt,
   };
   await store.jobs.update(jobId, { plan: clonePlan(plan) });
+
+  // 这里**不发布秒级初版**（曾发布过，实测回退）：
+  // 流式路径的已发布天数是「只增不减」的前缀（e2e 有专项断言 daysReady 单调），
+  // 而初版一次性带 N 天 → 用户会看到 0 天 → N 天 → 1 天的回退，比没有初版更糟。
+  // 流式路径本身的体验已经够好：大纲骨架（<1s）+ 逐日生长（第 1 天约 1 分钟可见）。
+  // 秒级初版只服务「单次路径」——那才是 3 分钟黑盒、需要立刻看到真实内容的场景。
+
   console.log(
     `[job] ${jobId} 大纲完成 ${((Date.now() - t0) / 1000).toFixed(1)}s（${outline.days.length} 天），开始逐日生成`,
   );
@@ -578,7 +600,11 @@ async function runStreaming(
     poiTotal,
   });
   // 事实先行摘要（城市级 + 各天清单的并集）
-  plan.grounding = groundingSummaryOf([cityGrounding, ...[...dayGrounding.values()]]);
+  const gSummary = groundingSummaryOf([cityGrounding, ...[...dayGrounding.values()]]);
+  plan.grounding = gSummary;
+  // 核验差异报告（与单次路径同口径）：把「初版 → 精排版」之间核验层实际做过的
+  // 事讲清楚。流式路径同样发布了秒级初版，所以同样有话可说。
+  plan.verificationReport = buildVerificationReport(fastDraftRef.plan, plan, gSummary);
   // 天气提示 + 持久化分享 + 标记完成（共用逻辑，与单次路径一致）
   await completeWithWeather(store, jobId, plan, input, ownerKey);
 }

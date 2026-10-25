@@ -129,6 +129,40 @@ describe("秒级初版：同区聚合（不制造必然绕路）", () => {
   });
 });
 
+describe("秒级初版：候选池按天均摊", () => {
+  it("多天行程不把池子拿光：后面的天也有真实点", () => {
+    const g = grounding({
+      candidates: [
+        { name: "拙政园", kind: "sight", area: "姑苏区", location: "120.6,31.3", rating: 4.7 },
+        { name: "苏州博物馆", kind: "sight", area: "姑苏区", location: "120.6,31.31", rating: 4.8 },
+        { name: "平江路", kind: "sight", area: "姑苏区", location: "120.6,31.32", rating: 4.6 },
+        { name: "观前街", kind: "sight", area: "姑苏区", location: "120.6,31.33", rating: 4.5 },
+        {
+          name: "陈麻婆豆腐",
+          kind: "food",
+          area: "姑苏区",
+          location: "120.6,31.34",
+          rating: 4.4,
+          avgCostCny: 60,
+        },
+        {
+          name: "松鹤楼",
+          kind: "food",
+          area: "姑苏区",
+          location: "120.6,31.35",
+          rating: 4.5,
+          avgCostCny: 120,
+        },
+      ],
+    });
+    const plan = buildFastDraft(input({ days: 3, endAt: "2026-11-03T20:00" }), g);
+    // 每天至少 1 个真实点，且总数不超过候选数
+    expect(plan.days.every((d) => d.spots.length > 0)).toBe(true);
+    const total = plan.days.reduce((n, d) => n + d.spots.length, 0);
+    expect(total).toBeLessThanOrEqual(6);
+  });
+});
+
 describe("秒级初版：跨城", () => {
   it("跨城日先放城际交通占位，且当天只排抵达后的点位", () => {
     const plan = buildFastDraft(

@@ -129,6 +129,10 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
   const days: PlanDay[] = [];
   let sightIdx = 0;
   let foodIdx = 0;
+  // 每天的取点上限：候选池按天均摊，避免第一天把池子拿光、后面几天全空。
+  // （实测踩过：4 个候选 + 6 天行程，全塞给第一天，后面五天只剩空骨架。）
+  // 池子比天数还小时上限仍然生效——拿不到就留空，不编造占位点。
+  const perDayCap = Math.max(2, Math.ceil(grounding.candidates.length / input.days));
 
   for (let d = 0; d < input.days; d++) {
     const dayNo = d + 1;
@@ -145,7 +149,9 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
       cursor = 15.5;
     }
 
+    let picked = 0; // 当天已取的真实 POI 数（跨城交通段/住所不计入上限）
     for (const slot of DAY_TEMPLATE) {
+      if (picked >= perDayCap) break; // 留给后面的天
       const isLastDay = d === input.days - 1;
       if (isLastDay && slot.period === "evening") continue;
       // 跨城日只排抵达后的轻松点位（下午一个景点 + 晚餐）
@@ -163,6 +169,7 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
         const pick = pickFrom(pool, perDayBudget > 0 ? Math.max(60, remain) : 60);
         if (pick) {
           sightIdx += 1;
+          picked += 1;
           spent += pick.avgCostCny ?? 40;
           spots.push({
             period: slot.period,
@@ -183,6 +190,7 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
         const pick = pickFrom(pool, perDayBudget > 0 ? Math.max(60, remain) : 60);
         if (pick) {
           foodIdx += 1;
+          picked += 1;
           spent += pick.avgCostCny ?? 60;
           spots.push({
             period: slot.period,
