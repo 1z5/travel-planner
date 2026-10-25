@@ -340,6 +340,17 @@ npm run check:env  # 环境变量体检（格式 / .env.example 漂移 / 生产�
 
 **三态原则（命门）**：POI 查询区分 hit / miss / error，**只有 miss 才触发「未在高德检索到」预警**。网络异常、QPS 超限、key 无效必须归为 error——否则会把真实存在的景点标成不存在，预警系统自己变成谎言。error 只汇总成一条系统提示（`plan.verification="partial"`），且该天通勤未知时**跳过**通勤与节奏判定，不用拍脑袋数字污染指标。
 
+## 许可与所有权
+
+本项目以 [Apache-2.0](LICENSE) 许可开源，**版权归作者所有**（Copyright © 2026 1z5）。
+
+这意味着：任何人都可以自由使用、修改、再分发（含商业用途），只需保留版权声明与
+[NOTICE.md](NOTICE.md)；作者不提供任何担保（Apache-2.0 第七、八条）。商标不在授权
+范围内——项目名「行程规划师」与品牌资产仍归作者。
+
+第三方组件清单见 [NOTICE.md](NOTICE.md)（由 `scripts/gen-notice.mjs` 生成）；
+安全漏洞反馈见 [SECURITY.md](SECURITY.md)；贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## 快速开始
 
 ```bash

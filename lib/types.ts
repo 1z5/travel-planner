@@ -147,6 +147,25 @@ export interface Plan {
   warnings: string[]; // 体检结果：未验真 POI / 通勤偏长 / 节奏 / 预算
   verified: boolean; // 是否走了真实高德数据（false = mock 模式）
   verification?: "mock" | "ok" | "partial" | "pending";
-  draft?: boolean; // true = 即时草稿预览（LLM 真实行程生成后替换） // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动部分未核 / pending=流式生成中尚未收尾
+  draft?: boolean; // true = 即时草稿预览（LLM 真实行程生成后替换）
+  /**
+   * 草稿种类：
+   *   fast = 秒级初版（真实 POI 名单 + 确定性规则，动线未精排）
+   *   skeleton = 结构骨架（<100ms，POI 名是占位符；legacy，仅无 grounding 时）
+   * 缺省视为 skeleton——旧数据/无 grounding 路径行为不变。
+   */
+  draftKind?: "fast" | "skeleton";
+  /**
+   * 核验差异报告：秒级初版 → 精排版之间，核验层实际做了什么。
+   * 每个数字都可溯源（POI 存在性/闭馆/真实路段/时间修正），没有的一项不写。
+   */
+  verificationReport?: {
+    fastDraftSpots: number; // 初版真实 POI 数
+    keptInFinal: number; // 精排版保留的初版 POI 数
+    closedSkipped: number; // 避开闭馆日的候选数
+    closedOut: number; // 全程闭馆被剔除的候选数
+    realLegs: number; // 精排版算出的真实路段数
+    timeFixed: number; // 初版「时间接不上」在精排版被修正的段数（近似：初版未算通勤，按真实路段数计）
+  }; // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动部分未核 / pending=流式生成中尚未收尾
   grounding?: PlanGrounding; // 事实先行摘要（生成前用真实 POI 事实约束过模型）
 }

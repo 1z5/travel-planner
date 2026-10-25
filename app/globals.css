@@ -6704,3 +6704,64 @@ main.has-result .new-head {
 .budget-daily .cost-chart-bar {
   border-radius: 2px 2px 0 0;
 }
+
+/* ============================================================
+   快速初版徽章 + 核验报告
+   ============================================================ */
+
+.draft-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  margin-bottom: var(--sp-3);
+}
+.draft-badge-icon {
+  font-size: 14px;
+}
+.draft-badge-note {
+  color: var(--ink-4);
+  font-size: 12.5px;
+}
+
+.verify-report {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 16px 18px;
+  margin-bottom: var(--sp-4);
+}
+.verify-report-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.verify-report-head svg {
+  color: var(--accent);
+}
+.verify-report-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.verify-report-list li {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.verify-report-list b {
+  color: var(--ink);
+  font-family: var(--font-mono);
+}

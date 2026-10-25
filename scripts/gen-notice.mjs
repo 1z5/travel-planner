@@ -60,7 +60,9 @@ lines.push("");
 lines.push("> 本文件由 `scripts/gen-notice.mjs` 依据 `package-lock.json` 生成，**请勿手改**。");
 lines.push("> 升级依赖后重新生成并提交。");
 lines.push("");
-lines.push("本项目（行程规划师）为专有软件，见 [LICENSE](LICENSE)。以下是随本项目分发的");
+lines.push(
+  "本项目（行程规划师）基于 [Apache-2.0](LICENSE) 许可开源，版权归作者所有。以下是随本项目分发的",
+);
 lines.push("第三方开源组件及其许可证。MIT/ISC/Zlib 等需保留其版权声明；Apache-2.0 需随分发");
 lines.push("附带 NOTICE——本文件即为此目的维护。");
 lines.push("");

@@ -3,7 +3,7 @@
 > 本文件由 `scripts/gen-notice.mjs` 依据 `package-lock.json` 生成，**请勿手改**。
 > 升级依赖后重新生成并提交。
 
-本项目（行程规划师）为专有软件，见 [LICENSE](LICENSE)。以下是随本项目分发的
+本项目（行程规划师）基于 [Apache-2.0](LICENSE) 许可开源，版权归作者所有。以下是随本项目分发的
 第三方开源组件及其许可证。MIT/ISC/Zlib 等需保留其版权声明；Apache-2.0 需随分发
 附带 NOTICE——本文件即为此目的维护。
 
@@ -17,21 +17,21 @@
 | @testing-library/jest-dom   | 7.0.1   | MIT        |
 | @testing-library/react      | 16.3.3  | MIT        |
 | @testing-library/user-event | 14.6.8  | MIT        |
-| @types/node                 | 22.20.5 | MIT        |
+| @types/node                 | 26.6.5  | MIT        |
 | @types/react                | 19.3.0  | MIT        |
 | @types/react-dom            | 19.3.0  | MIT        |
 | @vitejs/plugin-react        | 6.1.2   | MIT        |
 | @vitest/coverage-v8         | 5.0.5   | MIT        |
 | eslint                      | 10.13.0 | MIT        |
 | eslint-config-prettier      | 10.1.8  | MIT        |
-| framer-motion               | 14.3.0  | MIT        |
+| framer-motion               | 14.4.0  | MIT        |
 | globals                     | 17.13.0 | MIT        |
 | husky                       | 9.1.7   | MIT        |
 | jsdom                       | 30.1.3  | MIT        |
 | lint-staged                 | 17.6.0  | MIT        |
 | lucide-react                | 1.59.0  | ISC        |
 | next                        | 16.4.2  | MIT        |
-| openai                      | 7.36.0  | Apache-2.0 |
+| openai                      | 7.39.0  | Apache-2.0 |
 | prettier                    | 3.9.10  | MIT        |
 | prisma                      | 7.10.1  | Apache-2.0 |
 | react                       | 19.3.1  | MIT        |

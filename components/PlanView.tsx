@@ -575,7 +575,18 @@ export function PlanView({
       {draftBadge && (
         <div className="draft-badge" role="status">
           <span className="draft-badge-icon">⚡</span>
-          <span>快速预览 — 精确行程生成中</span>
+          {viewPlan.draftKind === "fast" ? (
+            <>
+              <span>
+                <b>快速初版</b> — 点位来自高德真实检索（存在已核实），动线与时间未精排
+              </span>
+              <span className="draft-badge-note">
+                精排版（含通勤/营业时间/预算精算）约 2-4 分钟后替换
+              </span>
+            </>
+          ) : (
+            <span>快速预览 — 精确行程生成中</span>
+          )}
         </div>
       )}
 
@@ -730,6 +741,43 @@ export function PlanView({
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {/* ===== 核验报告：秒级初版 → 精排版之间核验层实际做了什么 =====
+          每个数字都可溯源；没有报告（无初版/未接高德）时整块不渲染。 */}
+      {viewPlan.verificationReport && !draftBadge && (
+        <section className="verify-report" aria-label="核验报告">
+          <div className="verify-report-head">
+            <ShieldCheck size={15} />
+            <span>这份行程被核验过</span>
+          </div>
+          <ul className="verify-report-list">
+            <li>
+              <b>{viewPlan.verificationReport.fastDraftSpots}</b> 个初版点位来自高德真实检索
+              {viewPlan.verificationReport.keptInFinal > 0 && (
+                <>
+                  ，精排版保留 <b>{viewPlan.verificationReport.keptInFinal}</b> 个
+                </>
+              )}
+            </li>
+            {viewPlan.verificationReport.closedSkipped > 0 && (
+              <li>
+                避开 <b>{viewPlan.verificationReport.closedSkipped}</b> 个闭馆日（行程期内不去）
+              </li>
+            )}
+            {viewPlan.verificationReport.closedOut > 0 && (
+              <li>
+                剔除 <b>{viewPlan.verificationReport.closedOut}</b> 个全程闭馆/暂停开放的地点
+              </li>
+            )}
+            {viewPlan.verificationReport.realLegs > 0 && (
+              <li>
+                <b>{viewPlan.verificationReport.realLegs}</b>{" "}
+                段站点间通勤按高德真实路线计算（不是估的）
+              </li>
+            )}
+          </ul>
+        </section>
       )}
 
       {/* ===== 体检预警 =====
