@@ -676,3 +676,30 @@ describe("MOCK 模式不填假 POI 详情", () => {
     }
   });
 });
+
+describe("智能组合（auto）：按距离选方式", () => {
+  it("阈值口径：≤1.2km 步行 / ≤5km 骑行 / 更远驾车", async () => {
+    process.env.AMAP_WEB_SERVICE_KEY = "test-key";
+    vi.resetModules();
+    const { pickModeByDistance, haversineMeters } = await import("@/lib/amap");
+    expect(pickModeByDistance(800)).toBe("walking");
+    expect(pickModeByDistance(1200)).toBe("walking");
+    expect(pickModeByDistance(1201)).toBe("bicycling");
+    expect(pickModeByDistance(5000)).toBe("bicycling");
+    expect(pickModeByDistance(5001)).toBe("driving");
+    // 坐标缺失/非法 → 驾车（不猜）
+    expect(pickModeByDistance(Number.NaN)).toBe("driving");
+    expect(haversineMeters("bad", "116.4,39.9")).toBeNaN();
+  });
+
+  it("haversine：同一点 0 米；已知坐标对量级正确", async () => {
+    process.env.AMAP_WEB_SERVICE_KEY = "test-key";
+    vi.resetModules();
+    const { haversineMeters } = await import("@/lib/amap");
+    expect(haversineMeters("116.4,39.9", "116.4,39.9")).toBeCloseTo(0, 3);
+    // 约 0.01 度经度 ≈ 0.9km（北京附近）
+    const d = haversineMeters("116.40,39.90", "116.41,39.90");
+    expect(d).toBeGreaterThan(700);
+    expect(d).toBeLessThan(1100);
+  });
+});
