@@ -70,6 +70,7 @@ const MODE_LABEL: Record<PlanLeg["mode"], string> = {
   walking: "步行",
   bicycling: "骑行",
   driving: "驾车",
+  auto: "智能组合", // 兜底：legs 记的是解析后的具体方式
 };
 
 // ---------- 小工具 ----------

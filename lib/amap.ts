@@ -483,7 +483,8 @@ export type RouteSegmentResult =
 
 // 各方式的高德 v5 direction 端点。公交/地铁（transit/integrated）实测当前
 // key 返回 HTTP 400（个人 Web 服务 key 未开放），故不提供。
-const DIRECTION_PATH: Record<TransportMode, string> = {
+// 只收三种具体方式：auto 在 routeSegment 里先解析成其中一种再查表
+const DIRECTION_PATH: Record<"walking" | "bicycling" | "driving", string> = {
   walking: "/v5/direction/walking",
   bicycling: "/v5/direction/bicycling",
   driving: "/v5/direction/driving",
@@ -499,12 +500,55 @@ const DIRECTION_PATH: Record<TransportMode, string> = {
  * 三态：坐标缺失由调用方拦（本函数要求传入合法 "lng,lat"）；上游异常/
  * 无有效数据返回 unknown——拿空路段去渲染就是骗人，宁可不显示这段。
  */
+/**
+ * 两点直线距离（米）。haversine，够用于「选哪种交通方式」这种粗决策。
+ */
+export function haversineMeters(a: string, b: string): number {
+  const [lng1, lat1] = a.split(",").map(Number);
+  const [lng2, lat2] = b.split(",").map(Number);
+  if (![lng1, lat1, lng2, lat2].every((n) => Number.isFinite(n))) return Number.NaN;
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * 「智能组合」模式：按**直线距离**选这一段用哪种交通方式。
+ *
+ * 为什么按直线距离而不是路线距离：选模式发生在算路线之前，我们没有路线距离；
+ * 而直线距离 ×1.3 的绕路系数已足够区分「步行可达」和「必须坐车」。
+ * 阈值口径（与 UI 文案一致，改动要同步）：
+ *   ≤1.2km 步行（相邻景点/逛街，开车反而难找车位）
+ *   ≤5km  骑行（城市中距离最舒服的方式）
+ *   >5km  驾车（跨区/郊县）
+ *
+ * 诚实边界：高德公交/地铁 integrated 接口在多数个人 key 上不可用（实测
+ * errcode 10002 SERVICE_NOT_AVAILABLE），所以「组合」目前是步行/骑行/驾车
+ * 三者的**按段混选**，每一段都是对应方式的真实路线——不是把一段驾车路线
+ * 拆成「地铁+步行」的表演。等 key 有公交权限后再加 transit。
+ */
+export function pickModeByDistance(meters: number): "walking" | "bicycling" | "driving" {
+  if (!Number.isFinite(meters)) return "driving";
+  if (meters <= 1200) return "walking";
+  if (meters <= 5000) return "bicycling";
+  return "driving";
+}
+
 export async function routeSegment(
   origin: string,
   destination: string,
   mode: TransportMode,
 ): Promise<RouteSegmentResult> {
-  const r = await amapGetRetry(DIRECTION_PATH[mode], { origin, destination });
+  // auto：先按两点直线距离定这一段的方式，再用该方式的真实路线接口。
+  // 坐标缺失（未验真/MOCK）时 haversine 返回 NaN → 退回驾车（不猜）。
+  const effective =
+    mode === "auto" ? pickModeByDistance(haversineMeters(origin, destination)) : mode;
+  const r = await amapGetRetry(DIRECTION_PATH[effective], { origin, destination });
   if (!r.ok) return { state: "unknown", reason: r.detail };
 
   const path = (r.data as { route?: { paths?: Array<Record<string, unknown>> } })?.route

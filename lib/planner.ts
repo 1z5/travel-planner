@@ -775,7 +775,9 @@ export function constraintProblem(plan: Plan, input: PlanInput): string | null {
   const names = plan.days.flatMap((d) => d.spots.map((s) => s.name));
   const missingMv = (input.mustVisit ?? []).filter((mv) => !looselyCovered(mv, names));
   if (missingMv.length) {
-    return `必须把必游地「${missingMv.join("、")}」排进行程，并使用当地通用名称（如「兰桂坊」不要改成别的店名）`;
+    // 示例用**本次实际缺失的地点**，不写死某个地名——否则指令会带着无关例子，
+    // 模型可能照例子编一个（曾出现过纠正提示里写「兰桂芳」式的误导）。
+    return `必须把必游地「${missingMv.join("、")}」排进行程，并使用当地通用名称（如「${missingMv[0]}」不要改成别的店名/分店名）`;
   }
   const hotel = input.hotel?.trim();
   if (hotel && !looselyCovered(hotel, names)) {

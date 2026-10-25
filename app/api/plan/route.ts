@@ -82,7 +82,10 @@ const InputSchema = z
     scope: z.enum(["city", "region"]).default("city"),
     // 交通方式：决定每天各景点间怎么走（串成可跟着走的路线链）。默认驾车。
     // 公交/地铁当前高德 key 未开放（实测 HTTP 400），故不提供。
-    transportMode: z.enum(["walking", "bicycling", "driving"]).default("driving"),
+    // auto = 智能组合：按两点距离逐段选步行(≤1.2km)/骑行(≤5km)/驾车。
+    // 公交/地铁暂不提供——高德 integrated 接口在个人 key 上实测不可用
+    // （errcode 10002 SERVICE_NOT_AVAILABLE），给了就是假选项。
+    transportMode: z.enum(["walking", "bicycling", "driving", "auto"]).default("auto"),
     // 重点活动（选填，最多 3 个）：用户提供的演唱会/赛事/展览等，需编进行程。
     // 时间可选——给了就围绕它倒推动线，没给则由 AI 建议。名称会拼进 prompt，
     // 因此与 city/hotel 同等防注入（字符白名单 + 长度上限）。

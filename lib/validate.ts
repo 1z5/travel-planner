@@ -1,5 +1,13 @@
 import "server-only";
-import { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes, type PoiInfo } from "./amap";
+import {
+  AMAP_MOCK,
+  haversineMeters,
+  lookupPoi,
+  pickModeByDistance,
+  routeSegment,
+  transitMinutes,
+  type PoiInfo,
+} from "./amap";
 import { mapLimit } from "./concurrency";
 import { checkOpenHours } from "./poi-hours";
 import { STAMINA_PACE_FACTOR, validateProfile } from "./profile";
@@ -73,6 +81,7 @@ const MODE_LABEL: Record<TransportMode, string> = {
   driving: "驾车",
   walking: "步行",
   bicycling: "骑行",
+  auto: "智能组合", // 兜底：legs 记的是解析后的具体方式
 };
 
 /**
@@ -462,7 +471,11 @@ export async function validateDay(
       const legs: PlanLeg[] = [];
       for (const { p, r } of legResults) {
         if (r.state === "ok") {
-          legs.push({ from: p.from, to: p.to, mode, ...r.leg });
+          // auto 模式下记**实际使用**的方式：leg.mode 是给 UI 图标和「按该方式
+          // 可跟着走」的事实依据，记成 "auto" 等于没告诉用户这段到底怎么走。
+          const legMode =
+            mode === "auto" ? pickModeByDistance(haversineMeters(p.origin, p.destination)) : mode;
+          legs.push({ from: p.from, to: p.to, mode: legMode, ...r.leg });
         }
       }
       // 一段都算不出就不设 legs（而不是存空数组）——让 UI 区分「没有路线」

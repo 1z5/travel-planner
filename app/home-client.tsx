@@ -101,6 +101,13 @@ export function HomeClient() {
   const [hotel, setHotel] = useState("");
   const [mustVisit, setMustVisit] = useState<string[]>([]);
   const [mvInput, setMvInput] = useState("");
+  // 必游地推荐：填了目的地城市后，从高德拉该城市热门景点，用户点选即入库。
+  // 为什么重要：手打简称（「苏博」）会让模型排不进去 → 触发纠正重试 →
+  // 生成时间翻倍（实测 204s → 424s）。点选真实 POI 从源头消掉这类重试。
+  const [recSights, setRecSights] = useState<
+    Array<{ name: string; area: string; rating?: number }>
+  >([]);
+  const [recLoading, setRecLoading] = useState(false);
   // 重点活动：用户提供的演唱会/赛事/展览等（名称必填，日期时间可选）
   const [events, setEvents] = useState<PlanEvent[]>([]);
   const [evName, setEvName] = useState("");
@@ -109,8 +116,8 @@ export function HomeClient() {
   // 行程节奏：轻松/适中/紧凑
   const [pace, setPace] = useState<"relaxed" | "balanced" | "packed">("balanced");
   // 交通方式：决定每天各景点间怎么走（串成路线链）。默认驾车。
-  const [transportMode, setTransportMode] = useState<"walking" | "bicycling" | "driving">(
-    "driving",
+  const [transportMode, setTransportMode] = useState<"walking" | "bicycling" | "driving" | "auto">(
+    "auto",
   );
   // 规划范围：单城市 / 区域环线 / 跨城多城市（影响 prompt、POI 验真方式与天数上限）
   const [scope, setScope] = useState<"city" | "region" | "multi">("city");
@@ -239,6 +246,34 @@ export function HomeClient() {
       setMvInput("");
     }
   }
+
+  // 必游地推荐：城市变化后防抖 500ms 拉取（用户还在打字时不打高德）。
+  // 区域模式不拉——「川西环线」不是城市名，查不到有意义的结果。
+  useEffect(() => {
+    const c = city.trim();
+    if (scope === "region" || c.length < 2) {
+      setRecSights([]);
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(async () => {
+      setRecLoading(true);
+      try {
+        const r = await fetch(`/api/places/recommend?city=${encodeURIComponent(c)}`);
+        const d = await r.json();
+        if (alive) setRecSights(Array.isArray(d.sights) ? d.sights : []);
+      } catch {
+        // 推荐是增强不是门槛：失败就静默不显示，绝不阻塞表单
+        if (alive) setRecSights([]);
+      } finally {
+        if (alive) setRecLoading(false);
+      }
+    }, 500);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [city, scope]);
 
   // 实时定位：浏览器拿坐标 → 服务端逆地理编码换城市名 → 自动填入输入框。
   //
@@ -858,6 +893,7 @@ export function HomeClient() {
               <div className="segmented" role="group" aria-labelledby="transport-label">
                 {(
                   [
+                    ["auto", "智能组合", "按距离自动选步行/骑行/驾车"],
                     ["walking", "步行", "景点间步行串连"],
                     ["bicycling", "骑行", "适合近距离散布"],
                     ["driving", "驾车", "跨区/远距最省时"],
@@ -951,6 +987,37 @@ export function HomeClient() {
                   最多 5 个必游地
                 </p>
               )}
+
+              {/* 推荐必游地：点选即入库。没有推荐（MOCK/上游异常/已满）时整块
+                  不渲染——不拿空区块占地方，也不用假数据充数。 */}
+              {scope !== "region" &&
+                mustVisit.length < 5 &&
+                (recLoading || recSights.length > 0) && (
+                  <div className="mv-recommend" role="group" aria-label="推荐必游地">
+                    <span className="mv-recommend-label">热门必游</span>
+                    {recLoading && recSights.length === 0 && (
+                      <span className="mv-recommend-loading">加载中…</span>
+                    )}
+                    {recSights
+                      .filter((s) => !mustVisit.includes(s.name))
+                      .slice(0, 6)
+                      .map((s) => (
+                        <button
+                          key={s.name}
+                          type="button"
+                          className="mv-chip"
+                          onClick={() => addMustVisit(s.name)}
+                          title={`${s.area}${s.rating ? ` · 高德评分 ${s.rating}` : ""}`}
+                        >
+                          <span className="mv-chip-plus" aria-hidden="true">
+                            ＋
+                          </span>
+                          {s.name}
+                          {s.rating ? <span className="mv-chip-rating">{s.rating}</span> : null}
+                        </button>
+                      ))}
+                  </div>
+                )}
 
               <label htmlFor="event-name">
                 重点活动

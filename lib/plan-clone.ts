@@ -105,7 +105,7 @@ const InputSchema = z
     // 区域游天数更长，上限放宽到 10（单城市保持 7）。
     scope: z.enum(["city", "region"]).default("city"),
     // 交通方式：决定每天各景点间怎么走（串成可跟着走的路线链）。默认驾车。
-    transportMode: z.enum(["walking", "bicycling", "driving"]).default("driving"),
+    transportMode: z.enum(["walking", "bicycling", "driving", "auto"]).default("driving"),
     // 重点活动（选填，最多 3 个）：用户提供的演唱会/赛事/展览等，需编进行程。
     events: z.preprocess(
       (v) => (v === "" || v == null ? [] : v),

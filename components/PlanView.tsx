@@ -67,14 +67,18 @@ const TYPE_LABEL: Record<string, string> = {
 
 /** 交通方式 → 图标与中文标签（路段卡上显示「步行 496米 · 7分钟」） */
 const MODE_ICON: Record<TransportMode, typeof Footprints> = {
+  // auto 只出现在用户选择里；legs 上记的是解析后的具体方式（见 validate），
+  // 这里给个兜底图标防止旧数据/异常值让整页崩掉。
   walking: Footprints,
   bicycling: Bike,
   driving: Car,
+  auto: Footprints, // 兜底：legs 上记的是解析后的具体方式，正常不会出现
 };
 const MODE_LABEL: Record<TransportMode, string> = {
   walking: "步行",
   bicycling: "骑行",
   driving: "驾车",
+  auto: "智能组合",
 };
 
 /** 可「换一个」的类型：住宿/交通是行程骨架（服务端会拒绝），不给必失败的入口。

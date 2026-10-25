@@ -72,11 +72,13 @@ const TYPE_ICON: Record<string, typeof Landmark> = {
 
 /** 路段交通方式：与 PlanView 同口径（服务端按用户所选方式算 legs） */
 const MODE_LABEL: Record<TransportMode, string> = {
+  auto: "智能组合", // 兜底：legs 记的是解析后的具体方式
   walking: "步行",
   bicycling: "骑行",
   driving: "驾车",
 };
 const MODE_ICON: Record<TransportMode, typeof Footprints> = {
+  auto: Footprints,
   walking: Footprints,
   bicycling: Bike,
   driving: Car,

@@ -468,3 +468,49 @@ export function renderGroundingPrompt(g: Grounding): string {
   }
   return lines.join("\n");
 }
+
+// ============================================================
+// 必游地推荐（表单用）：城市热门景点，按与事实清单**同一套排名**输出。
+//
+// 为什么复用 collectGrounding 而不是自己查一遍：
+//   1. 排名口径一致（infoScore：营业时间/评分越完整越靠前）——推荐出来的地方
+//      就是生成时优先使用的地方，不会推荐一堆生成时压根不用的点；
+//   2. 评分/营业时间来自 POI 详情（extensions=all），place/text 的 base 扩展
+//      根本不返回评分——自己查一遍只能拿到高德的原始顺序，实测会把商场和郊县
+//      不知名景区排在前面；
+//   3. 缓存已经在这条链路上（searchCache/poiCache），重复请求不重复打高德。
+//
+// 为什么有这一个函数：表单里的必游地此前只能手打，用户容易写成简称/别称，
+// 模型排不进去就触发纠正重试，**生成时间直接翻倍**（实测 204s → 424s）。
+// 从真实 POI 点选，名字是对的，从源头消掉那类重试。
+// ============================================================
+
+export interface RecommendSight {
+  name: string;
+  area: string;
+  rating?: number;
+}
+
+export async function recommendSights(city: string, limit = 6): Promise<RecommendSight[]> {
+  // 合成一个最小输入：只要城市级候选，不需要真实日期（hours 拿不到就不填）
+  // days=4 是为了让 capsFor 给出足够的候选池（1 天只取 4-6 个景点，推荐列表
+  // 会短得没法看）；它只影响取多少候选，不影响推荐内容本身。
+  const synthetic = {
+    city,
+    days: 4,
+    budget: 0,
+    preferences: [],
+    startAt: new Date().toISOString().slice(0, 10) + "T09:00",
+  } as PlanInput;
+  // 追加词是 grounding 城市级词（景点/博物馆/古镇/公园）的**超集**：只靠那四个词，
+  // 西安只能查出「城市运动公园 + 葛牌古镇」两个景点——词太窄，不是数据没有。
+  // 追加词走同一条检索/去重/排名链路，不引入第二套口径。
+  const g = await collectGrounding(synthetic, {
+    extraKeywords: [`${city} 风景名胜`, `${city} 热门景区`, `${city} 必游`, `${city} 地标`],
+  });
+  if (g.state !== "ok") return [];
+  return g.candidates
+    .filter((c) => c.kind === "sight")
+    .slice(0, limit)
+    .map((c) => ({ name: c.name, area: c.area, rating: c.rating }));
+}

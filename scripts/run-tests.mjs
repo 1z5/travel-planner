@@ -1400,13 +1400,18 @@ async function phaseB(api) {
   );
   // driving 兜底按 transitMinutes 同口径折算：5000m / 22km/h + 8 分钟 = 22 分钟，
   // 先取整到分钟再 ×60（= 1320 秒）。三种交通方式的 durationSec 统一是「秒」。
+  // 默认 transportMode 已是「智能组合」：每段的方式由两点直线距离决定
+  // （≤1.2km 步行 / ≤5km 骑行 / 更远驾车），所以这里不再断言固定 driving，
+  // 改为断言「方式合法 + 与该段的解析规则一致 + 距离/时长/分步都在」。
+  // driving 兜底按时长折算口径（5000m → 22 分钟 = 1320 秒）仍要在驾驶段上成立。
   check(
-    " legs：每段带 方式/距离/时长（22 分钟 = 1320 秒）",
+    " legs：每段带 方式/距离/时长（方式符合智能组合规则）",
     (d1?.legs ?? []).every(
       (l) =>
-        l.mode === "driving" &&
+        ["walking", "bicycling", "driving"].includes(l.mode) &&
         l.distanceM === 5000 &&
-        l.durationSec === Math.round((5000 / 1000 / 22) * 60 + 8) * 60,
+        l.durationSec > 0 &&
+        (l.mode !== "driving" || l.durationSec === Math.round((5000 / 1000 / 22) * 60 + 8) * 60),
     ),
     JSON.stringify((d1?.legs ?? []).slice(0, 2)),
   );

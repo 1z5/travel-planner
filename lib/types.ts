@@ -26,7 +26,7 @@ export interface PlanInput {
    */
   cities?: TripCity[];
   events?: PlanEvent[]; // 用户指定的重点活动（演唱会/赛事/展览等，需编进行程）
-  transportMode?: TransportMode; // 交通方式：决定每天各景点间怎么走（默认 driving）
+  transportMode?: TransportMode; // 交通方式：决定每天各景点间怎么走（默认 driving；auto=按距离自动混选）
   /**
    * 旅行档案（切片3 · 旅行档案）：客户端 localStorage 里的长期记忆
    * （体力/忌口/作息/通勤耐受/推断偏好），随请求带上。
@@ -45,7 +45,7 @@ export interface PlanInput {
 }
 
 /** 交通方式：景点间路段用哪种方式串起来。公交/地铁当前高德 key 未开放，先不做 */
-export type TransportMode = "walking" | "bicycling" | "driving";
+export type TransportMode = "walking" | "bicycling" | "driving" | "auto";
 
 /** 跨城行程中的一座城市及其天数（有序，days 之和 = 总天数） */
 export interface TripCity {

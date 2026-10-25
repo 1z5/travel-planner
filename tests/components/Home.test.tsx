@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { HomeClient } from "@/app/home-client";
@@ -26,6 +26,18 @@ function mockFetchSequence() {
     }
     if (url.startsWith("/api/plan/status")) {
       return { ok: true, json: async () => ({ status: "done", plan: SAMPLE_PLAN, remaining: 2 }) };
+    }
+    // 必游地推荐：默认返回两条，供「点选即入库」用例断言
+    if (url.startsWith("/api/places/recommend")) {
+      return {
+        ok: true,
+        json: async () => ({
+          sights: [
+            { name: "苏州博物馆(本馆)", area: "姑苏区", rating: 4.8 },
+            { name: "拙政园", area: "姑苏区", rating: 4.7 },
+          ],
+        }),
+      };
     }
     return { ok: true, json: async () => ({}) };
   });
@@ -81,6 +93,33 @@ describe("Home 表单", () => {
     // 删除
     await userEvent.click(screen.getByText("×"));
     expect(screen.queryByText("三星堆")).not.toBeInTheDocument();
+  });
+
+  it("必游地推荐：填了城市后出现真实 POI  chips，点选即入库", async () => {
+    mockFetchSequence();
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/期望必游地/)).toBeInTheDocument());
+
+    const cityInput = screen.getByPlaceholderText("如：成都");
+    await userEvent.type(cityInput, "苏州");
+
+    // 推荐 chips 来自高德真实 POI（含评分），不是占位文本
+    await waitFor(
+      () => expect(screen.getByRole("group", { name: "推荐必游地" })).toBeInTheDocument(),
+      {
+        timeout: 3000,
+      },
+    );
+    const chip = screen.getByRole("button", { name: /苏州博物馆/ });
+    expect(chip).toBeInTheDocument();
+
+    // 点选即入库（不再需要手打 + 点添加）
+    await userEvent.click(chip);
+    expect(screen.getByText("苏州博物馆(本馆)")).toBeInTheDocument();
+    // 入库后从推荐里消失，避免重复添加（注意：必游地标签自带的「删除」按钮
+    // 名字里也含地点名，所以要限定在推荐组内断言）
+    const group = screen.getByRole("group", { name: "推荐必游地" });
+    expect(within(group).queryByRole("button", { name: /苏州博物馆/ })).not.toBeInTheDocument();
   });
 
   it("必游地：回车也可添加，且去重", async () => {
