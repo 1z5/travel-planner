@@ -1225,6 +1225,7 @@ export function HomeClient() {
             plan={displayPlan}
             shareId={sampleMode ? undefined : (shareId ?? undefined)}
             editable={!sampleMode && !!shareId}
+            layout="browser"
             onPlanChange={(p) => setPlan(p)}
             banner={
               sampleMode ? (

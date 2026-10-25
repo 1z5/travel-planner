@@ -206,6 +206,9 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
               editable
               ownerCheck
               hideCover
+              layout="browser"
+              activeDay={dayNo}
+              onActiveDayChange={setDayNo}
               onPlanChange={setPlan}
             />
             <CloneCTA plan={plan} shareId={shareId} />

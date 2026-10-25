@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanView } from "@/components/PlanView";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
@@ -651,5 +651,37 @@ describe("PlanView 行程修改", () => {
   it("打印 / 存 PDF 入口存在（打印样式在 globals.css 里收敛交互元素）", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     expect(screen.getByText("打印 / 存 PDF")).toBeInTheDocument();
+  });
+});
+
+describe("PlanView browser 布局（分天目录 + 当天详情）", () => {
+  it("默认 document：所有天的卡片都在文档里（分享页/打印要一页看全）", () => {
+    const { container } = render(<PlanView plan={SAMPLE_PLAN} />);
+    // 每天一张卡（id=day-N），三张都在
+    expect(container.querySelectorAll('[id^="day-"]').length).toBe(SAMPLE_PLAN.days.length);
+    expect(container.querySelector(".day-rail")).toBeNull();
+  });
+
+  it("browser：只渲染当前天，其余天在左侧目录里", () => {
+    render(<PlanView plan={SAMPLE_PLAN} layout="browser" />);
+    const rail = document.querySelector(".day-rail");
+    expect(rail).not.toBeNull();
+    // 目录项 = 天数，且带主题与站点数
+    expect(rail!.querySelectorAll(".day-rail-item").length).toBe(SAMPLE_PLAN.days.length);
+    // 面板里只有一天的点位（7 站），不是全部 16 站
+    const spots = document.querySelectorAll(".day-panel .spot");
+    expect(spots.length).toBe(SAMPLE_PLAN.days[0].spots.length);
+    expect(spots.length).toBeLessThan(SAMPLE_PLAN.days.reduce((n, d) => n + d.spots.length, 0));
+  });
+
+  it("browser：点目录切到另一天，面板内容跟着换", async () => {
+    render(<PlanView plan={SAMPLE_PLAN} layout="browser" />);
+    const items = [...document.querySelectorAll(".day-rail-item")] as HTMLElement[];
+    expect(items.length).toBeGreaterThan(1);
+    await userEvent.click(items[1]);
+    // 面板标题换成第 2 天主题（主题同时出现在目录里，所以要限定在面板内断言）
+    const panel = document.querySelector(".day-panel")!;
+    expect(within(panel as HTMLElement).getByText(SAMPLE_PLAN.days[1].theme)).toBeInTheDocument();
+    expect(document.querySelector(".day-rail-item-on")).toBe(items[1]);
   });
 });

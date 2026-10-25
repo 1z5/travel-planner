@@ -29,7 +29,7 @@ import {
   ShieldCheck,
   ChevronDown,
 } from "lucide-react";
-import type { Plan, TransportMode } from "@/lib/types";
+import type { Plan, PlanDay, TransportMode } from "@/lib/types";
 import {
   localTodayIso,
   nowMinutes,
@@ -201,6 +201,9 @@ export function PlanView({
   editable = false,
   ownerCheck = false,
   hideCover = false,
+  layout = "document",
+  activeDay,
+  onActiveDayChange,
   onPlanChange,
 }: {
   plan: Plan;
@@ -211,6 +214,15 @@ export function PlanView({
   ownerCheck?: boolean;
   /** 分享页专用：顶部已有海报封面，PlanView 不再重复渲染文档头 */
   hideCover?: boolean;
+  /**
+   * 布局：document=线性文档（分享页/打印/导出，一页看全）；
+   * browser=左侧天数目录 + 右侧当天详情（工作台/结果页，不再一屏一屏平铺）。
+   */
+  layout?: "document" | "browser";
+  /** browser 布局下当前查看的天（受控；不给则内部自管，默认行程首天） */
+  activeDay?: number;
+  /** browser 布局下切换查看的天（受控；与 activeDay 配对使用） */
+  onActiveDayChange?: (day: number) => void;
   onPlanChange?: (plan: Plan) => void;
 }) {
   // 本地视图态：修改行程后立刻渲染新版本，不必回源刷新页面。
@@ -573,6 +585,291 @@ export function PlanView({
     void refine({ kind: "day", day, instruction: text });
   };
 
+  /**
+   * 单天卡片。抽成函数是为了支持两种布局：
+   *   - document：分天时间线依次排下来（分享页/打印/导出用，一页看全）
+   *   - browser：左侧天数目录 + 右侧只看当天（工作台/结果页用，不再 6000px 平铺）
+   * 两种布局共用同一份卡片——避免「工作台一套、分享页一套」的漂移。
+   */
+  // browser 布局的当前天：受控（工作台传入）优先，否则内部自管。
+  // 默认落在「行程中的今天」——行中打开时用户最想看的就是今天。
+  const [innerDay, setInnerDay] = useState<number>(() => {
+    const idx = plan.days.findIndex((_, i) => {
+      const during = today.kind === "during";
+      return during && i === today.dayIndex;
+    });
+    return plan.days[idx >= 0 ? idx : 0]?.day ?? 1;
+  });
+  const activeDayNo = activeDay ?? innerDay;
+  const handleDayChange = (d: number) => {
+    setInnerDay(d);
+    onActiveDayChange?.(d);
+  };
+
+  const renderDayCard = (day: PlanDay, dayIdx: number) => {
+    const isToday = today.kind === "during" && dayIdx === today.dayIndex;
+    const dayBusy = busy === `day:${day.day}`;
+    return (
+      <motion.div
+        // id 供 Trip Workspace 的「跳到某一天」定位；scroll-margin 见 globals.css
+        id={`day-${day.day}`}
+        className={`card${isToday ? " card-today" : ""}`}
+        key={day.day}
+        ref={isToday ? todayRef : undefined}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: Math.min(dayIdx * 0.06, 0.3) }}
+      >
+        <div className="day-head">
+          <div className="day-num">
+            <small>DAY</small>
+            {day.day}
+          </div>
+          {isToday && <span className="today-badge">今天</span>}
+          {day.city && <span className="today-badge day-city-badge">{day.city}</span>}
+          <span className="day-theme">{day.theme}</span>
+          {canEdit && (
+            <div className="day-tools">
+              <button
+                type="button"
+                className="btn btn-mini"
+                disabled={!!busy}
+                onClick={() => void refine({ kind: "day", day: day.day })}
+                title="按当天主题重排这一天的所有安排"
+              >
+                {dayBusy ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
+                重排这天
+              </button>
+              <button
+                type="button"
+                className="btn btn-mini"
+                disabled={!!busy}
+                aria-expanded={editingDay === day.day}
+                onClick={() => {
+                  setEditError("");
+                  setEditingDay(editingDay === day.day ? null : day.day);
+                  setInstruction("");
+                }}
+              >
+                <MessageSquareText size={13} />
+                一句话改
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 一句话改：自然语言指令只作用于这一天，服务端会重体检并落库 */}
+        {canEdit && editingDay === day.day && (
+          <div className="day-instruction">
+            <input
+              type="text"
+              value={instruction}
+              maxLength={100}
+              aria-label={`第 ${day.day} 天修改指令`}
+              placeholder="例如：这天想轻松点、多安排室内；或把预算压到 600 以内"
+              onChange={(e) => setInstruction(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitInstruction(day.day);
+                }
+              }}
+              disabled={dayBusy}
+            />
+            <button
+              type="button"
+              className="btn"
+              disabled={!instruction.trim() || dayBusy}
+              onClick={() => submitInstruction(day.day)}
+            >
+              {dayBusy ? <Loader2 size={13} className="spin" /> : null}改这一天
+            </button>
+          </div>
+        )}
+
+        <div className="route-map-wrap">
+          {/* 有坐标（验真命中）→ 真实地图；无坐标（MOCK/未验真）→ 降级到示意图。
+                两条路径都在本组件内自处理，PlanView 不需要判断模式。 */}
+          <RealMap
+            points={day.spots.map((s) => ({
+              name: s.name,
+              type: s.type,
+              location: s.location,
+            }))}
+            label={`第 ${day.day} 天`}
+            fallback={<RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />}
+          />
+        </div>
+
+        <div className="timeline">
+          {day.spots.map((s, i) => {
+            const Icon = TYPE_ICON[s.type] ?? Landmark;
+            // 仅「今天」的卡片标现在/下一站；spotStatus 只在 during 时非空
+            const spotMark =
+              isToday &&
+              spotStatus &&
+              (spotStatus.kind === "now" || spotStatus.kind === "next") &&
+              i === spotStatus.index
+                ? spotStatus.kind
+                : null;
+            const swapBusy = busy === `swap:${day.day}:${i}`;
+            // 到下一站的路段（按用户所选交通方式算）；最后一个点没有下一站。
+            // 旧行程无 legs 字段时为 undefined，路段卡整体不渲染（向后兼容）。
+            const leg =
+              i < day.spots.length - 1
+                ? day.legs?.find((l) => l.from === s.name && l.to === day.spots[i + 1].name)
+                : undefined;
+            const ModeIcon = leg ? MODE_ICON[leg.mode] : null;
+            return (
+              <div className={`spot${spotMark ? ` spot-${spotMark}` : ""}`} key={i}>
+                <div className="spot-time">{s.time.replace("-", "\n")}</div>
+                <div className="spot-rail">
+                  <div className="spot-dot">
+                    <Icon size={14} />
+                  </div>
+                  {i < day.spots.length - 1 && <div className="spot-line" />}
+                </div>
+                <div>
+                  <div className="spot-name">
+                    <span className={`type-badge type-${s.type}`}>
+                      <Icon size={11} />
+                      {TYPE_LABEL[s.type] ?? s.type}
+                    </span>
+                    {s.name}
+                    {spotMark && (
+                      <span className={`spot-${spotMark}-badge`}>
+                        {spotMark === "now" ? "现在" : "下一站"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="spot-meta">
+                    {s.area} · {Math.round((s.durationMin / 60) * 10) / 10} 小时 · 人均 ¥{s.costCny}
+                  </div>
+                  {s.poi && (
+                    <div className="poi-chips">
+                      {s.poi.rating !== undefined && (
+                        <span className="poi-chip poi-chip-rating" title="高德真实评分">
+                          ★ {s.poi.rating.toFixed(1)}
+                        </span>
+                      )}
+                      {s.poi.temporarilyClosed && (
+                        <span className="poi-chip poi-chip-closed" title="高德显示该地点暂停开放">
+                          暂停开放
+                        </span>
+                      )}
+                      {(() => {
+                        const hoursText = formatHoursShort(s.poi);
+                        if (!hoursText) return null;
+                        // 这一站是否被营业时间体检点名：点名就把 chip 标成警示色，
+                        // 让用户在时间轴里也能立刻定位到「可能进不去」的那个点。
+                        const flagged = viewPlan.warnings.some(
+                          (w) => isHoursWarning(w) && w.includes(s.name),
+                        );
+                        return (
+                          <span
+                            className={`poi-chip${flagged ? " poi-chip-warn" : ""}`}
+                            title={s.poi?.openTime2 || s.poi?.openTime || "高德营业时间"}
+                          >
+                            营业 {hoursText}
+                          </span>
+                        );
+                      })()}
+                      {s.type === "food" && s.poi.avgCostCny !== undefined && (
+                        <span className="poi-chip" title="高德人均参考价（非行程预算）">
+                          人均参考 ¥{s.poi.avgCostCny}
+                        </span>
+                      )}
+                      {s.poi.tel && (
+                        <a
+                          className="poi-chip"
+                          href={`tel:${s.poi.tel}`}
+                          title={`拨打 ${s.poi.tel}`}
+                        >
+                          ☎ {s.poi.tel}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <div className="spot-reason">{s.reason}</div>
+                  {s.rainBackup && (
+                    <div className="spot-backup">
+                      <CloudRain size={12} />
+                      <span className="spot-backup-label">雨天备选</span>
+                      <span className="spot-backup-text">{s.rainBackup}</span>
+                    </div>
+                  )}
+                  {(canEdit || s.location) && (
+                    <div className="spot-actions">
+                      {canEdit && SWAPPABLE_TYPES.has(s.type) && (
+                        <button
+                          type="button"
+                          className="btn-link spot-action"
+                          disabled={!!busy}
+                          onClick={() => void refine({ kind: "swap", day: day.day, spotIndex: i })}
+                          title="保持同一区域与类型，换一个同类去处"
+                        >
+                          {swapBusy ? (
+                            <Loader2 size={12} className="spin" />
+                          ) : (
+                            <RefreshCw size={12} />
+                          )}
+                          {swapBusy ? "换台中…" : "换一个"}
+                        </button>
+                      )}
+                      {s.location && (
+                        <a
+                          className="btn-link spot-action"
+                          href={amapNavUrl(s.location, s.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Navigation size={12} />
+                          导航到这里
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {leg && ModeIcon && (
+                    <div className="leg-chip">
+                      <ModeIcon size={12} />
+                      <span className="leg-summary">
+                        {MODE_LABEL[leg.mode]} {fmtDist(leg.distanceM)} · 约
+                        {Math.max(1, Math.round(leg.durationSec / 60))}分钟
+                      </span>
+                      {leg.steps.length > 0 && (
+                        <details className="leg-steps">
+                          <summary>分步指引</summary>
+                          <ol>
+                            {leg.steps.map((st, k) => (
+                              <li key={k}>{st}</li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="day-foot">
+          <span className="day-foot-item">
+            <TrainFront size={13} />
+            {day.transitKnown === false
+              ? "当天通勤未能估算（高德服务波动）"
+              : `当天通勤约 ${Math.round(day.transitMin / 6) / 10} 小时`}
+          </span>
+          <span className="day-foot-item">
+            <Wallet size={13} />
+            人均 ¥{day.dailyCostCny.toLocaleString()}
+          </span>
+        </p>
+      </motion.div>
+    );
+  };
+
   return (
     <>
       {banner}
@@ -926,277 +1223,38 @@ export function PlanView({
       )}
 
       {/* ===== 分天时间线 ===== */}
-      {viewPlan.days.map((day, dayIdx) => {
-        const isToday = today.kind === "during" && dayIdx === today.dayIndex;
-        const dayBusy = busy === `day:${day.day}`;
-        return (
-          <motion.div
-            // id 供 Trip Workspace 的「跳到某一天」定位；scroll-margin 见 globals.css
-            id={`day-${day.day}`}
-            className={`card${isToday ? " card-today" : ""}`}
-            key={day.day}
-            ref={isToday ? todayRef : undefined}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: Math.min(dayIdx * 0.06, 0.3) }}
-          >
-            <div className="day-head">
-              <div className="day-num">
-                <small>DAY</small>
-                {day.day}
-              </div>
-              {isToday && <span className="today-badge">今天</span>}
-              {day.city && <span className="today-badge day-city-badge">{day.city}</span>}
-              <span className="day-theme">{day.theme}</span>
-              {canEdit && (
-                <div className="day-tools">
-                  <button
-                    type="button"
-                    className="btn btn-mini"
-                    disabled={!!busy}
-                    onClick={() => void refine({ kind: "day", day: day.day })}
-                    title="按当天主题重排这一天的所有安排"
-                  >
-                    {dayBusy ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
-                    重排这天
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-mini"
-                    disabled={!!busy}
-                    aria-expanded={editingDay === day.day}
-                    onClick={() => {
-                      setEditError("");
-                      setEditingDay(editingDay === day.day ? null : day.day);
-                      setInstruction("");
-                    }}
-                  >
-                    <MessageSquareText size={13} />
-                    一句话改
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* 一句话改：自然语言指令只作用于这一天，服务端会重体检并落库 */}
-            {canEdit && editingDay === day.day && (
-              <div className="day-instruction">
-                <input
-                  type="text"
-                  value={instruction}
-                  maxLength={100}
-                  aria-label={`第 ${day.day} 天修改指令`}
-                  placeholder="例如：这天想轻松点、多安排室内；或把预算压到 600 以内"
-                  onChange={(e) => setInstruction(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      submitInstruction(day.day);
-                    }
-                  }}
-                  disabled={dayBusy}
-                />
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={!instruction.trim() || dayBusy}
-                  onClick={() => submitInstruction(day.day)}
-                >
-                  {dayBusy ? <Loader2 size={13} className="spin" /> : null}改这一天
-                </button>
-              </div>
+      {/* ===== 分天时间线 =====
+          browser 布局：左目录 + 右详情。为什么默认不在所有场景用：分享页/打印
+          仍然要「一页看全」的线性文档，那是文档不是界面。 */}
+      {layout === "browser" ? (
+        <div className="plan-browser">
+          <nav className="day-rail" aria-label="行程天数">
+            {viewPlan.days.map((d) => (
+              <button
+                key={d.day}
+                type="button"
+                className={`day-rail-item${d.day === activeDayNo ? " day-rail-item-on" : ""}`}
+                aria-current={d.day === activeDayNo ? "true" : undefined}
+                onClick={() => handleDayChange(d.day)}
+              >
+                <span className="day-rail-num">DAY {d.day}</span>
+                <span className="day-rail-theme">{d.theme}</span>
+                <span className="day-rail-meta">
+                  {d.spots.length} 站 · 人均 ¥{d.dailyCostCny.toLocaleString()}
+                </span>
+              </button>
+            ))}
+          </nav>
+          <div className="day-panel" role="region" aria-label={`第 ${activeDayNo} 天详情`}>
+            {renderDayCard(
+              viewPlan.days.find((d) => d.day === activeDayNo) ?? viewPlan.days[0],
+              viewPlan.days.findIndex((d) => d.day === activeDayNo),
             )}
-
-            <div className="route-map-wrap">
-              {/* 有坐标（验真命中）→ 真实地图；无坐标（MOCK/未验真）→ 降级到示意图。
-                两条路径都在本组件内自处理，PlanView 不需要判断模式。 */}
-              <RealMap
-                points={day.spots.map((s) => ({
-                  name: s.name,
-                  type: s.type,
-                  location: s.location,
-                }))}
-                label={`第 ${day.day} 天`}
-                fallback={
-                  <RouteMap stops={day.spots.map((s) => ({ name: s.name, type: s.type }))} />
-                }
-              />
-            </div>
-
-            <div className="timeline">
-              {day.spots.map((s, i) => {
-                const Icon = TYPE_ICON[s.type] ?? Landmark;
-                // 仅「今天」的卡片标现在/下一站；spotStatus 只在 during 时非空
-                const spotMark =
-                  isToday &&
-                  spotStatus &&
-                  (spotStatus.kind === "now" || spotStatus.kind === "next") &&
-                  i === spotStatus.index
-                    ? spotStatus.kind
-                    : null;
-                const swapBusy = busy === `swap:${day.day}:${i}`;
-                // 到下一站的路段（按用户所选交通方式算）；最后一个点没有下一站。
-                // 旧行程无 legs 字段时为 undefined，路段卡整体不渲染（向后兼容）。
-                const leg =
-                  i < day.spots.length - 1
-                    ? day.legs?.find((l) => l.from === s.name && l.to === day.spots[i + 1].name)
-                    : undefined;
-                const ModeIcon = leg ? MODE_ICON[leg.mode] : null;
-                return (
-                  <div className={`spot${spotMark ? ` spot-${spotMark}` : ""}`} key={i}>
-                    <div className="spot-time">{s.time.replace("-", "\n")}</div>
-                    <div className="spot-rail">
-                      <div className="spot-dot">
-                        <Icon size={14} />
-                      </div>
-                      {i < day.spots.length - 1 && <div className="spot-line" />}
-                    </div>
-                    <div>
-                      <div className="spot-name">
-                        <span className={`type-badge type-${s.type}`}>
-                          <Icon size={11} />
-                          {TYPE_LABEL[s.type] ?? s.type}
-                        </span>
-                        {s.name}
-                        {spotMark && (
-                          <span className={`spot-${spotMark}-badge`}>
-                            {spotMark === "now" ? "现在" : "下一站"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="spot-meta">
-                        {s.area} · {Math.round((s.durationMin / 60) * 10) / 10} 小时 · 人均 ¥
-                        {s.costCny}
-                      </div>
-                      {s.poi && (
-                        <div className="poi-chips">
-                          {s.poi.rating !== undefined && (
-                            <span className="poi-chip poi-chip-rating" title="高德真实评分">
-                              ★ {s.poi.rating.toFixed(1)}
-                            </span>
-                          )}
-                          {s.poi.temporarilyClosed && (
-                            <span
-                              className="poi-chip poi-chip-closed"
-                              title="高德显示该地点暂停开放"
-                            >
-                              暂停开放
-                            </span>
-                          )}
-                          {(() => {
-                            const hoursText = formatHoursShort(s.poi);
-                            if (!hoursText) return null;
-                            // 这一站是否被营业时间体检点名：点名就把 chip 标成警示色，
-                            // 让用户在时间轴里也能立刻定位到「可能进不去」的那个点。
-                            const flagged = viewPlan.warnings.some(
-                              (w) => isHoursWarning(w) && w.includes(s.name),
-                            );
-                            return (
-                              <span
-                                className={`poi-chip${flagged ? " poi-chip-warn" : ""}`}
-                                title={s.poi?.openTime2 || s.poi?.openTime || "高德营业时间"}
-                              >
-                                营业 {hoursText}
-                              </span>
-                            );
-                          })()}
-                          {s.type === "food" && s.poi.avgCostCny !== undefined && (
-                            <span className="poi-chip" title="高德人均参考价（非行程预算）">
-                              人均参考 ¥{s.poi.avgCostCny}
-                            </span>
-                          )}
-                          {s.poi.tel && (
-                            <a
-                              className="poi-chip"
-                              href={`tel:${s.poi.tel}`}
-                              title={`拨打 ${s.poi.tel}`}
-                            >
-                              ☎ {s.poi.tel}
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      <div className="spot-reason">{s.reason}</div>
-                      {s.rainBackup && (
-                        <div className="spot-backup">
-                          <CloudRain size={12} />
-                          <span className="spot-backup-label">雨天备选</span>
-                          <span className="spot-backup-text">{s.rainBackup}</span>
-                        </div>
-                      )}
-                      {(canEdit || s.location) && (
-                        <div className="spot-actions">
-                          {canEdit && SWAPPABLE_TYPES.has(s.type) && (
-                            <button
-                              type="button"
-                              className="btn-link spot-action"
-                              disabled={!!busy}
-                              onClick={() =>
-                                void refine({ kind: "swap", day: day.day, spotIndex: i })
-                              }
-                              title="保持同一区域与类型，换一个同类去处"
-                            >
-                              {swapBusy ? (
-                                <Loader2 size={12} className="spin" />
-                              ) : (
-                                <RefreshCw size={12} />
-                              )}
-                              {swapBusy ? "换台中…" : "换一个"}
-                            </button>
-                          )}
-                          {s.location && (
-                            <a
-                              className="btn-link spot-action"
-                              href={amapNavUrl(s.location, s.name)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Navigation size={12} />
-                              导航到这里
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      {leg && ModeIcon && (
-                        <div className="leg-chip">
-                          <ModeIcon size={12} />
-                          <span className="leg-summary">
-                            {MODE_LABEL[leg.mode]} {fmtDist(leg.distanceM)} · 约
-                            {Math.max(1, Math.round(leg.durationSec / 60))}分钟
-                          </span>
-                          {leg.steps.length > 0 && (
-                            <details className="leg-steps">
-                              <summary>分步指引</summary>
-                              <ol>
-                                {leg.steps.map((st, k) => (
-                                  <li key={k}>{st}</li>
-                                ))}
-                              </ol>
-                            </details>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <p className="day-foot">
-              <span className="day-foot-item">
-                <TrainFront size={13} />
-                {day.transitKnown === false
-                  ? "当天通勤未能估算（高德服务波动）"
-                  : `当天通勤约 ${Math.round(day.transitMin / 6) / 10} 小时`}
-              </span>
-              <span className="day-foot-item">
-                <Wallet size={13} />
-                人均 ¥{day.dailyCostCny.toLocaleString()}
-              </span>
-            </p>
-          </motion.div>
-        );
-      })}
+          </div>
+        </div>
+      ) : (
+        viewPlan.days.map((day, dayIdx) => renderDayCard(day, dayIdx))
+      )}
 
       {/* ===== 出行提示 ===== */}
       {viewPlan.tips.length > 0 && (
