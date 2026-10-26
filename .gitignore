@@ -10,6 +10,7 @@ eval-results/
 .next-t-*/
 .next-visual/
 .next-visual-check/
+.next-demo/
 coverage/
 .e2e-lock/
 .DS_Store

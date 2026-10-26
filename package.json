@@ -21,6 +21,8 @@
     "verify:amap": "node --env-file=.env scripts/verify-amap.mjs",
     "eval:cases": "node scripts/eval-cases.mjs",
     "smoke": "node scripts/smoke-deployed.mjs",
+    "demo:gen": "node scripts/demo-gen.mjs",
+    "demo:warm": "node scripts/warm-demo.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",

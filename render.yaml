@@ -1,0 +1,61 @@
+# Render Blueprint：面试演示用的一键部署（免费 plan）
+#
+# 为什么用 Node runtime 而不是 Docker：本机没有 docker daemon，Dockerfile 在提交前
+# 无法验证；这里的 build/start 命令与 DEPLOY.md「裸机 standalone」路径完全一致，
+# 同一组命令本地已经实测跑通过（build → 拷 static/public → node standalone/server.js）。
+#
+# 使用：Render Dashboard → New + → Blueprint → 选 GitHub 仓库 1z5/travel-planner
+# → 按提示填 4 个 secret（LLM_API_KEY / LLM_BASE_URL / AMAP_WEB_SERVICE_KEY /
+# SESSION_SECRET）→ Deploy。详见 DEMO.md。
+services:
+  - type: web
+    name: travel-planner-demo
+    runtime: node
+    plan: free
+    # 新加坡区（Render 免费 plan 可选）：国内访问相对近；免费实例 15 分钟无请求休眠
+    region: singapore
+    # 构建：Prisma 7 需要显式 generate（memory 模式也会静态 import postgres 实现）；
+    # standalone 产物不会自动带 static/public，必须显式拷（DEPLOY.md 踩坑记录）。
+    # 注意括号：只有「拷 static/public」允许失败兜底，前面任何一步失败都必须让
+    # 构建真实报错（否则会出现 build 绿、start 崩的假成功）。
+    buildCommand: >-
+      npm ci && npx prisma generate && npm run build &&
+      (cp -r .next/static .next/standalone/.next/static || true) &&
+      (mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/ || true)
+    # HOSTNAME 显式绑 0.0.0.0：Render 会给容器注入 HOSTNAME 环境变量，
+    # Next standalone 会拿它当监听地址，不覆盖会绑定失败。
+    startCommand: HOSTNAME=0.0.0.0 node .next/standalone/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # 启动时注入 demo/fixtures 里的真实生成行程（秒开分享页，冷启动后也在）
+      - key: DEMO_SEED
+        value: "1"
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: step-5-preview
+      - key: LLM_REASONING_EFFORT
+        value: low
+      - key: AMAP_WEB_SERVICE_KEY
+        sync: false
+      # 登录不做（生产守卫会自动关闭登录链路）；secret 仍建议随机，避免误开
+      - key: SESSION_SECRET
+        sync: false
+      # ---- 成本闸门（免费 plan + 个人 key，必须收紧）----
+      - key: DAILY_FREE_LIMIT
+        value: "6"
+      - key: MAX_CONCURRENT_GENERATIONS
+        value: "2"
+      - key: MAX_CONCURRENT_LLM
+        value: "2"
+      - key: DAILY_GLOBAL_LIMIT
+        value: "60"
+      # Render 前面有自己的反代：XFF 从右往左第 1 个是真实客户端，保持默认 1
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # NEXT_PUBLIC_SITE_URL 不强制填：代码在缺省时回退 Render 自动注入的
+      # RENDER_EXTERNAL_URL（见 app/layout.tsx），OG/绝对链接照样正确。

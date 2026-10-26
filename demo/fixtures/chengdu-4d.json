@@ -1,0 +1,687 @@
+{
+  "slug": "chengdu-4d",
+  "label": "成都 · 4 天（美食 + 历史文化）",
+  "shareId": "share_BP3e7AKOJ4ML",
+  "input": {
+    "city": "成都",
+    "startAt": "2026-11-09T10:00",
+    "endAt": "2026-11-12T18:00",
+    "budget": 3000,
+    "preferences": [
+      "美食",
+      "历史文化"
+    ]
+  },
+  "plan": {
+    "city": "成都市",
+    "summary": "四天串起武侯祠、杜甫草堂、金沙古蜀、安仁古镇与交子金融史，住春熙路，吃麻婆豆腐、明婷、游血旺等本地风味。",
+    "days": [
+      {
+        "day": 1,
+        "theme": "三国诗圣",
+        "spots": [
+          {
+            "period": "morning",
+            "time": "10:00-10:30",
+            "type": "transport",
+            "name": "抵达点→武侯祠（地铁/打车）",
+            "area": "武侯祠",
+            "durationMin": 30,
+            "costCny": 25,
+            "reason": "10点落地后先去三国历史核心区，上午不浪费。"
+          },
+          {
+            "period": "morning",
+            "time": "10:30-12:00",
+            "type": "sight",
+            "name": "成都武侯祠博物馆",
+            "area": "武侯祠",
+            "durationMin": 90,
+            "costCny": 50,
+            "reason": "中国唯一君臣合祀祠庙，三国线和红墙竹影都值得慢慢看。",
+            "rainBackup": "武侯祠博物馆室内展厅",
+            "location": "104.047992,30.646168",
+            "poi": {
+              "rating": 4.8,
+              "openTime": "09:00-18:00",
+              "openTime2": "周一至周日 09:00-18:00 最晚进入17:00",
+              "tel": "028-85535951"
+            }
+          },
+          {
+            "period": "lunch",
+            "time": "12:15-13:15",
+            "type": "food",
+            "name": "钦善斋(武侯祠店)",
+            "area": "武侯祠",
+            "durationMin": 60,
+            "costCny": 80,
+            "reason": "老牌川菜/药膳风格，适合作为抵达后第一顿正餐。",
+            "location": "104.045358,30.643850",
+            "poi": {
+              "rating": 4.7,
+              "avgCostCny": 109,
+              "openTime": "11:00-14:00 17:00-21:00",
+              "openTime2": "周一至周五 11:00-14:00,17:00-21:00；周六至周日 11:00-14:30,17:00-21:00",
+              "tel": "028-85053333"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "13:40-15:10",
+            "type": "sight",
+            "name": "杜甫草堂",
+            "area": "浣花溪",
+            "durationMin": 90,
+            "costCny": 50,
+            "reason": "唐代诗圣故居，园林与茅屋祠庙结合，历史氛围足。",
+            "rainBackup": "杜甫草堂博物馆室内展厅",
+            "location": "104.028514,30.660153",
+            "poi": {
+              "rating": 4.8,
+              "openTime": "08:30-19:00",
+              "openTime2": "08:30-19:00(18:00停止售票)",
+              "tel": "028-68921800;028-87345202;028-87327392"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "16:30-17:00",
+            "type": "hotel",
+            "name": "成都春熙路太古里亚朵酒店",
+            "area": "春熙路",
+            "durationMin": 30,
+            "costCny": 1440,
+            "reason": "三天连住， checkout 后仍可寄存行李，晚上步行可达太古里。",
+            "location": "104.084032,30.651207",
+            "poi": {
+              "rating": 4.6,
+              "tel": "028-82083666;15208289662;17318948865"
+            }
+          },
+          {
+            "period": "dinner",
+            "time": "18:30-20:00",
+            "type": "food",
+            "name": "龙抄手(春熙路店)",
+            "area": "春熙路",
+            "durationMin": 90,
+            "costCny": 60,
+            "reason": "老牌成都小吃集合，适合第一晚轻松吃点抄手、小吃。",
+            "location": "104.077614,30.654531",
+            "poi": {
+              "rating": 4.6,
+              "avgCostCny": 33,
+              "openTime": "09:00-21:30",
+              "openTime2": "周一至周日 09:00-21:30",
+              "tel": "028-86653668"
+            }
+          }
+        ],
+        "transitMin": 77,
+        "dailyCostCny": 1705,
+        "transitKnown": true,
+        "legs": [
+          {
+            "from": "成都武侯祠博物馆",
+            "to": "钦善斋(武侯祠店)",
+            "mode": "walking",
+            "distanceM": 666,
+            "durationSec": 533,
+            "steps": [
+              "向东南步行9米右转",
+              "向东南步行71米右转",
+              "向南步行54米左转"
+            ]
+          },
+          {
+            "from": "钦善斋(武侯祠店)",
+            "to": "杜甫草堂",
+            "mode": "bicycling",
+            "distanceM": 3717,
+            "durationSec": 1080,
+            "steps": [
+              "沿体院路向南骑行14米右转",
+              "沿武侯祠大街向西南骑行398米向右前方行驶",
+              "沿一环路西一段辅路骑行27米右转"
+            ]
+          },
+          {
+            "from": "杜甫草堂",
+            "to": "成都春熙路太古里亚朵酒店",
+            "mode": "driving",
+            "distanceM": 8137,
+            "durationSec": 1800,
+            "steps": [
+              "向南行驶73米右转",
+              "沿草堂路向西行驶82米右转",
+              "沿草堂路向西北行驶645米右转"
+            ]
+          },
+          {
+            "from": "成都春熙路太古里亚朵酒店",
+            "to": "龙抄手(春熙路店)",
+            "mode": "walking",
+            "distanceM": 902,
+            "durationSec": 722,
+            "steps": [
+              "向南步行80米左转",
+              "沿油篓街向东北步行85米左转",
+              "沿东糠市街向西北步行318米向左前方行走"
+            ]
+          }
+        ]
+      },
+      {
+        "day": 2,
+        "theme": "古蜀市井",
+        "spots": [
+          {
+            "period": "morning",
+            "time": "09:00-09:30",
+            "type": "transport",
+            "name": "酒店→金沙遗址博物馆（地铁）",
+            "area": "春熙路/金沙",
+            "durationMin": 30,
+            "costCny": 20,
+            "reason": "地铁直达，避开早高峰打车。"
+          },
+          {
+            "period": "morning",
+            "time": "09:30-11:00",
+            "type": "sight",
+            "name": "金沙遗址博物馆",
+            "area": "金沙",
+            "durationMin": 90,
+            "costCny": 70,
+            "reason": "太阳神鸟出土地，看古蜀文明最高度。",
+            "location": "104.012634,30.681709",
+            "poi": {
+              "rating": 4.7,
+              "openTime2": "9:00-18:00,17:00停止售票(停止入馆)；每周一闭馆(法定节假日和1、2、7、8月除外)。 2025年“五一”假期(5月1日至5日)期间,每日开放,开放时间为:8:30-18:30(17:30停止售票、入馆)",
+              "tel": "028-87303522;028-87303533",
+              "temporarilyClosed": true
+            }
+          },
+          {
+            "period": "morning",
+            "time": "11:30-12:30",
+            "type": "sight",
+            "name": "文殊院",
+            "area": "文殊院",
+            "durationMin": 60,
+            "costCny": 0,
+            "reason": "千年禅院，市区内最安静的历史片区之一。",
+            "rainBackup": "文殊院室内殿堂",
+            "location": "104.072527,30.675418",
+            "poi": {
+              "rating": 4.8,
+              "openTime": "08:00-17:00",
+              "openTime2": "周一至周日 08:00-17:00 最晚进入16:30",
+              "tel": "028-86930623;028-86932375"
+            }
+          },
+          {
+            "period": "lunch",
+            "time": "12:45-13:45",
+            "type": "food",
+            "name": "洞子口张老二凉粉",
+            "area": "宽窄巷子",
+            "durationMin": 60,
+            "costCny": 40,
+            "reason": "本地人也认的甜水面、凉粉、担担面小店。",
+            "location": "104.047714,30.643982",
+            "poi": {
+              "rating": 4.4,
+              "avgCostCny": 20,
+              "openTime": "08:30-20:30",
+              "openTime2": "周一至周日 08:30-20:30",
+              "tel": "18190984880;19983242838"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "14:00-15:30",
+            "type": "sight",
+            "name": "宽窄巷子",
+            "area": "宽窄巷子",
+            "durationMin": 90,
+            "costCny": 0,
+            "reason": "清朝满城遗留街巷，适合慢逛看老院子格局。",
+            "rainBackup": "新华文轩书店(成都购书中心)",
+            "location": "104.053307,30.663869",
+            "poi": {
+              "rating": 4.8,
+              "openTime": "24小时营业",
+              "openTime2": "周一，周三至周日 00:00-24:00",
+              "tel": "028-86259233;15228966399"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "15:50-17:30",
+            "type": "sight",
+            "name": "成都人民公园",
+            "area": "人民公园",
+            "durationMin": 100,
+            "costCny": 0,
+            "reason": "鹤鸣茶社喝茶掏耳朵，体验成都慢节奏。",
+            "rainBackup": "新华文轩书店(成都购书中心)",
+            "location": "104.057641,30.656990",
+            "poi": {
+              "rating": 4.8,
+              "openTime": "24小时营业",
+              "openTime2": "周一至周日 00:00-24:00；具体营业状态以当天开放情况为准",
+              "tel": "028-86132021"
+            }
+          },
+          {
+            "period": "dinner",
+            "time": "18:00-19:30",
+            "type": "food",
+            "name": "明婷饭店(外曹家巷店)",
+            "area": "外曹家巷",
+            "durationMin": 90,
+            "costCny": 80,
+            "reason": "成都老字号家常菜，脑花豆腐、奇香排骨很地道。",
+            "location": "104.087260,30.673283",
+            "poi": {
+              "rating": 4.7,
+              "avgCostCny": 72,
+              "openTime": "11:00-21:00",
+              "openTime2": "周一至周日 11:00-21:00",
+              "tel": "028-83315978"
+            }
+          }
+        ],
+        "transitMin": 118,
+        "dailyCostCny": 210,
+        "transitKnown": true,
+        "legs": [
+          {
+            "from": "金沙遗址博物馆",
+            "to": "文殊院",
+            "mode": "driving",
+            "distanceM": 8179,
+            "durationSec": 1800,
+            "steps": [
+              "向东南行驶61米左转",
+              "沿青羊大道途径同和路、中环路一品天下大街段向东北行驶2.2千米右转",
+              "沿茶店子东街向东南行驶605米向右前方行驶进入左岔路"
+            ]
+          },
+          {
+            "from": "文殊院",
+            "to": "洞子口张老二凉粉",
+            "mode": "bicycling",
+            "distanceM": 5212,
+            "durationSec": 1320,
+            "steps": [
+              "向南骑行205米向右前方行驶",
+              "向西骑行42米左转",
+              "向西南骑行18米右转"
+            ]
+          },
+          {
+            "from": "洞子口张老二凉粉",
+            "to": "宽窄巷子",
+            "mode": "bicycling",
+            "distanceM": 3216,
+            "durationSec": 1020,
+            "steps": [
+              "沿武侯祠大街向东北骑行1111米左转",
+              "沿锦里中路骑行638米右转",
+              "沿小南街向东北骑行899米左转"
+            ]
+          },
+          {
+            "from": "宽窄巷子",
+            "to": "成都人民公园",
+            "mode": "walking",
+            "distanceM": 1133,
+            "durationSec": 906,
+            "steps": [
+              "沿步行街向西南步行32米左转",
+              "沿窄巷子向东南步行212米右转",
+              "沿长顺上街向南步行187米左转"
+            ]
+          },
+          {
+            "from": "成都人民公园",
+            "to": "明婷饭店(外曹家巷店)",
+            "mode": "bicycling",
+            "distanceM": 4240,
+            "durationSec": 1200,
+            "steps": [
+              "向北骑行42米向右前方行驶",
+              "向东北骑行39米右转",
+              "向东骑行54米向左前方行驶"
+            ]
+          }
+        ]
+      },
+      {
+        "day": 3,
+        "theme": "古镇庄园",
+        "spots": [
+          {
+            "period": "morning",
+            "time": "08:30-10:00",
+            "type": "transport",
+            "name": "酒店→安仁古镇（地铁/高铁/打车）",
+            "area": "大邑县",
+            "durationMin": 90,
+            "costCny": 50,
+            "reason": "安仁在城外，早点出发可把核心老街和庄园走完。"
+          },
+          {
+            "period": "morning",
+            "time": "10:00-12:00",
+            "type": "sight",
+            "name": "安仁古镇",
+            "area": "安仁古镇",
+            "durationMin": 120,
+            "costCny": 0,
+            "reason": "民国公馆老街集中，刘氏家族旧影和川西建筑都在街上。",
+            "rainBackup": "建川博物馆聚落",
+            "location": "103.624030,30.505134",
+            "poi": {
+              "rating": 4.7,
+              "openTime": "24小时营业",
+              "openTime2": "周一至周日 00:00-24:00",
+              "tel": "028-88319116"
+            }
+          },
+          {
+            "period": "lunch",
+            "time": "12:15-13:15",
+            "type": "food",
+            "name": "游血旺(安仁古镇店)",
+            "area": "安仁古镇",
+            "durationMin": 60,
+            "costCny": 45,
+            "reason": "安仁本地人常吃的血旺、凉拌鸡、家常川菜。",
+            "location": "103.618308,30.508677",
+            "poi": {
+              "rating": 4.5,
+              "avgCostCny": 48,
+              "openTime": "11:00-21:00",
+              "openTime2": "周一至周日 11:00-21:00",
+              "tel": "13018238963"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "13:30-15:00",
+            "type": "sight",
+            "name": "大邑刘氏庄园博物馆",
+            "area": "安仁古镇",
+            "durationMin": 90,
+            "costCny": 40,
+            "reason": "近代川西地主庄园实物样本，收租院、老公馆值得细看。",
+            "rainBackup": "建川博物馆聚落",
+            "location": "103.628042,30.505007",
+            "poi": {
+              "rating": 4.6,
+              "openTime": "09:00-17:00",
+              "openTime2": "周一至周日 09:00-17:00 最晚进入17:00",
+              "tel": "028-88315113;12301"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "15:00-16:30",
+            "type": "transport",
+            "name": "安仁古镇→酒店",
+            "area": "大邑县/春熙路",
+            "durationMin": 90,
+            "costCny": 50,
+            "reason": "避开傍晚返程拥堵，回城休息后再吃晚饭。"
+          },
+          {
+            "period": "dinner",
+            "time": "18:30-20:00",
+            "type": "food",
+            "name": "大龙燚火锅(春熙路店)",
+            "area": "春熙路",
+            "durationMin": 90,
+            "costCny": 130,
+            "reason": "结束郊区行程后用一顿本地火锅收尾。",
+            "location": "104.080731,30.650983",
+            "poi": {
+              "rating": 4.5,
+              "avgCostCny": 87,
+              "openTime": "11:00-02:00",
+              "openTime2": "周一至周日 11:00-02:00",
+              "tel": "028-61190606"
+            }
+          }
+        ],
+        "transitMin": 203,
+        "dailyCostCny": 315,
+        "transitKnown": true,
+        "legs": [
+          {
+            "from": "安仁古镇",
+            "to": "游血旺(安仁古镇店)",
+            "mode": "walking",
+            "distanceM": 741,
+            "durationSec": 593,
+            "steps": [
+              "沿迎宾路二段向西北步行606米右转",
+              "沿树人街向北步行135米到达目的地"
+            ]
+          },
+          {
+            "from": "游血旺(安仁古镇店)",
+            "to": "大邑刘氏庄园博物馆",
+            "mode": "walking",
+            "distanceM": 1182,
+            "durationSec": 946,
+            "steps": [
+              "沿树人街向南步行135米左转",
+              "沿迎宾路二段向东南步行740米左转",
+              "沿金桂街向东北步行133米右转"
+            ]
+          }
+        ]
+      },
+      {
+        "day": 4,
+        "theme": "交子古韵",
+        "spots": [
+          {
+            "period": "morning",
+            "time": "09:00-09:30",
+            "type": "transport",
+            "name": "酒店→交子公园（地铁）",
+            "area": "春熙路/交子",
+            "durationMin": 30,
+            "costCny": 15,
+            "reason": "地铁直达城南，最后一天不赶早高峰。"
+          },
+          {
+            "period": "morning",
+            "time": "09:30-10:30",
+            "type": "sight",
+            "name": "交子公园",
+            "area": "交子",
+            "durationMin": 60,
+            "costCny": 0,
+            "reason": "世界最早纸币“交子”诞生地的城市纪念公园。",
+            "rainBackup": "交子金融博物馆",
+            "location": "104.072828,30.582568",
+            "poi": {
+              "rating": 4.7,
+              "openTime": "24小时营业",
+              "openTime2": "周一至周日 00:00-24:00"
+            }
+          },
+          {
+            "period": "morning",
+            "time": "10:40-11:50",
+            "type": "sight",
+            "name": "交子金融博物馆",
+            "area": "交子",
+            "durationMin": 70,
+            "costCny": 0,
+            "reason": "把交子、宋代货币和成都金融史讲清楚，室内不受天气影响。",
+            "location": "104.076625,30.582839",
+            "poi": {
+              "rating": 4.5,
+              "openTime": "09:00-17:00",
+              "openTime2": "周一 全天关闭；周二至周日 09:00-17:00 最晚进入16:30",
+              "tel": "028-60106006"
+            }
+          },
+          {
+            "period": "lunch",
+            "time": "12:00-13:00",
+            "type": "food",
+            "name": "马旺子·川小馆(成都太古里店)",
+            "area": "太古里",
+            "durationMin": 60,
+            "costCny": 133,
+            "reason": "清单内高评分川菜，午市比晚市更好排。",
+            "location": "104.083972,30.651319",
+            "poi": {
+              "rating": 4.7,
+              "avgCostCny": 133,
+              "openTime": "11:00-14:00 17:00-20:30",
+              "openTime2": "周一至周日 11:00-14:00,17:00-20:30",
+              "tel": "028-64231923"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "13:30-14:30",
+            "type": "sight",
+            "name": "成都大慈寺",
+            "area": "大慈寺/太古里",
+            "durationMin": 60,
+            "costCny": 0,
+            "reason": "唐代古寺藏在闹市，历史与市井反差极强。",
+            "rainBackup": "方所书店(成都太古里店)",
+            "location": "104.083791,30.654243",
+            "poi": {
+              "rating": 4.7,
+              "openTime": "08:00-17:00",
+              "openTime2": "周一至周日 08:00-17:00",
+              "tel": "028-86658341"
+            }
+          },
+          {
+            "period": "afternoon",
+            "time": "14:45-16:00",
+            "type": "shopping",
+            "name": "成都远洋太古里",
+            "area": "太古里",
+            "durationMin": 75,
+            "costCny": 0,
+            "reason": "快闪式逛川西风格商业街区，顺便买伴手礼。",
+            "rainBackup": "方所书店(成都太古里店)"
+          },
+          {
+            "period": "dinner",
+            "time": "16:30-17:45",
+            "type": "food",
+            "name": "夫妻肺片(总府路店)",
+            "area": "总府路/春熙路",
+            "durationMin": 75,
+            "costCny": 55,
+            "reason": "用经典凉菜和小吃收尾，离春熙路近，不耽误18点离开。",
+            "location": "104.078161,30.658505",
+            "poi": {
+              "rating": 4.5,
+              "avgCostCny": 58,
+              "openTime": "07:00-21:30 09:30-21:30",
+              "openTime2": "周一至周日 07:00-21:30 10-01至10-07 周一至周日 09:30-21:30",
+              "tel": "028-86617171;028-86736508"
+            }
+          }
+        ],
+        "transitMin": 84,
+        "dailyCostCny": 203,
+        "transitKnown": true,
+        "legs": [
+          {
+            "from": "交子公园",
+            "to": "交子金融博物馆",
+            "mode": "walking",
+            "distanceM": 497,
+            "durationSec": 398,
+            "steps": [
+              "向北步行34米右转",
+              "向东步行427米右转",
+              "向西南步行36米到达目的地"
+            ]
+          },
+          {
+            "from": "交子金融博物馆",
+            "to": "马旺子·川小馆(成都太古里店)",
+            "mode": "driving",
+            "distanceM": 9017,
+            "durationSec": 1980,
+            "steps": [
+              "向西北行驶46米左转",
+              "沿锦云东二巷向西行驶315米右转",
+              "沿锦泰路向北行驶283米右转"
+            ]
+          },
+          {
+            "from": "马旺子·川小馆(成都太古里店)",
+            "to": "成都大慈寺",
+            "mode": "walking",
+            "distanceM": 714,
+            "durationSec": 571,
+            "steps": [
+              "沿东糠市街向西北步行45米右转",
+              "向东北步行36米右转",
+              "向东北步行57米向左前方行走"
+            ]
+          }
+        ]
+      }
+    ],
+    "totalCostCny": 2433,
+    "tips": [
+      "金沙遗址、武侯祠、杜甫草堂建议提前在官方公众号预约购票，旺季避免现场排队。",
+      "交子金融博物馆通常周一闭馆，本行程排在最后一天；若实际日期闭馆，可改为交子公园加成都博物馆。",
+      "安仁古镇在城外，返程建议15:00前出发，避开成温邛沿线晚高峰。",
+      "马旺子午市12:00入场较合适，晚市排队久；洞子口张老二、明婷饭店更适合日常饭点。",
+      "本预算按住宿480元/晚、共3晚计算，含门票、餐饮和市内交通，不含往返成都大交通。"
+    ],
+    "startDate": "2026-11-09",
+    "endDate": "2026-11-12",
+    "startAt": "2026-11-09T10:00",
+    "endAt": "2026-11-12T18:00",
+    "warnings": [
+      "第 2 天有 2 段「时间接不上」：如「文殊院」12:30 结束到「洞子口张老二凉粉」12:45 开始只有 15 分钟，但骑行约需 22 分钟——可用「一键顺延」重排当天时间轴",
+      "第 2 天「金沙遗址博物馆」在高德显示「暂停开放」，出发前请确认",
+      "第 2 天安排约 10 小时 38 分钟，超出适中节奏上限（10 小时），可删减 1 个景点或改选更紧凑节奏",
+      "第 3 天站点间通勤约 3 小时 23 分钟，偏长，可能存在绕路，建议合并同区域景点",
+      "第 3 天有 1 段「时间接不上」：「游血旺(安仁古镇店)」13:15 结束到「大邑刘氏庄园博物馆」13:30 开始只有 15 分钟，但步行约需 16 分钟——可用「一键顺延」重排当天时间轴",
+      "第 3 天安排约 12 小时 23 分钟，超出适中节奏上限（10 小时），可删减 1 个景点或改选更紧凑节奏",
+      "第 4 天有 1 段「时间接不上」：「交子金融博物馆」11:50 结束到「马旺子·川小馆(成都太古里店)」12:00 开始只有 10 分钟，但驾车约需 33 分钟——可用「一键顺延」重排当天时间轴"
+    ],
+    "verified": true,
+    "budgetCny": 3000,
+    "verification": "ok",
+    "grounding": {
+      "candidates": 4,
+      "closedSkipped": 0,
+      "closedOut": 0
+    },
+    "verificationReport": {
+      "fastDraftSpots": 4,
+      "keptInFinal": 4,
+      "closedSkipped": 0,
+      "closedOut": 0,
+      "realLegs": 14,
+      "timeFixed": 14
+    }
+  },
+  "generatedAt": "2026-10-26T14:51:03.644Z",
+  "verification": "ok",
+  "warnings": 7
+}

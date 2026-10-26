@@ -368,6 +368,9 @@ npx prisma generate    # Prisma 7 起必需：@prisma/client 已无 postinstall�
 npm run dev             # http://localhost:3000
 ```
 
+> 想先拿一个公网链接做**面试演示**：见 [DEMO.md](DEMO.md)（Render 免费实例 + 预生成行程
+> fixture，约 10 分钟，不依赖数据库/登录/域名备案）。正式生产部署走 [DEPLOY.md](DEPLOY.md)。
+
 配置说明：
 
 - `LLM_*`：step-5（OpenAI 兼容），已预填

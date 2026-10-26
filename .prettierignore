@@ -3,9 +3,13 @@
 .next-t-*/
 .next-visual/
 .next-visual-check/
+.next-demo/
 .next-verify/
 out/
 coverage/
 eval-results/
 node_modules/
 package-lock.json
+# 演示行程 fixture 由 scripts/demo-gen.mjs 生成（JSON.stringify 格式），
+# 不参与格式检查：手动跑 prettier 会重排长行，产生无意义的 diff。
+demo/fixtures/*.json

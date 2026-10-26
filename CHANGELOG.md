@@ -15,6 +15,38 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 面试演示上线包：Render 免费实例 + 真实生成行程 fixture
+
+背景：先要一个公网链接做**面试演示**，不追求正式生产（PG/登录/监控不走这套，见 DEMO.md）。
+
+- **`render.yaml`（Blueprint）**：Render 免费 Web Service（Node runtime、singapore）。
+  build = `npm ci && prisma generate && next build` + standalone static/public 拷贝（与 DEPLOY 裸机路径
+  完全一致，本地用同一组命令实测）；start = `HOSTNAME=0.0.0.0 node .next/standalone/server.js`
+  （Render 注入的 HOSTNAME 会让 Next 绑错地址，必须覆盖）。成本闸门收在 env：每 IP 6 次/天、
+  全站 60 次/天、生成与 LLM 并发各 2。
+- **真实生成行程 fixture**：`node scripts/demo-gen.mjs` 用真实高德 + 真实模型生成 2 条行程
+  （苏州 3 天 / 成都 4 天；各约 6-7 分钟、6-7 条真实体检预警——正好是演示「体检/一键顺延」的素材），
+  落 `demo/fixtures/*.json` 并自动重写静态 import 的 index（standalone 产物才会带上）。
+  日期按生成日 +14 天，演示时永远是未来行程。
+- **启动即注入**：`instrumentation.ts` + `lib/demo-seed.ts`。`DEMO_SEED=1` 时把 fixture 灌进存储
+  （已存在跳过，不覆盖演示中改过的行程；`input.days` 补齐供 refine/clone 使用）。冷启动/重启后
+  分享链接依然有效，演示时 `/p/<shareId>` 秒开；不设该变量的环境（生产/CI/e2e）完全无行为。
+- **零配置 OG**：`metadataBase` 缺省回退 Render 自动注入的 `RENDER_EXTERNAL_URL`，演示站不配
+  `NEXT_PUBLIC_SITE_URL` 也能生成正确的对外绝对链接/分享卡片。
+- **预热脚本**：`npm run demo:warm -- <url>`（`node scripts/warm-demo.mjs`）。免费实例 15 分钟
+  无请求休眠，面试前先叫醒并逐项验证 health/首页/两条预置行程，避免面试官成为等冷启动的人。
+- **`DEMO.md`**：10 分钟部署步骤、面试前 2 分钟 checklist、3 分钟演示脚本、成本护栏、已知限制
+  （免费实例休眠/512MB 内存/单实例/memory 存储重置——预置行程不受影响），以及「这套不适合正式生产」。
+- 工程细节：`.next-demo/`（重新生成 fixture 用的隔离 dist）加入 eslint/oxlint/prettier/gitignore；
+  新增 `demo:gen` / `demo:warm` 两个 npm script。
+
+验收（本机模拟 Render 产物）：`npm run build` + 按 render.yaml 拷 static/public →
+`PORT=3020 HOSTNAME=127.0.0.1 NODE_ENV=production DEMO_SEED=1 node --env-file=.env
+.next/standalone/server.js`：启动 2s、日志 `[demo] 已注入 2/2 条演示行程`、`/api/health` 200
+（`authProvider:"disabled"` 即生产守卫生效）、两条 `/p/<shareId>` 200（132KB / 142KB HTML 含
+真实行程）、`/new` 200 含表单；`warm-demo` 全绿；单测 907（+5 条 fixture 契约）；
+`npm run gate` 全绿。
+
 ## 2026-10 上线前 P0 硬化（二）：成本闸门 / TS lint 真正生效 / 失败路径收敛
 
 同一轮审计的后续批次，仍然只做「能上线」相关的事，不加产品功能。

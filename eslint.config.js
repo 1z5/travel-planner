@@ -32,6 +32,7 @@ export default [
       ".next-t-*/**",
       ".next-visual/**",
       ".next-visual-check/**",
+      ".next-demo/**",
       ".next-verify/**",
       "out/**",
       "coverage/**",

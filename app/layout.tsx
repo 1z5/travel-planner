@@ -2,10 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { MotionPref } from "@/components/MotionPref";
 
-// metadataBase 让 OG/分享链接生成绝对地址（部署时用 NEXT_PUBLIC_SITE_URL 覆盖）。
+// metadataBase 让 OG/分享链接生成绝对地址。优先级：
+// 1) NEXT_PUBLIC_SITE_URL（自定义域名/正式环境显式配置）
+// 2) RENDER_EXTERNAL_URL（Render 自动注入的部署 URL：演示环境零配置也能出对 OG）
+// 3) localhost（本地开发兜底）
 // openGraph/twitter 的标题与描述在这里统一给默认值，子路由（分享页/报告页）各自覆盖。
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.RENDER_EXTERNAL_URL;
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(siteUrl ?? "http://localhost:3000"),
   title: "行程规划师 — 先核验真实世界，再排行程",
   description:
     "输入目的地、起止时间、预算和偏好，生成结构化国内城市行程：POI 与营业时间来自高德实时核验，通勤按真实路况计算，体检问题全部摊开。",
