@@ -307,6 +307,7 @@ LLM 排的时间轴经常物理上不可能——真实桩数据里 `拙政园 1
 
 ```bash
 npm run gate       # 一键验收：typecheck + lint + format:check + 单测 + e2e（提交前跑它）
+npm run lint       # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联（oxlint 自解析 TS，不依赖 TS 版本）
 npm test           # e2e：自包含（自动启动桩 LLM + 桩高德 + 5 台隔离测试服务器），跑完自动清理
 npm run test:unit  # Vitest 单测
 npm run gate:visual # 视觉/可访问性回归（自起环境 + 种子数据；检查溢出/触控/对比度/异常）
@@ -336,7 +337,14 @@ npm run check:env  # 环境变量体检（格式 / .env.example 漂移 / 生产�
 - **登录体系 49 例**：dev/微信 OAuth/短信 TC3 全流程、双轨配额、CSRF、防轰炸
 - **单测重点**：高德三态与缓存/在飞去重/限流退避、`mapLimit`、`.ics` RFC5545 细节、**Web Mercator 视野拟合与投影**、静态地图缓存与错误语义、**Plan 聚合（幂等 commit/revision/旧链接兜底/内存契约）**、**改行程 prompt 与硬约束/纠正重试**、**预算汇总（最大余数法/四态/脏数据）**、**最近行程本地索引**、**营业时间解析（真机 9 类格式 + unknown 边界）**、**时间轴冲突/顺延（锚点/24:00 溢出/幂等）**、**体检修复识别与模板白名单**
 
-桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）按请求内容切换 LLM 与高德行为，让故障与集成测试秒级完成，不烧真 token、不需要真 key。CI（`.github/workflows/ci.yml`）：依赖审计 → lint → format → typecheck → 生产构建 → e2e → 覆盖率门禁 → Postgres 契约 → 密钥扫描（Gitleaks）。
+桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）按请求内容切换 LLM 与高德行为，让故障与集成测试秒级完成，不烧真 token、不需要真 key。CI（`.github/workflows/ci.yml`）：依赖审计 → lint（ESLint + oxlint）→ format → typecheck → 生产构建 → e2e → 覆盖率门禁 → Postgres 契约 → 密钥扫描（Gitleaks）。
+
+**lint = ESLint(.js/.mjs) + oxlint(TS/TSX)**：本仓 TypeScript 7.0.2 超出 typescript-eslint 8.x
+的支持范围，ESLint 对 `.ts/.tsx` 会直接 ignore（exit 0，等于没检查）；所以 TS/TSX 的静态检查
+由 oxlint（Rust 自解析 AST、不依赖 TS 版本）承担，配置在 `.oxlintrc.json`（correctness=error、
+suspicious=warn、格式交给 Prettier，含 `react-hooks/*` 规则）。当前 0 error；被显式降为 warn
+的规则是已归档存量债，新代码不要再制造新的 error/warning。pre-push 钩子另跑
+`typecheck + format:check` 兜住「本地过、CI 红」的格式问题。
 
 **三态原则（命门）**：POI 查询区分 hit / miss / error，**只有 miss 才触发「未在高德检索到」预警**。网络异常、QPS 超限、key 无效必须归为 error——否则会把真实存在的景点标成不存在，预警系统自己变成谎言。error 只汇总成一条系统提示（`plan.verification="partial"`），且该天通勤未知时**跳过**通勤与节奏判定，不用拍脑袋数字污染指标。
 

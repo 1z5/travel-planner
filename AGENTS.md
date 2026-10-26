@@ -102,7 +102,9 @@ components/
 ```bash
 npm run gate           # 一键验收：typecheck + lint + format:check + 单测 + e2e（提交前必须全绿）
 npm run typecheck      # TypeScript strict
-npm run lint           # ESLint（0 error 0 warning）
+npm run lint           # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联，覆盖全部 TS/TSX
+npm run lint:js        # 只跑 ESLint（.js/.mjs 脚本）
+npm run lint:ts        # 只跑 oxlint（TS/TSX；Rust 自解析 AST，不依赖 TS 版本）
 npm run test:unit      # Vitest 835 条（组件 + 纯逻辑）
 npm test               # e2e 527 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，9 页 × 桌面/手机）
@@ -111,6 +113,13 @@ npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、b
 ```
 
 e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM 和高德，不烧真 token、不需要真 key。桩按请求内容切换行为（城市名/关键词），让故障注入测试秒级完成。
+
+**lint 为什么分两段**：本仓 TS 7.0.2 超出 typescript-eslint 8.x 的支持上限，ESLint 对 `.ts/.tsx`
+只会返回 `File ignored because no matching configuration was supplied`（exit 0，等于没检查）。
+oxlint 用 Rust 自解析 TS，接管全部 TS/TSX（配置 `.oxlintrc.json`：correctness=error、
+suspicious=warn、格式规则交给 Prettier，`react-hooks/*` 规则可用）。当前口径 **0 error**；
+被显式降为 warn 的规则是已归档的存量债（见 `.oxlintrc.json` 的 `rules`），
+新增代码不要制造新的 error/warning。单文件排查可直接 `npx oxlint lib/planner.ts`。
 
 ## LLM 相关
 

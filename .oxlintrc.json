@@ -1,0 +1,48 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "react", "unicorn", "oxc"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "off",
+    "perf": "off",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "rules": {
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "react/exhaustive-effect-dependencies": "off",
+    "react/react-in-jsx-scope": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/no-array-sort": "off",
+    "eslint/no-underscore-dangle": "off",
+    "react/set-state-in-effect": "warn",
+    "eslint/no-unused-vars": "warn",
+    "unicorn/no-new-array": "warn",
+    "eslint/no-useless-escape": "warn",
+    "eslint/no-unsafe-optional-chaining": "warn",
+    "unicorn/no-useless-fallback-in-spread": "warn",
+    "unicorn/no-useless-spread": "warn"
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".next/**",
+    ".next-t-*/**",
+    ".next-visual/**",
+    ".next-visual-check/**",
+    ".next-verify/**",
+    "out/**",
+    "coverage/**",
+    "eval-results/**",
+    "**/*.js",
+    "**/*.mjs",
+    "**/*.cjs"
+  ]
+}

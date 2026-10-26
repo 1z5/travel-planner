@@ -6,9 +6,17 @@ on:
   pull_request:
     branches: [main]
 
+# 同一分支只保留最新一次运行：main 是高频直推（近 30 天 162 commits），
+# 旧 run 的结论没有价值，取消它们能省 runner 分钟，也避免「排队很久才跑」。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # 兜底：单测 + e2e + 构建正常约 5 分钟；卡死的 run 不应白占 runner 一整小时。
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -29,7 +37,10 @@ jobs:
       - name: 依赖安全审计（高危阻断）
         run: npm audit --audit-level=high
 
-      - name: 代码检查（ESLint）
+      # `npm run lint` = ESLint（.js/.mjs 脚本）+ oxlint（TS/TSX，自解析、不依赖
+      # TS 版本）串联。此前只有 ESLint 且对 .ts/.tsx 全部 ignore —— 所有
+      # TS/TSX 从未被检查（P0-7）；oxlint 现在兜住这一层。
+      - name: 代码检查（ESLint + oxlint）
         run: npm run lint
 
       - name: 格式检查（Prettier）
@@ -64,6 +75,7 @@ jobs:
   # 用官方二进制（固定版本），不引入需要付费 license 的第三方 action。
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -82,6 +94,7 @@ jobs:
   # 服务器显式 DATA_STORE=memory，与 PG 阶段隔离，不共享配额桶）。
   test-postgres:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16

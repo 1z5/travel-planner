@@ -1,0 +1,11 @@
+# pre-push 门：把「本地过、CI 红」的格式/类型问题挡在推送前。
+#
+# 为什么需要它：近 10 次 CI 失败里有 5 次是 Prettier 类问题（workflow/dependabot
+# 的 yml、html 不在 lint-staged 的匹配范围内，pre-commit 只看暂存文件），而 main
+# 又允许直推——于是这类低级失败每次都到 CI 才暴露。本机跑这两道门约 6s，
+# 比等一轮 CI（数分钟）便宜得多。
+#
+# 为什么这里不跑 lint：pre-commit 的 lint-staged 对暂存文件跑 ESLint + Prettier
+# （对 .ts/.tsx 的 ESLint 仍是 no-op，TS 由 lint 阶段的 oxlint 兜底），而
+# `npm run gate` 与 CI 都会跑完整 lint；push 前复制一份只会拖慢 6s 的门。
+npm run typecheck && npm run format:check
