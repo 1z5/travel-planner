@@ -342,6 +342,12 @@ export async function createJob(
   key: string,
   limit: number,
   onError?: () => void,
+  /**
+   * 终态回调（成功/失败都会调用，只调一次）：调用方用它释放全局并发槽
+   * （见 lib/capacity-gate.ts）。放在 createJob 内部而不是各条生成路径里，
+   * 是为了「将来新增生成路径时不会漏掉释放」。
+   */
+  onFinish?: () => void,
 ) {
   const store = getStore();
   const job = {
@@ -408,14 +414,34 @@ export async function createJob(
       console.log(`[job] ${job.id} 完成 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     } catch (e) {
       const error = e instanceof Error ? e.message : "生成失败，请稍后重试";
-      await store.jobs.update(job.id, { status: "error", error });
+      // 失败路径本身必须收敛（审计 P1-1）：这里若再因落库失败抛出，异常会逃出
+      // IIFE 变成 unhandled rejection，Node 22 默认直接退出进程——一次 DB 抖动
+      // 带走所有在跑的任务。写失败只记日志，任务终态由下面的 cleanup 兜底。
+      try {
+        await store.jobs.update(job.id, { status: "error", error });
+      } catch (writeErr) {
+        console.error(
+          `[job] ${job.id} 失败状态落库也失败了（继续走清理）: ${(writeErr as Error).message}`,
+        );
+      }
       clearStage(job.id); // 失败即终态：遥测清掉，不留假装在跑的阶段
-      onError?.(); // 失败归还配额
+      try {
+        onError?.(); // 失败归还配额（回调内部是 fire-and-forget，不能让它抛）
+      } catch (cbErr) {
+        console.log(`[job] ${job.id} onError 回调异常（忽略）: ${(cbErr as Error).message}`);
+      }
       console.log(
         `[job] ${job.id} 失败 耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s 原因=${error}`,
       );
     } finally {
       stopHeartbeat();
+      // 释放全局并发槽：即使上面各条路径将来新增分支，finally 也保证不漏。
+      // onFinish 自身抛错同样不能影响任务终态，这里本地兜住。
+      try {
+        onFinish?.();
+      } catch (cbErr) {
+        console.log(`[job] ${job.id} onFinish 回调异常（忽略）: ${(cbErr as Error).message}`);
+      }
     }
   })();
   return job;
@@ -600,7 +626,7 @@ async function runStreaming(
     poiTotal,
   });
   // 事实先行摘要（城市级 + 各天清单的并集）
-  const gSummary = groundingSummaryOf([cityGrounding, ...[...dayGrounding.values()]]);
+  const gSummary = groundingSummaryOf([cityGrounding, ...dayGrounding.values()]);
   plan.grounding = gSummary;
   // 核验差异报告（与单次路径同口径）：把「初版 → 精排版」之间核验层实际做过的
   // 事讲清楚。流式路径同样发布了秒级初版，所以同样有话可说。
