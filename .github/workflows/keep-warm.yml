@@ -1,0 +1,40 @@
+name: Keep demo warm
+
+# 简历链接是长期挂着的：Render 免费实例 15 分钟无请求会休眠，第一位访客要等
+# 30-60s 冷启动。每 5 分钟 ping 一次健康检查保活（Render 免费 750 实例小时/月，
+# 24/7 = 730h，够用）。
+#
+# ⚠️ 两个已知边界：
+# - 仓库连续 60 天没有活动时，GitHub 会自动暂停 schedule；需要外部监控兜底
+#   （UptimeRobot / cron-job.org，见 DEMO.md「长期放简历」一节）。
+# - 这个 job 失败会给仓库 owner 发通知，等于一个免费的 uptime 告警。
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-demo-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/health
+        run: |
+          URL="https://travel-planner-demo.onrender.com"
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -m 90 "$URL/api/health" || true)
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "🟢 demo 实例在线"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::demo 预热失败（实例唤醒失败 / 正在部署 / 服务异常）"
+          exit 1

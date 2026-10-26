@@ -19,7 +19,7 @@ import { consume, hourKey, refund } from "@/lib/ratelimit";
 import { newEventId } from "@/lib/metrics";
 import { getStore } from "@/lib/store";
 import { clientIpFromHeaders } from "@/lib/client-ip";
-import { tryAcquireSlot } from "@/lib/capacity-gate";
+import { tryAcquireSlot, tryReserveLlmBudget } from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -219,6 +219,14 @@ async function handlePost(req: NextRequest) {
       { error: `改行程每小时 ${limit} 次，已用完，请稍后再试` },
       { status: 429 },
     );
+  }
+
+  // 全站 LLM 日预算（审计 P0-3）：公开演示站被转发/被刷时，按 IP 的小时桶
+  // 挡不住换 IP 的刷子；这里兜一层全站当日 LLM 调用上限（不占生成配额，
+  // 但同样在烧模型账单）。超限退还本次小时名额，别让用户白丢一次机会。
+  if (!tryReserveLlmBudget()) {
+    await refund(winKey);
+    return NextResponse.json({ error: "今日服务调用额度已用完，请明天再试" }, { status: 429 });
   }
 
   const refineAction: RefineAction =

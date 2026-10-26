@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fitView, parseLocText } from "@/lib/map-view";
 import { fetchStaticMap, staticMapEnabled } from "@/lib/staticmap";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 
 export const runtime = "nodejs";
 // 地图随中心/zoom/站点变化，必须每次按参数生成（不能静态化）
@@ -79,6 +80,13 @@ export async function GET(req: NextRequest) {
   const scale = rawScale === null || rawScale === "" ? 2 : Number(rawScale);
   if (scale !== 1 && scale !== 2) {
     return NextResponse.json({ error: "scale 只支持 1 或 2" }, { status: 400 });
+  }
+
+  // 3.5) 按 IP 小时限流（审计 P1-4）：地图每张都打高德静态图配额，且服务端
+  // 是全进程串行队列——被刷会同时烧配额 + 让真实用户排队降级。
+  const rl = await checkProxyRateLimit(req.headers, "map", "MAP_HOURLY_LIMIT", 600);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "地图请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   // 4) 能力检查放参数校验之后：先告诉调用方是参数错了，再谈服务不可用

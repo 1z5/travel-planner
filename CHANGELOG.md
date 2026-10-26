@@ -15,6 +15,36 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 演示站长期化：保活 + 公开曝光的成本/滥用闸门
+
+背景：演示链接要**长期放简历**。免费实例会休眠、公开链接会被转发甚至被爬，
+原来的演示护栏（全站 60 次/天）只防生成、防不住「换 IP 刷 refine/chat」和
+「刷高德代理端点烧 key 配额」。这轮把「挂了也没人管」的几处补齐。
+
+- **保活**：新增 `.github/workflows/keep-warm.yml`，每 5 分钟 ping 一次
+  `/api/health`（Render 免费 750 实例小时/月，24/7=730h，够用）；job 失败会给
+  仓库 owner 发通知，等于免费 uptime 告警。文档写明两个边界：仓库 60 天无活动
+  GitHub 会自动暂停 schedule（建议加 UptimeRobot/cron-job.org 外部监控兜底）；
+  真要长期稳定就升 Render Starter（$7/月，不休眠 + 更大内存）。
+- **LLM 日预算**：`lib/capacity-gate.ts` 新增 `DAILY_GLOBAL_LLM_LIMIT`（默认 300）
+  - `tryReserveLlmBudget/releaseLlmBudget`，接到 refine/chat 调模型之前（超限
+    429 并退还本次小时名额）；`/api/health` 的 capacity 快照同时暴露
+    `generationsToday` 与 `llmCallsToday`。演示站配置：生成 40/日、LLM 150/日、
+    refine 8/h/IP、联动 12/h/IP。
+- **只读高德代理限流**：新增 `lib/proxy-rate-limit.ts`，`/api/map`、`/api/places/*`、
+  `/api/geocode`、`/api/weather` 五个端点按 IP 小时桶限流（默认 600/600/120/120，
+  演示站 300/300/60/60）。原因见审计 P1-4：这些端点直接消耗高德配额，且
+  `/api/map` 背后是全进程串行队列——被刷会同时烧静态图日配额 + 队头阻塞让真实
+  用户全降级成示意图。
+- **看板可用**：`render.yaml` 用 Render 的 `generateValue: true` 自动生成
+  `METRICS_TOKEN`，演示站可以看漏斗/北极星/Top 城市（隐私口径不变）。
+- 文档：DEMO.md 新增「§4.1 长期放简历」（保活原理、60 天限制、外部监控、
+  Starter 升级、看板 token 位置、日常检查）；`.env.example`/DEPLOY.md 补齐新变量。
+
+验收：单测 **910**（+3 条 LLM 日预算/快照）；`npm run gate` 全绿；部署后
+`/api/health` 返回新 capacity 字段（`llmCallsToday` + 新 limits），线上分享页/工作台
+/warm 全绿；keep-warm workflow 手动 dispatch 成功。
+
 ## 2026-10 面试演示上线包：Render 免费实例 + 真实生成行程 fixture
 
 背景：先要一个公网链接做**面试演示**，不追求正式生产（PG/登录/监控不走这套，见 DEMO.md）。

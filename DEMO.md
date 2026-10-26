@@ -65,15 +65,60 @@
 
 ## 4. 成本与护栏（已配在 `render.yaml`）
 
-| 变量                         | 值  | 作用                                  |
-| ---------------------------- | --- | ------------------------------------- |
-| `DAILY_FREE_LIMIT`           | 6   | 每个 IP 每天最多生成 6 次             |
-| `DAILY_GLOBAL_LIMIT`         | 60  | 全站每天最多 60 次生成（防链接被刷）  |
-| `MAX_CONCURRENT_GENERATIONS` | 2   | 同时最多 2 个生成任务                 |
-| `MAX_CONCURRENT_LLM`         | 2   | 同时最多 2 个 LLM 调用（改行程/问答） |
+| 变量                         | 值  | 作用                                              |
+| ---------------------------- | --- | ------------------------------------------------- |
+| `DAILY_FREE_LIMIT`           | 6   | 每个 IP 每天最多生成 6 次                         |
+| `DAILY_GLOBAL_LIMIT`         | 40  | 全站每天最多 40 次生成（防链接被转发后刷爆）      |
+| `DAILY_GLOBAL_LLM_LIMIT`     | 150 | 全站每天最多 150 次 LLM 调用（含改行程/行程管家） |
+| `MAX_CONCURRENT_GENERATIONS` | 2   | 同时最多 2 个生成任务                             |
+| `MAX_CONCURRENT_LLM`         | 2   | 同时最多 2 个 LLM 调用                            |
+| `REFINE_HOURLY_LIMIT`        | 8   | 每 IP 每小时改行程上限                            |
+| `COPILOT_HOURLY_LIMIT`       | 12  | 每 IP 每小时行程管家上限                          |
+| `MAP_HOURLY_LIMIT`           | 300 | 每 IP 每小时静态地图请求（防烧穿高德静态图配额）  |
+| `PLACES_HOURLY_LIMIT`        | 300 | 每 IP 每小时地址补全/必游地推荐                   |
+| `GEOCODE_HOURLY_LIMIT`       | 60  | 每 IP 每小时逆地理编码                            |
+| `WEATHER_HOURLY_LIMIT`       | 60  | 每 IP 每小时天气查询                              |
 
-单条 3-4 天行程实测 1.5-3 万 tokens（见 DEPLOY.md 成本模型）。演示用量下成本可控；
-若链接会长期挂在简历上，可把 `DAILY_GLOBAL_LIMIT` 再调低（如 20）后 redeploy。
+单条 3-4 天行程实测 1.5-3 万 tokens（见 DEPLOY.md 成本模型）。按上面的闸门，
+**最坏情况一天也只会烧掉 40 次生成 + 150 次小调用**，成本有上限；
+`GET /api/health` 的 `capacity` 字段能看到今日已用。
+
+## 4.1 长期放简历（保活 / 监控 / 可靠性）
+
+免费实例 15 分钟无请求会休眠，简历链接的第一位访客不该等 30-60s 冷启动。
+仓库已带一个保活 workflow：`.github/workflows/keep-warm.yml`，**每 5 分钟** ping
+一次 `/api/health`（Render 免费额度 750 实例小时/月，24/7 = 730h，够用；
+失败了会给仓库 owner 发 GitHub 通知，等于免费 uptime 告警）。
+
+**两个要记住的边界**：
+
+1. **仓库连续 60 天没有活动，GitHub 会自动暂停定时 workflow**。长期挂简历的话，
+   建议再加一层外部监控（二选一，都免费、都不需要信用卡）：
+   - [UptimeRobot](https://uptimerobot.com)：HTTP(s) monitor，5 分钟间隔，可配邮件告警；
+   - [cron-job.org](https://cron-job.org)：URL job，每 5 分钟 GET 一次 `/api/health`。
+     任选一个把 `https://travel-planner-demo.onrender.com/api/health` 加进去即可。
+2. **免费实例只有 512MB 内存**：3-4 天行程没问题；如果频繁被 5-7 天长行程打，
+   可能 OOM。真要长期稳定，升级 Render **Starter（$7/月）**：不休眠、内存更大、
+   还能绑自定义域名。这是唯一「花钱买确定性」的选项。
+
+**看访问量（可选）**：`render.yaml` 里 `METRICS_TOKEN` 用了 Render 的
+`generateValue: true` —— 在 Render Dashboard → 服务 → Environment 里能看到随机
+token，然后打开：
+
+```
+https://travel-planner-demo.onrender.com/api/events/summary?token=<METRICS_TOKEN>
+```
+
+能看到漏斗、「照着走完率」、Top 城市、改动集中日（隐私口径：只收 shareId/城市/
+第几天，不收手机号/IP）。简历面试时也可以顺手展示这个度量闭环。
+
+**降低出错概率的三条日常**：
+
+- 改动 fixture/代码后 push → Render 自动重新部署；部署期间链接可能 502 几十秒，
+  `keep-warm` 会在下一轮自动恢复（不用手动点）。
+- 每隔一阵（比如面试前一周）跑一次 `npm run demo:warm -- <URL>` 确认全绿。
+- 如果哪天链接打开是 404 且 `/api/health` 正常：检查 fixture 是否被误删
+  （`demo/fixtures/*.json`）与 `DEMO_SEED=1` 是否还在环境变量里。
 
 ## 5. 已知限制（面试被问到时主动说，反而是加分项）
 

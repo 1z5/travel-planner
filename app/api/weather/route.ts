@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { fetchWeather } from "@/lib/weather";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,15 @@ export async function GET(req: NextRequest) {
   });
   if (!parsed.success) {
     return NextResponse.json({ state: "unavailable", reason: "城市名格式不正确" }, { status: 400 });
+  }
+
+  // 按 IP 小时限流（审计 P1-4）：天气查询同样消耗高德配额
+  const rl = await checkProxyRateLimit(req.headers, "weather", "WEATHER_HOURLY_LIMIT", 120);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { state: "unavailable", reason: "请求过于频繁，请稍后再试" },
+      { status: 429 },
+    );
   }
 
   const result = await fetchWeather(parsed.data.city);

@@ -3,16 +3,23 @@ import {
   capacityLimits,
   capacitySnapshot,
   releaseGenerationBudget,
+  releaseLlmBudget,
   resetCapacityForTest,
   setCapacityDayForTest,
   tryAcquireSlot,
   tryReserveGenerationBudget,
+  tryReserveLlmBudget,
 } from "@/lib/capacity-gate";
 
 // 全局限流/日预算闸门：审计 P0-3 的服务端兜底（配额按 IP 可伪造，只能防
 // 「同一个用户多刷」；真实爆量需要进程内并发上限 + 日预算）。
 
-const ENV_KEYS = ["MAX_CONCURRENT_GENERATIONS", "MAX_CONCURRENT_LLM", "DAILY_GLOBAL_LIMIT"];
+const ENV_KEYS = [
+  "MAX_CONCURRENT_GENERATIONS",
+  "MAX_CONCURRENT_LLM",
+  "DAILY_GLOBAL_LIMIT",
+  "DAILY_GLOBAL_LLM_LIMIT",
+];
 
 function resetEnv() {
   for (const k of ENV_KEYS) delete process.env[k];
@@ -34,6 +41,7 @@ describe("capacityLimits", () => {
       maxGenerations: 6,
       maxLlmCalls: 12,
       dailyGenerations: 500,
+      dailyLlmCalls: 300,
     });
   });
 
@@ -113,5 +121,33 @@ describe("每日全站生成预算", () => {
     expect(snap.generationsToday).toBe(1);
     expect(snap.limits.maxGenerations).toBe(3);
     expect(snap.limits.dailyGenerations).toBe(9);
+  });
+});
+
+describe("每日全站 LLM 调用预算", () => {
+  it("refine/chat 不占生成配额，但受全站 LLM 日预算约束；用尽后拒绝、可退还", () => {
+    process.env.DAILY_GLOBAL_LLM_LIMIT = "2";
+    expect(tryReserveLlmBudget()).toBe(true);
+    expect(tryReserveLlmBudget()).toBe(true);
+    expect(tryReserveLlmBudget()).toBe(false);
+    // 预扣后请求没走到 LLM（如行程刚好被删）→ 退还，不当成一次真实调用
+    releaseLlmBudget();
+    expect(tryReserveLlmBudget()).toBe(true);
+  });
+
+  it("跨 UTC 日归零：生成与 LLM 两个日计数都重置", () => {
+    process.env.DAILY_GLOBAL_LLM_LIMIT = "1";
+    expect(tryReserveLlmBudget()).toBe(true);
+    expect(tryReserveLlmBudget()).toBe(false);
+    setCapacityDayForTest("1999-01-01");
+    expect(tryReserveLlmBudget()).toBe(true);
+  });
+
+  it("快照暴露两个日计数（健康检查/运维看得到）", () => {
+    process.env.DAILY_GLOBAL_LLM_LIMIT = "9";
+    tryReserveLlmBudget();
+    const snap = capacitySnapshot();
+    expect(snap.llmCallsToday).toBe(1);
+    expect(snap.limits.dailyLlmCalls).toBe(9);
   });
 });

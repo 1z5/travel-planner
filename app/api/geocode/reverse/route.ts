@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { reverseGeocode } from "@/lib/amap";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,12 @@ export async function GET(req: NextRequest) {
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "坐标格式不正确" }, { status: 400 });
+  }
+
+  // 按 IP 小时限流（审计 P1-4）：逆地理编码同样消耗高德配额
+  const rl = await checkProxyRateLimit(req.headers, "geocode", "GEOCODE_HOURLY_LIMIT", 120);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   const geo = await reverseGeocode(parsed.data.lng, parsed.data.lat);

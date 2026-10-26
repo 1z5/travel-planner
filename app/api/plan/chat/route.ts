@@ -4,7 +4,7 @@ import { answerCopilot, CopilotError } from "@/lib/copilot";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
 import { clientIpFromHeaders } from "@/lib/client-ip";
-import { tryAcquireSlot } from "@/lib/capacity-gate";
+import { tryAcquireSlot, tryReserveLlmBudget } from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,6 +100,12 @@ async function handlePost(req: NextRequest) {
       { error: `行程管家每小时 ${limit} 次，已用完，请稍后再试` },
       { status: 429 },
     );
+  }
+
+  // 全站 LLM 日预算（审计 P0-3）：与 refine 同口径，防公开演示站被刷。
+  if (!tryReserveLlmBudget()) {
+    await refund(winKey);
+    return NextResponse.json({ error: "今日服务调用额度已用完，请明天再试" }, { status: 429 });
   }
 
   // 4) 调模型。失败退还名额：一次失败不该吃掉用户这一次提问机会

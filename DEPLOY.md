@@ -117,6 +117,11 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 | `MAX_CONCURRENT_GENERATIONS`                  |                    | 默认 6：同时在跑的生成任务上限（进程内；多实例时是每实例上限）                                                                              |
 | `MAX_CONCURRENT_LLM`                          |                    | 默认 12：同时在跑的 LLM 调用上限（生成 + refine + chat，每实例）                                                                            |
 | `DAILY_GLOBAL_LIMIT`                          |                    | 默认 500：每日全站生成次数上限（每实例，UTC 日）——防伪造 IP/爆量烧穿账单的最后一道闸                                                        |
+| `DAILY_GLOBAL_LLM_LIMIT`                      |                    | 默认 300：每日全站 LLM 调用次数上限（生成之外含改行程/行程管家，每实例，UTC 日）                                                            |
+| `MAP_HOURLY_LIMIT`                            |                    | 默认 600/小时/IP：`/api/map` 静态图代理限流（防刷爆高德静态图日配额 / 堵死串行队列）                                                        |
+| `PLACES_HOURLY_LIMIT`                         |                    | 默认 600/小时/IP：地址补全与必游地推荐限流                                                                                                  |
+| `GEOCODE_HOURLY_LIMIT`                        |                    | 默认 120/小时/IP：逆地理编码限流                                                                                                            |
+| `WEATHER_HOURLY_LIMIT`                        |                    | 默认 120/小时/IP：天气查询限流                                                                                                              |
 | `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填         | 短信三件套（应用 ID/签名/模板）                                                                                                             |
 | `SMS_SECRET_ID` / `SMS_SECRET_KEY`            | sms 时必填         | 腾讯云 API 密钥（控制台 → 访问管理）                                                                                                        |
 | `PORT`                                        |                    | 默认 3000                                                                                                                                   |

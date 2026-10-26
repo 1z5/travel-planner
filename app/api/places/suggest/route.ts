@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { suggestPlaces } from "@/lib/amap";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,12 @@ export async function GET(req: NextRequest) {
   });
   if (!parsed.success) {
     return NextResponse.json({ suggestions: [] }, { status: 400 });
+  }
+
+  // 按 IP 小时限流（审计 P1-4）：地址补全会按输入频率打高德 inputtips
+  const rl = await checkProxyRateLimit(req.headers, "places", "PLACES_HOURLY_LIMIT", 600);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
   }
 
   const { q, scope, city } = parsed.data;

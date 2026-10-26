@@ -45,15 +45,37 @@ services:
       # 登录不做（生产守卫会自动关闭登录链路）；secret 仍建议随机，避免误开
       - key: SESSION_SECRET
         sync: false
-      # ---- 成本闸门（免费 plan + 个人 key，必须收紧）----
+      # ---- 成本闸门（免费 plan + 个人 key + 长期公开链接，必须收紧）----
+      # 每 IP 每天 6 次生成；全站每天 40 次生成 + 150 次 LLM 调用（含改行程/管家）
       - key: DAILY_FREE_LIMIT
         value: "6"
+      - key: DAILY_GLOBAL_LIMIT
+        value: "40"
+      - key: DAILY_GLOBAL_LLM_LIMIT
+        value: "150"
       - key: MAX_CONCURRENT_GENERATIONS
         value: "2"
       - key: MAX_CONCURRENT_LLM
         value: "2"
-      - key: DAILY_GLOBAL_LIMIT
+      # 改行程 / 行程管家：按 IP 小时桶收窄（默认 20/40 对公开站太宽）
+      - key: REFINE_HOURLY_LIMIT
+        value: "8"
+      - key: COPILOT_HOURLY_LIMIT
+        value: "12"
+      # 只读高德代理端点（地图/地址补全/逆地理/天气）按 IP 小时限流：
+      # 防公开链接被刷爆个人 key 配额、或堵死地图串行队列
+      - key: MAP_HOURLY_LIMIT
+        value: "300"
+      - key: PLACES_HOURLY_LIMIT
+        value: "300"
+      - key: GEOCODE_HOURLY_LIMIT
         value: "60"
+      - key: WEATHER_HOURLY_LIMIT
+        value: "60"
+      # 看板 token：Render 自动生成随机值，在 Dashboard → Environment 里查看；
+      # 配置后 /api/events/summary?token=... 可用（能看到演示站访问量）
+      - key: METRICS_TOKEN
+        generateValue: true
       # Render 前面有自己的反代：XFF 从右往左第 1 个是真实客户端，保持默认 1
       - key: TRUSTED_PROXY_HOPS
         value: "1"
