@@ -85,6 +85,18 @@
 - **免费实例 CPU 弱**：首屏与地图渲染比本地慢；生成速度取决于模型，不取决于实例。
 - **单实例**：全局限流/并发闸门是进程内状态，只适用于单实例（正好匹配免费 plan）。
 
+### 部署排障（万一卡住）
+
+- **创建时报 region 不可用**：免费 plan 不一定每个区都有 → 把 `render.yaml` 的
+  `region: singapore` 改成 `region: oregon`（默认区）再 Apply。
+- **服务起不来 / 日志里端口未监听**：start 命令依赖 shell 语法。若日志显示
+  `HOSTNAME=0.0.0.0: command not found` 之类，把 startCommand 改成
+  `node .next/standalone/server.js`，并在环境变量里加 `HOSTNAME=0.0.0.0`。
+- **/p 演示链接 404**：说明启动种子没跑——检查 `DEMO_SEED=1` 是否配到、部署日志里
+  是否有 `[demo] 已注入 N 条演示行程`；fixture 不存在时重新跑 `npm run demo:gen` 并 push。
+- **构建失败在 `next build`**：Render 免费构建内存有限，先看日志；本地 `npm run build`
+  能过而 Render 失败通常是内存，换 Starter plan 或删掉 `.next` 重新触发即可。
+
 ## 6. 重新生成演示行程（可选）
 
 日期按生成当天 +14 天自动算，所以演示行程会一直落在「未来」。

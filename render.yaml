@@ -24,7 +24,7 @@ services:
       (mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/ || true)
     # HOSTNAME 显式绑 0.0.0.0：Render 会给容器注入 HOSTNAME 环境变量，
     # Next standalone 会拿它当监听地址，不覆盖会绑定失败。
-    startCommand: HOSTNAME=0.0.0.0 node .next/standalone/server.js
+    startCommand: sh -c 'HOSTNAME=0.0.0.0 exec node .next/standalone/server.js'
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
