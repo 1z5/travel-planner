@@ -819,7 +819,10 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
     try {
       plan = normalizePlan(PlanSchema.parse(extractJson(content)), input);
     } catch (e) {
-      if (attempt === 2) throw new Error(`LLM 输出不是合法 JSON（${(e as Error).message}）`);
+      // 保留原始异常作为 cause：上层日志/排障要能看到解析错误本身，
+      // 而不是只有一句「不是合法 JSON」（oxlint preserve-caught-error）。
+      if (attempt === 2)
+        throw new Error(`LLM 输出不是合法 JSON（${(e as Error).message}）`, { cause: e });
       continue;
     }
 
@@ -900,7 +903,8 @@ export async function generateOutline(input: PlanInput): Promise<Outline> {
         days: [...parsed.days].sort((a, b) => a.day - b.day).map((d, i) => ({ ...d, day: i + 1 })),
       };
     } catch (e) {
-      if (attempt === 2) throw new Error(`LLM 大纲不是合法 JSON（${(e as Error).message}）`);
+      if (attempt === 2)
+        throw new Error(`LLM 大纲不是合法 JSON（${(e as Error).message}）`, { cause: e });
       continue;
     }
 
@@ -960,7 +964,9 @@ export async function generateDay(
       day = DaySchema.parse(extractJson(content));
     } catch (e) {
       if (attempt === 2)
-        throw new Error(`第 ${expectedDay} 天输出不是合法 JSON（${(e as Error).message}）`);
+        throw new Error(`第 ${expectedDay} 天输出不是合法 JSON（${(e as Error).message}）`, {
+          cause: e,
+        });
       continue;
     }
 
