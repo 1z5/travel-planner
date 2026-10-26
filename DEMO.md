@@ -98,8 +98,9 @@
    - [cron-job.org](https://cron-job.org)：URL job，每 5 分钟 GET 一次 `/api/health`。
      任选一个把 `https://travel-planner-demo.onrender.com/api/health` 加进去即可。
 2. **免费实例只有 512MB 内存**：3-4 天行程没问题；如果频繁被 5-7 天长行程打，
-   可能 OOM。真要长期稳定，升级 Render **Starter（$7/月）**：不休眠、内存更大、
-   还能绑自定义域名。这是唯一「花钱买确定性」的选项。
+   可能 OOM。真要长期稳定，升级 Render **Starter（$7/月）**：不休眠、CPU 更强（0.5 核 vs
+   免费 0.1 核；内存仍是 512MB，不会变大），还能绑自定义域名。这是唯一
+   「花钱买确定性」的选项。
 
 **看访问量（可选）**：`render.yaml` 里 `METRICS_TOKEN` 用了 Render 的
 `generateValue: true` —— 在 Render Dashboard → 服务 → Environment 里能看到随机

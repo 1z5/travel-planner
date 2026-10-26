@@ -25,7 +25,7 @@
   `/api/health`（Render 免费 750 实例小时/月，24/7=730h，够用）；job 失败会给
   仓库 owner 发通知，等于免费 uptime 告警。文档写明两个边界：仓库 60 天无活动
   GitHub 会自动暂停 schedule（建议加 UptimeRobot/cron-job.org 外部监控兜底）；
-  真要长期稳定就升 Render Starter（$7/月，不休眠 + 更大内存）。
+  真要长期稳定就升 Render Starter（$7/月，不休眠 + CPU 更强；内存仍是 512MB）。
 - **LLM 日预算**：`lib/capacity-gate.ts` 新增 `DAILY_GLOBAL_LLM_LIMIT`（默认 300）
   - `tryReserveLlmBudget/releaseLlmBudget`，接到 refine/chat 调模型之前（超限
     429 并退还本次小时名额）；`/api/health` 的 capacity 快照同时暴露
