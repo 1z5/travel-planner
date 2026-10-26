@@ -8,7 +8,8 @@
  * 排查成本很高。这里做三件事：
  *   1. 格式校验：URL/整数/枚举类变量格式不对 → BLOCK；
  *   2. 一致性检查：.env 里设了但 .env.example 没写的变量 → WARN（文档漂移）；
- *   3. 安全检查：生产模式下 SESSION_SECRET 仍为开发默认值 → BLOCK。
+ *      DATA_STORE 与 DATABASE_URL、NEXT_PUBLIC_SITE_URL 成对/格式校验；
+ *   3. 安全检查：生产模式下 SESSION_SECRET 仍为开发默认值、AUTH_PROVIDER=none → BLOCK。
  *
  * 用法：npm run check:env      （读取 .env；不存在则只检查 process.env）
  */
@@ -79,6 +80,17 @@ if (has("AUTH_PROVIDER"))
   );
 if (has("AMAP_BASE_URL"))
   add("BLOCK", "AMAP_BASE_URL 是合法 URL", url("AMAP_BASE_URL"), env.AMAP_BASE_URL);
+// 对外绝对地址：app/layout.tsx 的 metadataBase 读它；生产缺省 → 分享页 OG/绝对链接指 localhost
+if (has("NEXT_PUBLIC_SITE_URL")) {
+  const site = env.NEXT_PUBLIC_SITE_URL.trim();
+  add("BLOCK", "NEXT_PUBLIC_SITE_URL 是 https 绝对地址", /^https:\/\//.test(site), site);
+} else {
+  add(
+    "WARN",
+    "NEXT_PUBLIC_SITE_URL 未配置 → 分享页 OG 图/绝对链接会指 localhost（生产必填）",
+    true,
+  );
+}
 
 // 数值型限流（可选，设了就要是整数）
 for (const k of [
@@ -103,6 +115,29 @@ if (!has("AMAP_WEB_SERVICE_KEY")) {
   );
 }
 
+// 存储一致性：DATA_STORE 与 DATABASE_URL 必须成对出现——只配一半就是静默降级
+// （DATA_STORE=postgres 缺 URL → 启动即崩；配了 URL 却忘了 DATA_STORE → 悄悄跑内存，
+// 重启丢分享链接、配额归零，却是本地绿的环境）。
+const storeMode = (env.DATA_STORE ?? "memory").trim();
+const dbUrl = (env.DATABASE_URL ?? "").trim();
+const dbUrlOk = /^(postgres|postgresql):\/\//.test(dbUrl);
+if (storeMode === "postgres") {
+  add(
+    "BLOCK",
+    "DATA_STORE=postgres 时 DATABASE_URL 必填且为 postgres 协议",
+    dbUrl !== "" && dbUrlOk,
+    !dbUrl ? "缺少 DATABASE_URL" : dbUrlOk ? "" : "协议不是 postgres://",
+  );
+} else {
+  add("WARN", "DATA_STORE=memory（未设置时默认）→ 重启丢 Plan/配额归零；生产必须 postgres", true);
+  add(
+    "WARN",
+    "使用 memory 时 DATABASE_URL 应为空（否则容易误以为已持久化）",
+    dbUrl === "",
+    dbUrl ? "配了 DATABASE_URL 但 DATA_STORE 不是 postgres" : "",
+  );
+}
+
 const isProd = (env.NODE_ENV ?? "").trim() === "production";
 if (isProd) {
   add(
@@ -110,8 +145,29 @@ if (isProd) {
     "生产环境 SESSION_SECRET 不是开发默认值",
     has("SESSION_SECRET") && env.SESSION_SECRET !== "dev-only-insecure-secret",
   );
-  add("BLOCK", "生产环境 DATA_STORE 不是 memory", (env.DATA_STORE ?? "memory") !== "memory");
+  add("BLOCK", "生产环境 DATA_STORE 不是 memory", storeMode !== "memory");
+  // 生产 none = 固定验证码 123456 可登录任意手机号（P0-1）
+  const provider = (env.AUTH_PROVIDER ?? "none").trim();
+  const allowDevAuth = (env.ALLOW_DEV_AUTH ?? "").trim() === "1";
+  add(
+    "BLOCK",
+    "生产环境 AUTH_PROVIDER 不是 none（或显式 ALLOW_DEV_AUTH=1）",
+    provider !== "none" || allowDevAuth,
+    provider !== "none"
+      ? ""
+      : allowDevAuth
+        ? "ALLOW_DEV_AUTH=1 显式允许 dev provider（仅预发/内部演示）"
+        : "当前 none：任意手机号可用固定验证码登录",
+  );
 }
+
+// 指标看板：没有 token 时 /api/events/summary 一律 404（可用，但北极星不可见）
+add(
+  "WARN",
+  "METRICS_TOKEN 已配置（指标看板可用）",
+  has("METRICS_TOKEN"),
+  "未配置 → 看板一律 404：漏斗/北极星指标不可见（不影响主流程）",
+);
 
 // .env.example 文档漂移：设了但没写进示例的变量（AI 代理最容易漏文档）
 const exampleKeys = new Set(

@@ -5,7 +5,7 @@
 两层状态要分清：
 
 - **行程（Plan）是持久化资产**：生成完成即落 Store，带持久分享 token（`/p/<token>`），进程重启不丢、分享链接长期有效。
-- **任务（Job）是执行记录**：仍在进程内跑；进程被杀会中断，靠心跳 + 状态接口的「陈旧任务自愈」（`JOB_STALE_MS`，默认 20 分钟）让前端立刻拿到可行动 error，而不是白轮询 15 分钟。
+- **任务（Job）是执行记录**：仍在进程内跑；进程被杀会中断，靠心跳 + 状态接口的「陈旧任务自愈」（`JOB_STALE_MS`，默认 12 分钟）让前端立刻拿到可行动 error，而不是白轮询 15 分钟。
 
 > **Node ≥ 22**（package.json engines 已约束；openai SDK v7 起要求 22）。Dockerfile 与 CI 均基于 node:22。
 
@@ -24,12 +24,19 @@
 docker build -t travel-planner .
 
 # 本地运行（密钥用环境变量注入，不要写进镜像）
+# DATA_STORE / DATABASE_URL / NEXT_PUBLIC_SITE_URL / AUTH_PROVIDER / SESSION_SECRET
+# 是生产硬要求，缺任何一项 npm run preflight 都会 BLOCK（见下文环境变量清单）。
 docker run -d -p 3000:3000 \
   -e LLM_API_KEY=sk-xxx \
   -e LLM_BASE_URL=https://api.stepfun.com/step_plan/v1 \
   -e LLM_MODEL=step-5-preview \
   -e AMAP_WEB_SERVICE_KEY=你的高德key \
   -e DAILY_FREE_LIMIT=3 \
+  -e DATA_STORE=postgres \
+  -e DATABASE_URL=postgres://user:password@host:5432/travel_planner \
+  -e NEXT_PUBLIC_SITE_URL=https://your-domain.example \
+  -e AUTH_PROVIDER=sms \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
   --name travel-planner travel-planner
 ```
 
@@ -63,28 +70,33 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 
 ## 环境变量清单
 
-| 变量                                          | 必填       | 说明                                                                                    |
-| --------------------------------------------- | ---------- | --------------------------------------------------------------------------------------- |
-| `LLM_API_KEY`                                 | ✅         | step-5（或任何 OpenAI 兼容）密钥                                                        |
-| `LLM_BASE_URL`                                | ✅         | 默认 `https://api.stepfun.com/step_plan/v1`                                             |
-| `LLM_MODEL`                                   | ✅         | `step-5-preview`                                                                        |
-| `LLM_MAX_TOKENS`                              |            | 默认 64000，别调小（推理+正文共用，不足会空返回）                                       |
-| `LLM_REASONING_EFFORT`                        |            | 默认 `low`，实测 medium 无收益且更慢                                                    |
-| `AMAP_WEB_SERVICE_KEY`                        | 建议       | 高德 Web 服务 key；不填则 MOCK 模式（POI 不验真，`verified=false`）                     |
-| `AMAP_BASE_URL`                               |            | 默认 `https://restapi.amap.com`，一般不用改                                             |
-| `AMAP_MAP_DISABLED`                           |            | 设 `1` 关闭「真实地图」（静态地图有独立日配额，调试/截图时可临时关）                    |
-| `DAILY_FREE_LIMIT`                            |            | 默认 3 次/天/IP（未登录）                                                               |
-| `AUTH_PROVIDER`                               |            | `none`（开发，验证码固定 123456）/ `sms` / `wechat`                                     |
-| `SESSION_SECRET`                              | 生产必改   | session cookie HMAC 密钥，换成随机长字符串                                              |
-| `AUTH_USER_LIMIT`                             |            | 默认 10 次/天（登录用户）                                                               |
-| `REFINE_HOURLY_LIMIT`                         |            | 默认 20 次/小时/IP（「换一个 / 一句话改一天 / 一键修复」，不占每日生成配额）            |
-| `ADJUST_HOURLY_LIMIT`                         |            | 默认 60 次/小时/IP（「一键顺延时间轴」，不调模型、不占生成配额）                        |
-| `LLM_STREAM_DEADLINE_MS`                      |            | 默认 600000（10 分钟）：单次流式调用的总时长兜底；上游挂住不发 chunk 时中止任务并退配额 |
-| `COPILOT_HOURLY_LIMIT`                        |            | 默认 40 次/小时/IP（「行程管家」对话，调用 step-5；独立于生成/修改配额）                |
-| `JOB_STALE_MS`                                |            | 默认 720000（12 分钟）：running 任务超过这么久无心跳即判定中断                          |
-| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填 | 短信三件套（应用 ID/签名/模板）                                                         |
-| `SMS_SECRET_ID` / `SMS_SECRET_KEY`            | sms 时必填 | 腾讯云 API 密钥（控制台 → 访问管理）                                                    |
-| `PORT`                                        |            | 默认 3000                                                                               |
+| 变量                                          | 必填               | 说明                                                                                           |
+| --------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| `LLM_API_KEY`                                 | ✅                 | step-5（或任何 OpenAI 兼容）密钥                                                               |
+| `LLM_BASE_URL`                                | ✅                 | 默认 `https://api.stepfun.com/step_plan/v1`                                                    |
+| `LLM_MODEL`                                   | ✅                 | `step-5-preview`                                                                               |
+| `LLM_MAX_TOKENS`                              |                    | 默认 64000，别调小（推理+正文共用，不足会空返回）                                              |
+| `LLM_REASONING_EFFORT`                        |                    | 默认 `low`，实测 medium 无收益且更慢                                                           |
+| `AMAP_WEB_SERVICE_KEY`                        | 建议               | 高德 Web 服务 key；不填则 MOCK 模式（POI 不验真，`verified=false`）                            |
+| `AMAP_BASE_URL`                               |                    | 默认 `https://restapi.amap.com`，一般不用改                                                    |
+| `AMAP_MAP_DISABLED`                           |                    | 设 `1` 关闭「真实地图」（静态地图有独立日配额，调试/截图时可临时关）                           |
+| `NEXT_PUBLIC_SITE_URL`                        | ✅                 | 对外绝对地址（`https://你的域名`）：分享页 OG/Twitter 卡片与绝对链接都基于它；缺省指 localhost |
+| `DATA_STORE`                                  | ✅                 | `postgres`（生产必须）；`memory` 仅本地/测试（重启丢 Plan、分享链接 404、配额归零）            |
+| `DATABASE_URL`                                | 存 postgres 时必填 | `postgres://user:pass@host:5432/db`（Prisma 7 + adapter-pg 只认 postgres 协议）                |
+| `METRICS_TOKEN`                               | 建议               | `GET /api/events/summary?token=` 的看板令牌；不配则看板一律 404（北极星指标不可见）            |
+| `DAILY_FREE_LIMIT`                            |                    | 默认 3 次/天/IP（未登录）                                                                      |
+| `AUTH_PROVIDER`                               | 生产必改           | `none`（仅开发，固定验证码 123456，生产会被 preflight 阻断）/ `sms` / `wechat`                 |
+| `ALLOW_DEV_AUTH`                              |                    | 设 `1` 才允许生产用 `none`/dev provider（仅预发/内部演示，公网禁止）                           |
+| `SESSION_SECRET`                              | 生产必改           | session cookie HMAC 密钥，`openssl rand -hex 32`；缺失/默认值时生产拒绝签发与校验 session      |
+| `AUTH_USER_LIMIT`                             |                    | 默认 10 次/天（登录用户）                                                                      |
+| `REFINE_HOURLY_LIMIT`                         |                    | 默认 20 次/小时/IP（「换一个 / 一句话改一天 / 一键修复」，不占每日生成配额）                   |
+| `ADJUST_HOURLY_LIMIT`                         |                    | 默认 60 次/小时/IP（「一键顺延时间轴」，不调模型、不占生成配额）                               |
+| `LLM_STREAM_DEADLINE_MS`                      |                    | 默认 600000（10 分钟）：单次流式调用的总时长兜底；上游挂住不发 chunk 时中止任务并退配额        |
+| `COPILOT_HOURLY_LIMIT`                        |                    | 默认 40 次/小时/IP（「行程管家」对话，调用 step-5；独立于生成/修改配额）                       |
+| `JOB_STALE_MS`                                |                    | 默认 720000（12 分钟）：running 任务超过这么久无心跳即判定中断                                 |
+| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填         | 短信三件套（应用 ID/签名/模板）                                                                |
+| `SMS_SECRET_ID` / `SMS_SECRET_KEY`            | sms 时必填         | 腾讯云 API 密钥（控制台 → 访问管理）                                                           |
+| `PORT`                                        |                    | 默认 3000                                                                                      |
 
 ## 成本模型（LLM 费用，上线前必读）
 
@@ -112,11 +124,22 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 
 ```bash
 # 0. 部署机/容器内：环境变量已注入（见上文），然后——
-npm run preflight                  # ① 配置自检，🟢 GO 才能继续
+npm run preflight                  # ① 配置自检：必须 🟢 GO；🔴 NO-GO 时任何一项 BLOCK 都不许继续
+npm run check:env                  # ①' 环境变量体检（格式/文档漂移/生产安全），BLOCK 同样不许继续
 npm run verify:amap                # ② 高德 key 5 秒验收（配了则 live 模式）
 node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链路冒烟（消耗 1 次当日配额）
 # ④ 观察 24 小时：服务端 [llm] tokens 日志核对成本；/api/health 配监控告警
 ```
+
+**preflight 的 BLOCK 项就是「照默认配置上线会坏」的清单**（共 5 类，逐项修完再到 GO）：
+
+1. `DATA_STORE` 必须 `postgres`（默认 `memory` = 重启丢分享链接、配额归零）；
+2. `DATABASE_URL` 必须 `postgres://` 连接串（缺了 postgres 模式一启动就崩）；
+3. `NEXT_PUBLIC_SITE_URL` 必须 https 绝对地址（否则分享页 OG 图全指 localhost）；
+4. `AUTH_PROVIDER` 不能是 `none`（默认固定验证码 123456 = 任意手机号可登录）；
+5. `SESSION_SECRET` 不能是开发默认值（公开常量 = 任意用户 session 可伪造）。
+
+`METRICS_TOKEN` 缺失只是 WARN（主流程可用，但指标看板与北极星不可见）。
 
 ## 数据层：内存 → PostgreSQL（架构演进）
 

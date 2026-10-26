@@ -102,8 +102,10 @@ export default function PrivacyPage() {
         <p>本服务面向成年用户。我们不主动收集未成年人的个人信息。</p>
 
         <h2>8. 联系我们</h2>
+        {/* 占位邮箱用 RFC 2606 保留域名 .example（不可达），上线前必须换成真实可收信邮箱：
+            对外法律文本里放一个看起来像真的假邮箱，比明确标注「待替换」更糟。 */}
         <p>
-          数据相关问题请联系：<code>privacy@&lt;你的域名&gt;</code>（上线前替换为真实邮箱）。
+          数据相关问题请联系：<code>privacy@your-domain.example</code>（上线前替换为真实邮箱）。
           我们会在合理期限内答复。
         </p>
 

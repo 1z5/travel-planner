@@ -2,7 +2,7 @@
 
 > [English](README.en.md)
 
-AI 智能旅游规划 **v5**：输入目的地/起止时间/预算/偏好/节奏/住所/必游地 → **先取真实世界事实**（高德实时检索 POI/营业时间/闭馆日/评分/人均）→ step-5 生成**结构化行程 JSON** → 高德 POI 验真 + **真实营业时间/闭馆日** + 真实通勤与路段 + 真实地图 → 体检（含**「时间接不上」**）→ **可以继续改**（换一个 / 一句话改一天 / **一键修复体检问题**）→ **持久分享** → 出行当天用**「行中模式」**（只显示今天，下雨可一键改室内）。
+AI 智能旅游规划 **v8.1**（2026-10-25 最新能力见 [CHANGELOG.md](CHANGELOG.md)）：输入目的地/起止时间/预算/偏好/节奏/住所/必游地 → **先取真实世界事实**（高德实时检索 POI/营业时间/闭馆日/评分/人均）→ step-5 生成**结构化行程 JSON** → 高德 POI 验真 + **真实营业时间/闭馆日** + 真实通勤与路段 + 真实地图 → 体检（含**「时间接不上」**）→ **可以继续改**（换一个 / 一句话改一天 / **一键修复体检问题**）→ **持久分享** → 出行当天用**「行中模式」**（只显示今天，下雨可一键改室内）。
 
 > 天数范围 **1-7 天**（区域环线 1-10 天；起止时间分钟级精度，当天往返自动不排酒店）。≤4 天走单次调用生成，≥5 天走「大纲 + 分日流式」——单次调用在 5 天以上必爆 token（实测跑满 16 分钟仍超时），拆分后每次输出都在安全区，且用户能逐天看到结果。
 
@@ -313,7 +313,7 @@ npm run gate:visual # 视觉/可访问性回归（自起环境 + 种子数据；
 npm run check:env  # 环境变量体检（格式 / .env.example 漂移 / 生产安全）
 ```
 
-覆盖 **506 条 e2e 断言 + 793 条单测**：
+覆盖 **527 条 e2e 断言 + 851 条单测**：
 
 - **输入边界**（含防 prompt 注入的字符白名单、必游地/活动/节奏校验）
 - **故障注入**：垃圾输出 / 空 content / 上游 500 / 配额退还算术 / 天数不符 / 分日中途失败不交付半成品
@@ -365,12 +365,16 @@ npm run dev             # http://localhost:3000
 - `LLM_*`：step-5（OpenAI 兼容），已预填
 - `AMAP_WEB_SERVICE_KEY`：[高德控制台](https://console.amap.com/dev/key/app) 申请「Web服务」类型（个人免费）。**不填则 MOCK 模式**：全链路可跑，POI 不验真、无真实地图（自动降级示意图）。同一个 key 同时用于 POI 验真 / 通勤 / 天气 / 地址补全 / 静态地图。拿到 key 后跑 `npm run verify:amap` 验收
 - `AMAP_MAP_DISABLED=1`：临时关闭真实地图（静态地图有独立日配额）
+- `NEXT_PUBLIC_SITE_URL`：对外绝对地址（`https://你的域名`）。分享页 OG/Twitter 卡片与绝对链接都基于它，生产不配会指 localhost（preflight 会 BLOCK）
 - `DAILY_FREE_LIMIT` / `AUTH_USER_LIMIT`：每日生成次数（未登录按 IP / 登录按用户）
 - `REFINE_HOURLY_LIMIT`：改行程/一键修复的小时限流（默认 20，不占生成配额）
 - `ADJUST_HOURLY_LIMIT`：「一键顺延时间轴」的小时限流（默认 60；不调模型、不占生成配额）
 - `LLM_STREAM_DEADLINE_MS`：单次流式调用的总时长兜底（默认 10 分钟）——上游挂住不发 chunk 时中止任务并退配额
 - `JOB_STALE_MS`：任务心跳超时阈值（默认 12 分钟），超过判定中断并退配额
-- `DATA_STORE`：`memory`（默认，dev/单机）| `postgres`（生产；建表走 `npm run db:migrate`（迁移基线 `prisma/migrations/`），勿用 `db push`）
+- `DATA_STORE`：`memory`（默认，仅 dev/单机：重启丢 Plan、分享链接 404、配额归零）| `postgres`（生产必须；建表走 `npm run db:migrate`（迁移基线 `prisma/migrations/`），勿用 `db push`）
+- `DATABASE_URL`：`DATA_STORE=postgres` 时必填（`postgres://user:pass@host:5432/db`；Prisma 7 + adapter-pg 只认 postgres 协议）
+- `AUTH_PROVIDER` / `SESSION_SECRET`：登录体系。生产必须配 `sms`/`wechat` + 随机 `SESSION_SECRET`——默认 `none`（固定验证码 123456）与开发默认密钥在生产会被运行时守卫关闭登录，preflight 也会 BLOCK；`ALLOW_DEV_AUTH=1` 是预发兜底开关
+- `METRICS_TOKEN`：指标看板（`/api/events/summary?token=`）令牌；不配则看板一律 404（北极星不可见）
 
 ## 常见问题排查
 
