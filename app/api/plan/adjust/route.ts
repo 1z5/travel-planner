@@ -6,6 +6,7 @@ import { refreshTimeWarnings } from "@/lib/validate";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
 import { newEventId } from "@/lib/metrics";
 import { getStore } from "@/lib/store";
+import { clientIpFromHeaders } from "@/lib/client-ip";
 import type { Plan, PlanDay } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,8 +31,9 @@ function adjustHourlyLimit(): number {
   return Number(process.env.ADJUST_HOURLY_LIMIT || 60);
 }
 
+// IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）
 function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  return clientIpFromHeaders(req.headers);
 }
 
 /**

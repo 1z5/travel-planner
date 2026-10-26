@@ -44,6 +44,25 @@ docker run -d -p 3000:3000 \
 
 > **Prisma 7 注意**：`@prisma/client` 已无 postinstall，`npm ci` **不会**自动生成 client。Dockerfile 已在构建层加 `npx prisma generate`（只读 schema，不连库，无需 DATABASE_URL）；若改用其他构建方式，务必确认 `.prisma/client` 已生成，否则 `DATA_STORE=postgres` 路径一跑就崩。`npm run preflight` 有 BLOCK 级检查兜底。
 
+### 反代与客户端 IP（配额前提前提，必须读）
+
+按 IP 的每日免费额度 / 小时限流 / 短信防轰炸都依赖「真实客户端 IP」。代码只信
+**受信反代链**（`lib/client-ip.ts`）：XFF 从右往左数第 `TRUSTED_PROXY_HOPS` 个
+（默认 1）。因此部署时必须满足其一：
+
+- 前面有一层反代（nginx / 云托管 / 网关），并且它**追加**真实 IP（nginx 的
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` 或直接覆盖）；
+- 或平台本身在入口注入 XFF（CloudBase 云托管默认行为），此时保持默认 `1`。
+
+**不要**把 3000 端口直接暴露公网：客户端可以自带任意 `X-Forwarded-For`，
+换一个头就是「新用户」，每日 3 次额度形同虚设（2026-10 审计 P0-3）。
+没有反代时把 `TRUSTED_PROXY_HOPS=0`（此时无法拿到可信 IP，配额退化为全局限额，
+只适合内网/演示）。
+
+除按 IP 配额之外还有服务端兜底（不依赖 IP 可信）：`MAX_CONCURRENT_GENERATIONS`
+（并发生成上限）、`MAX_CONCURRENT_LLM`（并发 LLM 调用上限）、`DAILY_GLOBAL_LIMIT`
+（每日全站生成上限）。`GET /api/health` 的 `capacity` 字段可以直接看到当前占用。
+
 ## 方式二：裸机 / 虚拟机（standalone 直跑，无需 Docker）
 
 ```bash
@@ -70,33 +89,37 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 
 ## 环境变量清单
 
-| 变量                                          | 必填               | 说明                                                                                           |
-| --------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
-| `LLM_API_KEY`                                 | ✅                 | step-5（或任何 OpenAI 兼容）密钥                                                               |
-| `LLM_BASE_URL`                                | ✅                 | 默认 `https://api.stepfun.com/step_plan/v1`                                                    |
-| `LLM_MODEL`                                   | ✅                 | `step-5-preview`                                                                               |
-| `LLM_MAX_TOKENS`                              |                    | 默认 64000，别调小（推理+正文共用，不足会空返回）                                              |
-| `LLM_REASONING_EFFORT`                        |                    | 默认 `low`，实测 medium 无收益且更慢                                                           |
-| `AMAP_WEB_SERVICE_KEY`                        | 建议               | 高德 Web 服务 key；不填则 MOCK 模式（POI 不验真，`verified=false`）                            |
-| `AMAP_BASE_URL`                               |                    | 默认 `https://restapi.amap.com`，一般不用改                                                    |
-| `AMAP_MAP_DISABLED`                           |                    | 设 `1` 关闭「真实地图」（静态地图有独立日配额，调试/截图时可临时关）                           |
-| `NEXT_PUBLIC_SITE_URL`                        | ✅                 | 对外绝对地址（`https://你的域名`）：分享页 OG/Twitter 卡片与绝对链接都基于它；缺省指 localhost |
-| `DATA_STORE`                                  | ✅                 | `postgres`（生产必须）；`memory` 仅本地/测试（重启丢 Plan、分享链接 404、配额归零）            |
-| `DATABASE_URL`                                | 存 postgres 时必填 | `postgres://user:pass@host:5432/db`（Prisma 7 + adapter-pg 只认 postgres 协议）                |
-| `METRICS_TOKEN`                               | 建议               | `GET /api/events/summary?token=` 的看板令牌；不配则看板一律 404（北极星指标不可见）            |
-| `DAILY_FREE_LIMIT`                            |                    | 默认 3 次/天/IP（未登录）                                                                      |
-| `AUTH_PROVIDER`                               | 生产必改           | `none`（仅开发，固定验证码 123456，生产会被 preflight 阻断）/ `sms` / `wechat`                 |
-| `ALLOW_DEV_AUTH`                              |                    | 设 `1` 才允许生产用 `none`/dev provider（仅预发/内部演示，公网禁止）                           |
-| `SESSION_SECRET`                              | 生产必改           | session cookie HMAC 密钥，`openssl rand -hex 32`；缺失/默认值时生产拒绝签发与校验 session      |
-| `AUTH_USER_LIMIT`                             |                    | 默认 10 次/天（登录用户）                                                                      |
-| `REFINE_HOURLY_LIMIT`                         |                    | 默认 20 次/小时/IP（「换一个 / 一句话改一天 / 一键修复」，不占每日生成配额）                   |
-| `ADJUST_HOURLY_LIMIT`                         |                    | 默认 60 次/小时/IP（「一键顺延时间轴」，不调模型、不占生成配额）                               |
-| `LLM_STREAM_DEADLINE_MS`                      |                    | 默认 600000（10 分钟）：单次流式调用的总时长兜底；上游挂住不发 chunk 时中止任务并退配额        |
-| `COPILOT_HOURLY_LIMIT`                        |                    | 默认 40 次/小时/IP（「行程管家」对话，调用 step-5；独立于生成/修改配额）                       |
-| `JOB_STALE_MS`                                |                    | 默认 720000（12 分钟）：running 任务超过这么久无心跳即判定中断                                 |
-| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填         | 短信三件套（应用 ID/签名/模板）                                                                |
-| `SMS_SECRET_ID` / `SMS_SECRET_KEY`            | sms 时必填         | 腾讯云 API 密钥（控制台 → 访问管理）                                                           |
-| `PORT`                                        |                    | 默认 3000                                                                                      |
+| 变量                                          | 必填               | 说明                                                                                                                                        |
+| --------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LLM_API_KEY`                                 | ✅                 | step-5（或任何 OpenAI 兼容）密钥                                                                                                            |
+| `LLM_BASE_URL`                                | ✅                 | 默认 `https://api.stepfun.com/step_plan/v1`                                                                                                 |
+| `LLM_MODEL`                                   | ✅                 | `step-5-preview`                                                                                                                            |
+| `LLM_MAX_TOKENS`                              |                    | 默认 64000，别调小（推理+正文共用，不足会空返回）                                                                                           |
+| `LLM_REASONING_EFFORT`                        |                    | 默认 `low`，实测 medium 无收益且更慢                                                                                                        |
+| `AMAP_WEB_SERVICE_KEY`                        | 建议               | 高德 Web 服务 key；不填则 MOCK 模式（POI 不验真，`verified=false`）                                                                         |
+| `AMAP_BASE_URL`                               |                    | 默认 `https://restapi.amap.com`，一般不用改                                                                                                 |
+| `AMAP_MAP_DISABLED`                           |                    | 设 `1` 关闭「真实地图」（静态地图有独立日配额，调试/截图时可临时关）                                                                        |
+| `NEXT_PUBLIC_SITE_URL`                        | ✅                 | 对外绝对地址（`https://你的域名`）：分享页 OG/Twitter 卡片与绝对链接都基于它；缺省指 localhost                                              |
+| `DATA_STORE`                                  | ✅                 | `postgres`（生产必须）；`memory` 仅本地/测试（重启丢 Plan、分享链接 404、配额归零）                                                         |
+| `DATABASE_URL`                                | 存 postgres 时必填 | `postgres://user:pass@host:5432/db`（Prisma 7 + adapter-pg 只认 postgres 协议）                                                             |
+| `METRICS_TOKEN`                               | 建议               | `GET /api/events/summary?token=` 的看板令牌；不配则看板一律 404（北极星指标不可见）                                                         |
+| `DAILY_FREE_LIMIT`                            |                    | 默认 3 次/天/IP（未登录）                                                                                                                   |
+| `AUTH_PROVIDER`                               | 生产必改           | `none`（仅开发，固定验证码 123456，生产会被 preflight 阻断）/ `sms` / `wechat`                                                              |
+| `ALLOW_DEV_AUTH`                              |                    | 设 `1` 才允许生产用 `none`/dev provider（仅预发/内部演示，公网禁止）                                                                        |
+| `SESSION_SECRET`                              | 生产必改           | session cookie HMAC 密钥，`openssl rand -hex 32`；缺失/默认值时生产拒绝签发与校验 session                                                   |
+| `AUTH_USER_LIMIT`                             |                    | 默认 10 次/天（登录用户）                                                                                                                   |
+| `REFINE_HOURLY_LIMIT`                         |                    | 默认 20 次/小时/IP（「换一个 / 一句话改一天 / 一键修复」，不占每日生成配额）                                                                |
+| `ADJUST_HOURLY_LIMIT`                         |                    | 默认 60 次/小时/IP（「一键顺延时间轴」，不调模型、不占生成配额）                                                                            |
+| `LLM_STREAM_DEADLINE_MS`                      |                    | 默认 600000（10 分钟）：单次流式调用的总时长兜底；上游挂住不发 chunk 时中止任务并退配额                                                     |
+| `COPILOT_HOURLY_LIMIT`                        |                    | 默认 40 次/小时/IP（「行程管家」对话，调用 step-5；独立于生成/修改配额）                                                                    |
+| `JOB_STALE_MS`                                |                    | 默认 720000（12 分钟）：running 任务超过这么久无心跳即判定中断                                                                              |
+| `TRUSTED_PROXY_HOPS`                          | 生产必须确认       | 前面有几层受信反代（默认 1）：XFF 链从右往左数第 N 个才是真实客户端。直连公网设 0 时无法取到可信 IP，配额退化为全局限额——生产必须接一层反代 |
+| `MAX_CONCURRENT_GENERATIONS`                  |                    | 默认 6：同时在跑的生成任务上限（进程内；多实例时是每实例上限）                                                                              |
+| `MAX_CONCURRENT_LLM`                          |                    | 默认 12：同时在跑的 LLM 调用上限（生成 + refine + chat，每实例）                                                                            |
+| `DAILY_GLOBAL_LIMIT`                          |                    | 默认 500：每日全站生成次数上限（每实例，UTC 日）——防伪造 IP/爆量烧穿账单的最后一道闸                                                        |
+| `SMS_APP_ID` / `SMS_SIGN` / `SMS_TEMPLATE_ID` | sms 时必填         | 短信三件套（应用 ID/签名/模板）                                                                                                             |
+| `SMS_SECRET_ID` / `SMS_SECRET_KEY`            | sms 时必填         | 腾讯云 API 密钥（控制台 → 访问管理）                                                                                                        |
+| `PORT`                                        |                    | 默认 3000                                                                                                                                   |
 
 ## 成本模型（LLM 费用，上线前必读）
 

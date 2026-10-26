@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { timingSafeEqual } from "node:crypto";
 import { getStore } from "@/lib/store";
 import { consume, hourKey } from "@/lib/ratelimit";
-import { EVENT_NAMES, summarize, newEventId } from "@/lib/metrics";
+import { EVENT_NAMES, newEventId } from "@/lib/metrics";
+import { clientIpFromHeaders } from "@/lib/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,8 +34,11 @@ function eventHourlyLimit(): number {
   return Number(process.env.EVENT_HOURLY_LIMIT || 300);
 }
 
+// IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）。
+// 埋点限流本来就只是防刷，伪造 IP 影响有限；但口径必须与其它端点一致，
+// 否则「换头即新用户」在埋点侧同样成立。
 function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  return clientIpFromHeaders(req.headers);
 }
 
 export async function POST(req: NextRequest) {

@@ -5,6 +5,12 @@ import { consume, refund } from "@/lib/ratelimit";
 import { readSession } from "@/lib/auth/session";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { deriveCloneInput, CloneOverridesSchema } from "@/lib/plan-clone";
+import { clientIpFromHeaders } from "@/lib/client-ip";
+import {
+  releaseGenerationBudget,
+  tryAcquireSlot,
+  tryReserveGenerationBudget,
+} from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +39,8 @@ function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolea
       isUser: true,
     };
   }
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）
+  const ip = clientIpFromHeaders(req.headers);
   return { key: `ip:${ip}`, limit: Number(process.env.DAILY_FREE_LIMIT || 3), isUser: false };
 }
 
@@ -99,14 +106,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: derived.error }, { status: 400 });
   }
 
-  // 5) 创建异步任务（与 /api/plan 相同签名）：完整生成管线，含事实层对
+  // 5) 服务端容量闸门（与 /api/plan 同口径，见审计 P0-3）：克隆 = 一次完整生成，
+  //    不能成为绕过全局限并发/日预算的暗道。满了退还本次额度。
+  const releaseSlot = tryAcquireSlot("generate");
+  if (!releaseSlot) {
+    await refund(q.key);
+    return NextResponse.json(
+      { error: "当前生成任务较多，请稍后再试（本次未消耗额度）" },
+      { status: 503 },
+    );
+  }
+  if (!tryReserveGenerationBudget()) {
+    releaseSlot();
+    await refund(q.key);
+    return NextResponse.json(
+      { error: "今日服务生成容量已满，请明天再试（本次未消耗额度）" },
+      { status: 429 },
+    );
+  }
+
+  // 6) 创建异步任务（与 /api/plan 相同签名）：完整生成管线，含事实层对
   //    新日期重新核验。立即返回 jobId，前端轮询 /api/plan/status。
-  const job = await createJob(
-    derived.input,
-    q.key,
-    q.limit,
-    () => void refund(q.key), // 生成失败归还配额（与 /api/plan 一致）
-  );
+  let job;
+  try {
+    job = await createJob(
+      derived.input,
+      q.key,
+      q.limit,
+      () => void refund(q.key), // 生成失败归还配额（与 /api/plan 一致）
+      () => releaseSlot(), // 任务终态：释放全局并发槽
+    );
+  } catch (e) {
+    releaseGenerationBudget();
+    releaseSlot();
+    await refund(q.key);
+    throw e;
+  }
   console.log(
     `[clone] ${shareId} → 新任务 ${job.id}（${derived.input.city} ${derived.input.days} 天 ${derived.input.startAt}~${derived.input.endAt}）`,
   );

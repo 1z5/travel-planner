@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isProductionAuthMisconfigured, resolveAuthProviderId } from "@/lib/auth/guards";
+import { capacitySnapshot } from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,9 @@ export async function GET() {
       store: process.env.DATA_STORE || "memory",
       // n/a = 内存模式（无可探活的库）；ok/error = postgres 探活结果
       db,
+      // 容量闸门快照（审计 P0-3）：运维能直接看到「现在有几个生成在跑、
+      // 今日已用多少全站预算」，不用翻日志。不含任何用户数据。
+      capacity: capacitySnapshot(),
     },
     { status: healthy ? 200 : 503 },
   );

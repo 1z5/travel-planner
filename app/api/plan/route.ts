@@ -4,6 +4,12 @@ import { createJob } from "@/lib/jobs";
 import { consume, refund } from "@/lib/ratelimit";
 import { readSession } from "@/lib/auth/session";
 import { validateProfile, type TravelProfile } from "@/lib/profile";
+import { clientIpFromHeaders } from "@/lib/client-ip";
+import {
+  releaseGenerationBudget,
+  tryAcquireSlot,
+  tryReserveGenerationBudget,
+} from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -147,7 +153,9 @@ function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolea
       isUser: true,
     };
   }
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // IP 由 lib/client-ip 统一提取：不再直接取 XFF 首值（客户端可伪造，
+  // 换个头就是新用户 → 每日额度与成本闸门形同虚设，见审计 P0-3）。
+  const ip = clientIpFromHeaders(req.headers);
   return { key: `ip:${ip}`, limit: Number(process.env.DAILY_FREE_LIMIT || 3), isUser: false };
 }
 
@@ -198,19 +206,50 @@ export async function POST(req: NextRequest) {
     profile = checked;
   }
 
-  // 3) 创建异步任务（days 由起止时间推导），立即返回
-  const job = await createJob(
-    {
-      ...input,
-      days: deriveDays(input.startAt, input.endAt),
-      // 档案显式覆盖 input 里的 zod unknown 原值：传下去的是校验+归一化
-      // 后的档案；没传档案时这里是 undefined，等于本字段加入前完全一致。
-      // createJob → generatePlan/validateDay 是 input 整体透传，无需下游改动。
-      profile,
-    },
-    q.key,
-    q.limit,
-    () => void refund(q.key),
-  );
+  // 3) 服务端容量闸门（审计 P0-3）：配额按 IP 只能防「同一个用户多刷」，
+  //    防不住伪造 IP 或真实爆量。这里是全局限并发 + 每日全站生成预算，
+  //    满了就明确拒绝并退还本次额度（不把用户额度扣在系统忙上）。
+  //    顺序：先占并发槽 → 再预扣日预算 → 最后建任务；任一步失败都退回。
+  const releaseSlot = tryAcquireSlot("generate");
+  if (!releaseSlot) {
+    await refund(q.key);
+    return NextResponse.json(
+      { error: "当前生成任务较多，请稍后再试（本次未消耗额度）" },
+      { status: 503 },
+    );
+  }
+  if (!tryReserveGenerationBudget()) {
+    releaseSlot();
+    await refund(q.key);
+    return NextResponse.json(
+      { error: "今日服务生成容量已满，请明天再试（本次未消耗额度）" },
+      { status: 429 },
+    );
+  }
+
+  // 4) 创建异步任务（days 由起止时间推导），立即返回
+  let job;
+  try {
+    job = await createJob(
+      {
+        ...input,
+        days: deriveDays(input.startAt, input.endAt),
+        // 档案显式覆盖 input 里的 zod unknown 原值：传下去的是校验+归一化
+        // 后的档案；没传档案时这里是 undefined，等于本字段加入前完全一致。
+        // createJob → generatePlan/validateDay 是 input 整体透传，无需下游改动。
+        profile,
+      },
+      q.key,
+      q.limit,
+      () => void refund(q.key), // 任务失败：退还用户额度
+      () => releaseSlot(), // 任务终态（成功/失败）：释放全局并发槽
+    );
+  } catch (e) {
+    // 任务根本没建起来（落库异常等）：并发槽与日预算都要退回，额度也要退
+    releaseGenerationBudget();
+    releaseSlot();
+    await refund(q.key);
+    throw e;
+  }
   return NextResponse.json({ jobId: job.id }, { status: 202 });
 }

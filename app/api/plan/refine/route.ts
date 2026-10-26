@@ -18,6 +18,8 @@ import {
 import { consume, hourKey, refund } from "@/lib/ratelimit";
 import { newEventId } from "@/lib/metrics";
 import { getStore } from "@/lib/store";
+import { clientIpFromHeaders } from "@/lib/client-ip";
+import { tryAcquireSlot } from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,8 +51,9 @@ function refineHourlyLimit(): number {
   return Number(process.env.REFINE_HOURLY_LIMIT || 20);
 }
 
+// IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）
 function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  return clientIpFromHeaders(req.headers);
 }
 
 // 指令白名单：中文 + 字母数字 + 常见中文标点/空格。
@@ -119,7 +122,22 @@ interface AppliedFix {
   instruction: string;
 }
 
+// 全局限流（审计 P0-3）：refine 是同步 LLM 调用，单 IP 小时桶防不住伪造 IP
+// 或真实爆量。这里再加一层进程内并发闸门（与生成共享 LLM 额度，见
+// lib/capacity-gate.ts），满了直接 503，不浪费一次模型调用。
 export async function POST(req: NextRequest) {
+  const release = tryAcquireSlot("llm");
+  if (!release) {
+    return NextResponse.json({ error: "当前请求较多，请稍后再试" }, { status: 503 });
+  }
+  try {
+    return await handlePost(req);
+  } finally {
+    release();
+  }
+}
+
+async function handlePost(req: NextRequest) {
   // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）
   let raw: unknown;
   try {

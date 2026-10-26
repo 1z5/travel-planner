@@ -4,6 +4,7 @@ import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { matchSpotName, replanSolve } from "@/lib/replan";
 import { parseTimeRange } from "@/lib/schedule";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
+import { clientIpFromHeaders } from "@/lib/client-ip";
 import type { HoursPoiInput } from "@/lib/poi-hours";
 
 export const runtime = "nodejs";
@@ -34,8 +35,9 @@ function replanHourlyLimit(): number {
   return Number(process.env.REPLAN_HOURLY_LIMIT || 60);
 }
 
+// IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）
 function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  return clientIpFromHeaders(req.headers);
 }
 
 /**

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { answerCopilot, CopilotError } from "@/lib/copilot";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
+import { clientIpFromHeaders } from "@/lib/client-ip";
+import { tryAcquireSlot } from "@/lib/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,8 +30,9 @@ function copilotHourlyLimit(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 40;
 }
 
+// IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）
 function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  return clientIpFromHeaders(req.headers);
 }
 
 const MessageSchema = z.strictObject({
@@ -48,7 +51,21 @@ const BodySchema = z
     path: ["messages"],
   });
 
+// 全局限流（审计 P0-3）：聊天每次都是一次 LLM 调用，单 IP 小时桶防不住伪造
+// IP 或真实爆量。这里再加一层进程内并发闸门（见 lib/capacity-gate.ts）。
 export async function POST(req: NextRequest) {
+  const release = tryAcquireSlot("llm");
+  if (!release) {
+    return NextResponse.json({ error: "当前请求较多，请稍后再试" }, { status: 503 });
+  }
+  try {
+    return await handlePost(req);
+  } finally {
+    release();
+  }
+}
+
+async function handlePost(req: NextRequest) {
   // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）
   let raw: unknown;
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthProvider } from "@/lib/auth/providers";
 import { consume, hourKey } from "@/lib/ratelimit";
+import { clientIpFromHeaders } from "@/lib/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "手机号格式不正确" }, { status: 400 });
   }
   const phone = parsed.data.phone;
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // IP 由 lib/client-ip 统一提取（不再取 XFF 首值：客户端可伪造，见审计 P0-3）
+  const ip = clientIpFromHeaders(req.headers);
 
   const byPhone = await consume(hourKey("sms-phone", phone), PHONE_LIMIT);
   if (!byPhone.allowed) {
