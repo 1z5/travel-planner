@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { HomeClient } from "@/app/home-client";
 
@@ -10,10 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function NewTripPage() {
-  // useSearchParams 需要 Suspense 边界（否则构建期报错）
-  return (
-    <Suspense fallback={null}>
-      <HomeClient />
-    </Suspense>
-  );
+  // 这里**不要**再给 HomeClient 套 Suspense 边界：它曾因为 useSearchParams
+  // 只能 client-only bailout（fallback=null → 首屏 HTML 里连表单都没有，用户
+  // 要等整包 JS hydrate 才看到界面）。深链改为挂载后读 window.location.search，
+  // 现在整个表单可以随 SSG 预渲染进首屏 HTML（2026-10 审计实测修复）。
+  return <HomeClient />;
 }

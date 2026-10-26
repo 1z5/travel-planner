@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import type { Plan, PlanEvent } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { AlertTriangle, MapPin } from "lucide-react";
@@ -14,6 +13,7 @@ import { LiveProgress } from "@/components/LiveProgress";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
 import { saveRecentTrip } from "@/lib/recent-trips";
 import { loadProfile } from "@/lib/profile-store";
+import { clearPendingJob, loadPendingJob, savePendingJob } from "@/lib/pending-job";
 
 const PREF_OPTIONS = [
   "美食",
@@ -88,11 +88,13 @@ export function HomeClient() {
   const [stage, setStage] = useState<string | undefined>(undefined);
   const [sampleMode, setSampleMode] = useState(false);
   // 深链：/new?sample=1 直接打开示例行程（首屏「看一份真实示例」指向这里）。
-  // 用 useEffect 而不是初始 state：searchParams 在 SSR 阶段不可用。
-  const searchParams = useSearchParams();
+  // 用「挂载后读 window.location.search」而不是 next/navigation 的
+  // useSearchParams：后者会让整页 client-only bailout（外层 Suspense 只能给
+  // fallback=null），首屏 HTML 里连表单都没有——一个转化页为了一条深链牺牲
+  // SSR 不值得（2026-10 审计实测：首屏要等 259KB gzip JS 才出现内容）。
   useEffect(() => {
-    if (searchParams.get("sample") === "1") setSampleMode(true);
-  }, [searchParams]);
+    if (new URLSearchParams(window.location.search).get("sample") === "1") setSampleMode(true);
+  }, []);
   // 结果出现后（真实行程或示例），规划表单默认收起为一行摘要：
   // 企业级产品的「工作区」在结果页应该以结果为主，而不是让用户
   // 先滚过一张 1000px 的表单才能看到行程。展开即可继续调整/重新生成。
@@ -156,6 +158,29 @@ export function HomeClient() {
     return () => {
       unmounted.current = true;
     };
+  }, []);
+
+  // 本次任务的真实提交时刻（ms）：秒表起点 + 写进 localStorage 的 createdAt。
+  // 普通提交在 onSubmit 里设；恢复路径用持久化的 createdAt。
+  const startedAtRef = useRef<number | null>(null);
+
+  // 恢复进行中的任务：提交成功时 jobId 已落 localStorage（见 lib/pending-job.ts），
+  // 刷新/离开再回来时把轮询续上——这正是页面文案「期间可以离开页面，结果会保留」
+  // 的兑现方式（此前 jobId 只活在 state 里，刷新即丢，服务端却还在跑、额度已扣）。
+  // 只恢复一次：StrictMode 下 effect 会「挂载→卸载→再挂载」跑两次，没有这个
+  // 守卫会并发起两条轮询链（同一 jobId，双倍请求）。
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current) return;
+    resumedRef.current = true;
+    const pending = loadPendingJob();
+    if (!pending) return;
+    startedAtRef.current = pending.createdAt;
+    if (typeof pending.days === "number") setSubmittedDays(pending.days);
+    setLoading(true);
+    void pollJob(pending.jobId);
+    // pollJob 是组件内函数声明（提升可见），依赖只有挂载一次这一条语义
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- 登录态（可选：未登录 3 次/天，登录后 10 次/天）----
@@ -223,11 +248,17 @@ export function HomeClient() {
     setMe({ loggedIn: false, remaining: null, provider: me?.provider ?? "none" });
   }
 
-  // 等待期间的秒表
+  // 等待期间的秒表。
+  // 起点用任务真实的提交时刻（startedAtRef）：恢复一个已经跑了 2 分钟的任务时
+  // 从 0 开始数是在骗人。恢复路径会把 ref 设成持久化的 createdAt。
   useEffect(() => {
     if (!loading) return;
-    setElapsed(0);
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const tick = () => {
+      const base = startedAtRef.current ?? Date.now();
+      setElapsed(Math.max(0, Math.floor((Date.now() - base) / 1000)));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [loading]);
 
@@ -313,8 +344,15 @@ export function HomeClient() {
         if (!silent) setLocateError(d.error || "定位失败，请手动输入城市");
         return false;
       }
+      // 响应结构防御：city 缺失/非字符串时宁可降级为「手动输入」，
+      // 也不能把 undefined 塞进 state——setCity(undefined) 会让整页在
+      // 下一次渲染时 city.trim() 崩掉（比「定位不可用」严重得多）。
+      if (typeof d.city !== "string" || !d.city.trim()) {
+        if (!silent) setLocateError("定位失败，请手动输入城市");
+        return false;
+      }
       setCity(d.city);
-      setLocatedCity(d.formatted || d.city);
+      setLocatedCity(typeof d.formatted === "string" && d.formatted.trim() ? d.formatted : d.city);
       return true;
     } catch (e) {
       // 1=拒绝授权 2=位置不可用 3=超时；其余归为未知失败
@@ -350,6 +388,8 @@ export function HomeClient() {
     const poll = async (): Promise<void> => {
       if (unmounted.current) return; // 组件已卸载：停止轮询，别再发无谓请求
       if (Date.now() > deadline) {
+        // 终态：清掉本地句柄，否则下次打开会续一个已经等超时的任务
+        clearPendingJob();
         setError("等待超时（15 分钟）。生成可能仍在后台继续，可重新提交一次");
         setLoading(false);
         return;
@@ -366,7 +406,8 @@ export function HomeClient() {
         const res = await fetch(`/api/plan/status?id=${jobId}`);
         if (res.status === 404) {
           // 任务不存在/已过期（服务重启或超过 2 小时 TTL）：
-          // 继续轮询也不会有结果，必须立刻告诉用户
+          // 继续轮询也不会有结果，必须立刻告诉用户。本地句柄一并清掉。
+          clearPendingJob();
           setError("任务已过期或服务已重启，请重新生成");
           setLoading(false);
           return;
@@ -376,6 +417,7 @@ export function HomeClient() {
       } catch {
         netErrors += 1;
         if (netErrors >= POLL_MAX_NET_ERRORS) {
+          clearPendingJob();
           setError("网络不稳定，连接已中断，请重新生成");
           setLoading(false);
           return;
@@ -384,6 +426,8 @@ export function HomeClient() {
         return poll();
       }
       if (data.status === "done") {
+        // 任务进入终态：本地句柄清掉，之后打开 /new 不会再续它
+        clearPendingJob();
         const donePlan = data.plan ?? null;
         setPlan(donePlan);
         setShareId(data.shareId ?? null);
@@ -404,6 +448,7 @@ export function HomeClient() {
         return;
       }
       if (data.status === "error") {
+        clearPendingJob();
         setError(data.error || "生成失败，请稍后重试");
         setLoading(false);
         return;
@@ -452,6 +497,8 @@ export function HomeClient() {
     setShareId(null); // 新任务开始：旧的分享 token 与当前结果不再对应
     setSubmittedDays(derivedDays); // 记录本次提交的总天数，供「已生成 N/M 天」使用
     setStage(undefined); // 新任务：旧任务的阶段遥测作废（即使它还没被清）
+    // 秒表起点 = 点击提交的时刻（而不是第一次轮询拿到响应的时刻）
+    startedAtRef.current = Date.now();
     try {
       // 档案在**提交时现读**（不信缓存的 state）：用户在抽屉里刚改完档案就
       // 点生成，缓存会旧。localStorage 读取是廉价的，换来的是一致性。
@@ -486,6 +533,13 @@ export function HomeClient() {
       });
       const data = await res.json();
       if (res.status === 202 && data.jobId) {
+        // 落盘任务句柄：即使这之后用户刷新/离开页面，回来还能续上轮询
+        //（页面文案「期间可以离开页面，结果会保留」的兑现方式之一）。
+        savePendingJob({
+          jobId: data.jobId,
+          createdAt: startedAtRef.current ?? Date.now(),
+          ...(typeof derivedDays === "number" ? { days: derivedDays } : {}),
+        });
         await pollJob(data.jobId); // 长任务：轮询直到完成
         return;
       }

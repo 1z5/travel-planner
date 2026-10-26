@@ -1,14 +1,19 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-
-// HomeClient 用 useSearchParams 读 ?sample=1 深链——jsdom 里没有 App Router 上下文
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
-}));
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { HomeClient } from "@/app/home-client";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { loadPendingJob, savePendingJob } from "@/lib/pending-job";
+
+// 任务句柄落 localStorage：每条用例后清掉，避免「恢复上一个用例的 pending 任务」
+// 这种跨用例污染（新逻辑引入的测试隔离要求）。
+// 同时清掉上一个用例注入的 geolocation（jsdom 默认没有）：否则后续用例挂载时
+// 会走定位分支，拿打桩的空响应把城市设成 undefined。
+afterEach(() => {
+  window.localStorage.clear();
+  Reflect.deleteProperty(navigator, "geolocation");
+});
 
 // Home 挂载时请求 /api/me；提交时 POST /api/plan 再轮询 status
 function mockFetchSequence() {
@@ -376,5 +381,163 @@ describe("Home 目的地城市默认值", () => {
     // 定位 + 填预算后提交按钮恢复可用
     await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
     expect(screen.getByText("生成行程").closest("button")).not.toBeDisabled();
+  });
+});
+
+// ============================================================
+// 生成中的任务恢复（P0：离开/刷新页面不再丢结果）
+//
+// 以前 jobId 只活在组件 state：刷新=轮询丢失，服务端仍在跑、额度已扣，
+// 用户却永远拿不到结果——而页面两处文案承诺「可以离开页面，结果会保留」。
+// 现在提交成功即落 localStorage，挂载时自动续轮询；终态/过期清掉。
+// ============================================================
+describe("Home 生成中的任务恢复", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+  });
+
+  // 恢复路径的 fetch 桩：/api/me + status。status 只回 done（任务在「离开期间」已完成）
+  function stubResumeFetch(statusUrls: string[]) {
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: 2, provider: "none" }),
+        };
+      }
+      if (url.startsWith("/api/plan/status")) {
+        statusUrls.push(url);
+        return {
+          ok: true,
+          json: async () => ({
+            status: "done",
+            plan: SAMPLE_PLAN,
+            remaining: 2,
+            shareId: "share_resumed",
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+  }
+
+  it("重开页面：从 localStorage 恢复 jobId，自动续轮询并渲染结果，终态清掉句柄", async () => {
+    const statusUrls: string[] = [];
+    // 模拟「两分钟前提交、随后离开页面」：createdAt 是过去时间
+    savePendingJob({ jobId: "job_resume_1", createdAt: Date.now() - 120_000, days: 3 });
+    stubResumeFetch(statusUrls);
+
+    render(<HomeClient />);
+
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("heading", {
+            name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
+          }),
+        ).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
+    // 关键：轮询的是持久化的那个 jobId，而不是新任务
+    expect(statusUrls.some((u) => u.includes("job_resume_1"))).toBe(true);
+    // 完成后清掉句柄：下次打开不再续一个已结束的任务
+    expect(loadPendingJob()).toBeNull();
+  });
+
+  it("提交成功立刻落盘 jobId；done 之后清掉（刷新窗口内可恢复）", async () => {
+    let releaseStatus!: () => void;
+    const statusGate = new Promise<void>((r) => {
+      releaseStatus = r;
+    });
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: 3, provider: "none" }),
+        };
+      }
+      if (url === "/api/plan") {
+        return { ok: true, status: 202, json: async () => ({ jobId: "job_saved_1" }) };
+      }
+      if (url.startsWith("/api/plan/status")) {
+        await statusGate; // 先卡住「生成中」，好断言落盘
+        return {
+          ok: true,
+          json: async () => ({
+            status: "done",
+            plan: SAMPLE_PLAN,
+            remaining: 2,
+            shareId: "share_saved",
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
+    await userEvent.click(screen.getByText("生成行程"));
+
+    // 轮询已发起（说明已过 202 分支）→ 句柄应在 localStorage 里，且带 days
+    //（只断言「存了天数」而不钉死具体值：默认起止日期随当前时间滚动）
+    await waitFor(() => expect(loadPendingJob()?.jobId).toBe("job_saved_1"));
+    expect(loadPendingJob()?.days).toBeGreaterThan(0);
+
+    releaseStatus();
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("heading", {
+            name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
+          }),
+        ).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
+    expect(loadPendingJob()).toBeNull();
+  });
+
+  it("恢复的任务已被服务端清掉（404）：给出可行动提示并清句柄，不无限轮询", async () => {
+    savePendingJob({ jobId: "job_gone", createdAt: Date.now() - 1000 });
+    let statusCalls = 0;
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: 3, provider: "none" }),
+        };
+      }
+      if (url.startsWith("/api/plan/status")) {
+        statusCalls += 1;
+        return { ok: false, status: 404, json: async () => ({ error: "任务不存在或已过期" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/任务已过期或服务已重启/)).toBeInTheDocument());
+    expect(statusCalls).toBe(1); // 404 立即停，不再每 3 秒转圈
+    expect(loadPendingJob()).toBeNull();
+  });
+
+  it("深链 ?sample=1 不再依赖 useSearchParams：挂载后读 location 也能进示例", async () => {
+    window.history.pushState({}, "", "/new?sample=1");
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+    }));
+    render(<HomeClient />);
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("heading", {
+            name: `${SAMPLE_PLAN.city} · ${SAMPLE_PLAN.days.length} 天行程`,
+          }),
+        ).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
+    window.history.pushState({}, "", "/");
   });
 });
