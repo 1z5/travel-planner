@@ -302,6 +302,16 @@ async function main() {
   }
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
+  // 快照 tsconfig.json：Next dev 启动时会往 tracked 的 tsconfig 里写当前 distDir
+  // 的 types 路径（这里用的是 .next-visual-check），跑一次视觉门就让 git status
+  // 变脏、还会让 format:check 假红（审计 P1-4）。跑完在 finally 里还原。
+  let tsconfigSnapshot = null;
+  try {
+    tsconfigSnapshot = fs.readFileSync(path.join(ROOT, "tsconfig.json"), "utf8");
+  } catch {
+    /* 没有 tsconfig（理论上不会）就不管 */
+  }
+
   let baseUrl = BASE_URL;
   let shareId = SHARE_ARG;
   let chromeProc = null;
@@ -331,13 +341,22 @@ async function main() {
 
     // 种子数据：3 天苏州（stub fixture），拿 share token 测 /p /r /t
     if (!shareId) {
+      // 日期必须**相对今天**计算，不能硬编码：硬编码会随时间漂移——
+      // 一旦今天恰好是行程首日，TripWorkspace 会自动切到「今日」镜头
+      //（今日镜头没有 .ws-daynav 日导航），视觉门就报「缺少关键元素」；
+      // 行程整体过去后又会测不到真实内容镜头。固定 +7 天出发、3 天行程，
+      // 永远落在「出行前」状态。
+      const ymd = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const seedStart = new Date(Date.now() + 7 * 86_400_000);
+      const seedEnd = new Date(seedStart.getTime() + 2 * 86_400_000);
       const post = await fetch(`${baseUrl}/api/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           city: "苏州",
-          startAt: "2026-10-26T10:00",
-          endAt: "2026-10-28T18:00",
+          startAt: `${ymd(seedStart)}T10:00`,
+          endAt: `${ymd(seedEnd)}T18:00`,
           budget: 2500,
           preferences: ["美食", "历史文化"],
         }),
@@ -523,6 +542,19 @@ async function main() {
     if (chromeProc) {
       try {
         chromeProc.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+    }
+    // 还原被 Next dev 改写的 tsconfig（见上方快照注释）：只还原内容，
+    // 不碰 git。失败也不影响检查结果——最多保持原样。
+    if (tsconfigSnapshot !== null) {
+      try {
+        const tsconfigPath = path.join(ROOT, "tsconfig.json");
+        if (fs.readFileSync(tsconfigPath, "utf8") !== tsconfigSnapshot) {
+          fs.writeFileSync(tsconfigPath, tsconfigSnapshot);
+          log("↩︎ 已还原 tsconfig.json（Next dev 运行时改写）");
+        }
       } catch {
         /* ignore */
       }

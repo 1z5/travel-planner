@@ -44,10 +44,15 @@
 - **顺手清**：`/api/events` 两个死 import；`lib/jobs` 冗余 spread；`lib/planner` 三处
   「解析失败后新抛 Error」补 `cause`（保留原始异常，排障能看到真实解析错误）；
   `package-lock.json` 根 `license` 同步 Apache-2.0。
+- **视觉回归门复活**：`gate:visual` 的种子行程日期改为相对 `+7 天`（硬编码 2026-10-26
+  在审计当天恰好是行程首日，工作台自动切「今日」镜头、缺 `.ws-daynav` → 门从此常红到
+  10-28）；同时跑完自动还原被 `next dev` 改写的 `tsconfig.json`（每次跑视觉门都会让
+  tracked 文件变脏、`format:check` 假红）。实测 **2 失败 → 0 失败 / 0 警告**。
 
 验收：`npm run gate` 全绿 = typecheck / lint / format / **902 单测** / **e2e 527 通过 0 失败**；
-`npm run lint` 0 error（oxlint 真实检查 174 文件，`npx oxlint lib/planner.ts` 不再是 ignored）。
-未做（后续批次）：监控/告警最小闭环、`gate:visual` 种子日期时间炸弹、隐私删除端点、真实部署。
+`npm run lint` 0 error（oxlint 真实检查 174 文件，`npx oxlint lib/planner.ts` 不再是 ignored）；
+`gate:visual` 9 页 × 2 视口 0 失败 / 0 警告。
+未做（后续批次）：监控/告警最小闭环、隐私删除端点、真实部署。
 
 ## 2026-10 上线前 P0 硬化：先能上线，再谈功能（审计驱动的四件事）
 
