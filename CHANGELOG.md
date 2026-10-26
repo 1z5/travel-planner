@@ -15,6 +15,40 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 上线前 P0 硬化（二）：成本闸门 / TS lint 真正生效 / 失败路径收敛
+
+同一轮审计的后续批次，仍然只做「能上线」相关的事，不加产品功能。
+
+- **客户端 IP 统一提取（P0-3）**：新增 `lib/client-ip.ts`，8 处按 IP 限流不再取
+  `X-Forwarded-For` 的**首值**（客户端可伪造：换一个头就是新用户，每日 3 次额度与成本闸门
+  形同虚设）。改为「从右往左数 `TRUSTED_PROXY_HOPS` 个」（默认 1，假设前面一层反代会追加
+  真实 IP）；容忍 `1.2.3.4:5678` / `[2001:db8::1]:443` 写法，非法值一律丢弃（防超长值变成
+  PG 的 quota key）；`TRUSTED_PROXY_HOPS=0`（直连公网）时无法取信，配额退化为 `direct` 单桶。
+  DEPLOY 新增「反代与客户端 IP」必读节。
+- **服务端容量闸门（P0-3）**：新增 `lib/capacity-gate.ts`：`MAX_CONCURRENT_GENERATIONS`
+  （默认 6）、`MAX_CONCURRENT_LLM`（默认 12）、`DAILY_GLOBAL_LIMIT`（默认 500 / UTC 日）。
+  `/api/plan` 与 clone 在配额之后、建任务之前占并发槽 + 预扣日预算，任何一步失败全额退还；
+  refine/chat 外面包一层 LLM 并发闸门（满则 503，不浪费模型调用）；任务终态由 `createJob`
+  新增的 `onFinish` 在 `finally` 释放（将来新增生成路径不会漏）。`/api/health` 增加
+  `capacity` 快照，运维直接看到在跑数量/今日已用。
+- **失败路径收敛（P1-1）**：`createJob` 的 catch 里再写库失败不再向上抛（一次 DB 抖动会让
+  IIFE 变成 unhandled rejection、Node 22 默认直接退出，带走所有在跑任务）；`onError` /
+  `onFinish` 回调异常本地兜住，并发槽不会泄漏。
+- **TS/TSX 终于被 lint（P0-7）**：本仓 TS 7.0.2 超出 typescript-eslint 8.x 支持上限，此前
+  `npm run lint` 只 lint 15 个 `.mjs`，165 个 TS/TSX 全部 `File ignored`（「0 error 0 warning」
+  是假保证、react-hooks 规则全部缺席）。引入 **oxlint 1.89**（Rust 自解析 TS，不依赖 TS 版本）：
+  `lint` = ESLint(.js/.mjs) + oxlint(TS/TSX)，correctness=error、`react-hooks/rules-of-hooks`
+  =error；当前 **174 文件 / 0 error / 51 warning**（warn 均为已归档存量债，配置见
+  `.oxlintrc.json`）。pre-push 新增 `typecheck + format:check`（近 10 次 CI 失败 5 次是
+  Prettier；本机约 6s），CI 加 `concurrency: cancel-in-progress` 与 `timeout-minutes`。
+- **顺手清**：`/api/events` 两个死 import；`lib/jobs` 冗余 spread；`lib/planner` 三处
+  「解析失败后新抛 Error」补 `cause`（保留原始异常，排障能看到真实解析错误）；
+  `package-lock.json` 根 `license` 同步 Apache-2.0。
+
+验收：`npm run gate` 全绿 = typecheck / lint / format / **902 单测** / **e2e 527 通过 0 失败**；
+`npm run lint` 0 error（oxlint 真实检查 174 文件，`npx oxlint lib/planner.ts` 不再是 ignored）。
+未做（后续批次）：监控/告警最小闭环、`gate:visual` 种子日期时间炸弹、隐私删除端点、真实部署。
+
 ## 2026-10 上线前 P0 硬化：先能上线，再谈功能（审计驱动的四件事）
 
 起因：一次四路并行只读审计（运行时 / 质量基建 / 合规 / UX）后的结论——代码能力已经够多，
