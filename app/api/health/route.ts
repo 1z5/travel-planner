@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isProductionAuthMisconfigured, resolveAuthProviderId } from "@/lib/auth/guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,9 @@ async function dbProbe(): Promise<"ok" | "error" | "n/a"> {
 export async function GET() {
   const db = await dbProbe();
   const healthy = db !== "error";
+  // 生产误配时登录链路是关闭的（见 lib/auth/providers.ts 的 DisabledProvider）。
+  // 直接回显 env 原值会让运维以为「还在用 none 开发登录」，与真实行为不一致。
+  const authProvider = isProductionAuthMisconfigured() ? "disabled" : resolveAuthProviderId();
 
   return NextResponse.json(
     {
@@ -39,7 +43,7 @@ export async function GET() {
       uptimeSec: Math.round(process.uptime()),
       llmConfigured: Boolean(process.env.LLM_API_KEY),
       amapMode: process.env.AMAP_WEB_SERVICE_KEY ? "live" : "mock",
-      authProvider: process.env.AUTH_PROVIDER || "none",
+      authProvider,
       store: process.env.DATA_STORE || "memory",
       // n/a = 内存模式（无可探活的库）；ok/error = postgres 探活结果
       db,
