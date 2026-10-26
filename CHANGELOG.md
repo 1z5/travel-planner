@@ -15,6 +15,45 @@
 
 记录这个项目从 0 到「可上线就绪」的关键工程决策。倒序（新→旧），每条都是实测踩坑后的结论。
 
+## 2026-10 上线前 P0 硬化：先能上线，再谈功能（审计驱动的四件事）
+
+起因：一次四路并行只读审计（运行时 / 质量基建 / 合规 / UX）后的结论——代码能力已经够多，
+但**默认配置直接上线会踩 4 个 P0**，主流程还有 2 个用户会直接撞到的洞。本轮只修这几件事，
+不加功能。
+
+- **身份体系 fail-closed（P0）**：`AUTH_PROVIDER` 缺省 `none` 时 DevProvider 接受固定验证码
+  `123456` 登录任意手机号；`SESSION_SECRET` 缺省是源码里公开的常量。现在生产环境
+  （NODE_ENV=production）误配会直接关闭登录链路（`DisabledProvider`：不下发/不接受 session、
+  验证码一律失败），开发/测试行为不变（e2e phase C/D/E 仍走 next dev）；`/api/health` 与
+  `/api/me` 对外报告 `provider:"disabled"` 而不是 env 原值。逃生开关 `ALLOW_DEV_AUTH=1`
+  只给预发/内部演示用。
+- **生成中任务可恢复（P0）**：`jobId` 原来只活在组件 state —— 生成 2-7 分钟期间刷新/切后台，
+  轮询丢失但服务端还在跑、额度已扣，而页面文案承诺「期间可以离开页面，结果会保留」。
+  新增 `lib/pending-job.ts`（localStorage，TTL 与服务端 Job 同口径 2 小时，脏数据/过期/
+  写失败全部降级），提交成功即落盘、`/new` 挂载时自动续轮询、进入终态（done/error/404/
+  超时/断网）清掉；秒表从真实提交时刻起算，不把已等待时间显示成 0。
+- **`/new` 首屏恢复 SSR（P0）**：深链 `?sample=1` 改用挂载后读 `window.location.search`，
+  去掉 `useSearchParams` 导致的 client-only bailout（`Suspense fallback={null}`）——
+  构建产物实测 `/new` 已是静态预渲染（○），首屏 HTML 22KB 内含「这次想去哪 / 起始时间 /
+  人均预算 / 请先填写目的地城市」，不再等 259KB gzip JS 才出现表单。
+- **上线配置守卫（P0）**：`preflight` 从「🟢 GO 但跑在 memory + 假登录 + localhost 分享图」
+  改为 5 类 BLOCK（DATA_STORE 必须 postgres、DATABASE_URL 协议、NEXT_PUBLIC_SITE_URL 必须
+  https、AUTH_PROVIDER 不得为 none（除非显式 ALLOW_DEV_AUTH=1）、SESSION_SECRET 不得是默认
+  值）+ METRICS_TOKEN WARN；`check-env` 同步补齐。`.env.example` / DEPLOY.md 环境变量表补
+  DATA_STORE / DATABASE_URL / NEXT_PUBLIC_SITE_URL / METRICS_TOKEN，Runbook 第 0 步写明
+  BLOCK 清单；README 环境变量清单同步。
+- **顺手修的两处**：`/api/geocode/reverse` 返回缺 city 时不再 `setCity(undefined)` 把整页
+  `city.trim()` 打崩（降级为「请手动输入」）；`package.json`/`package-lock.json` 的
+  `license` 从 `UNLICENSED` 改为 `Apache-2.0`——仓库早已 public + Apache LICENSE，
+  SECURITY.md 却还写「专有软件、未公开源代码」、用户协议还写「保留所有权利」，三处对外
+  法律文本自相矛盾（本轮一并改正；占位邮箱改用 RFC 2606 的 `.example` 并标注上线前替换）。
+
+验收（本机实测）：`npm run gate` 全绿 = typecheck / lint / format / **884 单测**（+33）/
+**e2e 527 通过 0 失败**；`npm run build` exit 0，`/new` 静态预渲染产物含完整表单；
+`preflight` 在缺失的生产配置上如实 NO-GO（5 BLOCK + 1 WARN，部署前按 DEPLOY.md 配齐后
+应全绿）。未做（后续批次）：oxlint 补 TS lint、监控/告警最小闭环、成本闸门（受信代理 IP +
+全局并发/预算）、`gate:visual` 种子日期时间炸弹、隐私删除端点。
+
 ## 2026-10 度量闭环：北极星「照着走完率」第一次可计算
 
 此前这个指标**无法计算**——stage 遥测只在进程内存，多实例即丢，也没有任何事件落库；
