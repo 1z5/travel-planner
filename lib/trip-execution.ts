@@ -17,7 +17,9 @@
 
 import type { PlanLeg, PlanSpot } from "./types";
 
-const STORAGE_KEY = "tp.execution.v1";
+// gitleaks:allow —— 这是 localStorage 键名（tp.execution.v1），不是密钥；
+// gitleaks 的 generic-api-key 规则会按「= 长字符串 + 熵」误报，行内白名单精确放行。
+const STORAGE_KEY = "tp.execution.v1"; // gitleaks:allow
 
 /** 一个点位的执行状态（时间戳 ms） */
 export interface SpotExecution {
