@@ -50,3 +50,56 @@ describe("我的行程", () => {
     expect(raw).not.toContain("share_drop02");
   });
 });
+
+describe("想去清单与倒计时", () => {
+  const WISH_KEY = "tp.wishlist.v1";
+  const TRIPS_KEY = "tp.recent-trips.v1";
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("有想去清单时显示「想去」区块，可移除；没有自己的行程也不算空态", async () => {
+    window.localStorage.setItem(
+      WISH_KEY,
+      JSON.stringify([
+        {
+          shareId: "share_wish01",
+          city: "大理",
+          days: 4,
+          startDate: "2026-11-20",
+          summary: "大理 4 天",
+          addedAt: Date.now(),
+        },
+      ]),
+    );
+    render(<TripsHome />);
+    await waitFor(() => expect(screen.getByText("想去")).toBeInTheDocument());
+    // 链接指向分享页
+    expect(screen.getByRole("link", { name: /大理/ })).toHaveAttribute("href", "/p/share_wish01");
+    // 新用户首屏（营销主张）不出现——有想去清单就不是空房间
+    expect(screen.queryByText("先核验真实世界，再排行程")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /从想去清单移除 大理/ }));
+    await waitFor(() => expect(screen.queryByText("大理")).not.toBeInTheDocument());
+    expect(window.localStorage.getItem(WISH_KEY)).toBe("[]");
+  });
+
+  it("行程卡显示行前倒计时（未知日期不显示）", async () => {
+    // 未来日期：用相对今天 +30 天，避免写死日期随时间失效
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    window.localStorage.setItem(
+      TRIPS_KEY,
+      JSON.stringify([
+        { shareId: "share_future", city: "成都", days: 3, startDate, createdAt: Date.now() },
+        { shareId: "share_nodate", city: "苏州", days: 2, createdAt: Date.now() },
+      ]),
+    );
+    render(<TripsHome />);
+    await waitFor(() => expect(screen.getByText("还有 30 天出发")).toBeInTheDocument());
+    // 没有日期的行程不显示倒计时（不猜）
+    expect(screen.getAllByText(/还有 \d+ 天出发/)).toHaveLength(1);
+  });
+});

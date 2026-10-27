@@ -7309,3 +7309,119 @@ main.has-result .new-head {
   padding: 1px 7px;
   vertical-align: middle;
 }
+
+/* ============================================================
+ * 想去清单（产品线 B3）+ 行前倒计时（D2）
+ * 与「我的行程」并列的第二块资产：计划中的 vs 想去的。卡片复用行程卡的
+ * 视觉语言，倒计时用语义色区分「临近/行中/已结束」。
+ * ============================================================ */
+.wishlist {
+  margin-top: var(--sp-6);
+}
+.wishlist-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.wishlist-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+}
+.wishlist-sub {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+.wishlist-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.wishlist-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+.wishlist-card:hover {
+  border-color: var(--line-strong);
+}
+.wishlist-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  min-height: 44px;
+}
+.wishlist-city {
+  font-family: var(--font-serif);
+  font-size: 18px;
+}
+.wishlist-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.wishlist-summary {
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.wishlist-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+}
+.wishlist-remove:hover {
+  color: var(--err-ink);
+  background: var(--err-bg);
+}
+/* 行程卡上的行前倒计时 */
+.trip-card-countdown {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: 2px;
+}
+.trip-card-countdown-soon {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.trip-card-countdown-active {
+  color: var(--ok-ink);
+  background: var(--ok-bg);
+}
+.trip-card-countdown-past {
+  color: var(--ink-4);
+  background: var(--surface-2);
+}
+/* 分享页「想去」按钮 */
+.wishlist-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.wishlist-btn-on {
+  color: var(--accent);
+  border-color: var(--accent-ring);
+  background: var(--accent-soft);
+}

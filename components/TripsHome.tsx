@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, Plus, Trash2 } from "lucide-react";
+import { ArrowUpRight, CalendarDays, Heart, Plus, Trash2 } from "lucide-react";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
 import {
@@ -11,6 +11,9 @@ import {
   removeRecentTrip,
   type RecentTrip,
 } from "@/lib/recent-trips";
+import { loadWishlist, removeWish, type WishlistTrip } from "@/lib/wishlist";
+import { countdownFor } from "@/lib/countdown";
+import { localTodayIso } from "@/lib/trip-day";
 
 // ============================================================
 // 产品首页：我的行程。
@@ -22,10 +25,16 @@ import {
 
 export function TripsHome() {
   const [trips, setTrips] = useState<RecentTrip[]>([]);
+  // 想去清单（B3）：与「我的行程」并列的第二块资产——计划中的和想去的。
+  const [wishlist, setWishlist] = useState<WishlistTrip[]>([]);
+  // 今天的日期只在客户端算（SSR 时区不一定等于用户手机时区），用于倒计时。
+  const [todayIso, setTodayIso] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setTrips(loadRecentTrips());
+    setWishlist(loadWishlist());
+    setTodayIso(localTodayIso());
     setLoaded(true);
   }, []);
 
@@ -47,7 +56,7 @@ export function TripsHome() {
         {/* 新用户首屏：产品主张 + 看得见的记忆点 + 唯一主 CTA。
             旧版是「空房间」——只有「还没有行程」加一段说明，新用户 30 秒内
             既不知道这是什么产品，也记不住凭什么不一样。 */}
-        {loaded && trips.length === 0 && (
+        {loaded && trips.length === 0 && wishlist.length === 0 && (
           <section className="firstscreen" aria-label="产品首屏">
             <p className="firstscreen-eyebrow">
               <span className="eyebrow-dot" aria-hidden="true" />
@@ -188,6 +197,15 @@ export function TripsHome() {
                     {recentTripLabel(trip)}
                   </span>
                   {trip.summary && <span className="trip-card-summary">{trip.summary}</span>}
+                  {(() => {
+                    // 行前倒计时（D2）：只对「有合法日期」的行程显示，拿不到就不显示
+                    const cd = todayIso ? countdownFor(trip.startDate, trip.days, todayIso) : null;
+                    return cd ? (
+                      <span className={`trip-card-countdown trip-card-countdown-${cd.tone}`}>
+                        {cd.text}
+                      </span>
+                    ) : null;
+                  })()}
                   <span className="trip-card-open">
                     继续规划 <ArrowUpRight size={14} />
                   </span>
@@ -206,7 +224,41 @@ export function TripsHome() {
           </section>
         )}
 
-        {loaded && trips.length > 0 && (
+        {loaded && wishlist.length > 0 && (
+          <section className="wishlist" aria-label="想去清单">
+            <header className="wishlist-head">
+              <h2 className="wishlist-title">
+                <Heart size={15} aria-hidden="true" />
+                想去
+              </h2>
+              <p className="wishlist-sub">收藏的行程存在这台设备上，点开就能接着看。</p>
+            </header>
+            <div className="wishlist-list">
+              {wishlist.map((w) => (
+                <article className="wishlist-card" key={w.shareId}>
+                  <Link className="wishlist-main" href={`/p/${w.shareId}`}>
+                    <span className="wishlist-city">{w.city}</span>
+                    <span className="wishlist-meta">
+                      {w.days} 天{w.startDate ? ` · ${w.startDate}` : ""}
+                    </span>
+                    {w.summary && <span className="wishlist-summary">{w.summary}</span>}
+                  </Link>
+                  <button
+                    type="button"
+                    className="wishlist-remove"
+                    aria-label={`从想去清单移除 ${w.city}`}
+                    title="从想去清单移除"
+                    onClick={() => setWishlist(removeWish(w.shareId))}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {loaded && (trips.length > 0 || wishlist.length > 0) && (
           <Link href="/new" className="trips-add">
             <Plus size={16} />
             再规划一趟

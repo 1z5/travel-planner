@@ -6,6 +6,7 @@ import { countClones } from "@/lib/clone-count";
 import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
+import { WishlistButton } from "@/components/WishlistButton";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -123,6 +124,14 @@ export default async function SharePage({
           <span>输入你的时间和预算，2–4 分钟生成专属行程（期间可离开页面）</span>
         </div>
         <div className="share-cta-actions">
+          {/* 愿望清单（B3）：先记下来、以后再排。克隆是「现在就排」，两者互补。 */}
+          <WishlistButton
+            shareId={id}
+            city={plan.city}
+            days={plan.days.length}
+            startDate={plan.startDate}
+            summary={plan.summary}
+          />
           <Link href={`/w/${id}`} className="btn btn-sm">
             在工作台打开
           </Link>
