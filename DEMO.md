@@ -47,6 +47,15 @@
 - [ ] 兜底方案：网络/平台异常时，本地 `npm run dev`（真实 key 在 `.env` 里）直接打开 localhost:3000
 
 预置行程的 shareId 在 `demo/fixtures/*.json` 里，`jq -r '.shareId' demo/fixtures/*.json` 可查。
+两条预置行程是**故意分工**的，按面试流程各用一次：
+
+| 行程                                  | 角色                     | 怎么用                                                                                                                                                       |
+| ------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **苏州 3 天**（`share_Z5oYam8ahjqb`） | **「体检发现问题」样本** | 打开分享页/工作台，指给面试官看「D · 可执行性 41、3 处时间接不上、1 处营业时间不符」——然后当场点「一键顺延」，评分与预警当场变好（这是产品最核心的卖点闭环） |
+| **成都 4 天**（`share_BP3e7AKOJ4ML`） | **「修复后」样本**       | 已经用产品自己的「一键顺延」打磨过（`npm run demo:polish`，确定性重排、不烧 token）：预警 7→4，可执行性 B。用于展示「修完之后的行程长什么样」                |
+
+> 两条都是真实高德 + 真实模型生成（`generatedAt` 有记录），成都只是额外跑了一遍确定性顺延
+> （fixture 里的 `polish` 字段有前后对比）。没有人工编造数据。
 
 ## 3. 3 分钟演示脚本（按这个顺序讲，不慌）
 
@@ -143,9 +152,10 @@ https://travel-planner-demo.onrender.com/api/events/summary?token=<METRICS_TOKEN
 - **构建失败在 `next build`**：Render 免费构建内存有限，先看日志；本地 `npm run build`
   能过而 Render 失败通常是内存，换 Starter plan 或删掉 `.next` 重新触发即可。
 
-## 6. 重新生成演示行程（可选）
+## 6. 重新生成 / 打磨演示行程（可选）
 
-日期按生成当天 +14 天自动算，所以演示行程会一直落在「未来」。
+- **重新生成**（真实 key + LLM，每条 6-7 分钟）：`npm run demo:gen`，日期按生成当天 +14 天自动算，
+  所以演示行程会一直落在「未来」。
 
 ```bash
 # 用仓库 .env 的真实 key 生成（会产生 LLM 费用；会起隔离 dev server，不碰你正在跑的）
@@ -165,3 +175,13 @@ git add demo/fixtures && git commit -m "chore(demo): 重新生成演示行程" &
 正式方案见 [DEPLOY.md](DEPLOY.md)：`DATA_STORE=postgres` + 登录厂商 + 监控告警 + 部署验收
 （`preflight` / `smoke-deployed`）。审计里的 P0 清单见
 `/Users/zephyr/dev/travel-planner-audit/2026-10-26-项目痛点审计.md`。
+
+- **打磨**（不烧 token，跑产品自己的「一键顺延」把预警降下来）：`npm run demo:polish`
+  （默认打磨成都；`DEMO_POLISH=suzhou-3d,chengdu-4d` 指定多条）。适合「分享页评分太低」时用——
+  注意别把苏州也打磨掉，它是演示「一键顺延」前后对比的样本。
+
+```
+git add demo/fixtures && git commit -m "chore(demo): 打磨演示行程" && git push
+```
+
+Render 会自动重新部署；部署后 `/api/health` 的 `uptimeSec` 变小、fixture 重新注入。
