@@ -108,7 +108,10 @@
   - ✅ A4 修复效果可见（change-impact 横幅：分数变化 + 问题条数，变差也如实说）
   - ✅ B2 城市模板页：12 城 × 3/4/5 天条件模板（/cities + /cities/<slug>）+ sitemap/robots
     - 首页与 /about 入口；明确「不是已核验行程」
-  - ⬜ S3 剩余：商业化试点（意向收集/定价占位）
+  - ✅ 商业化试点 v0：/pricing 定价与付费意愿页（不接支付；upgrade_intent 事件 +
+    看板 upgradeIntents 聚合；明确「不扣费/不承诺上线/体检不做付费墙」）
+  - ⬜ 下一阶段：S4 深度核验（更多候选/跨城交通）与 S5 协作——依赖付费意愿数据与
+    真实 key 验收
   - ✅ C1 行中 PWA：manifest + 品牌图标（scripts/gen-pwa-icons.mjs）+ public/sw.js 只对
     /t 与 /p 导航做 stale-while-revalidate + useOffline 断网提示。**已做真实断网实测：
     完全离线下行中/分享页完整可读并显示诚实提示。**

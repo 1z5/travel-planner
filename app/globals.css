@@ -7680,3 +7680,127 @@ main.has-result .new-head {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ============================================================
+ * 定价与意愿收集页（/pricing，S3 商业化试点）
+ * 免费卡与候选卡并列；候选卡不出现「购买/订阅」字样，只有「我想要这个」。
+ * ============================================================ */
+.pricing-page {
+  padding: var(--sp-8) 0 var(--sp-10);
+}
+.pricing-inner {
+  max-width: 1080px;
+}
+.pricing-hero {
+  max-width: 760px;
+  margin-bottom: var(--sp-6);
+}
+.pricing-title {
+  margin: 10px 0 10px;
+  font-family: var(--font-serif);
+  font-size: clamp(26px, 5vw, 44px);
+  line-height: 1.18;
+}
+.pricing-lede {
+  margin: 0 0 12px;
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.pricing-honest {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: var(--sp-6);
+}
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 18px;
+}
+.pricing-card-free {
+  border-color: var(--accent-ring);
+  background: var(--accent-soft);
+}
+.pricing-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pricing-card-head h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+}
+.pricing-price {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.pricing-card-desc {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.pricing-card-why {
+  margin: 0;
+  flex: 1;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ink-4);
+}
+.pricing-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.pricing-card .btn {
+  align-self: flex-start;
+  min-height: 40px;
+}
+.intent-btn-done {
+  color: var(--ok-ink);
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+}
+.pricing-faq {
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-5);
+}
+.pricing-faq h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+}
+.pricing-faq dt {
+  font-weight: 600;
+  margin-top: 12px;
+  font-size: var(--fs-small);
+}
+.pricing-faq dd {
+  margin: 4px 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.7;
+  color: var(--ink-2);
+}

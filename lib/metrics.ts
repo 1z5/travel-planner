@@ -20,6 +20,7 @@ export const EVENT_NAMES = [
   "trip_cloned", // 克隆了别人的行程
   "today_departed", // 行中：点「我已出发」（前端记，带 day）
   "today_arrived", // 行中：点「我已到达」（前端记，带 day）——「照着走完」的强信号
+  "upgrade_intent", // 定价页「我想要这个」意愿收集（前端记，meta.tier = 候选付费点）
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];
@@ -59,6 +60,12 @@ export interface MetricsSummary {
   modifiedByDay: Array<{ day: number; count: number }>;
   /** Top 目的地（按生成数） */
   topCities: Array<{ city: string; created: number }>;
+  /**
+   * 付费意愿（upgrade_intent 按候选付费点聚合）。
+   * 只统计 meta.tier 为合法短字符串的事件；没有意愿数据时为空数组——
+   * 不编「0 人愿意付费」出来（没人点过不等于没人愿意）。
+   */
+  upgradeIntents: Array<{ tier: string; count: number }>;
 }
 
 const EMPTY_COUNTS = (): Record<EventName, number> =>
@@ -144,7 +151,32 @@ export function summarize(events: readonly TripEventRecord[], since: number): Me
     .sort((a, b) => b.created - a.created || a.city.localeCompare(b.city))
     .slice(0, 10);
 
-  return { since, total: clean.length, counts, funnel, northStar, modifiedByDay, topCities };
+  // ---- 付费意愿（upgrade_intent 按 tier 聚合）----
+  // tier 只接受 1-40 字符的字符串（前端固定枚举，但事件接口是公开的，脏数据要挡）；
+  // 没有意愿数据时返回空数组，让看板显示「暂无数据」而不是 0。
+  const byTier = new Map<string, number>();
+  for (const e of clean) {
+    if (e.name !== "upgrade_intent") continue;
+    const tier = e.meta?.tier;
+    if (typeof tier !== "string") continue;
+    const key = tier.trim().slice(0, 40);
+    if (!key) continue;
+    byTier.set(key, (byTier.get(key) ?? 0) + 1);
+  }
+  const upgradeIntents = [...byTier.entries()]
+    .map(([tier, count]) => ({ tier, count }))
+    .sort((a, b) => b.count - a.count || a.tier.localeCompare(b.tier));
+
+  return {
+    since,
+    total: clean.length,
+    counts,
+    funnel,
+    northStar,
+    modifiedByDay,
+    topCities,
+    upgradeIntents,
+  };
 }
 
 /** 生成事件 id（随机 + 时间前缀，避免撞主键） */

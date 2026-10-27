@@ -8,10 +8,19 @@
 // 失败静默：navigator.sendBeacon 不可用或请求失败都不影响用户操作；
 // 卸载时用 sendBeacon（比 fetch 更可能在页面关闭前送达）。
 
-export type TrackName = "plan_opened" | "today_opened" | "today_departed" | "today_arrived";
+export type TrackName =
+  "plan_opened" | "today_opened" | "today_departed" | "today_arrived" | "upgrade_intent";
 
 /** 上报一个产品事件（不 await、不抛错） */
-export function track(name: TrackName, payload: { shareId?: string; city?: string; day?: number }) {
+export function track(
+  name: TrackName,
+  payload: {
+    shareId?: string;
+    city?: string;
+    day?: number;
+    meta?: Record<string, string | number | boolean>;
+  },
+) {
   try {
     const body = JSON.stringify({ name, ...payload });
     if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {

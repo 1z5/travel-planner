@@ -1360,6 +1360,28 @@ async function phaseA(api) {
   });
   check("活动：时间格式非法 → 400", r26c.status === 400, `got ${r26c.status}`);
 
+  // ---- 定价与付费意愿（S3 商业化试点）：页面口径 + 意愿事件 ----
+  const pricingRes = await fetch(`${api.baseUrl}/pricing`);
+  const pricingHtml = await pricingRes.text();
+  check(
+    "定价页：200 且明确「不会收费/不承诺上线」",
+    pricingRes.status === 200 &&
+      pricingHtml.includes("不会收费") &&
+      pricingHtml.includes("候选") &&
+      pricingHtml.includes("免费"),
+    `${pricingRes.status}`,
+  );
+  const intentRes = await fetch(`${api.baseUrl}/api/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "upgrade_intent", meta: { tier: "deep-check" } }),
+  });
+  check(
+    "付费意愿：upgrade_intent 被接受（204）",
+    intentRes.status === 204,
+    `got ${intentRes.status}`,
+  );
+
   // ---- 城市模板页（B2 SEO 获取层）：列表/详情/404 + sitemap/robots ----
   const citiesIdx = await fetch(`${api.baseUrl}/cities`);
   const citiesIdxHtml = await citiesIdx.text();

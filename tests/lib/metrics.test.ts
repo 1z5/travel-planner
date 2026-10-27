@@ -15,7 +15,7 @@ function ev(name: string, over: Partial<TripEventRecord> = {}): TripEventRecord 
 const SINCE = 1_000_000;
 
 describe("指标：事件名封闭枚举", () => {
-  it("枚举包含七类行为事件（含行中出发/到达打卡）", () => {
+  it("枚举包含八类行为事件（含行中打卡与付费意愿）", () => {
     expect([...EVENT_NAMES].sort()).toEqual([
       "day_modified",
       "plan_created",
@@ -24,6 +24,7 @@ describe("指标：事件名封闭枚举", () => {
       "today_departed",
       "today_opened",
       "trip_cloned",
+      "upgrade_intent",
     ]);
   });
 
@@ -144,5 +145,30 @@ describe("指标：辅助视图", () => {
   it("事件 id 唯一（同毫秒批量写入不撞主键）", () => {
     const ids = new Set(Array.from({ length: 200 }, () => newEventId()));
     expect(ids.size).toBe(200);
+  });
+});
+
+describe("指标：付费意愿", () => {
+  it("按 tier 聚合，非字符串/空 tier 丢弃", () => {
+    const s = summarize(
+      [
+        ev("upgrade_intent", { meta: { tier: "deep-check" } }),
+        ev("upgrade_intent", { meta: { tier: "deep-check" } }),
+        ev("upgrade_intent", { meta: { tier: "reminders" } }),
+        ev("upgrade_intent", { meta: { tier: 123 } }),
+        ev("upgrade_intent", { meta: {} }),
+        ev("upgrade_intent"),
+      ],
+      SINCE,
+    );
+    expect(s.upgradeIntents).toEqual([
+      { tier: "deep-check", count: 2 },
+      { tier: "reminders", count: 1 },
+    ]);
+  });
+
+  it("没有意愿数据 → 空数组（看板显示「暂无」，不编 0）", () => {
+    const s = summarize([ev("plan_created", { shareId: "a" })], SINCE);
+    expect(s.upgradeIntents).toEqual([]);
   });
 });

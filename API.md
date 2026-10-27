@@ -229,13 +229,13 @@ Base URL：`/api`（与前端同源）
 
 ### 请求体
 
-| 字段    | 类型   | 必填 | 约束                                                                                                      | 说明                      |
-| ------- | ------ | ---- | --------------------------------------------------------------------------------------------------------- | ------------------------- |
-| name    | string | ✅   | `plan_created`/`plan_opened`/`today_opened`/`day_modified`/`trip_cloned`/`today_departed`/`today_arrived` | 封闭事件名（未知 → 400）  |
-| shareId | string |      | 6-40 位 URL-safe                                                                                          | 关联行程（分享 token）    |
-| city    | string |      | ≤40 字符                                                                                                  | 目的地（看板按城市汇总）  |
-| day     | number |      | 1-30 整数                                                                                                 | 第几天（行中/修改类事件） |
-| meta    | object |      | 少量键值（如 `{op:"swap"}`）                                                                              | 结构化补充                |
+| 字段    | 类型   | 必填 | 约束                                                                                                                       | 说明                      |
+| ------- | ------ | ---- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| name    | string | ✅   | `plan_created`/`plan_opened`/`today_opened`/`day_modified`/`trip_cloned`/`today_departed`/`today_arrived`/`upgrade_intent` | 封闭事件名（未知 → 400）  |
+| shareId | string |      | 6-40 位 URL-safe                                                                                                           | 关联行程（分享 token）    |
+| city    | string |      | ≤40 字符                                                                                                                   | 目的地（看板按城市汇总）  |
+| day     | number |      | 1-30 整数                                                                                                                  | 第几天（行中/修改类事件） |
+| meta    | object |      | 少量键值（如 `{op:"swap"}`）                                                                                               | 结构化补充                |
 
 **204** — 已记录（无响应体，前端 fire-and-forget）。埋点写入失败也返回 204：看板少一条可以，把用户操作拖坏不行。
 
@@ -277,12 +277,18 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
     "rate": 0.667,
     "followedRate": 0.417
   },
+  "upgradeIntents": [{ "tier": "deep-check", "count": 3 }],
   "modifiedByDay": [{ "day": 2, "count": 5 }],
   "topCities": [{ "city": "苏州", "created": 11 }]
 }
 ```
 
 **`northStar.rate` 是北极星「照着走完的比例」（弱信号口径）**：行中打开过、且没有任何 `day_modified` 的行程占比。分母只算「行中打开过」的行程——没打开过就不知道有没有照着走，把它算进分母是编数据；没有样本时 `rate` 为 `null`（不编 0% 也不编 100%）。
+
+**`upgradeIntents` 是付费意愿分布**：定价页「我想要这个」按钮上报
+`upgrade_intent`（`meta.tier` = 候选付费点），看板按 tier 聚合成
+`[{tier, count}]`。没有意愿数据时是空数组——**不编「0 人愿意付费」**（没人点过
+不等于没人愿意）。事件里只有 tier 计数，没有身份信息。
 
 **`northStar.followedRate` 是强信号口径**：行中打开过、没被改过、且用户点过「我已到达」（`today_arrived`）的占比——它证明用户真的照着走了，而不只是没改。依赖用户愿意点打卡，**没有任何 `today_arrived` 事件时 `followedRate` 为 `null`**（不硬算 0 冒充「都没照着走」）。两个口径分开报，弱信号用于与历史对比，强信号用于判断真实执行。
 
