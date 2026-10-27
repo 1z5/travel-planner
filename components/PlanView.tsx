@@ -758,6 +758,18 @@ export function PlanView({
                           暂停开放
                         </span>
                       )}
+                      {/* 「待确认」默认态（产品线 A3）：高德返回了这个地点但没给营业
+                          时间时，如实说「待确认」而不是留白——留白会被读成「已经核过、
+                          没问题」。调研里用户最疼的正是临时状态（缆车末班/围挡/售罄）
+                          这类我们核不到的小时级信息。 */}
+                      {!s.poi.temporarilyClosed && !formatHoursShort(s.poi) && (
+                        <span
+                          className="poi-chip poi-chip-tbc"
+                          title="高德没有返回该地点的营业时间；预约/限流/临时闭馆等信息请以官方渠道为准"
+                        >
+                          营业时间待确认
+                        </span>
+                      )}
                       {(() => {
                         const hoursText = formatHoursShort(s.poi);
                         if (!hoursText) return null;

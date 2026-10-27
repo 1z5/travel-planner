@@ -357,6 +357,20 @@ describe("PlanView 可执行性（POI 真实数据 / 一键修复）", () => {
     };
   }
 
+  // A3「待确认」默认态：高德返回了地点但没给营业时间——不能留白（会被读成
+  // 「已经核过、没问题」），必须明说待确认。
+  function planWithPoiNoHours() {
+    const { openTime: _ot, openTime2: _ot2, ...rest } = POI;
+    return {
+      ...SAMPLE_PLAN,
+      days: SAMPLE_PLAN.days.map((d, i) =>
+        i === 0
+          ? { ...d, spots: d.spots.map((sp, j) => (j === 0 ? { ...sp, poi: { ...rest } } : sp)) }
+          : d,
+      ),
+    };
+  }
+
   function planWithWarnings(warnings: string[]) {
     return { ...SAMPLE_PLAN, warnings };
   }
@@ -370,6 +384,11 @@ describe("PlanView 可执行性（POI 真实数据 / 一键修复）", () => {
     expect(screen.getByText(/人均参考 ¥65/)).toBeInTheDocument();
     const tel = screen.getByTitle(/拨打 0512-67575666/);
     expect(tel.getAttribute("href")).toBe("tel:0512-67575666");
+  });
+
+  it("高德没给营业时间 → 「营业时间待确认」（不留白假装核过）", () => {
+    render(<PlanView plan={planWithPoiNoHours()} />);
+    expect(screen.getByText("营业时间待确认")).toBeInTheDocument();
   });
 
   it("高德显示暂停开放 → 明确的红色 chip（不假装它还能去）", () => {
