@@ -4727,16 +4727,22 @@ a.spot-action:hover {
 }
 /* 品牌标记：一枚方形「印章」，与分享海报的刊物语感同族 */
 .brand-mark {
+  /* 印章：陶土橙底 + 纸色「行」+ 内圈细线；30px 内做出「盖上去」的质感，
+     与分享海报/OG 图同一套语言（反馈提到「图标可以再设计一下」）。 */
+  position: relative;
   width: 30px;
   height: 30px;
   display: grid;
   place-items: center;
-  border: 1.5px solid var(--ink);
-  border-radius: 6px;
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--paper, #f6f0e4);
   font-family: var(--font-serif);
   font-size: 15px;
   font-weight: 700;
   line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(246, 240, 228, 0.55);
 }
 .brand-text {
   display: flex;
@@ -7903,4 +7909,140 @@ main.has-result .new-head {
   margin: 6px 0 0;
   font-size: var(--fs-caption);
   color: var(--err-ink);
+}
+
+/* ============================================================
+ * 首页改版（2026-10）：主行动卡 + 一条纵向主线
+ *
+ * 反馈要点：重复的新建入口、文字太多、网格混乱、「不知道去哪」不适配定位。
+ * 结构：行动卡（唯一新建入口）→ 我的行程 → 精选示例；能力点压缩成一行 chips。
+ * 旧 .firstscreen-* 样式继续复用在行动卡内部（标题/CTA/lede 视觉语言不变）。
+ * ============================================================ */
+.home-action {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: clamp(20px, 4vw, 34px);
+  margin-bottom: var(--sp-6);
+  /* 纸面杂志的「首页大卡」：顶部一条陶土橙细线，区别于普通卡片 */
+  border-top: 3px solid var(--accent);
+}
+.home-action-new {
+  /* 新用户首屏：主行动卡就是 hero，字号更大、留白更多 */
+  padding: clamp(24px, 5vw, 44px);
+}
+.home-action .firstscreen-title {
+  margin: 8px 0 10px;
+  font-size: clamp(28px, 5vw, 44px);
+}
+.home-action .firstscreen-lede {
+  max-width: 46em;
+}
+.home-action .firstscreen-cta {
+  margin-top: 18px;
+}
+.home-action .firstscreen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-action-hint {
+  margin: 14px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+.home-action-hint a {
+  color: var(--accent);
+  margin-left: 4px;
+}
+.home-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.home-chips li {
+  font-size: 11px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.home-action-title {
+  /* 回访用户的主行动标题：比新用户 hero 小一档，避免每次都像营销页 */
+  font-size: clamp(24px, 4vw, 34px);
+}
+.home-examples {
+  margin-bottom: var(--sp-6);
+}
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.home-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+}
+.home-section-sub {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+  flex: 1 1 20em;
+}
+.trips-list .trip-card + .trip-card {
+  margin-top: 10px;
+}
+.trips-list .home-section-head {
+  margin-bottom: 12px;
+}
+
+/* ============================================================
+ * 修复：主按钮一直是白底描边（级联顺序 bug）
+ *
+ * `.btn-primary`（685 行）定义在 `.btn`（752 行）之前，两者都是单类选择器、
+ * 权重相同 → `.btn` 的 `background: var(--surface)` / `border` / `color`
+ * 反把主按钮覆盖成了次要按钮。用户反馈「新建入口不够显眼」有一部分就是这个
+ * 根因：全站主 CTA（开始规划、生成我的行程、用这个条件生成…）都渲染成白底。
+ *
+ * 这里用双类 `.btn.btn-primary` 提权把颜色/字体拉回主按钮语义；尺寸不动
+ * （`.btn-sm` 仍按自己的类决定紧凑尺寸，避免把卡片里的小按钮撑大）。
+ * ============================================================ */
+.btn.btn-primary {
+  background: var(--accent);
+  border: none;
+  color: #fffdf7;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(154, 52, 18, 0.22);
+}
+.btn.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(154, 52, 18, 0.26);
+}
+.btn.btn-primary:disabled {
+  background: var(--bg-2);
+  color: var(--ink-3);
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+/* 首屏主 CTA 保持 48px+ 触控高度（.btn 的 40px 对首屏主按钮偏小） */
+.home-action .btn.btn-primary {
+  min-height: 48px;
+  padding: 0 22px;
+  font-size: 15px;
+}
+/* 副文案：eyebrow 别把标题重复一遍（反馈：文字重复） */
+.home-action .firstscreen-eyebrow {
+  letter-spacing: 0.14em;
 }

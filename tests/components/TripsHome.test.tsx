@@ -11,12 +11,12 @@ describe("我的行程", () => {
     window.localStorage.clear();
   });
 
-  it("新用户首屏：主张 + 唯一主 CTA + 可溯源的记忆点", async () => {
+  it("新用户首屏：主张 + 唯一主行动卡 + 可溯源的记忆点", async () => {
     render(<TripsHome />);
-    // 首屏必须回答「这是什么产品」：价值主张在首屏，而不是只剩一句「还没有行程」
+    // 首屏必须回答「这是什么产品」：价值主张在行动卡里，而不是只剩一句「还没有行程」
     await waitFor(() => expect(screen.getByText("先核验真实世界，再排行程")).toBeInTheDocument());
-    // 引导明确：主 CTA 唯一且指向新建
-    expect(screen.getByRole("link", { name: /说说你想去哪/ })).toHaveAttribute("href", "/new");
+    // 引导明确：主 CTA 指向新建（页面内唯一的新建入口，顶栏不再重复）
+    expect(screen.getByRole("link", { name: /开始规划/ })).toHaveAttribute("href", "/new");
     expect(screen.getByRole("link", { name: /看一份真实示例/ })).toHaveAttribute(
       "href",
       "/new?sample=1",
@@ -24,8 +24,11 @@ describe("我的行程", () => {
     // 记忆点必须可溯源：示例卡用真实 fixture，且如实标注「POI 未验真」
     // （SAMPLE_PLAN 是 MOCK 数据，冒充已核验就是造假）
     expect(screen.getByText("MOCK 高德 · POI 未验真")).toBeInTheDocument();
-    expect(screen.getByText("被体检拦下的问题")).toBeInTheDocument();
+    expect(screen.getByText("真实生成的示例")).toBeInTheDocument();
     expect(screen.getAllByText(/第 [12] 天/).length).toBeGreaterThan(0);
+    // 精选示例承接「不知道去哪」：示例条件必须显式标注，且入口是 /new 深链
+    expect(screen.getAllByText("示例条件").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /按城市看模板/ })).toHaveAttribute("href", "/cities");
   });
 
   it("列出最近行程：链接带 ?edit=1，可移除且只清本地索引", async () => {

@@ -405,8 +405,10 @@ async function main() {
         required: [
           ".trips-home",
           ".app-topbar",
+          ".home-action",
           ".firstscreen-title",
           ".firstscreen-cta",
+          ".home-examples",
           ".firstscreen-evidence",
         ],
       },
