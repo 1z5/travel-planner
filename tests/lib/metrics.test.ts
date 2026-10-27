@@ -15,11 +15,13 @@ function ev(name: string, over: Partial<TripEventRecord> = {}): TripEventRecord 
 const SINCE = 1_000_000;
 
 describe("指标：事件名封闭枚举", () => {
-  it("枚举包含五类行为事件", () => {
+  it("枚举包含七类行为事件（含行中出发/到达打卡）", () => {
     expect([...EVENT_NAMES].sort()).toEqual([
       "day_modified",
       "plan_created",
       "plan_opened",
+      "today_arrived",
+      "today_departed",
       "today_opened",
       "trip_cloned",
     ]);
@@ -92,6 +94,24 @@ describe("指标：北极星「照着走完」", () => {
     );
     expect(s.northStar.tripsWithToday).toBe(1);
     expect(s.northStar.tripsUnmodified).toBe(1);
+  });
+
+  it("北极星强信号：有到达打卡且未修改 → followedRate；无打卡 → null（不硬算 0）", () => {
+    const s = summarize(
+      [
+        ev("today_opened", { shareId: "a" }),
+        ev("today_arrived", { shareId: "a", day: 1 }),
+        ev("today_opened", { shareId: "b" }),
+        ev("day_modified", { shareId: "b", day: 1 }),
+      ],
+      SINCE,
+    );
+    expect(s.northStar.tripsFollowed).toBe(1);
+    expect(s.northStar.followedRate).toBeCloseTo(0.5);
+
+    const none = summarize([ev("today_opened", { shareId: "a" })], SINCE);
+    expect(none.northStar.followedRate).toBeNull();
+    expect(none.northStar.tripsFollowed).toBe(0);
   });
 });
 

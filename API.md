@@ -229,13 +229,13 @@ Base URL：`/api`（与前端同源）
 
 ### 请求体
 
-| 字段    | 类型   | 必填 | 约束                                                                     | 说明                      |
-| ------- | ------ | ---- | ------------------------------------------------------------------------ | ------------------------- |
-| name    | string | ✅   | `plan_created`/`plan_opened`/`today_opened`/`day_modified`/`trip_cloned` | 封闭事件名（未知 → 400）  |
-| shareId | string |      | 6-40 位 URL-safe                                                         | 关联行程（分享 token）    |
-| city    | string |      | ≤40 字符                                                                 | 目的地（看板按城市汇总）  |
-| day     | number |      | 1-30 整数                                                                | 第几天（行中/修改类事件） |
-| meta    | object |      | 少量键值（如 `{op:"swap"}`）                                             | 结构化补充                |
+| 字段    | 类型   | 必填 | 约束                                                                                                      | 说明                      |
+| ------- | ------ | ---- | --------------------------------------------------------------------------------------------------------- | ------------------------- |
+| name    | string | ✅   | `plan_created`/`plan_opened`/`today_opened`/`day_modified`/`trip_cloned`/`today_departed`/`today_arrived` | 封闭事件名（未知 → 400）  |
+| shareId | string |      | 6-40 位 URL-safe                                                                                          | 关联行程（分享 token）    |
+| city    | string |      | ≤40 字符                                                                                                  | 目的地（看板按城市汇总）  |
+| day     | number |      | 1-30 整数                                                                                                 | 第几天（行中/修改类事件） |
+| meta    | object |      | 少量键值（如 `{op:"swap"}`）                                                                              | 结构化补充                |
 
 **204** — 已记录（无响应体，前端 fire-and-forget）。埋点写入失败也返回 204：看板少一条可以，把用户操作拖坏不行。
 
@@ -270,13 +270,21 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
     { "step": "plan_opened", "trips": 31, "conversionFromPrev": 0.775 },
     { "step": "today_opened", "trips": 12, "conversionFromPrev": 0.387 }
   ],
-  "northStar": { "tripsWithToday": 12, "tripsUnmodified": 8, "rate": 0.667 },
+  "northStar": {
+    "tripsWithToday": 12,
+    "tripsUnmodified": 8,
+    "tripsFollowed": 5,
+    "rate": 0.667,
+    "followedRate": 0.417
+  },
   "modifiedByDay": [{ "day": 2, "count": 5 }],
   "topCities": [{ "city": "苏州", "created": 11 }]
 }
 ```
 
-**`northStar.rate` 就是北极星「照着走完的比例」**：行中打开过、且没有任何 `day_modified` 的行程占比。分母只算「行中打开过」的行程——没打开过就不知道有没有照着走，把它算进分母是编数据；没有样本时 `rate` 为 `null`（不编 0% 也不编 100%）。
+**`northStar.rate` 是北极星「照着走完的比例」（弱信号口径）**：行中打开过、且没有任何 `day_modified` 的行程占比。分母只算「行中打开过」的行程——没打开过就不知道有没有照着走，把它算进分母是编数据；没有样本时 `rate` 为 `null`（不编 0% 也不编 100%）。
+
+**`northStar.followedRate` 是强信号口径**：行中打开过、没被改过、且用户点过「我已到达」（`today_arrived`）的占比——它证明用户真的照着走了，而不只是没改。依赖用户愿意点打卡，**没有任何 `today_arrived` 事件时 `followedRate` 为 `null`**（不硬算 0 冒充「都没照着走」）。两个口径分开报，弱信号用于与历史对比，强信号用于判断真实执行。
 
 | HTTP | 场景                                   |
 | ---- | -------------------------------------- |

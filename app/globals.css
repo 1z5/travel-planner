@@ -7221,3 +7221,91 @@ main.has-result .new-head {
   font-size: 11px;
   color: var(--ink-4);
 }
+
+/* ============================================================
+ * 行中执行卡（TodayExecutionCard，产品线 C2）
+ * 行中第一屏的核心动作：建议出发时间 + 两个打卡按钮。按钮 ≥40px 触控，
+ * 「已到达」用完成态替换按钮（不重复计次）。
+ * ============================================================ */
+.today-exec {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.today-exec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--fs-small);
+}
+.today-exec-next {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.today-exec-head strong {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+}
+.today-exec-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.today-exec-advice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+.today-exec-advice strong {
+  font-family: var(--font-mono);
+  color: var(--ink-strong);
+}
+.today-exec-advice-none {
+  color: var(--ink-4);
+}
+.today-exec-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.today-exec-actions .btn {
+  min-height: 40px;
+}
+.today-exec-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ok-ink);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-line);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+}
+/* 时间轴上的「已到达」小徽章（打卡回执） */
+.spot-arrived {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--ok-ink);
+  background: var(--ok-bg);
+  border-radius: 999px;
+  padding: 1px 7px;
+  vertical-align: middle;
+}

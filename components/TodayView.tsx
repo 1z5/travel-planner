@@ -36,6 +36,7 @@ import {
 } from "@/lib/trip-day";
 import { formatHoursShort } from "@/lib/poi-hours";
 import { parseTimeRange } from "@/lib/schedule";
+import { TodayExecutionCard, useArrivedSpots } from "./TodayExecutionCard";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
 // 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
 import type { ReplanResult } from "@/lib/replan";
@@ -258,6 +259,12 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
     : null;
   const currentDay: PlanDay | undefined =
     today?.kind === "during" ? days[today.dayIndex] : undefined;
+
+  // 当天已到达的点位（本地打卡记录，C2）。**必须在任何条件返回之前调用**：
+  // hooks 顺序不能随「今天是不是出行日」改变（React Rules of Hooks，踩过）。
+  // dayNo 这里用防御式计算（currentDay 可能不存在），与下方 during 分支的
+  // dayNo 同源；非出行日读 day 1 的记录也不会有副作用（UI 不展示）。
+  const arrivedSpots = useArrivedSpots(shareId, today?.kind === "during" ? today.dayIndex + 1 : 1);
 
   // 行程被改过（今天换成室内路线）后，之前算出的直线距离可能对应的是旧点位：
   // 清掉定位结果，宁可让用户重新点一次，也不把旧距离贴在新景点上。
@@ -572,6 +579,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   const legs: PlanLeg[] = Array.isArray(currentDay.legs) ? currentDay.legs : [];
   const spotStatus: SpotNow | null = spotNow(spots, clock.minutes);
   const dayNo = typeof currentDay.day === "number" ? currentDay.day : today.dayIndex + 1;
+
   const outdoorSpots = spots.filter((s) => s.type === "sight" || s.type === "activity");
   const weatherBad =
     weather.status === "done" &&
@@ -848,6 +856,12 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                         <Icon size={11} aria-hidden="true" />
                         {TYPE_LABEL[s.type] ?? s.type}
                       </span>
+                      {arrivedSpots.includes(s.name) && (
+                        <span className="spot-arrived" title="你标记过已到达">
+                          <Check size={12} aria-hidden="true" />
+                          已到达
+                        </span>
+                      )}
                       {s.name}
                     </div>
 

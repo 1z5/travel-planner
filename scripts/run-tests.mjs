@@ -1392,6 +1392,25 @@ async function phaseA(api) {
     );
   }
 
+  // ---- 行中打卡埋点（C2）：新事件名必须在封闭枚举内，否则前端埋点全 400 ----
+  const postEvent = async (name, extra = {}) => {
+    const r = await fetch(`${api.baseUrl}/api/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, shareId: "share_e2e_event", city: "成都", ...extra }),
+    });
+    return r.status;
+  };
+  check(
+    "行中埋点：today_arrived 被接受（204）",
+    (await postEvent("today_arrived", { day: 1 })) === 204,
+  );
+  check(
+    "行中埋点：today_departed 被接受（204）",
+    (await postEvent("today_departed", { day: 1 })) === 204,
+  );
+  check("行中埋点：未知事件名仍被拒绝（400）", (await postEvent("bogus_event")) === 400);
+
   // ---- 攻略提取（POST /api/plan/extract，产品线 B「内容起手」）----
   // 只提条件不生成：不扣每日生成配额（所以可以放在 phaseA 末尾而不影响上面的
   // remaining 账目），但吃按 IP 小时桶（默认 10 次/小时）与全站 LLM 日预算。

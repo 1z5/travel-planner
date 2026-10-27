@@ -18,6 +18,8 @@ export const EVENT_NAMES = [
   "today_opened", // 打开「今日」镜头（行中）
   "day_modified", // 改了某一天（refine/adjust/reorder，服务端记，带 day/op）
   "trip_cloned", // 克隆了别人的行程
+  "today_departed", // 行中：点「我已出发」（前端记，带 day）
+  "today_arrived", // 行中：点「我已到达」（前端记，带 day）——「照着走完」的强信号
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];
@@ -41,7 +43,18 @@ export interface MetricsSummary {
    * - 行程按 shareId 归并；未登录用户换设备打开会算成两个 trip（已知局限，
    *   登录体系补齐后可按用户归并）。
    */
-  northStar: { tripsWithToday: number; tripsUnmodified: number; rate: number | null };
+  northStar: {
+    /** 行中打开过的行程数（分母） */
+    tripsWithToday: number;
+    /** 其中没有任何 day_modified 的（弱信号：没改过） */
+    tripsUnmodified: number;
+    /** 其中既没改过、也有「到达」打卡的（强信号：真照着走了） */
+    tripsFollowed: number;
+    /** 弱信号比例（与旧口径一致，保证历史可比） */
+    rate: number | null;
+    /** 强信号比例；无到达打卡时为 null（不硬算 0 冒充「都没照着走」） */
+    followedRate: number | null;
+  };
   /** 改动最多的是第几天（用于发现「行程排得太满」的信号） */
   modifiedByDay: Array<{ day: number; count: number }>;
   /** Top 目的地（按生成数） */
@@ -90,15 +103,24 @@ export function summarize(events: readonly TripEventRecord[], since: number): Me
     return row;
   });
 
-  // ---- 北极星：行中打开过 & 从未修改 ----
+  // ---- 北极星：行中打开过 & 从未修改（弱信号）/ & 有到达打卡（强信号）----
+  // 两个口径分开报：弱信号（没改过）可能与旧版对比，强信号（点了到达）是
+  // 「真的照着走」的证据，但依赖用户愿意点一下——没人点时 followedRate 为 null，
+  // 不硬算 0 出来冒充「大家都没照着走」。
   const modifiedTrips = new Set<string>();
   for (const e of clean) if (e.name === "day_modified" && e.shareId) modifiedTrips.add(e.shareId);
+  const arrivedTrips = new Set<string>();
+  for (const e of clean) if (e.name === "today_arrived" && e.shareId) arrivedTrips.add(e.shareId);
   const unmodified = [...today].filter((id) => !modifiedTrips.has(id));
+  const followed = unmodified.filter((id) => arrivedTrips.has(id));
   const tripsWithToday = today.size;
+  const anyArrival = clean.some((e) => e.name === "today_arrived");
   const northStar: MetricsSummary["northStar"] = {
     tripsWithToday,
     tripsUnmodified: unmodified.length,
+    tripsFollowed: followed.length,
     rate: tripsWithToday > 0 ? unmodified.length / tripsWithToday : null,
+    followedRate: anyArrival ? followed.length / Math.max(1, tripsWithToday) : null,
   };
 
   // ---- 改动集中在第几天（发现「排太满」的信号） ----
