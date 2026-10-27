@@ -54,6 +54,7 @@ import { summarizeBudget } from "@/lib/budget";
 import { suggestFix } from "@/lib/fix-actions";
 import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
 import { changeImpact, type ChangeImpact } from "@/lib/change-impact";
+import { SpotCandidates } from "./SpotCandidates";
 import { formatHoursShort } from "@/lib/poi-hours";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
@@ -248,6 +249,8 @@ export function PlanView({
   const [prevPlan, setPrevPlan] = useState<Plan | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const [undoNote, setUndoNote] = useState("");
+  // 「多看几个」面板当前展开的站点（day + spotIndex）；null = 未展开
+  const [candidatesAt, setCandidatesAt] = useState<{ day: number; index: number } | null>(null);
   const [editError, setEditError] = useState("");
   const [revision, setRevision] = useState<number | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
@@ -898,6 +901,26 @@ export function PlanView({
                           {swapBusy ? "换台中…" : "换一个"}
                         </button>
                       )}
+                      {canEdit && SWAPPABLE_TYPES.has(s.type) && (
+                        <button
+                          type="button"
+                          className="btn-link spot-action"
+                          disabled={!!busy}
+                          onClick={() =>
+                            setCandidatesAt(
+                              candidatesAt?.day === day.day && candidatesAt.index === i
+                                ? null
+                                : { day: day.day, index: i },
+                            )
+                          }
+                          title="看 3 个真实替代点，自己挑一个"
+                        >
+                          <MapPin size={12} />
+                          {candidatesAt?.day === day.day && candidatesAt.index === i
+                            ? "收起候选"
+                            : "多看几个"}
+                        </button>
+                      )}
                       {s.location && (
                         <a
                           className="btn-link spot-action"
@@ -911,6 +934,22 @@ export function PlanView({
                       )}
                     </div>
                   )}
+                  {canEdit &&
+                    shareId &&
+                    candidatesAt?.day === day.day &&
+                    candidatesAt.index === i && (
+                      <SpotCandidates
+                        shareId={shareId}
+                        day={day.day}
+                        spotIndex={i}
+                        currentName={s.name}
+                        onApplied={(nextPlan, nextRevision) => {
+                          applyUpdatedPlan(nextPlan, "refine");
+                          setRevision(nextRevision);
+                        }}
+                        onClose={() => setCandidatesAt(null)}
+                      />
+                    )}
                   {leg && ModeIcon && (
                     <div className="leg-chip">
                       <ModeIcon size={12} />

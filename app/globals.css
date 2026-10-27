@@ -7820,3 +7820,87 @@ main.has-result .new-head {
   font-size: var(--fs-caption);
   color: var(--ok-ink);
 }
+
+/* ============================================================
+ * 「多看几个」真实候选对比（S4 v0）
+ * 行内展开在站点下方：不打断时间轴阅读，候选带通勤/评分/人均（缺则整块不显示）。
+ * ============================================================ */
+.spot-candidates {
+  margin: 8px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+.spot-candidates-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.spot-candidates-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+.spot-candidates-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+  font-size: var(--fs-caption);
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+.spot-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.spot-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+.spot-candidate:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.spot-candidate-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.spot-candidate-name {
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+.spot-candidate-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--ink-4);
+  flex-wrap: wrap;
+}
+.spot-candidate .btn {
+  flex: none;
+  min-height: 36px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.spot-candidates-error {
+  margin: 6px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--err-ink);
+}

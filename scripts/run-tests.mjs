@@ -1426,6 +1426,22 @@ async function phaseA(api) {
     `${robotsRes.status}`,
   );
 
+  // ---- 真实候选对比（S4 v0）：MOCK 模式必须明确拒绝，不编候选 ----
+  const mockShareId = jRegion8.shareId ?? j23.shareId ?? j26c.shareId ?? "";
+  if (mockShareId) {
+    const candMock = await fetch(
+      `${api.baseUrl}/api/plan/candidates?shareId=${mockShareId}&day=1&spotIndex=0`,
+    );
+    const candMockBody = await candMock.json().catch(() => ({}));
+    check(
+      "候选对比：MOCK 模式 → 503 且说明未接高德（不编候选）",
+      candMock.status === 503 && String(candMockBody.error ?? "").includes("MOCK"),
+      `${candMock.status} ${JSON.stringify(candMockBody).slice(0, 100)}`,
+    );
+  } else {
+    check("候选对比：缺少可用 shareId（跳过 MOCK 断言）", false, "no shareId in scope");
+  }
+
   // ---- PWA（产品线 C1：行中「像 App」入口 + 离线外壳）----
   // manifest 决定「添加到主屏」后的名称/图标/主题色；sw.js 是 /t 与 /p 的
   // 离线外壳（断网也能看到最后一次加载的行中页）。两者都是公开静态资产。
@@ -2267,6 +2283,49 @@ async function phaseB(api) {
     tBad.status === 200 && tBadHtml.includes("链接已失效"),
     `got ${tBad.status}`,
   );
+  // ---- 真实候选对比（S4 v0）：GET 看候选 / POST 确定性替换（走桩高德）----
+  const cand = await fetch(
+    `${api.baseUrl}/api/plan/candidates?shareId=${j.shareId}&day=1&spotIndex=1`,
+  );
+  const candBody = await cand.json().catch(() => ({}));
+  const firstCand = Array.isArray(candBody.candidates) ? candBody.candidates[0] : null;
+  check(
+    "候选对比：200 且最多 3 个候选（都带名称）",
+    cand.status === 200 &&
+      Array.isArray(candBody.candidates) &&
+      candBody.candidates.length > 0 &&
+      candBody.candidates.length <= 3 &&
+      candBody.candidates.every((c) => typeof c.name === "string" && c.name.length > 0),
+    `${cand.status} ${JSON.stringify(candBody).slice(0, 160)}`,
+  );
+  if (firstCand) {
+    const applied = await fetch(`${api.baseUrl}/api/plan/candidates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shareId: j.shareId,
+        day: 1,
+        spotIndex: 1,
+        name: firstCand.name,
+      }),
+    });
+    const appliedBody = await applied.json().catch(() => ({}));
+    check(
+      "候选替换：确定性落库（第 1 天第 2 站被替换 + revision 递增）",
+      applied.status === 200 &&
+        appliedBody.plan?.days?.[0]?.spots?.[1]?.name === firstCand.name &&
+        typeof appliedBody.revision === "number" &&
+        appliedBody.revision >= 3,
+      `${applied.status} ${JSON.stringify(appliedBody).slice(0, 160)}`,
+    );
+    const badName = await fetch(`${api.baseUrl}/api/plan/candidates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shareId: j.shareId, day: 1, spotIndex: 1, name: "bad<>name" }),
+    });
+    check("候选替换：名称含非法字符 → 400", badName.status === 400, `got ${badName.status}`);
+  }
+
   // ---- 撤销这次修改（A4 延伸）：POST /api/plan/restore ----
   // 语义：把「修改前那一版」发回去，服务端校验后落库为新版本（revision+1）。
   // 放在 phaseB 末尾：前面的用例会改同一份 plan，revision 断言只做相对变化。
