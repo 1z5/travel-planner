@@ -22,4 +22,8 @@ regexes = [
   '''sk-xxx''',
   '''stub-key''',
   '''stub-amap-key''',
+  # localStorage 键名常量（如 "tp.execution.v1"）被 generic-api-key 的
+  # 「= + 高熵字符串」规则误判：它不是密钥，是浏览器本地存储的命名空间。
+  # 用带前缀的精确正则放行，而不是整文件白名单（后者会放过真泄漏）。
+  '''STORAGE_KEY = "tp\.[a-z0-9.-]+"''',
 ]
