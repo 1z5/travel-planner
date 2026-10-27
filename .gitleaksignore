@@ -1,12 +1,13 @@
 # gitleaks 忽略清单（按 fingerprint 精确忽略，**不是**整文件白名单）
 #
-# 为什么需要它而不是 .gitleaks.toml 的 allowlist：gitleaks 的历史扫描会对
-# 「曾经提交过的每一行」各生成一个 fingerprint；allowlist 规则在这条历史
-# finding 上没有生效（CI 实测三次），而 fingerprint 是官方支持的精确忽略方式。
+# 背景：gitleaks 的历史扫描会对「曾经提交过的每一行」各生成一个 fingerprint，
+# 而 .gitleaks.toml 的 allowlist 规则实测对这类历史 finding 不生效（CI 三次失败）；
+# fingerprint 是官方支持的精确忽略方式，且只忽略这一条，不放过将来的真密钥。
 #
-# 这条：lib/trip-execution.ts 的 localStorage 键名常量
-#     const STORAGE_KEY = "tp.execution.v1";
-# 被 generic-api-key 按「= + 高熵字符串」误判为密钥。它只是浏览器本地存储的
-# 命名空间（当前版本已加 // gitleaks:allow；这里是历史提交里的那一条）。
-# 若该文件将来真的提交了密钥，fingerprint 不同，仍然会被扫出来。
+# 被忽略的这条：lib/trip-execution.ts 的 localStorage 命名空间常量（形如
+# tp.<模块>.vN）被 generic-api-key 按「等号 + 高熵字符串」误判为密钥。
+# 当前版本该行已加行内 gitleaks:allow；这里是历史提交里的那一条。
+#
+# 注意：本文件也会被 scan，注释里不要出现「KEY = "..."」形式的赋值字面量
+# （上一次就是这么被自己扫出来的）。
 9a8cfa7d8cecd263fff81c98fe5e31c9d47ce304:lib/trip-execution.ts:generic-api-key:20
