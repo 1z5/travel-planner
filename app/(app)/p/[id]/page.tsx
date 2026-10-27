@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { resolvePlan } from "@/lib/plan-repo";
+import { getStore } from "@/lib/store";
+import { countClones } from "@/lib/clone-count";
 import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
@@ -52,6 +54,15 @@ export default async function SharePage({
   const { id } = await params;
   const { edit } = await searchParams;
   const plan = await getPlan(id);
+
+  // 克隆计数（分享页的社交证明）：复用度量闭环的 trip_cloned 事件，不需要
+  // schema 迁移。0 次时 UI 整块不渲染——不编「已有 N 人克隆」。
+  const cloneCount = plan
+    ? countClones(
+        await getStore().events.list({ name: "trip_cloned", shareId: id, limit: 1000 }),
+        id,
+      )
+    : 0;
 
   if (!plan) {
     return (
@@ -115,10 +126,21 @@ export default async function SharePage({
           <Link href={`/w/${id}`} className="btn btn-sm">
             在工作台打开
           </Link>
+          {/* 竖版海报（1080×1920）：微信里长按即可保存转发，是分享裂变的物料。
+              路由 /p/<id>/poster 与页面同源数据（lib/poster-model.ts）。 */}
+          <a
+            href={`/p/${id}/poster`}
+            className="btn btn-sm"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            保存海报
+          </a>
           <Link href="/new" className="share-cta-btn">
             生成我的行程 →
           </Link>
         </div>
+        {cloneCount > 0 && <p className="share-clone-count">{cloneCount} 人克隆过这份行程</p>}
       </div>
 
       {/* 切片1 · 海报级分享页：传播飞轮的「值得截图」封面（见 components/PosterCover.tsx）。

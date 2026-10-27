@@ -6,6 +6,8 @@ import { readSession } from "@/lib/auth/session";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { deriveCloneInput, CloneOverridesSchema } from "@/lib/plan-clone";
 import { clientIpFromHeaders } from "@/lib/client-ip";
+import { getStore } from "@/lib/store";
+import { newEventId } from "@/lib/metrics";
 import {
   releaseGenerationBudget,
   tryAcquireSlot,
@@ -145,5 +147,19 @@ export async function POST(req: NextRequest) {
   console.log(
     `[clone] ${shareId} → 新任务 ${job.id}（${derived.input.city} ${derived.input.days} 天 ${derived.input.startAt}~${derived.input.endAt}）`,
   );
+  // 埋点：trip_cloned 之前在 EVENT_NAMES 里声明但没有任何地方写——分享裂变
+  // 的转化率因此不可计算。提交即记（与漏斗口径一致：用户点了克隆）。
+  // 写入失败不影响主流程（EventStore.record 本身也不抛）。
+  try {
+    await getStore().events.record({
+      id: newEventId(),
+      name: "trip_cloned",
+      shareId,
+      city: derived.input.city,
+      createdAt: Date.now(),
+    });
+  } catch {
+    /* 埋点失败不阻塞克隆 */
+  }
   return NextResponse.json({ jobId: job.id }, { status: 202 });
 }

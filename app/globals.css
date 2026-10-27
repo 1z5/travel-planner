@@ -7210,3 +7210,14 @@ main.has-result .new-head {
   border-style: dashed;
   border-color: var(--line-strong);
 }
+
+/* ============================================================
+ * 分享页：克隆计数（社交证明）
+ * 小字、等宽、弱化——「N 人克隆过」是佐证不是主 CTA；0 次时整块不渲染。
+ * ============================================================ */
+.share-clone-count {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}

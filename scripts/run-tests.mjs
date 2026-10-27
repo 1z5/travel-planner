@@ -1451,6 +1451,36 @@ async function phaseB(api) {
     `got ${plan.totalCostCny}`,
   );
 
+  // ---- 竖版海报（/p/<shareId>/poster，产品线 A5 分享物料）----
+  // 与分享页/OG 同源数据；行程不存在 → 404（不渲染假行程海报）。
+  const shareIdForPoster = j.shareId;
+  check(
+    "分享页海报：任务完成后有 shareId",
+    typeof shareIdForPoster === "string",
+    JSON.stringify(j).slice(0, 80),
+  );
+  if (shareIdForPoster) {
+    const poster = await fetch(`${api.baseUrl}/p/${shareIdForPoster}/poster`);
+    const ct = poster.headers.get("content-type") ?? "";
+    check(
+      "竖版海报：200 且 image/png",
+      poster.status === 200 && ct.includes("image/png"),
+      `got ${poster.status} ${ct}`,
+    );
+    const bytes = Buffer.from(await poster.arrayBuffer());
+    check(
+      "竖版海报：合法 PNG（魔数 + 非空）",
+      bytes.length > 1000 && bytes[0] === 0x89 && bytes[1] === 0x50,
+      `bytes=${bytes.length}`,
+    );
+  }
+  const poster404 = await fetch(`${api.baseUrl}/p/no_such_share_404/poster`);
+  check(
+    "竖版海报：行程不存在 → 404（不渲染假行程）",
+    poster404.status === 404,
+    `got ${poster404.status}`,
+  );
+
   // ---- 分段路线（按交通方式串起整条动线）----
   // 默认 transportMode=driving，每天相邻景点算一段 legs。fixture 每天点数
   // [7,5,4] → 段数 [6,4,3]；但「桃花源记」miss 无坐标，涉及它的段被跳过，
