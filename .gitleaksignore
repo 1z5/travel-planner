@@ -11,3 +11,4 @@
 # 注意：本文件也会被 scan，注释里不要出现「KEY = "..."」形式的赋值字面量
 # （上一次就是这么被自己扫出来的）。
 9a8cfa7d8cecd263fff81c98fe5e31c9d47ce304:lib/trip-execution.ts:generic-api-key:20
+2b93a36fc33e916df3c9295bef1783663ffd09a8:.gitleaksignore:generic-api-key:8
