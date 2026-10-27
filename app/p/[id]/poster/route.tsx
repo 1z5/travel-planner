@@ -102,11 +102,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {/* 底部：预算行 + 品牌 + 数据来源 */}
+      {/* 底部：品牌 + 数据来源（预算数字已在 KPI 行，不重复） */}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {m.budgetLine ? (
-          <div style={{ display: "flex", fontSize: 32, color: "#6b5f52" }}>{m.budgetLine}</div>
-        ) : null}
         <div style={{ display: "flex", fontSize: 28 }}>{m.brandLine}</div>
         <div style={{ display: "flex", fontSize: 22, color: "#8a7d6c" }}>
           POI / 营业时间 / 通勤来自高德开放平台

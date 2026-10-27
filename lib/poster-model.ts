@@ -35,8 +35,6 @@ export interface PosterModel {
   kpis: PosterKpi[];
   /** 代表性看点：优先景点/餐饮，跳过住宿/交通占位，最多 4 个 */
   highlights: PosterHighlight[];
-  /** "人均 ¥2,002 · 预算使用率 80%"；无预算数据时为 null */
-  budgetLine: string | null;
   /** 核验状态一句话（三态，见 buildPosterModel） */
   verifyLine: string;
   brandLine: string;
@@ -108,16 +106,7 @@ export function buildPosterModel(plan: Plan): PosterModel {
     dateText,
     kpis,
     highlights,
-    budgetLine: budgetLine(plan),
     verifyLine: verifyLineOf(plan),
     brandLine: "行程规划师 · 先核验真实世界，再排行程",
   };
-}
-
-/** 预算行：与页面预算透视同源；没有预算输入时不给行（不猜使用率） */
-function budgetLine(plan: Plan): string | null {
-  if (plan.budgetCny === undefined) return null;
-  const budget = summarizeBudget(plan);
-  const used = budget.usedPct !== undefined ? ` · 预算使用率 ${budget.usedPct}%` : "";
-  return `人均 ${formatCny(budget.total)}${used}`;
 }

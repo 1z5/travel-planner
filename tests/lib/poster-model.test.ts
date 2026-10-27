@@ -20,10 +20,9 @@ describe("buildPosterModel", () => {
     expect(m.kpis[3]?.value).toMatch(/^\d+%$/);
   });
 
-  it("旧数据没有预算 → 使用率 KPI 与预算行都不渲染（不猜）", () => {
+  it("旧数据没有预算 → 使用率 KPI 不渲染（不猜）", () => {
     const m = buildPosterModel(plan({ budgetCny: undefined }));
     expect(m.kpis.map((k) => k.label)).not.toContain("预算使用率");
-    expect(m.budgetLine).toBeNull();
   });
 
   it("highlights：优先景点/餐饮，跳过住宿/交通占位，最多 4 个", () => {
