@@ -7804,3 +7804,19 @@ main.has-result .new-head {
   line-height: 1.7;
   color: var(--ink-2);
 }
+
+/* 撤销这次修改（A4 延伸）：横幅里的次要动作，不与「关闭」抢视线 */
+.change-impact-undo {
+  flex: none;
+  min-height: 32px;
+  padding: 2px 10px;
+  font-size: 12px;
+  border-color: currentColor;
+  color: inherit;
+  background: transparent;
+}
+.change-impact-note {
+  margin: -4px 0 12px;
+  font-size: var(--fs-caption);
+  color: var(--ok-ink);
+}

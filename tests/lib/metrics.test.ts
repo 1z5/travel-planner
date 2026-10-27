@@ -15,11 +15,12 @@ function ev(name: string, over: Partial<TripEventRecord> = {}): TripEventRecord 
 const SINCE = 1_000_000;
 
 describe("指标：事件名封闭枚举", () => {
-  it("枚举包含八类行为事件（含行中打卡与付费意愿）", () => {
+  it("枚举包含九类行为事件（含行中打卡/付费意愿/撤销）", () => {
     expect([...EVENT_NAMES].sort()).toEqual([
       "day_modified",
       "plan_created",
       "plan_opened",
+      "plan_restored",
       "today_arrived",
       "today_departed",
       "today_opened",

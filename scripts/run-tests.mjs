@@ -2267,6 +2267,36 @@ async function phaseB(api) {
     tBad.status === 200 && tBadHtml.includes("链接已失效"),
     `got ${tBad.status}`,
   );
+  // ---- 撤销这次修改（A4 延伸）：POST /api/plan/restore ----
+  // 语义：把「修改前那一版」发回去，服务端校验后落库为新版本（revision+1）。
+  // 放在 phaseB 末尾：前面的用例会改同一份 plan，revision 断言只做相对变化。
+  const postRestore = async (body) => {
+    const r = await fetch(`${api.baseUrl}/api/plan/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  const r1 = await postRestore({ shareId: j.shareId, plan: j.plan });
+  check(
+    "撤销：合法 plan → 200 且 revision 递增、内容与提交一致",
+    r1.status === 200 &&
+      typeof r1.body.revision === "number" &&
+      r1.body.revision >= 2 &&
+      r1.body.plan?.city === j.plan.city,
+    `got ${r1.status} ${JSON.stringify(r1.body).slice(0, 120)}`,
+  );
+  const r2 = await postRestore({ shareId: j.shareId, plan: j.plan });
+  check(
+    "撤销：再次恢复 → revision 继续递增（确实落库，不是本地假象）",
+    r2.status === 200 && r2.body.revision === r1.body.revision + 1,
+    `rev1=${r1.body.revision} rev2=${r2.body.revision}`,
+  );
+  const bad = await postRestore({ shareId: j.shareId, plan: { city: "x" } });
+  check("撤销：畸形 plan → 400（结构校验）", bad.status === 400, `got ${bad.status}`);
+  const unknown = await postRestore({ shareId: "share_nope_404", plan: j.plan });
+  check("撤销：不存在的行程 → 404", unknown.status === 404, `got ${unknown.status}`);
 }
 
 // ---------------- 阶段 C：登录体系（dev provider） ----------------

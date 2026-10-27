@@ -243,6 +243,11 @@ export function PlanView({
   // 改动前后的可执行性对比（A4）：修复/顺延成功后展示「风险降了多少」。
   // 只在用户主动改过之后出现；不可关闭后消失前保持可见，让用户看清效果。
   const [impact, setImpact] = useState<ChangeImpact | null>(null);
+  // 撤销（A4 延伸）：保留修改前那一版，改坏了能退回去；撤销本身也是服务端
+  // 新版本（revision+1），不是本地假象——刷新后仍然是撤销后的内容。
+  const [prevPlan, setPrevPlan] = useState<Plan | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [undoNote, setUndoNote] = useState("");
   const [editError, setEditError] = useState("");
   const [revision, setRevision] = useState<number | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
@@ -268,9 +273,47 @@ export function PlanView({
    * 保证「改一次，验一次」在任何路径上都成立。
    */
   function applyUpdatedPlan(next: Plan, kind: ChangeImpact["kind"]): void {
+    setPrevPlan(viewPlan); // 撤销目标：这一次修改之前的内容
     setImpact(changeImpact(viewPlan, next, kind));
+    setUndoNote("");
     setViewPlan(next);
     onPlanChange?.(next);
+  }
+
+  /**
+   * 撤销这次修改：把修改前的 plan 发回服务端落库成新版本。
+   * 为什么走服务端而不是只改本地：撤销要能刷新/换设备后仍然生效，本地方案
+   * 刷新即失效；服务端落版的代价是 revision+1（可接受，历史不丢）。
+   */
+  async function undoLastChange(): Promise<void> {
+    if (!shareId || !prevPlan) return;
+    setUndoBusy(true);
+    setEditError("");
+    setUndoNote("");
+    try {
+      const r = await fetch("/api/plan/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId, plan: prevPlan }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setEditError(d.error || "撤销失败，请稍后重试");
+        return;
+      }
+      if (d.plan) {
+        setViewPlan(d.plan);
+        onPlanChange?.(d.plan);
+      }
+      setRevision(typeof d.revision === "number" ? d.revision : null);
+      setPrevPlan(null);
+      setImpact(null);
+      setUndoNote("已撤销，回到修改前的版本");
+    } catch {
+      setEditError("网络异常，撤销未保存，请重试");
+    } finally {
+      setUndoBusy(false);
+    }
   }
 
   async function refine(req: RefineRequest): Promise<void> {
@@ -1006,6 +1049,18 @@ export function PlanView({
               role="status"
             >
               <span>{impact.summary}</span>
+              {/* 撤销：改坏了能退回去（服务端落成新版本，刷新后仍生效） */}
+              {shareId && (
+                <button
+                  type="button"
+                  className="btn btn-sm change-impact-undo"
+                  onClick={() => void undoLastChange()}
+                  disabled={undoBusy}
+                  aria-label="撤销这次修改，回到上一版"
+                >
+                  {undoBusy ? "撤销中…" : "撤销这次修改"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setImpact(null)}
@@ -1015,6 +1070,11 @@ export function PlanView({
                 ×
               </button>
             </div>
+          )}
+          {undoNote && (
+            <p className="change-impact-note" role="status">
+              {undoNote}
+            </p>
           )}
 
           {/* 行程速览：一行三个数字。
