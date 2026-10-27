@@ -106,7 +106,7 @@ export function LandingSections() {
               1,500+ 自动化测试覆盖输入边界、上游故障、分日流式与分享链路； CI
               逐次跑类型检查、构建与全量测试。
             </p>
-            <span className="trust-meta">994 单测 + 545 端到端断言</span>
+            <span className="trust-meta">998 单测 + 545 端到端断言</span>
           </div>
           <div className="trust-card">
             <h3>隐私边界</h3>
