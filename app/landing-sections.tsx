@@ -103,10 +103,10 @@ export function LandingSections() {
           <div className="trust-card">
             <h3>工程化验收</h3>
             <p>
-              1,300+ 自动化测试覆盖输入边界、上游故障、分日流式与分享链路； CI
+              1,500+ 自动化测试覆盖输入边界、上游故障、分日流式与分享链路； CI
               逐次跑类型检查、构建与全量测试。
             </p>
-            <span className="trust-meta">804 单测 + 511 端到端断言</span>
+            <span className="trust-meta">994 单测 + 545 端到端断言</span>
           </div>
           <div className="trust-card">
             <h3>隐私边界</h3>
@@ -123,6 +123,47 @@ export function LandingSections() {
               不用默认值把空洞填成看起来完整的样子。
             </p>
             <span className="trust-meta">三态：hit / miss / error</span>
+          </div>
+        </div>
+      </section>
+
+      {/* 中立承诺（A6）：AI 旅行产品最大的信任缺口是「它到底在替谁说话」——
+          竞价排名、佣金推荐会悄悄改变行程。这里把边界写成可检验的承诺，
+          而不是一句「我们很可靠」。 */}
+      <section className="trust" id="neutrality">
+        <div className="legend">我们的中立承诺</div>
+        <div className="trust-grid">
+          <div className="trust-card">
+            <h3>不卖排名</h3>
+            <p>
+              没有竞价、没有付费推荐位。行程里的每一个点位都来自高德检索与你的约束，
+              不来自任何酒店的投放预算。
+            </p>
+            <span className="trust-meta">无广告位 · 无返佣推荐</span>
+          </div>
+          <div className="trust-card">
+            <h3>不隐瞒风险</h3>
+            <p>
+              会闭馆、来不及时、绕路、超预算——体检发现的全部摊开，包括「我们核不到」
+              的部分（临时限流、售罄、围挡）。不为了好看把风险藏起来。
+            </p>
+            <span className="trust-meta">可执行性评分 A–D · 证据可展开</span>
+          </div>
+          <div className="trust-card">
+            <h3>不代你改行程</h3>
+            <p>
+              体检只提示、不擅自改写；「一键顺延 / 重排」也必须由你点。
+              改完立刻重新体检，改好了还是改坏了都如实告诉你。
+            </p>
+            <span className="trust-meta">用户是决策者 · 修复需确认</span>
+          </div>
+          <div className="trust-card">
+            <h3>数据边界写清楚</h3>
+            <p>
+              事实层只覆盖国内（高德 POI）；境外地点会明确降级为「未核验」；
+              营业时间读不懂就标「待确认」，不用默认值假装完整。
+            </p>
+            <span className="trust-meta">只声称做得到的事</span>
           </div>
         </div>
       </section>

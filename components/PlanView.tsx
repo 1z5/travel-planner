@@ -53,6 +53,7 @@ import { ExecutabilityBadge } from "./ExecutabilityBadge";
 import { summarizeBudget } from "@/lib/budget";
 import { suggestFix } from "@/lib/fix-actions";
 import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
+import { changeImpact, type ChangeImpact } from "@/lib/change-impact";
 import { formatHoursShort } from "@/lib/poi-hours";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
@@ -239,6 +240,9 @@ export function PlanView({
   // 全局串行（任一次修改进行中就禁用所有编辑）——服务端是整份 plan 覆盖写，
   // 并发提交会 last-write-wins 丢掉另一次改动。
   const [busy, setBusy] = useState<string | null>(null);
+  // 改动前后的可执行性对比（A4）：修复/顺延成功后展示「风险降了多少」。
+  // 只在用户主动改过之后出现；不可关闭后消失前保持可见，让用户看清效果。
+  const [impact, setImpact] = useState<ChangeImpact | null>(null);
   const [editError, setEditError] = useState("");
   const [revision, setRevision] = useState<number | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
@@ -257,6 +261,17 @@ export function PlanView({
     setEditAllowed(!!shareId && ownsRecentTrip(shareId));
   }, [ownerCheck, shareId]);
   const canEdit = editable && !!shareId && editAllowed;
+
+  /**
+   * 应用服务端返回的新 plan，并计算「这次改动让风险变好还是变差」（A4）。
+   * 所有修改入口（换一个/一句话改/一键顺延/重排/一键修复）都走这里，
+   * 保证「改一次，验一次」在任何路径上都成立。
+   */
+  function applyUpdatedPlan(next: Plan, kind: ChangeImpact["kind"]): void {
+    setImpact(changeImpact(viewPlan, next, kind));
+    setViewPlan(next);
+    onPlanChange?.(next);
+  }
 
   async function refine(req: RefineRequest): Promise<void> {
     if (!shareId) return;
@@ -282,8 +297,7 @@ export function PlanView({
         return;
       }
       if (d.plan) {
-        setViewPlan(d.plan);
-        onPlanChange?.(d.plan);
+        applyUpdatedPlan(d.plan, "refine");
       }
       setRevision(typeof d.revision === "number" ? d.revision : null);
       setEditingDay(null);
@@ -336,7 +350,7 @@ export function PlanView({
           return;
         }
         if (d.plan) {
-          setViewPlan(d.plan);
+          applyUpdatedPlan(d.plan, "adjust");
           onPlanChange?.(d.plan);
         }
         setRevision(typeof d.revision === "number" ? d.revision : null);
@@ -365,7 +379,7 @@ export function PlanView({
         return;
       }
       if (d.plan) {
-        setViewPlan(d.plan);
+        applyUpdatedPlan(d.plan, "refine");
         onPlanChange?.(d.plan);
       }
       setRevision(typeof d.revision === "number" ? d.revision : null);
@@ -404,7 +418,7 @@ export function PlanView({
           return;
         }
         if (d.plan) {
-          setViewPlan(d.plan);
+          applyUpdatedPlan(d.plan, "adjust");
           onPlanChange?.(d.plan);
         }
         setRevision(typeof d.revision === "number" ? d.revision : null);
@@ -427,7 +441,7 @@ export function PlanView({
         return;
       }
       if (d.plan) {
-        setViewPlan(d.plan);
+        applyUpdatedPlan(d.plan, "refine");
         onPlanChange?.(d.plan);
       }
       setRevision(typeof d.revision === "number" ? d.revision : null);
@@ -977,6 +991,31 @@ export function PlanView({
               首屏一眼可见的「A/B/C/D + 分数 + 证据」。这是产品差异化的前台化
               （竞品都在宣传「验真」，没人给「这条行程走不走得通」的结论）。 */}
           <ExecutabilityBadge plan={viewPlan} />
+
+          {/* 本次修改的效果对比（A4）：改完立刻告诉用户风险是降了、没变、还是变差了。
+              变差也如实说（禁止只报喜）。 */}
+          {impact && (
+            <div
+              className={`change-impact${
+                impact.scoreBefore !== null &&
+                impact.scoreAfter !== null &&
+                impact.scoreAfter < impact.scoreBefore
+                  ? " change-impact-worse"
+                  : ""
+              }`}
+              role="status"
+            >
+              <span>{impact.summary}</span>
+              <button
+                type="button"
+                onClick={() => setImpact(null)}
+                aria-label="关闭本次修改说明"
+                className="change-impact-close"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {/* 行程速览：一行三个数字。
               为什么不再放「人均总花费」：它就在下面的预算透视里，同一个数字在

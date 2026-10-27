@@ -37,7 +37,7 @@ export default function AboutPage() {
             </Link>
           </div>
           <p className="about-facts">
-            20+ 城市实测通过 · POI 验真率 99.7% · 1,200+ 自动化测试 · 数据来自高德开放平台
+            20+ 城市实测通过 · 逐项标注核验状态 · 1,500+ 自动化测试 · 数据来自高德开放平台
           </p>
         </div>
       </section>

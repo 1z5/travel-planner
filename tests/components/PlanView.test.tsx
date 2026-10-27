@@ -460,6 +460,9 @@ describe("PlanView 可执行性（POI 真实数据 / 一键修复）", () => {
     });
     expect(await screen.findByText(/已按真实路段时长顺延第 3 天时间轴/)).toBeInTheDocument();
     expect(screen.getByText(/已更新 · 第 2 版/)).toBeInTheDocument();
+    // A4：改完立刻给「这次改动让风险变了多少」的结论（数字复用可执行性评分）
+    expect(screen.getByText(/本次(修复|修改)/)).toBeInTheDocument();
+    expect(document.querySelector(".change-impact")).toBeInTheDocument();
   });
 
   it("点「一键修复」（AI 类）→ POST /api/plan/refine（action=fix + fixKind + day）", async () => {

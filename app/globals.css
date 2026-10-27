@@ -7425,3 +7425,49 @@ main.has-result .new-head {
   border-color: var(--accent-ring);
   background: var(--accent-soft);
 }
+
+/* ============================================================
+ * 本次修改效果对比（change-impact，产品线 A4）
+ * 修复/顺延成功后的一行结论：「可执行性 B(85) → A(92)，体检问题 3 → 1」。
+ * 变差时换成警示色并明说「这次改动没有让行程更稳」（禁止只报喜）。
+ * ============================================================ */
+.change-impact {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--ok-line);
+  border-radius: var(--r-sm);
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+.change-impact-worse {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.change-impact span {
+  flex: 1;
+  min-width: 0;
+}
+.change-impact-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+.change-impact-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
+}
