@@ -147,6 +147,12 @@ export interface Plan {
   warnings: string[]; // 体检结果：未验真 POI / 通勤偏长 / 节奏 / 预算
   verified: boolean; // 是否走了真实高德数据（false = mock 模式）
   verification?: "mock" | "ok" | "partial" | "pending";
+  /**
+   * 核验完成时间（ms）：分享页/工作台的「可执行性评分卡」要把证据时间摊给用户
+   * （「什么时候核的」是可信度的一部分）。MOCK 模式不写——没核过就没有时间。
+   * 旧行程缺这个字段时 UI 不展示时间，不拿生成时间冒充核验时间。
+   */
+  verifiedAt?: number;
   draft?: boolean; // true = 即时草稿预览（LLM 真实行程生成后替换）
   /**
    * 草稿种类：

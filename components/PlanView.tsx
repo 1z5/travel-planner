@@ -49,6 +49,7 @@ import { RealMap } from "./RealMap";
 import { BudgetInsight } from "./BudgetInsight";
 import { CostChart } from "./CostChart";
 import { PackingList } from "./PackingList";
+import { ExecutabilityBadge } from "./ExecutabilityBadge";
 import { summarizeBudget } from "@/lib/budget";
 import { suggestFix } from "@/lib/fix-actions";
 import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
@@ -790,6 +791,18 @@ export function PlanView({
                       )}
                     </div>
                   )}
+                  {!s.poi && viewPlan.verified && (
+                    // 核验完成但这一站没有高德详情（extensions 缺失/miss 未告警的场景）：
+                    // 如实标「未核验」，不拿空白的 poi-chip 区域让用户误以为核过了。
+                    <div className="poi-chips">
+                      <span
+                        className="poi-chip poi-chip-warn"
+                        title="高德没有返回该地点的详情（可能名称不准确或已关闭），出发前请确认"
+                      >
+                        未核验
+                      </span>
+                    </div>
+                  )}
                   <div className="spot-reason">{s.reason}</div>
                   {s.rainBackup && (
                     <div className="spot-backup">
@@ -947,6 +960,11 @@ export function PlanView({
           </div>
 
           <p className="plan-summary">{viewPlan.summary}</p>
+
+          {/* 可执行性评分卡：把散在 warnings/验真徽章/核验报告里的结论收敛成
+              首屏一眼可见的「A/B/C/D + 分数 + 证据」。这是产品差异化的前台化
+              （竞品都在宣传「验真」，没人给「这条行程走不走得通」的结论）。 */}
+          <ExecutabilityBadge plan={viewPlan} />
 
           {/* 行程速览：一行三个数字。
               为什么不再放「人均总花费」：它就在下面的预算透视里，同一个数字在

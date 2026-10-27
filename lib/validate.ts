@@ -725,6 +725,9 @@ export function finalizePlan(plan: Plan, input: PlanInput, ctx: FinalizeCtx): vo
   plan.warnings = warnings;
   plan.verified = !AMAP_MOCK;
   plan.verification = AMAP_MOCK ? "mock" : unverified.length ? "partial" : "ok";
+  // 核验时间戳：分享页/工作台的可执行性评分卡要把「什么时候核的」摊给用户。
+  // MOCK 模式不写（没核过就没有时间），旧行程缺字段时 UI 不展示。
+  plan.verifiedAt = AMAP_MOCK ? undefined : Date.now();
 
   // 系统提示放在最后：与行程风险区分开，且不冒充「景点不存在」
   if (unverified.length) {

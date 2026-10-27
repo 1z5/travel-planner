@@ -19,6 +19,7 @@ import { RealMap } from "./RealMap";
 import { RouteMap } from "./RouteMap";
 import { CloneCTA } from "./CloneCTA";
 import { DayArrange } from "./DayArrange";
+import { ExecutabilityBadge } from "./ExecutabilityBadge";
 import { track } from "@/lib/track";
 
 // ============================================================
@@ -147,6 +148,9 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
               )}
               <span className="ws-meta-item">{statusText}</span>
             </p>
+            {/* 可执行性评分（紧凑版）：工作台首屏就能看到「这条行程能不能照着走」，
+                展开可见证据链；详情区还有完整的体检列表与一键修复，两处口径同源。 */}
+            <ExecutabilityBadge plan={plan} compact />
           </div>
           <div className="ws-actions">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copyLink()}>
