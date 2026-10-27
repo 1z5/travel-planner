@@ -71,6 +71,20 @@
 验收：**958 单测**（+9：海报模型 6 + 克隆计数 3）；**537 e2e**（+3：海报 200/PNG 魔数/404）；
 `gate:visual` 0 失败 / 0 警告；lint/format/typecheck 全绿。
 
+## 2026-10 工程：部署自证 + gitleaks 误报治理
+
+- **`/api/health` 暴露部署 commit**（Render 注入 `RENDER_GIT_COMMIT` 的前 7 位）：
+  本轮线上 `/pricing` 404 时无法判断「部署未完成还是构建失败」，只能靠猜。现在
+  `curl /api/health` 就能确认线上跑的是哪个提交（实测：部署完成后显示 `324f71d`）。
+- **gitleaks 误报治理**（踩了 4 轮 CI 才定位正确机制）：
+  - 触发：`lib/trip-execution.ts` 的 localStorage 键名常量被 `generic-api-key`
+    按「等号 + 高熵字符串」误判；`gitleaks detect` 扫的是**历史提交**，行内
+    `// gitleaks:allow` 与 `.gitleaks.toml` allowlist 对历史 finding 都不生效；
+  - 正解：`.gitleaksignore` 按 fingerprint 精确忽略（只忽略这一条，不放过将来
+    的真密钥）；且**忽略文件自身也会被扫描**——注释里再次出现同样赋值字面量会
+    生成新 finding，需把注释写成描述性文字。
+  - 教训：CI 的 secret-scan 失败先看 fingerprint，不要急着改 allowlist。
+
 ## 2026-10 产品大升级 S3：定价与付费意愿试点（不接支付）
 
 先验证「愿意为什么付费」再谈支付——不接支付时，页面必须把「还没上线、不会收费」
