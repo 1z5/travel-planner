@@ -22,8 +22,25 @@ regexes = [
   '''sk-xxx''',
   '''stub-key''',
   '''stub-amap-key''',
-  # localStorage 键名常量（如 "tp.execution.v1"）被 generic-api-key 的
-  # 「= + 高熵字符串」规则误判：它不是密钥，是浏览器本地存储的命名空间。
-  # 用带前缀的精确正则放行，而不是整文件白名单（后者会放过真泄漏）。
+]
+
+# localStorage 键名常量（如 "tp.execution.v1"）被 generic-api-key 的
+# 「= + 高熵字符串」规则误判：它不是密钥，是浏览器本地存储的命名空间。
+#
+# 为什么单独一条 allowlist：allowlist 的 regexes 默认匹配的是**密钥值**
+# 而不是整行（第一版把 `STORAGE_KEY = "..."` 写进去因此没生效，CI 实测）。
+# regexTarget = "match" 才对整段匹配文本生效；stopwords 再兜一层（值是固定
+# 命名空间，按值放行也不会放过随机密钥）。不用整文件白名单——那会放过真泄漏。
+[[allowlists]]
+description = "localStorage 键名（tp.*.vN）被 generic-api-key 误判"
+regexTarget = "match"
+regexes = [
   '''STORAGE_KEY = "tp\.[a-z0-9.-]+"''',
+]
+stopwords = [
+  "tp.execution.v1",
+  "tp.wishlist.v1",
+  "tp.recent-trips.v1",
+  "tp.pending-job.v1",
+  "tp.execution",
 ]
