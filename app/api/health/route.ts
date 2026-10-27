@@ -45,6 +45,10 @@ export async function GET() {
       llmConfigured: Boolean(process.env.LLM_API_KEY),
       amapMode: process.env.AMAP_WEB_SERVICE_KEY ? "live" : "mock",
       authProvider,
+      // 部署自证：Render 会注入 RENDER_GIT_COMMIT。之前「线上是不是最新版」只能
+      // 靠猜（本轮 /pricing 404 时无法判断是部署未完成还是构建失败），把 commit
+      // 暴露出来（只读、不含敏感信息）就能一眼确认线上跑的是哪个提交。
+      commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
       store: process.env.DATA_STORE || "memory",
       // n/a = 内存模式（无可探活的库）；ok/error = postgres 探活结果
       db,
