@@ -105,7 +105,10 @@
   - ✅ C1 行中 PWA：manifest + 品牌图标（scripts/gen-pwa-icons.mjs）+ public/sw.js 只对
     /t 与 /p 导航做 stale-while-revalidate + useOffline 断网提示。**已做真实断网实测：
     完全离线下行中/分享页完整可读并显示诚实提示。**
-  - ⬜ C2 行中提醒（下一站出发建议 + 我已出发/我到了 + 北极星埋点做实）
+  - ✅ C2 行中提醒：下一站出发建议（只用真实路段算，无 legs 就说无法建议）+
+    「我已出发/我已到达」打卡（localStorage 幂等）+ 时间轴到达勾；埋点
+    today_departed/today_arrived，北极星拆弱信号（没改过）/强信号（有到达打卡）双口径。
+  - ⬜ D1 轻身份 + 跨设备同步
   - ⬜ D1 轻身份 + 跨设备同步
 - 线上演示站已随每次 push 自动部署；面试演示分工见 DEMO.md（苏州=体检前样本、成都=修复后样本）。
 
