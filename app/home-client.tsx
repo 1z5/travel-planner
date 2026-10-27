@@ -15,7 +15,9 @@ import { saveRecentTrip } from "@/lib/recent-trips";
 import { loadProfile } from "@/lib/profile-store";
 import { clearPendingJob, loadPendingJob, savePendingJob } from "@/lib/pending-job";
 
-const PREF_OPTIONS = [
+// 导出给 tests/lib/featured-destinations.test.ts：精选目的地的 prefs 必须
+// 落在同一份白名单里，否则深链过来的偏好会被静默过滤掉（两边改文案不同步）。
+export const PREF_OPTIONS = [
   "美食",
   "历史文化",
   "自然风光",
@@ -27,6 +29,32 @@ const PREF_OPTIONS = [
   "亲子友好",
   "夜生活",
 ];
+
+// ---- 首屏灵感卡的深链预填（/new?city=…&days=…&prefs=…）----
+// 参数由 lib/featured-destinations.ts 生成，但 URL 用户可以随手改：一律按
+// 不可信输入处理。城市只认 2-20 位中英文/间隔号，天数只认 1-7 整数，偏好走
+// PREF_OPTIONS 白名单。全部是本地纯解析，不发请求、不做猜测。
+const CITY_INPUT_RE = /^[\u4e00-\u9fa5A-Za-z·\-\s]{2,20}$/;
+
+/** 逗号分隔偏好 → 表单认得的偏好值（白名单 + 去重 + 最多 5 个）。
+ *  中文逗号一并兼容：手改 URL 时容易打成「，」，静默丢掉用户的选择更糟。 */
+function parsePrefsParam(raw: string | null): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const part of raw.split(/[,，]/)) {
+    const p = part.trim();
+    if (p && PREF_OPTIONS.includes(p) && !out.includes(p)) out.push(p);
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+/** datetime-local 要的是「本地墙钟时间」，所以用本地 getter 拼字符串。
+ *  不能用 toISOString（UTC）：东八区凌晨会把「明天」算成今天，行程凭空少一天。 */
+function localDateTimeAt(d: Date, hour: number): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`;
+}
 
 /** 预算快捷档（元）。0 = 穷游，是合法输入而非异常值 */
 const BUDGET_PRESETS = [0, 1000, 3000, 8000];
@@ -94,6 +122,40 @@ export function HomeClient() {
   // SSR 不值得（2026-10 审计实测：首屏要等 259KB gzip JS 才出现内容）。
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("sample") === "1") setSampleMode(true);
+  }, []);
+  // 首屏灵感卡的深链预填：/new?city=成都&days=4&prefs=美食,历史文化。
+  // 两个 ref 分别表达两件事：
+  // - prefillDone：只在挂载时预填一次——之后用户手动改的内容不会被覆盖，
+  //   StrictMode 的「挂载→卸载→再挂载」也不会把条件重复写一遍。
+  // - cityPrefilled：URL 已经明确指定了城市时，跳过下面的静默定位——
+  //   用户点的是「成都 3 天」，再拿定位城市悄悄覆盖掉等于改他的选择。
+  const prefillDoneRef = useRef(false);
+  const cityPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (prefillDoneRef.current) return;
+    prefillDoneRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    // 示例深链优先：?sample=1 展示的是固定示例行程，预填条件不会被用到，
+    // 填了反而让用户以为示例是「按我的条件生成的」。
+    if (params.get("sample") === "1") return;
+    const cityParam = (params.get("city") ?? "").trim();
+    if (CITY_INPUT_RE.test(cityParam)) {
+      setCity(cityParam);
+      cityPrefilledRef.current = true;
+    }
+    const days = Number(params.get("days"));
+    if (Number.isInteger(days) && days >= 1 && days <= 7) {
+      // 明天 10:00 出发、第 days 天 18:00 结束（含头含尾共 days 个日历日）：
+      // 与表单默认口径一致，也给用户留出一天准备时间。
+      const start = new Date();
+      start.setDate(start.getDate() + 1);
+      const end = new Date(start);
+      end.setDate(end.getDate() + days - 1);
+      setStartAt(localDateTimeAt(start, 10));
+      setEndAt(localDateTimeAt(end, 18));
+    }
+    const prefsParam = parsePrefsParam(params.get("prefs"));
+    if (prefsParam.length) setPrefs(prefsParam);
   }, []);
   // 结果出现后（真实行程或示例），规划表单默认收起为一行摘要：
   // 企业级产品的「工作区」在结果页应该以结果为主，而不是让用户
@@ -378,7 +440,9 @@ export function HomeClient() {
 
   // 挂载时静默定位一次：拿到定位城市就预填，拿不到就留空（用户自己输）。
   // 只在挂载时跑一次；用户之后可点「用我当前的位置」主动重定位。
+  // 深链已指定城市时不跑：那是用户主动点的目的地，定位覆盖等于替他改主意。
   useEffect(() => {
+    if (cityPrefilledRef.current) return;
     void resolveCity(true);
   }, []);
 

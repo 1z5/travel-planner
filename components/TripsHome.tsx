@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, Plus, Trash2 } from "lucide-react";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
 import {
   loadRecentTrips,
   recentTripLabel,
@@ -66,6 +67,56 @@ export function TripsHome() {
                 看一份真实示例
               </Link>
             </div>
+
+            {/* 冷启动入口：新用户第一眼是「空列表 + 一个表单」，等于先把
+                「去哪/几天/喜欢什么」全想清楚才能开始。三张卡给三个具体起点，
+                点开只是把条件带进 /new，生成时照样逐条核验真实 POI。
+                诚实口径：卡上明确写「示例条件」，不写营业时间/评分/票价，
+                也不用「热门/爆款」这类编造数据——这里只是出发的引子，不是
+                已核验的行程，更不能暗示 POI 已验真。 */}
+            <section className="fs-inspire" aria-labelledby="fs-inspire-title">
+              <p className="firstscreen-eyebrow">
+                <span className="eyebrow-dot" aria-hidden="true" />
+                灵感 · 还没想好去哪
+              </p>
+              <h2 className="fs-inspire-title" id="fs-inspire-title">
+                不知道去哪？从这几条开始
+              </h2>
+              <p className="fs-inspire-lede">
+                下面只是<b>示例条件</b>，不是已核验的行程：点开只会把城市、天数和偏好带进表单，
+                生成时仍然逐条核验真实 POI、营业时间与通勤。
+              </p>
+              {/* 复用 .firstscreen-evidence 的 2 列网格：第三张自然换到下一行，
+                  移动端既有媒体查询会收成单列，不需要为它再写一套布局。 */}
+              <div className="firstscreen-evidence">
+                {FEATURED_DESTINATIONS.map((d) => (
+                  <article className="fs-card" key={d.city}>
+                    <div className="fs-card-head">
+                      <span className="fs-card-tag">示例条件</span>
+                      <span className="fs-card-note">{d.prefs.join(" · ")}</span>
+                    </div>
+                    <h3 className="fs-card-title">
+                      {d.city} · {d.days} 天
+                    </h3>
+                    <p className="fs-card-body">{d.blurb}</p>
+                    <ul className="fs-inspire-list">
+                      {d.highlights.map((h) => (
+                        <li key={h}>{h}</li>
+                      ))}
+                    </ul>
+                    {/* 预算只做「示例条件的量级」，不写进深链：表单里预算刻意
+                        不预填（替用户定消费额会让人以为这是默认值/最低消费），
+                        所以这里必须说清数字要他自己定，而不是暗示已带过去。 */}
+                    <p className="fs-card-meta">
+                      人均预算参考 ¥{d.budget.toLocaleString("zh-CN")} · 表单里自己定
+                    </p>
+                    <Link href={featuredHref(d)} className="fs-card-link fs-inspire-link">
+                      用这个条件开始 →
+                    </Link>
+                  </article>
+                ))}
+              </div>
+            </section>
 
             {/* 记忆点：同一份真实生成示例 + 它被体检拦下的问题。
                 数据全部来自 SAMPLE_PLAN（verified:false，MOCK 高德），

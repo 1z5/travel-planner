@@ -541,3 +541,82 @@ describe("Home 生成中的任务恢复", () => {
     window.history.pushState({}, "", "/");
   });
 });
+
+// ============================================================
+// 首屏灵感卡的深链预填：/new?city=成都&days=4&prefs=美食,历史文化
+//
+// 卡片上的「用这个条件开始 →」只带「城市 / 天数 / 偏好」三项，预算留给用户
+// 自己定（那是消费决策，不该被示例替他填）。这里钉住三件事：城市真的预填、
+// 起止日期换算成对应日历日数、偏好按白名单选中。
+// 另外钉一件容易回退的事：深链指定了城市时不再跑静默定位——否则用户点了
+// 「成都 3 天」，进页面却被定位城市悄悄改掉。
+// ============================================================
+describe("Home 灵感卡深链预填", () => {
+  afterEach(() => {
+    // 恢复干净的 URL：jsdom 的 history 跨用例共享，留着 /new?city=… 会污染后面
+    window.history.pushState({}, "", "/");
+  });
+
+  it("city/days/prefs 预填：城市=成都、起止跨 4 个日历日、偏好 chips 选中", async () => {
+    window.history.pushState({}, "", "/new?city=成都&days=4&prefs=美食,历史文化");
+    // 定位桩故意返回「北京」：只要静默定位还在跑，城市断言就会被改成北京
+    const getCurrentPosition = vi.fn((success: (p: unknown) => void) => {
+      success({ coords: { longitude: 116.4, latitude: 39.9 } });
+    });
+    Object.defineProperty(navigator, "geolocation", {
+      value: { getCurrentPosition },
+      configurable: true,
+    });
+    // jsdom 的 location 是 http://localhost，isSecureContext 为 false；
+    // 真实浏览器里 localhost 是安全上下文，按真实环境覆写，否则定位分支提前返回、
+    // 「没被定位覆盖」就变成因为定位不可用而通过（假绿）。
+    Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+        };
+      }
+      if (url.startsWith("/api/geocode/reverse")) {
+        return { ok: true, json: async () => ({ city: "北京", formatted: "北京市东城区" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<HomeClient />);
+
+    // 城市：来自 URL 而不是定位（定位桩会返回北京）
+    await waitFor(() => {
+      expect((screen.getByPlaceholderText("如：成都") as HTMLInputElement).value).toBe("成都");
+    });
+    expect(getCurrentPosition).not.toHaveBeenCalled();
+
+    // 起止日期：明天 10:00 → 第 4 天 18:00，含头含尾跨 4 个日历日
+    const [startInput, endInput] = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="datetime-local"]'),
+    );
+    expect(startInput.value).toMatch(/T10:00$/);
+    expect(endInput.value).toMatch(/T18:00$/);
+    const calendarDays =
+      Math.round(
+        (Date.parse(`${endInput.value.slice(0, 10)}T00:00:00Z`) -
+          Date.parse(`${startInput.value.slice(0, 10)}T00:00:00Z`)) /
+          86400000,
+      ) + 1;
+    expect(calendarDays).toBe(4);
+    // 表单自己算出的天数也必须是 4（预填只改 state，提示要跟着变）
+    expect(screen.getByText(/共 4 天/)).toBeInTheDocument();
+
+    // 偏好：URL 带的两个 chip 选中，其余保持未选
+    expect(screen.getByRole("button", { name: "美食" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "历史文化" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "自然风光" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+});
