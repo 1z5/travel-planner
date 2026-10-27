@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // standalone：Docker 部署只需 .next/standalone，镜像从 ~1GB 降到 ~150MB
   output: "standalone",
+  // 断网检测：导航/RSC 请求失败时保持 pending 并在恢复后重试，同时给
+  // useOffline() hook 供前端展示「当前离线」（行中场景：地铁/境外没信号）。
+  // 实验特性，但 Next 16 文档提供明确契约；真机行为由 gate:visual + 手动断网验证。
+  experimental: {
+    useOffline: true,
+  },
   // 开发服务器默认只放行 localhost 与启动时的 hostname（见 Next 文档
   // allowedDevOrigins）：用 127.0.0.1:3000 打开时 dev 资产/HMR 全部被拦，
   // 页面 SSR 出来但永远不 hydrate——表单点不动、入场动画停在 opacity:0，

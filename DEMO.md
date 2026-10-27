@@ -137,6 +137,8 @@ https://travel-planner-demo.onrender.com/api/events/summary?token=<METRICS_TOKEN
   （fixture 静态存在仓库/构建产物里，启动时重新注入）。
 - **没有登录**：生产守卫在 `NODE_ENV=production` 且未配 `AUTH_PROVIDER` 时自动关闭登录链路，
   所以演示站是「纯匿名 + 每 IP 6 次/天」。
+- **PWA 已可用但离线只覆盖「打开过的行中/分享页」**：手机浏览器「添加到主屏」后像 App
+  一样打开；断网时能看到最后一次加载的内容（/t、/p 的导航缓存），但不会缓存接口数据。
 - **免费实例 CPU 弱**：首屏与地图渲染比本地慢；生成速度取决于模型，不取决于实例。
 - **单实例**：全局限流/并发闸门是进程内状态，只适用于单实例（正好匹配免费 plan）。
 

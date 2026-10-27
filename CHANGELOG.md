@@ -71,6 +71,26 @@
 验收：**958 单测**（+9：海报模型 6 + 克隆计数 3）；**537 e2e**（+3：海报 200/PNG 魔数/404）；
 `gate:visual` 0 失败 / 0 警告；lint/format/typecheck 全绿。
 
+## 2026-10 产品大升级 S2/C1：行中 PWA（像 App 的入口 + 离线外壳）
+
+调研结论：行中是全行业共同短板——Mindtrip 的 App Store 长评点名「出行中移动端
+体验很糟、找不到某天的行程」，而我们的「今日镜头」只差一个「像 App 的入口」。
+
+- **manifest + 品牌图标**：`app/manifest.ts`（standalone / portrait / 主题色陶土橙 /
+  两个快捷入口）+ `scripts/gen-pwa-icons.mjs` 生成 192/512 与 apple-touch-icon
+  （品牌源 SVG：暖纸底 + 陶土橙「行」印章），「添加到主屏」可用。
+- **离线外壳**：`public/sw.js` 只对 `/t/<id>` 与 `/p/<id>` 的**导航**做
+  stale-while-revalidate——行程数据本就 SSR 进 HTML，断网时打开过的行中页/分享页
+  仍可读。刻意不缓存 /api（避免「重新生成」读到旧结果，违背不猜原则）、不做全站
+  precache、不引第三方 PWA 库。
+- **断网提示**：`components/PwaBootstrap.tsx` 用 next/offline 的 useOffline
+  （next.config 开 `experimental.useOffline`）在断网时提示「显示的是最后一次加载的
+  内容」，可关闭、不阻断；SW 只在生产注册（dev 下注册会让 HMR 行为难以预测）。
+- e2e +5（manifest 字段 / sw.js 覆盖 / 三个图标 200 PNG）+ 组件测试 2（提示条与关闭）。
+
+验收：**960 单测 / 542 e2e**；本地 standalone 实测 manifest/sw/icons 全部 200；
+lint/format/typecheck 全绿。
+
 ## 2026-10 产品大升级 Sprint 1：攻略粘贴 → 行程条件（内容起手 MVP）
 
 竞品调研结论：无内容平台唯一的冷启动路径是「让用户带着已有内容来」——腾讯地图已支持

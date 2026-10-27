@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { MotionPref } from "@/components/MotionPref";
+import { PwaBootstrap } from "@/components/PwaBootstrap";
 
 // metadataBase 让 OG/分享链接生成绝对地址。优先级：
 // 1) NEXT_PUBLIC_SITE_URL（自定义域名/正式环境显式配置）
@@ -34,6 +35,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // 主题色：与 manifest.ts 的 theme_color 一致（PWA 标题栏/状态栏颜色）
+  themeColor: "#c2410c",
 };
 
 // 根布局只提供 <html>/<body> 与动效降级开关，不再挂营销站点头尾。
@@ -48,6 +51,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="zh-CN">
       <body>
+        <PwaBootstrap />
         <MotionPref>{children}</MotionPref>
       </body>
     </html>

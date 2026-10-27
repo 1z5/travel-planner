@@ -1360,6 +1360,38 @@ async function phaseA(api) {
   });
   check("活动：时间格式非法 → 400", r26c.status === 400, `got ${r26c.status}`);
 
+  // ---- PWA（产品线 C1：行中「像 App」入口 + 离线外壳）----
+  // manifest 决定「添加到主屏」后的名称/图标/主题色；sw.js 是 /t 与 /p 的
+  // 离线外壳（断网也能看到最后一次加载的行中页）。两者都是公开静态资产。
+  const mf = await fetch(`${api.baseUrl}/manifest.webmanifest`);
+  const mfJson = await mf.json().catch(() => null);
+  check(
+    "PWA：manifest.webmanifest 200 且字段完整",
+    mf.status === 200 &&
+      mfJson?.name?.includes("行程规划师") &&
+      mfJson?.display === "standalone" &&
+      Array.isArray(mfJson?.icons) &&
+      mfJson.icons.length >= 2 &&
+      mfJson.theme_color === "#c2410c",
+    `${mf.status} ${JSON.stringify(mfJson)?.slice(0, 120)}`,
+  );
+  const sw = await fetch(`${api.baseUrl}/sw.js`);
+  const swText = await sw.text();
+  check(
+    "PWA：sw.js 200 且覆盖行中/分享页离线缓存",
+    sw.status === 200 && swText.includes("/t/") && swText.includes("/p/"),
+    `${sw.status}`,
+  );
+  for (const icon of ["/icons/icon-192.png", "/icons/icon-512.png", "/apple-touch-icon.png"]) {
+    const r = await fetch(`${api.baseUrl}${icon}`);
+    const ct = r.headers.get("content-type") ?? "";
+    check(
+      `PWA：${icon} → 200 PNG`,
+      r.status === 200 && ct.includes("image/png"),
+      `${r.status} ${ct}`,
+    );
+  }
+
   // ---- 攻略提取（POST /api/plan/extract，产品线 B「内容起手」）----
   // 只提条件不生成：不扣每日生成配额（所以可以放在 phaseA 末尾而不影响上面的
   // remaining 账目），但吃按 IP 小时桶（默认 10 次/小时）与全站 LLM 日预算。
