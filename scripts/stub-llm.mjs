@@ -26,6 +26,11 @@
  *   注：swap 的「类型必须延续」纠正重试由单测覆盖（tests/lib/refine.test.ts）；
  *   swap 契约上不带指令，桩无法用指令触发错误类型，故不在 e2e 里造这条路径。
  *
+ * 攻略提取（lib/trip-extract.ts → POST /api/plan/extract）请求：system prompt 含
+ * 「行程条件提取器」时命中，返回条件 JSON。开关词只从 user prompt 的
+ * 【攻略原文开始】…【攻略原文结束】数据区取（含「成都」/「苏州」/「什么都提取不到」
+ * /「提取服务错误」），不影响其它链路。
+ *
  * 行程管家（copilot，lib/copilot.ts）请求**最先**判定：system prompt 固定含
  * 「行程管家」四个字。返回 {"answer","suggestion"} 的 JSON；因 streamChatRetry
  * 只发一条 user 消息，桩从 user prompt 末尾的「【用户本次问题】」块取最后一条
@@ -63,6 +68,62 @@ let lastUserMsg = "";
 function requestedCity(userMsg) {
   const m = userMsg.match(/目的地：(\S+)/);
   return m ? m[1] : CANNED_PLAN.city;
+}
+
+// 攻略提取（lib/trip-extract.ts → POST /api/plan/extract）分支。
+// 判定：system prompt 含「行程条件提取器」。
+// 开关词只从【攻略原文开始】…【攻略原文结束】**数据区**里取（与「目的地/出行偏好」
+// 同样的纪律：不能对整条 prompt 做 includes，否则 prompt 正文会误触）：
+//   含「成都」        -> 成都 3 天条件（美食/历史文化 + 必游武侯祠 + 住春熙路）
+//   含「苏州」        -> 苏州 3 天条件（历史文化/Citywalk + 必游苏州博物馆）
+//   含「什么都提取不到」-> 全 null（测「没提取到」的诚实路径）
+//   含「提取服务错误」 -> 非 JSON 文本（测 502）
+function pastedText(userMsg) {
+  const m = userMsg.match(/【攻略原文开始】\s*([\s\S]*?)\s*【攻略原文结束】/);
+  return m ? m[1] : "";
+}
+
+function extractContent(userMsg) {
+  const text = pastedText(userMsg);
+  if (text.includes("什么都提取不到")) {
+    return JSON.stringify({
+      city: null,
+      days: null,
+      startAt: null,
+      endAt: null,
+      budget: null,
+      preferences: [],
+      mustVisit: [],
+      hotel: null,
+      notes: "",
+    });
+  }
+  if (text.includes("提取服务错误")) return "抱歉，我不知道怎么回答这个问题。";
+  if (text.includes("苏州")) {
+    return JSON.stringify({
+      city: "苏州",
+      days: 3,
+      startAt: null,
+      endAt: null,
+      budget: 2000,
+      preferences: ["历史文化", "Citywalk"],
+      mustVisit: ["苏州博物馆"],
+      hotel: null,
+      notes: "想住古城附近",
+    });
+  }
+  // 默认按成都返回（e2e 的常规路径）
+  return JSON.stringify({
+    city: "成都",
+    days: 3,
+    startAt: null,
+    endAt: null,
+    budget: 2500,
+    preferences: ["美食", "历史文化"],
+    mustVisit: ["武侯祠"],
+    hotel: "春熙路亚朵S酒店",
+    notes: "带父母，不想太赶",
+  });
 }
 
 function planForRequestedDays(userMsg) {
@@ -739,50 +800,53 @@ const server = createServer((req, res) => {
         : // 改行程其次：它的响应结构（spot/day）与整份生成完全不同，不能落到下面分支
           mode === "refine"
           ? refineContent(userMsg, systemMsg)
-          : mode === "garbage"
-            ? "抱歉，我不知道怎么回答这个问题。"
-            : mode === "empty"
-              ? ""
-              : mode === "scrambled"
-                ? JSON.stringify(scrambledPlan())
-                : // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
-                  mode === "wrongdays"
-                  ? JSON.stringify(CANNED_PLAN)
-                  : isOutlineCall
-                    ? JSON.stringify(outlineForRequestedDays(userMsg))
-                    : mode === "scattered"
-                      ? JSON.stringify(scatteredDayForRequested(userMsg))
-                      : mode === "event-ok"
-                        ? JSON.stringify(
-                            eventResponse(
-                              userMsg,
-                              isDayCall,
-                              "18:30-21:30",
-                              180,
-                              "用户指定的重点活动（桩数据），提前 30 分钟入场",
-                            ),
-                          )
-                        : mode === "event-late"
+          : // 攻略提取：system 含「行程条件提取器」，开关词只在数据区内取
+            systemMsg.includes("行程条件提取器")
+            ? extractContent(userMsg)
+            : mode === "garbage"
+              ? "抱歉，我不知道怎么回答这个问题。"
+              : mode === "empty"
+                ? ""
+                : mode === "scrambled"
+                  ? JSON.stringify(scrambledPlan())
+                  : // 无视请求天数，恒返回 3 天：测「结构不符 → 带纠正指令重试 → 仍不符 → 明确报错」
+                    mode === "wrongdays"
+                    ? JSON.stringify(CANNED_PLAN)
+                    : isOutlineCall
+                      ? JSON.stringify(outlineForRequestedDays(userMsg))
+                      : mode === "scattered"
+                        ? JSON.stringify(scatteredDayForRequested(userMsg))
+                        : mode === "event-ok"
                           ? JSON.stringify(
                               eventResponse(
                                 userMsg,
                                 isDayCall,
-                                "21:00-22:30",
-                                90,
-                                "用户指定的重点活动（桩数据）",
+                                "18:30-21:30",
+                                180,
+                                "用户指定的重点活动（桩数据），提前 30 分钟入场",
                               ),
                             )
-                          : mode === "event-missing"
-                            ? JSON.stringify(eventMissingResponse(userMsg, isDayCall))
-                            : mode === "event-alias"
-                              ? JSON.stringify(
-                                  eventAliasResponse(userMsg, isDayCall, "18:30-20:00"),
-                                )
-                              : mode === "mv-alias"
-                                ? JSON.stringify(mvAliasResponse(userMsg, isDayCall))
-                                : isDayCall
-                                  ? JSON.stringify(dayForRequested(userMsg))
-                                  : JSON.stringify(planForRequestedDays(userMsg));
+                          : mode === "event-late"
+                            ? JSON.stringify(
+                                eventResponse(
+                                  userMsg,
+                                  isDayCall,
+                                  "21:00-22:30",
+                                  90,
+                                  "用户指定的重点活动（桩数据）",
+                                ),
+                              )
+                            : mode === "event-missing"
+                              ? JSON.stringify(eventMissingResponse(userMsg, isDayCall))
+                              : mode === "event-alias"
+                                ? JSON.stringify(
+                                    eventAliasResponse(userMsg, isDayCall, "18:30-20:00"),
+                                  )
+                                : mode === "mv-alias"
+                                  ? JSON.stringify(mvAliasResponse(userMsg, isDayCall))
+                                  : isDayCall
+                                    ? JSON.stringify(dayForRequested(userMsg))
+                                    : JSON.stringify(planForRequestedDays(userMsg));
 
     if (isStream) {
       // SSE：模拟真实流式（role 帧 → 内容分两帧 → 结束帧带 usage）

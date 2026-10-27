@@ -14,21 +14,31 @@ import { ProfileDrawer } from "@/components/ProfileDrawer";
 import { saveRecentTrip } from "@/lib/recent-trips";
 import { loadProfile } from "@/lib/profile-store";
 import { clearPendingJob, loadPendingJob, savePendingJob } from "@/lib/pending-job";
+import { PREF_OPTIONS, isPrefOption } from "@/lib/pref-options";
 
-// 导出给 tests/lib/featured-destinations.test.ts：精选目的地的 prefs 必须
-// 落在同一份白名单里，否则深链过来的偏好会被静默过滤掉（两边改文案不同步）。
-export const PREF_OPTIONS = [
-  "美食",
-  "历史文化",
-  "自然风光",
-  "Citywalk",
-  "博物馆",
-  "购物",
-  "拍照打卡",
-  "小众冷门",
-  "亲子友好",
-  "夜生活",
-];
+// 偏好白名单下沉到 lib/pref-options.ts（服务端「攻略提取」也要用它校验模型输出）。
+// 这里继续 re-export：tests/lib/featured-destinations.test.ts 等既有引用不破坏，
+// 且表单渲染仍然从同一份常量取。
+export { PREF_OPTIONS };
+
+/** POST /api/plan/extract 的响应形状（对应 lib/trip-extract.ts 的 TripConditions）。
+ *  在客户端重新声明而不是 import 那个模块：它顶部有 "server-only"，
+ *  类型也该跟着服务端契约走一份镜像，避免把服务端模块拖进客户端依赖图。
+ *  字段全部按「可能没有」处理：响应缺字段时宁可当成没提取到，也不填 undefined 进表单。 */
+interface GuideConditions {
+  city: string | null;
+  days: number | null;
+  startAt: string | null;
+  endAt: string | null;
+  budget: number | null;
+  preferences: string[];
+  mustVisit: string[];
+  hotel: string | null;
+  notes: string;
+}
+
+/** datetime-local 输入认的格式（与 lib/trip-extract.ts 的 DATETIME_RE 同口径） */
+const GUIDE_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 // ---- 首屏灵感卡的深链预填（/new?city=…&days=…&prefs=…）----
 // 参数由 lib/featured-destinations.ts 生成，但 URL 用户可以随手改：一律按
@@ -43,7 +53,7 @@ function parsePrefsParam(raw: string | null): string[] {
   const out: string[] = [];
   for (const part of raw.split(/[,，]/)) {
     const p = part.trim();
-    if (p && PREF_OPTIONS.includes(p) && !out.includes(p)) out.push(p);
+    if (p && isPrefOption(p) && !out.includes(p)) out.push(p);
     if (out.length >= 5) break;
   }
   return out;
@@ -97,6 +107,25 @@ export function HomeClient() {
   // 空着 + 占位符给口径，提交前拦截（与城市同一套路），并提供快捷档（含穷游 0）。
   const [budget, setBudget] = useState("");
   const [prefs, setPrefs] = useState<string[]>(["美食", "历史文化"]);
+  // ---- 攻略导入（产品线 B「内容起手」）----
+  // 用户带着已有内容来（游记/群聊/笔记原文），我们只把原文整理成「行程条件」
+  // 回填表单。三条边界写在这里，因为它们最容易被「顺手优化」破坏：
+  // 1. 只提条件、不自动生成：导入不发 /api/plan、不跳转，点「生成行程」的
+  //    决定始终在用户（把一篇软广直接出行程 = 替用户做决定）；
+  // 2. 不猜：接口给 null / 缺项时如实说「还缺什么」，不用默认值把表单填满；
+  // 3. 不覆盖：只填用户还空着的字段，已手动填过的原样保留。
+  // 粘贴文本完全由用户主动提供，不做任何链接抓取（面板文案里也点明这一点）。
+  const [guideText, setGuideText] = useState("");
+  const [guideStatus, setGuideStatus] = useState<"idle" | "loading" | "error" | "done">("idle");
+  const [guideError, setGuideError] = useState("");
+  const [guideSummary, setGuideSummary] = useState("");
+  // 展开状态用 ref 直接操作 DOM 而不是受控 open 属性：浏览器原生 toggle 会改
+  // details.open，受控属性在 React 重渲染时可能把它改回去，两边互相覆盖。
+  const guideRef = useRef<HTMLDetailsElement>(null);
+  // 「用户是否手动改过」的标记。表单默认值（明天 10:00 起、共 5 个日历日、
+  // 美食+历史文化）不是用户填的，导入可以覆盖；一旦用户动过，就再不动它。
+  const datesTouchedRef = useRef(false);
+  const prefsTouchedRef = useRef(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -325,6 +354,7 @@ export function HomeClient() {
   }, [loading]);
 
   function togglePref(p: string) {
+    prefsTouchedRef.current = true; // 用户开始手动选偏好：攻略导入不再整组替换
     setPrefs((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
   }
 
@@ -338,6 +368,170 @@ export function HomeClient() {
       setMustVisit((cur) => [...cur, v]);
       setMvInput("");
     }
+  }
+
+  // ---- 攻略提取（产品线 B「内容起手」）----
+  // 一次小 LLM 调用把用户粘贴的原文变成「行程条件」，只回填表单、不生成行程。
+  // 失败语义与后端一致：4xx/5xx 用服务端给的 error 文案（429 太频繁 / 503 忙 /
+  // 400 太短太长 / 502 上游故障），网络异常单独一类；「没提取到」不是错误，
+  // 是诚实的「没有」，如实告诉用户可以手动填。
+  async function extractGuide() {
+    const text = guideText.trim();
+    // 与后端 BodySchema 同口径的前置校验：省掉一次必失败的往返，
+    // 也让按钮在明显不够长时保持禁用态
+    if (text.length < 20) {
+      setGuideStatus("error");
+      setGuideError(`内容太短：至少 20 个字（当前 ${text.length} 字）`);
+      return;
+    }
+    setGuideStatus("loading");
+    setGuideError("");
+    setGuideSummary("");
+    try {
+      const res = await fetch("/api/plan/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const d = (await res.json()) as {
+        conditions?: GuideConditions | null;
+        missing?: string[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setGuideStatus("error");
+        setGuideError(d.error || `提取失败（${res.status}），请稍后重试`);
+        return;
+      }
+      // conditions 为 null = 这段文字对规划没用：不拿部分字段硬填
+      if (!d.conditions) {
+        setGuideStatus("done");
+        setGuideSummary("这段文字里没有提取到可用的行程条件，可以手动填写下方表单");
+        return;
+      }
+      applyGuideConditions(d.conditions, Array.isArray(d.missing) ? d.missing : []);
+    } catch {
+      setGuideStatus("error");
+      setGuideError("网络异常，提取失败，请重试");
+    }
+  }
+
+  /** 把提取结果回填表单：只填空字段，并生成一行诚实摘要。
+   *  「空」的判定分两种：文本类看当前值是否为空；日期/偏好是带默认值的，
+   *  用 touched ref 判断用户是否手动改过——默认值不是用户填的。 */
+  function applyGuideConditions(cond: GuideConditions, missing: string[]) {
+    // 客户端再按同一份白名单过滤一次：服务端返回意外值（偏好白名单外、
+    // 必游地超长/空串）时不往表单里塞垃圾。与 lib/trip-extract.ts 的过滤同口径。
+    const condCity = typeof cond.city === "string" ? cond.city.trim() : "";
+    const condDays =
+      typeof cond.days === "number" &&
+      Number.isInteger(cond.days) &&
+      cond.days >= 1 &&
+      cond.days <= 10
+        ? cond.days
+        : null;
+    const condBudget =
+      typeof cond.budget === "number" && Number.isInteger(cond.budget) && cond.budget >= 0
+        ? cond.budget
+        : null;
+    const condPrefs = (Array.isArray(cond.preferences) ? cond.preferences : [])
+      .filter((p): p is string => typeof p === "string" && isPrefOption(p))
+      .slice(0, 5);
+    const condMv = (Array.isArray(cond.mustVisit) ? cond.mustVisit : [])
+      .filter(
+        (m): m is string => typeof m === "string" && m.trim().length >= 2 && m.trim().length <= 20,
+      )
+      .map((m) => m.trim())
+      .slice(0, 5);
+    const condHotel = typeof cond.hotel === "string" ? cond.hotel.trim() : "";
+    const condNotes = typeof cond.notes === "string" ? cond.notes.trim() : "";
+
+    const applied: string[] = []; // 实际回填了什么（摘要要说实话）
+    const skipped: string[] = []; // 用户已填过、刻意没覆盖的
+    let dateNote = ""; // 原文日期与「按天数排期」冲突时的说明
+
+    if (condCity) {
+      if (city.trim()) skipped.push("城市");
+      else {
+        setCity(condCity);
+        applied.push(condCity);
+      }
+    }
+    if (!datesTouchedRef.current) {
+      if (condDays !== null) {
+        // 明天 10:00 出发、第 days 天 18:00 结束（含头含尾共 days 个日历日）：
+        // 与灵感卡深链、表单默认值同一套口径，复用 localDateTimeAt 的本地时间算法
+        const start = new Date();
+        start.setDate(start.getDate() + 1);
+        const end = new Date(start);
+        end.setDate(end.getDate() + condDays - 1);
+        setStartAt(localDateTimeAt(start, 10));
+        setEndAt(localDateTimeAt(end, 18));
+        applied.push(`${condDays} 天`);
+        // 原文同时写了具体日期时如实说明：天数优先（跨日历日更好核），
+        // 日期不悄悄套用——用户看到的表单要和他读到的摘要一致
+        if (typeof cond.startAt === "string" && cond.startAt) {
+          dateNote = `原文日期 ${cond.startAt.slice(0, 10)} 起未自动套用，已按 ${condDays} 天排期，可手动调整`;
+        }
+      } else if (typeof cond.startAt === "string" && GUIDE_DATETIME_RE.test(cond.startAt)) {
+        setStartAt(cond.startAt);
+        if (typeof cond.endAt === "string" && GUIDE_DATETIME_RE.test(cond.endAt)) {
+          setEndAt(cond.endAt);
+        }
+        applied.push(`出发 ${cond.startAt.slice(0, 10)}`);
+      }
+    }
+    if (condBudget !== null) {
+      if (budget.trim()) skipped.push("人均预算");
+      else {
+        setBudget(String(condBudget));
+        applied.push(`人均 ${condBudget} 元`);
+      }
+    }
+    if (condPrefs.length) {
+      if (prefsTouchedRef.current) skipped.push("偏好");
+      else {
+        setPrefs(condPrefs);
+        applied.push(`偏好 ${condPrefs.join("/")}`);
+      }
+    }
+    if (condMv.length) {
+      if (mustVisit.length) skipped.push("必游地");
+      else {
+        setMustVisit(condMv);
+        applied.push(`必游 ${condMv.join("/")}`);
+      }
+    }
+    if (condHotel) {
+      if (hotel.trim()) skipped.push("住所");
+      else {
+        setHotel(condHotel);
+        applied.push(`住 ${condHotel}`);
+      }
+    }
+
+    // 「还缺什么」只报表单里仍然缺的：用户早就手动填过城市时，
+    // 不能因为原文没提到城市就喊「还缺：目的地」。
+    const stillMissing = missing.filter((label) => {
+      if (label === "目的地") return !condCity && !city.trim();
+      if (label === "天数") return condDays === null;
+      if (label === "人均预算") return condBudget === null && !budget.trim();
+      return true;
+    });
+
+    let line: string;
+    if (applied.length) line = `已从攻略提取：${applied.join(" · ")}。`;
+    else if (skipped.length) line = "攻略里的条件你都已经填过，未改动任何字段。";
+    else line = "攻略里没有可回填的行程条件。";
+    if (stillMissing.length) line += `还缺：${stillMissing.join("、")}（请补充）`;
+    else line += "必填条件已齐，核对后点「生成行程」——生成仍由你确认";
+    if (condNotes) line += `。原文特别要求：${condNotes}`;
+    if (dateNote) line += `。${dateNote}`;
+    if (skipped.length) line += `。你已填过的${skipped.join("、")}未被覆盖`;
+    setGuideSummary(line);
+    setGuideStatus("done");
+    // 折叠着等于没反馈：提取完成后展开，让用户立刻看到摘要与回填结果
+    if (guideRef.current) guideRef.current.open = true;
   }
 
   // 必游地推荐：城市变化后防抖 500ms 拉取（用户还在打字时不打高德）。
@@ -672,6 +866,57 @@ export function HomeClient() {
         >
           <div className="field-group new-core">
             <div className="legend">行程信息</div>
+
+            {/* 攻略导入：默认折叠，不打扰想从零填的用户；展开后粘贴原文 →
+                提取条件 → 只回填空字段。放在城市输入之前，因为「Start Anywhere」
+                的入口就是「我手里已经有一段攻略」。 */}
+            <details className="import-guide" ref={guideRef}>
+              <summary>
+                <span className="import-guide-title">从攻略/聊天记录导入</span>
+                <span className="import-guide-desc">
+                  粘贴游记/群聊/笔记原文，我们只提取条件，不自动生成行程；生成仍由你确认。不会自动打开其中的链接。
+                </span>
+              </summary>
+              <div className="import-guide-body">
+                <label className="import-guide-label" htmlFor="guide-text">
+                  攻略原文
+                </label>
+                <textarea
+                  id="guide-text"
+                  className="import-guide-input"
+                  rows={4}
+                  maxLength={4000}
+                  placeholder="例：五一带父母去成都玩三天，预算人均 2500，一定要去武侯祠…"
+                  value={guideText}
+                  onChange={(e) => setGuideText(e.target.value)}
+                />
+                <div className="import-guide-actions">
+                  {/* type="button"：在 form 里，默认类型会直接触发生成 */}
+                  <button
+                    type="button"
+                    className="btn import-guide-btn"
+                    onClick={extractGuide}
+                    disabled={guideStatus === "loading" || guideText.trim().length < 20}
+                  >
+                    {guideStatus === "loading" ? "提取中…" : "提取条件"}
+                  </button>
+                  <span className="helper" style={{ margin: 0 }}>
+                    至少 20 字，最多 4000 字；已填过的字段不会被覆盖
+                  </span>
+                </div>
+                {guideStatus === "error" && (
+                  <p className="import-guide-error" role="alert">
+                    {guideError}（可以修改后重试）
+                  </p>
+                )}
+                {guideStatus === "done" && guideSummary && (
+                  <p className="import-guide-summary" role="status">
+                    {guideSummary}
+                  </p>
+                )}
+              </div>
+            </details>
+
             <div className="row row-form">
               <div>
                 <label htmlFor="city">目的地城市</label>
@@ -754,7 +999,10 @@ export function HomeClient() {
                   id="startAt"
                   type="datetime-local"
                   value={startAt}
-                  onChange={(e) => setStartAt(e.target.value)}
+                  onChange={(e) => {
+                    datesTouchedRef.current = true; // 用户定过的日期不被攻略覆盖
+                    setStartAt(e.target.value);
+                  }}
                   required
                 />
               </div>
@@ -764,7 +1012,10 @@ export function HomeClient() {
                   id="endAt"
                   type="datetime-local"
                   value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
+                  onChange={(e) => {
+                    datesTouchedRef.current = true;
+                    setEndAt(e.target.value);
+                  }}
                   required
                 />
               </div>

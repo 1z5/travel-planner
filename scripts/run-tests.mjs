@@ -1359,10 +1359,73 @@ async function phaseA(api) {
     events: [{ name: "演出", time: "25:99" }],
   });
   check("活动：时间格式非法 → 400", r26c.status === 400, `got ${r26c.status}`);
+
+  // ---- 攻略提取（POST /api/plan/extract，产品线 B「内容起手」）----
+  // 只提条件不生成：不扣每日生成配额（所以可以放在 phaseA 末尾而不影响上面的
+  // remaining 账目），但吃按 IP 小时桶（默认 10 次/小时）与全站 LLM 日预算。
+  // 桩的开关词只从【攻略原文】数据区取（见 scripts/stub-llm.mjs 的 extractContent）。
+  const extract = async (text) => {
+    const r = await fetch(`${api.baseUrl}/api/plan/extract`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+
+  const exCd = await extract("五一带父母去成都玩三天，预算人均2500，一定要去武侯祠，住春熙路");
+  check(
+    "攻略提取：成都 → 200 且提取出城市/天数/预算/偏好/必游地",
+    exCd.status === 200 &&
+      exCd.body.conditions?.city === "成都" &&
+      exCd.body.conditions?.days === 3 &&
+      exCd.body.conditions?.budget === 2500 &&
+      (exCd.body.conditions?.preferences ?? []).includes("美食") &&
+      (exCd.body.conditions?.mustVisit ?? []).includes("武侯祠") &&
+      (exCd.body.missing ?? []).length === 0,
+    JSON.stringify(exCd.body).slice(0, 200),
+  );
+
+  const exSz = await extract("苏州三天，想住古城附近，历史文化 + Citywalk，一定要去苏州博物馆");
+  check(
+    "攻略提取：苏州分支（开关词只认数据区）",
+    exSz.status === 200 && exSz.body.conditions?.city === "苏州",
+    JSON.stringify(exSz.body).slice(0, 160),
+  );
+
+  const exNone = await extract("今天天气不错，什么都提取不到，随便聊聊的一段文字");
+  check(
+    "攻略提取：没有可用信息 → conditions=null（不硬填）",
+    exNone.status === 200 &&
+      exNone.body.conditions === null &&
+      (exNone.body.missing ?? []).length === 3,
+    JSON.stringify(exNone.body).slice(0, 160),
+  );
+
+  const exBad = await extract("这段文字会触发提取服务错误，用来测 502 路径的一段足够长的文本");
+  check(
+    "攻略提取：上游返回非 JSON → 502（不猜）",
+    exBad.status === 502,
+    `got ${exBad.status} ${JSON.stringify(exBad.body).slice(0, 120)}`,
+  );
+
+  const exShort = await extract("太短");
+  check("攻略提取：文本太短 → 400", exShort.status === 400, `got ${exShort.status}`);
+
+  // 小时桶限流：默认 10 次/小时/IP。占用桶的只有「走到 LLM 之前」的请求：上面
+  // 成都/苏州/什么都提取不到 3 次成功（502 与 400 都会退还/不占桶），所以再打
+  // 7 次凑满 10 次后，第 11 次必须 429。
+  for (let i = 0; i < 7; i += 1)
+    await extract("苏州三天历史文化 Citywalk 预算两千的一段足够长的攻略文本");
+  const exLimited = await extract("苏州三天历史文化 Citywalk 预算两千的一段足够长的攻略文本");
+  check(
+    "攻略提取：超过每小时上限 → 429（防公开站被刷）",
+    exLimited.status === 429,
+    `got ${exLimited.status}`,
+  );
 }
 
 // ---------------- 阶段 B：真实模式（高德桩） ----------------
-
 async function phaseB(api) {
   console.log("\n== 高德集成（真实模式走桩，验证官方 API 形状） ==");
   const j = await api.waitJob(

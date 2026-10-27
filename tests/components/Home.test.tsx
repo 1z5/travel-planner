@@ -620,3 +620,202 @@ describe("Home 灵感卡深链预填", () => {
     );
   });
 });
+
+// ============================================================
+// 攻略导入（产品线 B「内容起手」）：POST /api/plan/extract
+//
+// 钉住三条产品口径，它们都是「顺手优化」最容易破坏的：
+// 1. 只提条件不自动生成——导入只回填表单，不发 /api/plan、不跳转；
+// 2. 不猜——conditions 为 null 时如实说「没有提取到」，不用默认值填满表单；
+// 3. 不覆盖——用户已手动填过的字段原样保留，摘要里如实说明。
+// ============================================================
+describe("Home 攻略导入面板", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const GUIDE_TEXT = "五一带父母去成都玩三天，预算人均 2500，一定要去武侯祠，想吃火锅";
+
+  /** 打桩 /api/plan/extract；其余 URL 走空响应（必游地推荐等增强静默降级） */
+  function stubExtract(body: unknown, init?: { ok?: boolean; status?: number }) {
+    const calls: Array<{ url: string; body?: unknown }> = [];
+    vi.stubGlobal("fetch", async (url: string, i?: RequestInit) => {
+      calls.push({ url, body: i?.body ? JSON.parse(i.body as string) : undefined });
+      if (url === "/api/me") {
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+        };
+      }
+      if (url === "/api/plan/extract") {
+        return {
+          ok: init?.ok ?? true,
+          status: init?.status ?? 200,
+          json: async () => body,
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    return calls;
+  }
+
+  it("成功：预填城市/偏好/必游地/日期，摘要写明还缺什么，且不发起生成", async () => {
+    const calls = stubExtract({
+      // 原文没写预算 → conditions.budget=null、missing 里有人均预算
+      conditions: {
+        city: "成都",
+        days: 3,
+        startAt: null,
+        endAt: null,
+        budget: null,
+        preferences: ["自然风光", "博物馆"],
+        mustVisit: ["武侯祠"],
+        hotel: null,
+        notes: "带父母，节奏放慢",
+      },
+      missing: ["人均预算"],
+      tokens: 512,
+    });
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText("从攻略/聊天记录导入"));
+    await userEvent.type(screen.getByPlaceholderText(/例：五一带父母去成都/), GUIDE_TEXT);
+    await userEvent.click(screen.getByText("提取条件"));
+
+    // 空字段被预填：城市
+    await waitFor(() => {
+      expect((screen.getByPlaceholderText("如：成都") as HTMLInputElement).value).toBe("成都");
+    });
+    // 偏好整组替换成原文提取到的（默认值不是用户填的，可以覆盖）
+    expect(screen.getByRole("button", { name: "自然风光" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "博物馆" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "美食" })).toHaveAttribute("aria-pressed", "false");
+    // 必游地入库
+    expect(screen.getByText("武侯祠")).toBeInTheDocument();
+    // 没提取到的预算不填（不猜）：输入框仍为空
+    expect((screen.getByPlaceholderText(/如：1500/) as HTMLInputElement).value).toBe("");
+
+    // 日期：明天起算、含头含尾共 3 个日历日（与深链预填同款算法）
+    const [startInput, endInput] = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="datetime-local"]'),
+    );
+    expect(startInput.value).toMatch(/T10:00$/);
+    expect(endInput.value).toMatch(/T18:00$/);
+    const calendarDays =
+      Math.round(
+        (Date.parse(`${endInput.value.slice(0, 10)}T00:00:00Z`) -
+          Date.parse(`${startInput.value.slice(0, 10)}T00:00:00Z`)) /
+          86400000,
+      ) + 1;
+    expect(calendarDays).toBe(3);
+    expect(screen.getByText(/共 3 天/)).toBeInTheDocument();
+
+    // 摘要：提取到什么、还缺什么、原文特别要求，都在一行里说清
+    const summary = await waitFor(() => {
+      const el = screen.getByText(/已从攻略提取/);
+      expect(el).toBeInTheDocument();
+      return el;
+    });
+    expect(summary.textContent).toContain("成都");
+    expect(summary.textContent).toContain("3 天");
+    expect(summary.textContent).toContain("必游 武侯祠");
+    expect(summary.textContent).toContain("还缺：人均预算（请补充）");
+    expect(summary.textContent).toContain("原文特别要求：带父母，节奏放慢");
+
+    // 只提条件：导入不触发生成、不跳转
+    expect(calls.some((c) => c.url === "/api/plan")).toBe(false);
+    expect(calls.find((c) => c.url === "/api/plan/extract")?.body).toMatchObject({
+      text: GUIDE_TEXT,
+    });
+  });
+
+  it("失败：接口 502 → 显示错误文案且可重试，表单不被改动", async () => {
+    stubExtract({ error: "提取失败：模型没有返回内容，请重试" }, { ok: false, status: 502 });
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText("从攻略/聊天记录导入"));
+    await userEvent.type(screen.getByPlaceholderText(/例：五一带父母去成都/), GUIDE_TEXT);
+    await userEvent.click(screen.getByText("提取条件"));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert").textContent).toContain("模型没有返回内容");
+    expect(screen.getByRole("alert").textContent).toContain("可以修改后重试");
+    // 表单原样：城市仍为空，也没有任何「已提取」摘要
+    expect((screen.getByPlaceholderText("如：成都") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByText(/已从攻略提取/)).not.toBeInTheDocument();
+    // 按钮恢复可点（失败可重试，而不是卡在禁用态）
+    expect(screen.getByText("提取条件").closest("button")).not.toBeDisabled();
+  });
+
+  it("conditions=null：如实说「没有提取到」，不填任何字段", async () => {
+    stubExtract({ conditions: null, missing: ["目的地", "天数", "人均预算"], tokens: 300 });
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText("从攻略/聊天记录导入"));
+    await userEvent.type(
+      screen.getByPlaceholderText(/例：五一带父母去成都/),
+      "今天天气不错，适合出门走走，随便逛逛吃点东西",
+    );
+    await userEvent.click(screen.getByText("提取条件"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("这段文字里没有提取到可用的行程条件，可以手动填写下方表单"),
+      ).toBeInTheDocument(),
+    );
+    // 没有任何字段被默认值填满
+    expect((screen.getByPlaceholderText("如：成都") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByText(/已从攻略提取/)).not.toBeInTheDocument();
+  });
+
+  it("不覆盖：用户已填过的城市/偏好保持原样，摘要如实说明", async () => {
+    stubExtract({
+      conditions: {
+        city: "成都",
+        days: 3,
+        startAt: null,
+        endAt: null,
+        budget: 2500,
+        preferences: ["自然风光"],
+        mustVisit: ["武侯祠"],
+        hotel: "春熙路附近",
+        notes: "",
+      },
+      missing: [],
+      tokens: 400,
+    });
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+
+    // 用户先手动填了城市、手动加了一个偏好
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "苏州");
+    await userEvent.click(screen.getByRole("button", { name: "购物" }));
+
+    await userEvent.click(screen.getByText("从攻略/聊天记录导入"));
+    await userEvent.type(screen.getByPlaceholderText(/例：五一带父母去成都/), GUIDE_TEXT);
+    await userEvent.click(screen.getByText("提取条件"));
+
+    await waitFor(() => expect(screen.getByText(/已从攻略提取/)).toBeInTheDocument());
+    // 已填过的不覆盖
+    expect((screen.getByPlaceholderText("如：成都") as HTMLInputElement).value).toBe("苏州");
+    expect(screen.getByRole("button", { name: "购物" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "自然风光" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    // 仍然空着的才回填：预算、住所、必游地、日期
+    expect((screen.getByPlaceholderText(/如：1500/) as HTMLInputElement).value).toBe("2500");
+    expect((screen.getByPlaceholderText(/全季酒店/) as HTMLInputElement).value).toBe("春熙路附近");
+    expect(screen.getByText("武侯祠")).toBeInTheDocument();
+    expect(screen.getByText(/共 3 天/)).toBeInTheDocument();
+    // 摘要如实说明哪些没被动
+    expect(screen.getByText(/已从攻略提取/).textContent).toContain("未被覆盖");
+    expect(screen.getByText(/已从攻略提取/).textContent).toContain("城市");
+  });
+});

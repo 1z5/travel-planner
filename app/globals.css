@@ -7078,3 +7078,121 @@ main.has-result .new-head {
     font-size: 22px;
   }
 }
+
+/* === 攻略导入 === */
+/* /new「从攻略/聊天记录导入」折叠面板（产品线 B「内容起手」的 UI 部分）。
+   共享文件约定：只在文件末尾追加，不改上面任何既有规则。
+   三条口径对应硬约束：390 宽不横向溢出（textarea 100% 宽 + 任意处断行）、
+   触控目标 ≥40px（summary 与按钮）、摘要/错误都是可断行的窄条而不是
+   撑满宽的长行。样式里不写任何「自动生成」类措辞——口径只属于组件文案。 */
+.import-guide {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  padding: 0 14px;
+}
+.import-guide > summary {
+  cursor: pointer;
+  /* 44px：比全站 40px 口径再留一点，折叠行是移动端第一触达目标 */
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 0;
+  list-style: none; /* Firefox 去掉默认三角；WebKit 走下面的 marker 规则 */
+}
+.import-guide > summary::-webkit-details-marker {
+  display: none;
+}
+.import-guide-title {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+/* 展开标记与「更多选项」同一套等宽 ＋/−，保持新建页折叠区语感一致 */
+.import-guide-title::before {
+  content: "＋";
+  font-family: var(--font-mono);
+  color: var(--ink-4);
+  margin-right: 8px;
+}
+.import-guide[open] > summary .import-guide-title::before {
+  content: "－";
+}
+.import-guide-desc {
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ink-4);
+  /* 390 宽必须能断行：说明句比卡片宽，宁可换行难看也不许撑出横向滚动 */
+  overflow-wrap: anywhere;
+}
+.import-guide-body {
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.import-guide-label {
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.import-guide-input {
+  width: 100%;
+  max-width: 100%;
+  min-height: 88px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+  resize: vertical;
+}
+.import-guide-input::placeholder {
+  color: var(--ink-4);
+}
+.import-guide-input:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+.import-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+/* .btn 已给 40px 高；这里再兜一层 min-height：文案换行时也不塌到 40px 以下 */
+.import-guide-btn {
+  min-height: 40px;
+  flex: 0 0 auto;
+}
+.import-guide-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.import-guide-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--err-line);
+  border-radius: var(--r-md);
+  background: var(--err-bg);
+  color: var(--err-ink);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.import-guide-summary {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ok-line);
+  border-radius: var(--r-md);
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+  font-size: var(--fs-caption);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
