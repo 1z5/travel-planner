@@ -97,6 +97,11 @@ export function TripsHome() {
               </p>
               {/* 复用 .firstscreen-evidence 的 2 列网格：第三张自然换到下一行，
                   移动端既有媒体查询会收成单列，不需要为它再写一套布局。 */}
+              <div className="fs-inspire-more">
+                <Link href="/cities" className="fs-card-link">
+                  更多城市模板（12 城 · 3/4/5 天）→
+                </Link>
+              </div>
               <div className="firstscreen-evidence">
                 {FEATURED_DESTINATIONS.map((d) => (
                   <article className="fs-card" key={d.city}>

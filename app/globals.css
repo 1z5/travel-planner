@@ -7471,3 +7471,212 @@ main.has-result .new-head {
   opacity: 1;
   background: rgba(0, 0, 0, 0.05);
 }
+
+/* ============================================================
+ * 城市模板页（/cities、/cities/<slug>，产品线 B2）
+ * 纸面杂志语言：衬线城市名、条件 chip、明确「示例条件」的诚实说明块。
+ * ============================================================ */
+.cities-page {
+  padding: var(--sp-8) 0 var(--sp-10);
+}
+.cities-hero {
+  max-width: 720px;
+  margin-bottom: var(--sp-6);
+}
+.cities-title {
+  margin: 10px 0 8px;
+  font-family: var(--font-serif);
+  font-size: clamp(30px, 6vw, 52px);
+  line-height: 1.12;
+}
+.cities-lede {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.cities-season {
+  margin: 10px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-4);
+}
+.cities-crumb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.cities-crumb a {
+  color: var(--ink-3);
+}
+.cities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cities-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+.cities-card:hover {
+  border-color: var(--accent-ring);
+}
+.cities-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 18px 16px;
+  min-height: 44px;
+}
+.cities-card-region {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.cities-card-city {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  line-height: 1.2;
+}
+.cities-card-tagline {
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.cities-card-days {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.cities-days-chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.cities-variants {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-bottom: var(--sp-6);
+}
+.cities-variant {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 18px;
+}
+.cities-variant-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cities-variant-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+}
+.cities-variant-budget {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.cities-variant-prefs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.cities-pref-chip {
+  font-size: 11px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.cities-variant-blurb {
+  margin: 0;
+  flex: 1;
+  font-size: var(--fs-small);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.cities-variant .btn {
+  align-self: flex-start;
+  min-height: 40px;
+}
+.cities-honest {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  padding: 16px 18px;
+  margin-bottom: var(--sp-6);
+}
+.cities-honest h2 {
+  margin: 0 0 8px;
+  font-size: var(--fs-h3);
+}
+.cities-honest ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-small);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.cities-others ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  font-size: var(--fs-small);
+}
+.cities-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 18px;
+  margin-top: var(--sp-6);
+}
+.cities-cta h2 {
+  margin: 0 0 4px;
+  font-size: var(--fs-h3);
+}
+.cities-cta p {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+
+/* 灵感区与关于页的「城市模板」互链（内容层导流，别抢主 CTA 的注意力） */
+.fs-inspire-more {
+  margin: 4px 0 10px;
+}
+.about-cities-link {
+  color: var(--accent);
+  font-weight: 600;
+}

@@ -37,6 +37,11 @@ export default function AboutPage() {
             </Link>
           </div>
           <p className="about-facts">
+            <Link href="/cities" className="about-cities-link">
+              按城市看模板（12 城 · 3/4/5 天）→
+            </Link>
+          </p>
+          <p className="about-facts">
             20+ 城市实测通过 · 逐项标注核验状态 · 1,500+ 自动化测试 · 数据来自高德开放平台
           </p>
         </div>

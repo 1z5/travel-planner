@@ -1,16 +1,12 @@
 node_modules/
 .next/
-.next-verify/
+.next-*/
 out/
 .env
 .env.local
 *.tsbuildinfo
 next-env.d.ts
 eval-results/
-.next-t-*/
-.next-visual/
-.next-visual-check/
-.next-demo/
 coverage/
 .e2e-lock/
 .DS_Store

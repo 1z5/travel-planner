@@ -422,6 +422,13 @@ async function main() {
         required: [".about-hero", ".trust-grid", ".site-footer"],
       },
       { name: "privacy", path: "/privacy", required: [".legal-page", ".site-footer"] },
+      // B2 城市模板（SEO 获取层）：列表页 + 详情页都要参与移动端回归
+      { name: "cities", path: "/cities", required: [".cities-page", ".cities-grid"] },
+      {
+        name: "city-detail",
+        path: "/cities/chengdu",
+        required: [".cities-page", ".cities-variants"],
+      },
       { name: "terms", path: "/terms", required: [".legal-page", ".site-footer"] },
       {
         name: "workspace",

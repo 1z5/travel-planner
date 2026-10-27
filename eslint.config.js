@@ -29,11 +29,7 @@ export default [
     ignores: [
       "node_modules/**",
       ".next/**",
-      ".next-t-*/**",
-      ".next-visual/**",
-      ".next-visual-check/**",
-      ".next-demo/**",
-      ".next-verify/**",
+      ".next-*/**",
       "out/**",
       "coverage/**",
       "eval-results/**",

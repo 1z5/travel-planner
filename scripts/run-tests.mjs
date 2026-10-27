@@ -1360,6 +1360,50 @@ async function phaseA(api) {
   });
   check("活动：时间格式非法 → 400", r26c.status === 400, `got ${r26c.status}`);
 
+  // ---- 城市模板页（B2 SEO 获取层）：列表/详情/404 + sitemap/robots ----
+  const citiesIdx = await fetch(`${api.baseUrl}/cities`);
+  const citiesIdxHtml = await citiesIdx.text();
+  check(
+    "城市模板：/cities 200 且列出多个城市与「示例条件」口径",
+    citiesIdx.status === 200 &&
+      citiesIdxHtml.includes("成都") &&
+      citiesIdxHtml.includes("城市模板") &&
+      citiesIdxHtml.includes("不是已经核验过的行程"),
+    `${citiesIdx.status}`,
+  );
+  const cityDetail = await fetch(`${api.baseUrl}/cities/chengdu`);
+  const cityDetailHtml = await cityDetail.text();
+  check(
+    "城市模板：/cities/chengdu 200 且含 3/4/5 天条件与深链",
+    cityDetail.status === 200 &&
+      cityDetailHtml.includes("成都") &&
+      cityDetailHtml.includes('data-days="3"') &&
+      cityDetailHtml.includes('data-days="5"') &&
+      cityDetailHtml.includes("用这个条件生成"),
+    `${cityDetail.status}`,
+  );
+  check(
+    "城市模板：未知 slug → 404（不渲染空壳页）",
+    (await fetch(`${api.baseUrl}/cities/atlantis`)).status === 404,
+  );
+  const sitemapRes = await fetch(`${api.baseUrl}/sitemap.xml`);
+  const sitemapText = await sitemapRes.text();
+  check(
+    "SEO：sitemap.xml 200 且包含城市模板 URL",
+    sitemapRes.status === 200 && sitemapText.includes("/cities/chengdu"),
+    `${sitemapRes.status}`,
+  );
+  const robotsRes = await fetch(`${api.baseUrl}/robots.txt`);
+  const robotsText = await robotsRes.text();
+  check(
+    "SEO：robots.txt 禁抓用户内容（/p /t /w）",
+    robotsRes.status === 200 &&
+      robotsText.includes("/p/") &&
+      robotsText.includes("/t/") &&
+      robotsText.includes("sitemap"),
+    `${robotsRes.status}`,
+  );
+
   // ---- PWA（产品线 C1：行中「像 App」入口 + 离线外壳）----
   // manifest 决定「添加到主屏」后的名称/图标/主题色；sw.js 是 /t 与 /p 的
   // 离线外壳（断网也能看到最后一次加载的行中页）。两者都是公开静态资产。

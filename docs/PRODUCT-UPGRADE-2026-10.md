@@ -106,7 +106,9 @@
 - **S3 进行中**：
   - ✅ A6 中立承诺（/about「不卖排名/不隐瞒/不代改/数据边界」+ 修正越界宣传数字）
   - ✅ A4 修复效果可见（change-impact 横幅：分数变化 + 问题条数，变差也如实说）
-  - ⬜ A5 已归档（海报+克隆计数在 S1 完成）、S3 剩余商业化试点
+  - ✅ B2 城市模板页：12 城 × 3/4/5 天条件模板（/cities + /cities/<slug>）+ sitemap/robots
+    - 首页与 /about 入口；明确「不是已核验行程」
+  - ⬜ S3 剩余：商业化试点（意向收集/定价占位）
   - ✅ C1 行中 PWA：manifest + 品牌图标（scripts/gen-pwa-icons.mjs）+ public/sw.js 只对
     /t 与 /p 导航做 stale-while-revalidate + useOffline 断网提示。**已做真实断网实测：
     完全离线下行中/分享页完整可读并显示诚实提示。**

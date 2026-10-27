@@ -1,5 +1,6 @@
 # 生成物/构建目录不参与格式检查（本地跑过 e2e / 视觉检查后会产生）
 .next/
+.next-*/
 .next-t-*/
 .next-visual/
 .next-visual-check/
