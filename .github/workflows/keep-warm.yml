@@ -1,12 +1,12 @@
 name: Keep demo warm
 
-# 简历链接是长期挂着的：Render 免费实例 15 分钟无请求会休眠，第一位访客要等
+# 公网演示链接是长期挂着的：Render 免费实例 15 分钟无请求会休眠，第一位访客要等
 # 30-60s 冷启动。每 5 分钟 ping 一次健康检查保活（Render 免费 750 实例小时/月，
 # 24/7 = 730h，够用）。
 #
 # ⚠️ 两个已知边界：
 # - 仓库连续 60 天没有活动时，GitHub 会自动暂停 schedule；需要外部监控兜底
-#   （UptimeRobot / cron-job.org，见 DEMO.md「长期放简历」一节）。
+#   （UptimeRobot / cron-job.org，见 DEMO.md「长期作为公网入口」一节）。
 # - 这个 job 失败会给仓库 owner 发通知，等于一个免费的 uptime 告警。
 on:
   schedule:

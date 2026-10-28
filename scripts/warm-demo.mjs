@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 演示预热脚本：面试前 2 分钟跑一次，把 Render 免费实例从休眠中叫醒并验证
+ * 演示预热脚本：演示前 2 分钟跑一次，把 Render 免费实例从休眠中叫醒并验证
  * 三条演示路径可用。免费实例 15 分钟无请求会休眠，首个请求要 30-60s 冷启动——
- * 别让面试官成为那个「等冷启动」的人。
+ * 别让第一位访客成为那个「等冷启动」的人。
  *
  * 用法：
  *   node scripts/warm-demo.mjs https://travel-planner-demo-xxxx.onrender.com
@@ -82,7 +82,7 @@ async function main() {
   }
   if (!shares.length) console.log("⚠️ 本地没有 demo/fixtures/*.json（先生成演示行程）");
 
-  // 3) 再打一次健康检查：确认冷启动后响应恢复稳定（面试时轮询接口要快）
+  // 3) 再打一次健康检查：确认冷启动后响应恢复稳定（演示时轮询接口要快）
   const again = await timedFetch("/api/health");
   console.log(`${again.status === 200 ? "✅" : "❌"} 二次健康检查 ${again.ms}ms`);
   if (!process.exitCode) console.log("\n🟢 预热完成，可以开始演示。");

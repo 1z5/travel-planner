@@ -469,7 +469,7 @@ AI 把一篇软广当成我的需求直接出行程，用户连核对的机会�
 
 ## 2026-10 演示站长期化：保活 + 公开曝光的成本/滥用闸门
 
-背景：演示链接要**长期放简历**。免费实例会休眠、公开链接会被转发甚至被爬，
+背景：演示链接要**长期作为公网入口**。免费实例会休眠、公开链接会被转发甚至被爬，
 原来的演示护栏（全站 60 次/天）只防生成、防不住「换 IP 刷 refine/chat」和
 「刷高德代理端点烧 key 配额」。这轮把「挂了也没人管」的几处补齐。
 
@@ -490,16 +490,16 @@ AI 把一篇软广当成我的需求直接出行程，用户连核对的机会�
   用户全降级成示意图。
 - **看板可用**：`render.yaml` 用 Render 的 `generateValue: true` 自动生成
   `METRICS_TOKEN`，演示站可以看漏斗/北极星/Top 城市（隐私口径不变）。
-- 文档：DEMO.md 新增「§4.1 长期放简历」（保活原理、60 天限制、外部监控、
+- 文档：DEMO.md 新增「§4.1 长期作为公网入口」（保活原理、60 天限制、外部监控、
   Starter 升级、看板 token 位置、日常检查）；`.env.example`/DEPLOY.md 补齐新变量。
 
 验收：单测 **910**（+3 条 LLM 日预算/快照）；`npm run gate` 全绿；部署后
 `/api/health` 返回新 capacity 字段（`llmCallsToday` + 新 limits），线上分享页/工作台
 /warm 全绿；keep-warm workflow 手动 dispatch 成功。
 
-## 2026-10 面试演示上线包：Render 免费实例 + 真实生成行程 fixture
+## 2026-10 公开演示上线包：Render 免费实例 + 真实生成行程 fixture
 
-背景：先要一个公网链接做**面试演示**，不追求正式生产（PG/登录/监控不走这套，见 DEMO.md）。
+背景：先要一个公网链接做**公开演示**，不追求正式生产（PG/登录/监控不走这套，见 DEMO.md）。
 
 - **`render.yaml`（Blueprint）**：Render 免费 Web Service（Node runtime、singapore）。
   build = `npm ci && prisma generate && next build` + standalone static/public 拷贝（与 DEPLOY 裸机路径
@@ -516,8 +516,8 @@ AI 把一篇软广当成我的需求直接出行程，用户连核对的机会�
 - **零配置 OG**：`metadataBase` 缺省回退 Render 自动注入的 `RENDER_EXTERNAL_URL`，演示站不配
   `NEXT_PUBLIC_SITE_URL` 也能生成正确的对外绝对链接/分享卡片。
 - **预热脚本**：`npm run demo:warm -- <url>`（`node scripts/warm-demo.mjs`）。免费实例 15 分钟
-  无请求休眠，面试前先叫醒并逐项验证 health/首页/两条预置行程，避免面试官成为等冷启动的人。
-- **`DEMO.md`**：10 分钟部署步骤、面试前 2 分钟 checklist、3 分钟演示脚本、成本护栏、已知限制
+  无请求休眠，演示前先叫醒并逐项验证 health/首页/两条预置行程，避免第一位访客成为等冷启动的人。
+- **`DEMO.md`**：10 分钟部署步骤、演示前 2 分钟 checklist、3 分钟演示脚本、成本护栏、已知限制
   （免费实例休眠/512MB 内存/单实例/memory 存储重置——预置行程不受影响），以及「这套不适合正式生产」。
 - 工程细节：`.next-demo/`（重新生成 fixture 用的隔离 dist）加入 eslint/oxlint/prettier/gitignore；
   新增 `demo:gen` / `demo:warm` 两个 npm script。

@@ -3,14 +3,14 @@ import { DEMO_FIXTURES } from "@/demo/fixtures";
 import { seedDemoPlans } from "@/lib/demo-seed";
 import { getStore } from "@/lib/store";
 
-// 面试演示的预置行程：fixture 是「真实高德 + 真实模型」的生成产物，被静态打进
+// 公开演示的预置行程：fixture 是「真实高德 + 真实模型」的生成产物，被静态打进
 // 构建产物、启动时注入存储。这里守住三件事：
 // 1) fixture 本身结构合法（坏 JSON 会让 /p 页 500，演示当场翻车）；
 // 2) shareId 不可重复（重复会互相覆盖）；
 // 3) 种子逻辑幂等、且只在 DEMO_SEED=1 时生效（不能影响生产/测试）。
 
 describe("demo fixtures", () => {
-  it("至少 2 条预置行程（真实生成产物，面试免等待）", () => {
+  it("至少 2 条预置行程（真实生成产物，演示免等待）", () => {
     expect(DEMO_FIXTURES.length).toBeGreaterThanOrEqual(2);
   });
 

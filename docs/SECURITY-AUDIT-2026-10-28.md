@@ -160,7 +160,7 @@
 1. **分享 token 即能力（共编）**：ADR-014 与 API.md 明示，用「不可猜测 token + 无鉴权」换取分享/共编零摩擦；若未来做多用户，需独立编辑凭据（R4 的根因仍是 demo token 公开，不是模型本身）。
 2. **`/api/verify`、`/api/mcp` 无鉴权 + CORS `*`**：开放标准/MCP 客户端的必要前提；已有限流（MCP 在工作区）+ 不写库 + 不调模型。
 3. **credential 是确定性哈希而非签名**：`lib/verify/credential.ts:19-27` 明确「只保证可复现、可对账」，文档/海报均标注「可复算 · 不是数字签名」。
-4. **演示站 memory + DEMO_SEED + 休眠丢数据**：DEMO.md 已说明是面试演示取舍；真实上线必须 postgres（check:env BLOCK 同口径）。
+4. **演示站 memory + DEMO_SEED + 休眠丢数据**：DEMO.md 已说明是公开演示取舍；真实上线必须 postgres（check:env BLOCK 同口径）。
 5. **`/api/health` 暴露 commit/store/capacity**：部署自证与运维需要，不含用户数据。
 6. **CSP `'unsafe-inline'`**：Next hydration/framer-motion 现实约束 + 输入白名单 + 唯一 sink 已转义；列为待收紧项。
 7. **公开页软 404（无效分享链接返回 200）**：故意不向匿名者区分「id 不存在」，对防枚举有利。

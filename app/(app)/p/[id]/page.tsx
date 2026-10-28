@@ -205,7 +205,7 @@ export default async function SharePage({
         <div className="share-cta-text">
           <strong>也想去{plan.city}？</strong>
           {/* 口径必须与 /new 一致：真实模型 2-4 分钟（旧的「30 秒」做不到，
-              面试/首次访问的人会以为页面卡死；「期间可离开」是 2026-10 起
+              首次访问的人会以为页面卡死；「期间可离开」是 2026-10 起
               真实成立的行为——任务句柄落 localStorage，回来能续轮询） */}
           <span>输入你的时间和预算，2–4 分钟生成专属行程（期间可离开页面）</span>
         </div>
