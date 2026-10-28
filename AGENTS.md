@@ -184,6 +184,21 @@ suspicious=warn、格式规则交给 Prettier，`react-hooks/*` 规则可用）�
 （外加 `npm audit`、生产构建、覆盖率阈值）。**看到失败先修，不要跳过**——
 上一轮“局部看起来对”的改动，往往是 e2e 抓到的最低级错误。
 
+### 部署验收：push 后对 Render 跑冒烟（2026-10 起）
+
+push 到 `main` 会自动触发 Render 部署（`render.yaml` 的 `travel-planner-demo`，
+健康检查 `/api/health`）。**不要把「push 成功」当「部署成功」**：构建/启动失败时
+Render 会继续用老版本服务，必须等 `/api/health` 的 `commit` 字段变成新提交，再跑：
+
+```bash
+node scripts/smoke-deployed.mjs https://travel-planner-demo.onrender.com
+```
+
+它依次验证：①health + commit ②首页 ③**Trip Check**（`/api/verify` 元信息、
+`/api/verify/schema`、POST `/api/verify` 可复算凭据 + CORS、`/verify` 体验台、robots）
+④真实生成一次（消耗 1 次当日配额）⑤分享页体检凭据 + schema.org JSON-LD + shareId 核验。
+绿了才算「上线验收通过」；③ 不烧配额，push 后可先单独跑它快速判断新形态是否生效。
+
 ### 度量闭环（北极星可计算）
 
 - 埋点写入端 `POST /api/events`（前端 `lib/track.ts` fire-and-forget；服务端事件由路由直接写）；

@@ -46,6 +46,11 @@ vs 事实核验，不拿一个总分掩盖不确定性）、三态透传（hit/m
   1440 桌面与 500px 窄屏无横向溢出、A/100/verified 与 D/55/blocking 两种报告渲染正确、
   控制台 0 error，截图见 `eval-results/visual/`（本地）。
   新增文件均有注释解释「为什么」；客户端不 import server-only；未引入新依赖。
+- **部署验收（v9 起纳入流程）**：`scripts/smoke-deployed.mjs` 扩展为覆盖新形态——
+  ① `/api/health` + 部署 commit ② 首页 ③ Trip Check（元信息/schema/POST 可复算凭据/
+  CORS/`/verify`/robots）④ 真实生成一次 ⑤ 分享页体检凭据 + schema.org JSON-LD + shareId 核验。
+  push → Render 自动部署后以 `/api/health` 的 `commit` 确认新版本上线，再跑冒烟；
+  详见 AGENTS「部署验收」。
 
 诚实边界（必须随版本一起传播）：MOCK/无真实高德 key 期间不声称「真实世界核验」；
 示例里的营业时间是示意数据，不构成真实营业时间承诺；凭据不是数字签名；高德协议 §7.3
