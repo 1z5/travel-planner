@@ -1,4 +1,4 @@
-// 切片 e2e · Trip Check 公开体检 API（开放标准 / schema / CORS / MCP / 体验台 / 修复）
+// 切片 e2e · Trip Check 公开体检 API（开放标准 / schema / OpenAPI / CORS / MCP / 体验台 / 修复 / 报告工件）
 //
 // 契约：导出 `export async function runSlice(ctx)`，ctx = { check, api, mode }
 //   - check(name, cond, detail?)：断言（与 orchestrator 共用计数）
@@ -9,6 +9,8 @@
 // 覆盖：
 //  - GET /api/verify 元信息（规范/引擎/规则版本 + schema/docs 指针 + 版本响应头）
 //  - GET /api/verify/schema（JSON Schema 2020-12 契约 + Cache-Control + CORS）
+//  - GET /api/verify/openapi（OpenAPI 3.1：版本同源/x-trip-check 三版本/
+//    六个端点/document schema 与公开契约同 $id/缓存 + CORS）
 //  - OPTIONS 预检 → 204 + 完整 CORS 头（浏览器第三方站点可直接调用）
 //  - 合法文档 → 200（两轴 grade + 凭据）；**同一输入两次 credential.id 相同**（可复算）；
 //    换 pace 口径 → 凭据 id 变化（口径可追）
@@ -22,10 +24,13 @@
 //    changed:false 且 delta 为 0；非法 body 400 / 未知 share 404 / GET 405
 //  - 修复（shareId）：只读建议（persisted:false, source:share），父凭据与该行程体检凭据一致，
 //    mock 下只改时间不影响事实状态
+//  - 可分享体检报告页 /p/<id>/check（HTML 含「结构自洽性」「体检凭据」）与竖版海报
+//    /p/<id>/check/poster（200 + image/png）；失效口径与 /p 一致：报告页 200 + 友好
+//    失效文案，海报（图片通道）404
 //
 // 配额注意：只生成 1 份行程（每台服务器）；429 时跳过 shareId 路径并明说——
 // 配额耗尽不是本切片的缺陷（与 live 切片同口径）。体检/修复端点本身是确定性计算，
-// 每台服务器 <20 次请求，远低于 VERIFY_HOURLY_LIMIT（默认 120），不影响其他切片。
+// 每台服务器 <25 次请求，远低于 VERIFY_HOURLY_LIMIT（默认 120），不影响其他切片。
 
 const SPEC_VERSION = "trip-check/0.1";
 /** body 上限（与 app/api/verify/route.ts、app/api/verify/repair/route.ts 的 MAX_BODY_BYTES 同步） */
@@ -159,6 +164,50 @@ export async function runSlice({ check, api, mode }) {
     "体检：schema 带 CORS",
     schemaRes.headers.get("access-control-allow-origin") === "*",
     String(schemaRes.headers.get("access-control-allow-origin")),
+  );
+
+  // ============================================================
+  // 0b) OpenAPI 契约（机器可读）：版本同源 + 端点齐全 + 引用同一份 document schema
+  // ============================================================
+  const openapiRes = await fetch(`${base}/api/verify/openapi`);
+  const openapi = await openapiRes.json().catch(() => ({}));
+  check(
+    "契约：GET /api/verify/openapi → 200",
+    openapiRes.status === 200,
+    `got ${openapiRes.status}`,
+  );
+  check(
+    "契约：OpenAPI 3.1 + 六个端点（verify/schema/verify-repair/plan-check/plan-repair/mcp）",
+    openapi.openapi === "3.1.0" &&
+      [
+        "/api/verify",
+        "/api/verify/schema",
+        "/api/verify/repair",
+        "/api/plan/check",
+        "/api/plan/repair",
+        "/api/mcp",
+      ].every((path) => Boolean(openapi.paths?.[path])),
+    JSON.stringify(Object.keys(openapi.paths ?? {})),
+  );
+  check(
+    "契约：info.version 与引擎版本同源，x-trip-check 写清 spec/engine/ruleset",
+    openapi.info?.version === meta.engineVersion &&
+      openapi["x-trip-check"]?.spec === meta.specVersion &&
+      openapi["x-trip-check"]?.engine === meta.engineVersion &&
+      typeof openapi["x-trip-check"]?.ruleset === "string" &&
+      openapi["x-trip-check"].ruleset.length > 0,
+    JSON.stringify({ info: openapi.info?.version, ext: openapi["x-trip-check"] ?? null }),
+  );
+  check(
+    "契约：document schema 引用同一份公开契约（$id 一致，不是手抄副本）",
+    openapi.components?.schemas?.TripCheckDocument?.$id === schema.$id,
+    `${openapi.components?.schemas?.TripCheckDocument?.$id} vs ${schema.$id}`,
+  );
+  check(
+    "契约：允许缓存 1 小时且带 CORS（SDK/网关可以直接取）",
+    /max-age=3600/.test(openapiRes.headers.get("cache-control") ?? "") &&
+      openapiRes.headers.get("access-control-allow-origin") === "*",
+    `${openapiRes.headers.get("cache-control")} / ${openapiRes.headers.get("access-control-allow-origin")}`,
   );
 
   const preflight = await fetch(`${base}/api/verify`, { method: "OPTIONS" });
@@ -579,5 +628,43 @@ export async function runSlice({ check, api, mode }) {
         `${sharedRepair.body?.before?.verdict?.facts?.state} → ${sharedRepair.body?.after?.verdict?.facts?.state}`,
       );
     }
+  }
+
+  // ============================================================
+  // 7) 可分享体检报告页 + 竖版海报（Trip Check 工件；只读、幂等）
+  // ============================================================
+  // 失效口径与 /p 分享页一致（Lead 裁决 A）：HTML 页面能渲染友好失效页 → 200 + 文案；
+  // 图片/API 这类无法渲染友好页的通道 → 404（海报与 /api/plan/check 都走 404）。
+  const unknownReport = await fetch(`${base}/p/share_doesnotexist00/check`);
+  const unknownReportHtml = await unknownReport.text();
+  check(
+    "体检报告页：未知 shareId → 200 友好失效页（与 /p 同口径，不是 500）",
+    unknownReport.status === 200 && unknownReportHtml.includes("报告链接已失效"),
+    `got ${unknownReport.status}`,
+  );
+  const unknownPoster = await fetch(`${base}/p/share_doesnotexist00/check/poster`);
+  check(
+    "体检海报：未知 shareId → 404（图片通道不渲染假工件）",
+    unknownPoster.status === 404,
+    `got ${unknownPoster.status}`,
+  );
+
+  if (typeof shareId === "string") {
+    const reportRes = await fetch(`${base}/p/${shareId}/check`);
+    const reportHtml = await reportRes.text();
+    check(
+      "体检报告页：/p/<id>/check → 200 且含「结构自洽性」「体检凭据」",
+      reportRes.status === 200 &&
+        reportHtml.includes("结构自洽性") &&
+        reportHtml.includes("体检凭据"),
+      `got ${reportRes.status}`,
+    );
+    const posterRes = await fetch(`${base}/p/${shareId}/check/poster`);
+    check(
+      "体检海报：/p/<id>/check/poster → 200 且 content-type 含 image/png",
+      posterRes.status === 200 &&
+        (posterRes.headers.get("content-type") ?? "").includes("image/png"),
+      `got ${posterRes.status} ${posterRes.headers.get("content-type")}`,
+    );
   }
 }

@@ -354,6 +354,32 @@ if (failed === 0 && shareId) {
         `/api/plan/repair 预览异常: HTTP ${previewRes.status} ${JSON.stringify(preview).slice(0, 120)}`,
       );
     }
+
+    // 可分享报告工件：公开报告页 + 竖版海报 + OpenAPI 契约（全部只读、免配额）
+    const reportPage = await get(`/p/${shareId}/check`);
+    const reportHtml = await reportPage.text();
+    if (
+      reportPage.status === 200 &&
+      reportHtml.includes("结构自洽性") &&
+      reportHtml.includes("体检凭据")
+    ) {
+      ok(`/p/${shareId}/check 公开体检报告页可访问`);
+    } else {
+      fail(`体检报告页异常: HTTP ${reportPage.status}`);
+    }
+    const poster = await get(`/p/${shareId}/check/poster`);
+    const posterType = poster.headers.get("content-type") ?? "";
+    if (poster.status === 200 && posterType.includes("image/png")) {
+      ok("/p/<id>/check/poster 竖版海报可生成（image/png）");
+    } else {
+      fail(`体检海报异常: HTTP ${poster.status} ${posterType}`);
+    }
+    const openapi = await json(await get("/api/verify/openapi"));
+    if (openapi?.paths && openapi?.openapi) {
+      ok(`/api/verify/openapi 契约可发现（${Object.keys(openapi.paths).length} 个端点）`);
+    } else {
+      fail("/api/verify/openapi 异常");
+    }
   } catch (e) {
     fail(`分享页核验异常: ${e?.message ?? e}`);
   }

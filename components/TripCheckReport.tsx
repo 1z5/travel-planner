@@ -194,6 +194,12 @@ function IssueRow({ issue }: { issue: VerifyIssue }) {
           <b>修复方向</b>（只给提示，不自动修改）：{issue.fixHint}
         </p>
       )}
+      {/* 引擎只在能从文档声明里算出具体选项时才给 suggestion（目前是营业时间冲突） */}
+      {issue.suggestion && (
+        <p className="tc-fix">
+          <b>建议</b>（按文档声明的事实算出，不替你改行程）：{issue.suggestion}
+        </p>
+      )}
     </li>
   );
 }

@@ -210,6 +210,8 @@ const PAGE_CHECK_FN = String.raw`
     '.tc-repair', '.tc-repair-compare', '.tc-repair-unrepairable', '.tc-repair-cred-id',
     // 工作台第五镜头「体检」（两轴 / 证据 / 修复预览与确认写入）
     '.tc-ws-check', '.tc-ws-check-lede', '.tc-ws-check-issue', '.tc-ws-check-unrepairable',
+    // 可分享体检报告页（headline / 建议块 / 凭据）
+    '.tc-report-page', '.tc-report-page-headline', '.tc-fix', '.tc-cred-id',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);
@@ -457,6 +459,12 @@ async function main() {
         name: "workspace-check",
         path: `/w/${shareId}?view=check`,
         required: [".trip-workspace", ".ws-tabs", ".tc-ws-check"],
+      },
+      {
+        // 可分享体检报告页：公开工件（两轴 + 规则证据 + 凭据 + 传播动作）
+        name: "share-check",
+        path: `/p/${shareId}/check`,
+        required: [".tc-report-page", ".tc-report", ".tc-issue"],
       },
       {
         name: "share",

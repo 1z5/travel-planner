@@ -723,6 +723,48 @@ export function checkOpenHours(
   }
 }
 
+/**
+ * 某一天**实际生效**的营业窗口（已合并重叠/相邻时段）。
+ *
+ * 为什么需要单独导出：判定（checkOpenHours/checkDayAvailability）回答「开不开门」，
+ * 而「建议时段」需要知道「哪些时段是开的、停留多久放得进哪一段」。同一套解析与
+ * 选择逻辑（含矛盾即 unknown、闭馆日、特殊日期开放），只换输出形状。
+ *
+ * 闭馆 / 暂停开放 / 多组规则矛盾 / 无任何可判定信息 → 返回 null（不猜窗口）。
+ * 调用方据此不给建议——「不知道」不能包装成「建议你去 X 点」。
+ */
+export function openWindowsOnDate(
+  poi: HoursPoiInput | null | undefined,
+  isoDate: string,
+): { start: number; end: number }[] | null {
+  try {
+    if (!poi) return null;
+    const ctx = parseIsoDate(isoDate);
+    if (!ctx) return null;
+    const name = typeof poi.name === "string" ? poi.name : "";
+    if (/暂停开放|暂停营业|已关闭/.test(name) || poi.temporarilyClosed === true) return null;
+    const rich = asText(poi.openTime2);
+    const text = rich ?? asText(poi.openTime);
+    if (!text) return null;
+    const parsed = parseSchedule(text);
+    if (!parsed) return null;
+
+    const active = parsed.rules.filter((r) => r.kind !== "note" && isActive(r, ctx));
+    const closedRules = active.filter((r) => r.kind === "closed");
+    const windowRules = active.filter((r) => r.kind === "windows");
+    const dateClosed = closedRules.find((r) => r.dateRanges.length || r.monthRanges.length);
+    if (dateClosed) return null;
+    const { selected, ambiguous } = selectWindows(windowRules);
+    if (ambiguous) return null;
+    const specialDateOpen = windowRules.some((r) => r.dateRanges.length || r.monthRanges.length);
+    if (closedRules.length && !specialDateOpen) return null;
+    if (!selected.length) return null;
+    return mergeWindows(selected.map((s) => s.win));
+  } catch {
+    return null;
+  }
+}
+
 /** 当天可用性：这一天到底有没有营业（与「几点到几点」无关）。
  *  open=当天有营业时段；closed=当天闭馆；unknown=数据不足/规则矛盾，不猜。 */
 export type DayAvailability =

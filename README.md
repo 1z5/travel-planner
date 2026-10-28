@@ -29,6 +29,9 @@ AI 智能旅游规划 **v8.1**（2026-10-25 最新能力见 [CHANGELOG.md](CHANG
   修复入口；`POST /api/plan/check` 只读判定、`POST /api/plan/repair` 先预览后确认写入
   （revision+1，`expectedRevision` 乐观并发），写回后重算时间轴/营业时间预警，
   并把 parent→child 凭据链记进 `plan.tripCheck`；分享页显示「已确定性修复」与凭据链。
+- **可分享报告工件（S1.7）**：`/p/<id>/check` 公开体检报告页 + `/p/<id>/check/poster` 竖版海报 +
+  纯文本报告（转发的是「被验过的证据 + 凭据」，不是行程表）；`TC-F204` 会基于文档自带营业时间
+  算出「建议时段」（只建议、不修改）；`GET /api/verify/openapi` 发布 OpenAPI 3.1 契约。
 - **产品内接入**：分享页输出 schema.org `TouristTrip` JSON-LD，并展示这份行程的体检凭据
   （两轴结论 + 凭据 ID + 「在开放体检台查看/复算」入口）。
 - **诚实边界**：MOCK/无真实 key 期间**不声称「真实世界核验」**；示例营业时间为示意数据；

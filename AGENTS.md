@@ -80,7 +80,9 @@ components/
   **「行程可执行性核验层」**阶段——卖「可复算的证据」而不是「生成行程」：
   Trip Check 开放标准 v0.1 + 两轴报告 + 可复算凭据 + 确定性修复（前后凭据链）+ `/api/verify` +
   MCP（`/api/mcp`）已落地；**并已进入产品主流程**（工作台第五镜头「体检」、`/api/plan/check` /
-  `/api/plan/repair` 预览→确认写入、`plan.tripCheck` 修复版本与凭据链）。新功能先对照
+  `/api/plan/repair` 预览→确认写入、`plan.tripCheck` 修复版本与凭据链）；**结论可传播**
+  （`/p/<id>/check` 公开报告页 + 竖版海报 + 纯文本报告 + `GET /api/verify/openapi` 契约）。
+  新功能先对照
   [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md) 与
   [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)；上一阶段路线图
   [docs/PRODUCT-UPGRADE-2026-10.md](docs/PRODUCT-UPGRADE-2026-10.md) 保留为历史。
@@ -92,7 +94,7 @@ components/
 - **产品已到 v9（2026-10-28）**：在 v8.1 能力链之上新增 **Trip Check 核验层**
   （开放标准 v0.1 / 两轴报告 / 可复算凭据 / `/api/verify` / MCP `/api/mcp` / `/verify` 体验台 /
   确定性修复（Repair）+ 前后凭据链 / 分享页凭据与 JSON-LD）。测试基线以 `npm run gate` 实测为准；
-  视觉回归脚本已扩到 14 页
+  视觉回归脚本已扩到 15 页
   （DSH 沙箱下无法启动 headless Chrome，`/verify` 用 Chrome DevTools MCP 实测验收）。
   下一阶段按 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md) 的 S2（真实 key 验收 + 买方问价），
   未拿到买方信号前不投入 B 端白标/签名凭据。
@@ -123,9 +125,9 @@ npm run typecheck      # TypeScript strict
 npm run lint           # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联，覆盖全部 TS/TSX
 npm run lint:js        # 只跑 ESLint（.js/.mjs 脚本）
 npm run lint:ts        # 只跑 oxlint（TS/TSX；Rust 自解析 AST，不依赖 TS 版本）
-npm run test:unit      # Vitest 1142 条（组件 + 纯逻辑）
-npm test               # e2e 735 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
-npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，14 页 × 桌面/手机）
+npm run test:unit      # Vitest 1163 条（组件 + 纯逻辑）
+npm test               # e2e 753 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
+npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，15 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
 ```
@@ -213,7 +215,7 @@ node scripts/smoke-deployed.mjs https://travel-planner-demo.onrender.com
 ### 视觉与可访问性回归：`npm run gate:visual`
 
 UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 dist 目录，
-不干扰别人正在跑的 dev server），生成种子行程后对 14 个页面 × 2 视口检查：
+不干扰别人正在跑的 dev server），生成种子行程后对 15 个页面 × 2 视口检查：
 
 - 横向溢出（scrollWidth > clientWidth）
 - 触控目标 < 40px 的控件

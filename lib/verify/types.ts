@@ -187,6 +187,12 @@ export interface VerifyIssue {
   evidence: IssueEvidence;
   /** 修复方向（不是自动修：本引擎只判定，不改行程） */
   fixHint?: string;
+  /**
+   * 基于**文档自带事实**算出的建议（例如营业时间冲突时给出当天可用的营业时段）。
+   * 与 fixHint 的区别：fixHint 是方向性文案，suggestion 是从声明数据里算出来的
+   * 具体选项；拿不到数据就没有这个字段（不猜、不给「建议你去 X 点」）。
+   */
+  suggestion?: string;
 }
 
 /** 结构自洽性结论（可执行性评分只在这一轴） */

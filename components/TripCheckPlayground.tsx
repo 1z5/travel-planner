@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, FileJson, Info, Loader2, Play, Share2, Trash2 } from "lucide-react";
 import { TRIP_CHECK_SAMPLES, type TripCheckSample } from "@/lib/verify/samples";
 import type { TripCheckOptions, TripCheckReport as TripCheckReportData } from "@/lib/verify/types";
@@ -544,6 +545,19 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
       </div>
 
       <div className="tc-result" ref={resultRef} tabIndex={-1}>
+        {/* shareId 模式：报告背后的行程是持久化的，可以生成可分享的报告页/海报 */}
+        {report && mode === "share" && shareId.trim() && (
+          <p className="tc-hint">
+            <Link
+              href={`/p/${encodeURIComponent(shareId.trim())}/check`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-link"
+            >
+              查看可分享的体检报告 →
+            </Link>
+          </p>
+        )}
         {report && (
           <TripCheckReport
             report={report}

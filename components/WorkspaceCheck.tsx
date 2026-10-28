@@ -598,6 +598,11 @@ function IssueRow({ issue }: { issue: VerifyIssue }) {
           <b>修复方向</b>（只是提示，不会自动修改）：{issue.fixHint}
         </p>
       )}
+      {issue.suggestion && (
+        <p className="tc-fix">
+          <b>建议</b>（按文档声明的事实算出，不替你改行程）：{issue.suggestion}
+        </p>
+      )}
     </li>
   );
 }
@@ -984,6 +989,14 @@ export function WorkspaceCheck({
           </p>
         </div>
         <div className="tc-ws-check-actions">
+          <Link
+            href={`/p/${encodeURIComponent(shareId)}/check`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn"
+          >
+            查看可分享的体检报告 →
+          </Link>
           <Link
             href={`/verify?share=${encodeURIComponent(shareId)}`}
             target="_blank"

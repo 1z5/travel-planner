@@ -161,6 +161,21 @@ export default async function SharePage({
           <Link href={`/verify?share=${id}`} className="btn-link">
             在开放体检台查看完整报告 / 复算凭据 →
           </Link>
+          {/* 可传播的体检报告工件：独立报告页 + 1080×1920 竖版海报（同源 stamp） */}
+          <p className="muted">
+            <Link href={`/p/${id}/check`} className="btn-link">
+              查看体检报告 →
+            </Link>
+            <span aria-hidden="true"> · </span>
+            <a
+              href={`/p/${id}/check/poster`}
+              className="btn-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              保存体检海报 →
+            </a>
+          </p>
           {plan.tripCheck && (
             <p className="muted">
               已在第 {plan.tripCheck.repairCount ?? 1} 次确定性修复中写入新版本 · 修复链：

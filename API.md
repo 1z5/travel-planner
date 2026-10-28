@@ -614,20 +614,23 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 
 错误：手机号格式→400；验证码错误→401；配额用尽→429（文案区分登录/未登录并引导）。
 
-## Trip Check 公开体检 / 修复 API（`/api/verify` + `/api/verify/repair` + `/api/mcp`）
+## Trip Check 公开体检 / 修复 API（`/api/verify` + `/api/verify/repair` + `/api/verify/openapi` + `/api/mcp`）
 
 把「这份 AI 行程能不能照着走」做成**可复算、可对账**的公开判定（Trip Check 开放标准 v0.1）。判定是确定性纯函数（`lib/verify/engine.ts`：不调模型、当前时间只用于 `checkedAt`、不参与任何判定），输入一份开放行程文档，输出**两轴报告**与**可复算凭据**。另有**确定性修复**（`POST /api/verify/repair`）：只做顺延时间/删重复这类有数据依据的机械变换，返回修复前后两份报告与**前后两张凭据**（可对账「改了什么、风险降了多少」）。完整规范、规则表、凭据算法与合规边界见 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)。
 
 两轴刻意分开，任何一方缺失都必须显式说明：`verdict.consistency`（结构自洽性：只靠文档判时间轴/节奏/预算，给 0-100 分 + A/B/C/D）与 `verdict.facts`（事实核验：地点/营业时间/路段「谁核的、核到哪一步」，用覆盖率 + 四态表达，不折成分数）。
 
-| 方法 | 路径                 | 说明                                                                                                                                                     |
-| ---- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST | `/api/verify`        | 体检。body `{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                                                   |
-| POST | `/api/verify/repair` | 确定性修复：顺延时间/删重复 → 前后两份报告 + 前后凭据链（不写回任何存储）                                                                                |
-| GET  | `/api/verify`        | 服务元信息：`{ name, specVersion, engineVersion, rulesetVersion, schema, docs }`                                                                         |
-| GET  | `/api/verify/schema` | 开放文档 JSON Schema（draft 2020-12），`Cache-Control: public, max-age=3600`                                                                             |
-| POST | `/api/mcp`           | MCP（JSON-RPC 2.0、stateless）：`verify_itinerary` / `repair_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
-| GET  | `/verify`            | 公开体检体验台（粘贴 JSON 或分享链接）                                                                                                                   |
+| 方法 | 路径                   | 说明                                                                                                                                                     |
+| ---- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST | `/api/verify`          | 体检。body `{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                                                   |
+| POST | `/api/verify/repair`   | 确定性修复：顺延时间/删重复 → 前后两份报告 + 前后凭据链（不写回任何存储）                                                                                |
+| GET  | `/api/verify`          | 服务元信息：`{ name, specVersion, engineVersion, rulesetVersion, schema, docs }`                                                                         |
+| GET  | `/api/verify/schema`   | 开放文档 JSON Schema（draft 2020-12），`Cache-Control: public, max-age=3600`                                                                             |
+| GET  | `/api/verify/openapi`  | OpenAPI 3.1 机器可读契约（SDK/网关/agent 用；document schema 直接引用上面的常量）                                                                        |
+| GET  | `/p/<id>/check`        | 可分享体检报告页（SSR；两轴 + 问题分组 + 凭据 + 诚实声明）                                                                                               |
+| GET  | `/p/<id>/check/poster` | 竖版体检海报（1080×1920，`image/png`）                                                                                                                   |
+| POST | `/api/mcp`             | MCP（JSON-RPC 2.0、stateless）：`verify_itinerary` / `repair_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
+| GET  | `/verify`              | 公开体检体验台（粘贴 JSON 或分享链接）                                                                                                                   |
 
 ### POST /api/verify
 
@@ -791,12 +794,43 @@ curl -sX POST http://localhost:3000/api/verify/repair \
 - 通知（无 `id`，如 `notifications/initialized`）→ **202 空 body**。
 - 本地 stdio 桥：`npm run dev` 后 `node mcp/stdio.mjs`（换行分隔 JSON-RPC；目标地址 `TRIP_CHECK_URL`，默认 `http://127.0.0.1:3000`）。详见 [mcp/README.md](mcp/README.md)。
 
+### GET /api/verify/openapi（OpenAPI 3.1 机器契约）
+
+给 SDK 生成器 / API 网关 / agent 用的**机器可读契约**（人读文档就是本章）。
+
+- **200** `application/json`，`Cache-Control: public, max-age=3600`，带 CORS 与 `X-Trip-Check-Spec`
+- `info.title = "Trip Check API"`；`info.version` = **引擎版本**（当前 `0.2.0` —— 契约随判定/修复实现演进）
+- `servers: [{ "url": "/" }]`：相对路径，同一份契约服务 localhost / 演示站 / 私有部署，不把域名写死进公开契约
+- `x-trip-check` 扩展写清三条**独立**版本轴：`spec`（文档格式，`trip-check/0.1`）/ `engine`（判定实现）/ `ruleset`（规则与阈值）——对账时必须同时比对（见 [docs/TRIP-CHECK-STANDARD.md §8](docs/TRIP-CHECK-STANDARD.md)）
+- `paths` 覆盖 6 个端点：`/api/verify`（get/post）、`/api/verify/schema`（get）、`/api/verify/repair`（post）、`/api/plan/check`（post）、`/api/plan/repair`（post）、`/api/mcp`（post），并声明 400/404/409/413/429 等错误响应（统一 `Error` 结构）
+- `components.schemas.TripCheckDocument` **直接引用** `lib/verify/schema.ts` 的 `TRIP_CHECK_JSON_SCHEMA`（同一对象，不是手抄副本）。为什么可以直接内嵌：OpenAPI 3.1 的 schema 方言就是 JSON Schema 2020-12；`$id: urn:trip-check:document:0.1` 把资源基固定住，文档内部 `#/$defs/*` 引用在 OpenAPI 文档里仍然自洽
+- 响应结构：`TripCheckReport` / `TripCheckReportWithCredential` / `TripCheckCredential` / `OpenRepairResult` / `PlanCheckResponse` / `PlanRepairResponse` / `McpResponse` 等；客户端可据此生成类型安全的 SDK
+
+```bash
+curl -s http://localhost:3000/api/verify/openapi | jq '.info.version, .["x-trip-check"]'
+```
+
+> 契约测试：`tests/lib/verify/openapi.test.ts` 守住版本同源（info.version = 引擎版本、x-trip-check 三版本）、6 端点与 `operationId` 唯一、**所有 `$ref` 可解析**（悬空引用是「JSON 合法但契约坏了」的最隐蔽故障）、document schema 与常量同一对象。
+
+### 可分享体检报告页与竖版海报（`/p/<id>/check`、`/p/<id>/check/poster`）
+
+体检结论不只停在 API/JSON：任何已持久化行程都能生成**可传播的报告页**与**竖版海报**。两者都从同一份 `TripCheckReport` + 凭据渲染（`lib/trip-check-report.ts` 纯函数），不各自再判一遍，因此永远说同一件事。
+
+| 方法 | 路径                        | 说明                                                                                                                                                                                                                                                                                                     |
+| ---- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET  | `/p/<shareId>/check`        | 体检报告页（SSR）：结论 headline；两轴卡（结构等级/分数、事实状态 + 覆盖率 + 来源）；按严重度分组的问题（规则 ID + 证据 + 修复方向，引擎算出 `suggestion` 时显示「建议」）；凭据区（ID/引擎/规则集/inputHash 前 16/签发时间）；诚实声明（未核验 ≠ 没问题、不是签名、报告之后的变化不覆盖、无状态不落库） |
+| GET  | `/p/<shareId>/check/poster` | 竖版海报 1080×1920，`Content-Type: image/png`：城市/天数、headline、等级 + 分数、事实状态行、最多 4 条阻断/微调问题（溢出「还有 N 条」）、凭据 ID（截断）+「可复算 · 不是签名」、引擎/规则集行、品牌行                                                                                                   |
+
+- 失效口径与 `/p` 一致：报告页是能渲染友好失效页的 HTML 通道 → **200** +「报告链接已失效」文案；海报是图片通道（无法渲染友好页）→ **404**。两者都不渲染假工件（`/api/plan/check` 这类 JSON API 通道对未知 shareId 仍是 404）
+- 海报是同一份报告的**渲染**、不是新判定：MOCK / 未核验行程不会在海报上被写成「已核验」
+- 用途：发给同行或客户、贴进群聊/工单、存档对账——凭据 ID 让任何一方拿同一份文档去 `POST /api/verify` 独立复算
+
 ### 诚实边界
 
 - **无状态判定**：不落库输入文档、不缓存 POI 数据；开放的是判定规则与凭据格式，不是任何地图/POI 数据授权。
 - 事实是否真实取决于文档声明的 `provenance` / `verification` 三态（`hit`/`miss`/`error`/`not_checked`）：**`miss` ≠ 地点不存在（是来源没有），`not_checked` ≠ 没问题**；MOCK/未核验数据不得声称「真实世界核验」。
 - 不判断价格合理性/排队时长/天气突变，不预订/支付，不自动改行程（体检的 `fixHint` 只给方向；修复只在**调用方主动请求**时做机械变换，且不写回存储）。
-- 测试：`scripts/e2e-slices/verify.mjs`（mock/real 两台服务器各跑一遍，幂等）覆盖元信息/schema/CORS 预检/合法与非法文档/可复算凭据/shareId/413/MCP/体验台/修复（破损文档、`delta.improved`、前后凭据链可复算、干净文档 `changed:false`、shareId 只读建议）。
+- 测试：`scripts/e2e-slices/verify.mjs`（mock/real 两台服务器各跑一遍，幂等）覆盖元信息/schema/OpenAPI 契约/CORS 预检/合法与非法文档/可复算凭据/shareId/413/MCP/体验台/修复（破损文档、`delta.improved`、前后凭据链可复算、干净文档 `changed:false`、shareId 只读建议）/可分享报告页与竖版海报（含未知 shareId 的失效行为）。
 
 ## 产品内 Trip Check（`/api/plan/check` + `/api/plan/repair`）
 

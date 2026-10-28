@@ -19,7 +19,7 @@
 //   取决于文档声明的来源，不能用一个总分掩盖「没核验」。
 // ============================================================
 
-import { checkOpenHours } from "../poi-hours";
+import { checkOpenHours, openWindowsOnDate } from "../poi-hours";
 import { parseTimeRange } from "../schedule";
 import { RULE_IDS, RULES, SEVERITY_WEIGHT } from "./rules";
 import {
@@ -177,6 +177,7 @@ export function verifyDocument(
     evidence: IssueEvidence = {},
     category: IssueCategory = RULES[ruleId]?.category ?? "consistency",
     severity: IssueSeverity = RULES[ruleId]?.severity ?? "info",
+    suggestion?: string,
   ) => {
     const meta = RULES[ruleId];
     if (!meta) return; // 规则 ID 必须在注册表里：宁可少报，不悄悄改变口径
@@ -188,7 +189,30 @@ export function verifyDocument(
       detail,
       evidence,
       ...(meta.fixHint ? { fixHint: meta.fixHint } : {}),
+      ...(suggestion ? { suggestion } : {}),
     });
+  };
+
+  /**
+   * 营业时间冲突时的「建议时段」：从文档声明的营业时间原文算出当天可用窗口，
+   * 再看原定停留时长放得进哪一段。只给建议、不改行程；闭馆/读不出窗口 → 不给
+   * （「不知道」不能包装成建议）。
+   */
+  const hoursSuggestion = (spot: DocSpot, isoDate: string | undefined): string | undefined => {
+    if (!isoDate) return undefined;
+    const input = hoursInput(spot);
+    const range = parseTimeRange(spot.time);
+    if (!input || !range) return undefined;
+    const windows = openWindowsOnDate({ ...input, name: spot.name }, isoDate);
+    if (!windows || windows.length === 0) return undefined;
+    const stay = range.end - range.start;
+    const text = windows.map((w) => `${fmtClock(w.start)}-${fmtClock(w.end)}`).join("、");
+    const fitting = windows.filter((w) => stay <= w.end - w.start);
+    if (fitting.length > 0) {
+      const w = fitting[0];
+      return `当天营业 ${text}；${stay} 分钟停留可安排在 ${fmtClock(w.start)}-${fmtClock(w.start + stay)}（建议，不改你的行程）`;
+    }
+    return `当天营业 ${text}，${stay} 分钟放不进任一营业时段，建议缩短停留或换点（建议，不改你的行程）`;
   };
 
   // ============================================================
@@ -419,6 +443,7 @@ export function verifyDocument(
               { day: day.day, date: day.date, spot: spot.name, raw: spot.time, source },
               "facts",
               "blocking",
+              hoursSuggestion(spot, day.date),
             );
           } else if (r.state === "unknown") {
             hoursUnverified.count += 1;
