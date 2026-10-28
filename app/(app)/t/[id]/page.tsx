@@ -69,7 +69,10 @@ export default async function TodayPage({ params }: { params: Promise<{ id: stri
     <main className="container">
       {/* 今日视图的状态全部由客户端按「本地时区」判定（SSR 的服务端时区可能
           与用户手机不同），所以这里只做数据读取与页面骨架。 */}
-      <TodayView plan={plan} shareId={id} />
+      {/* 演示行程只读：后端写操作会 403，这里套 .tc-demo-lock 隐藏「重新安排/改室内」等按钮 */}
+      <div className={plan.demo ? "tc-demo-lock" : undefined}>
+        <TodayView plan={plan} shareId={id} />
+      </div>
     </main>
   );
 }

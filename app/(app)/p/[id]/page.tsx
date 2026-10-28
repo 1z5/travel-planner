@@ -7,6 +7,7 @@ import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
 import { WishlistButton } from "@/components/WishlistButton";
+import { DemoReadOnlyNote } from "@/components/DemoReadOnlyNote";
 import { stampPlan } from "@/lib/verify/stamp";
 
 export const runtime = "nodejs";
@@ -137,7 +138,16 @@ export default async function SharePage({
             <span className="pm-ok">已确定性修复</span>
           </>
         )}
+        {plan.demo && (
+          <>
+            <span className="pm-sep" aria-hidden="true" />
+            <span className="pm-muted">示例行程 · 只读（可克隆）</span>
+          </>
+        )}
       </div>
+
+      {/* 演示行程只读提示：后端会对 demo 行程的写操作 403，这里提前说清楚（可克隆） */}
+      <DemoReadOnlyNote plan={plan} variant="share" />
 
       {/* 结构化数据（schema.org TouristTrip）：搜索引擎/聚合器可直接读取行程，
           不需要接我们的 API。内容只含文档已有事实，不含核验结论（schema.org 没有对应词汇）。 */}

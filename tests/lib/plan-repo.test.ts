@@ -8,6 +8,7 @@ import {
   commitPlan,
   getPlanForEdit,
   getSharedPlan,
+  jobLinkFallbackEnabled,
   newShareId,
   replacePlan,
   resolvePlan,
@@ -267,6 +268,41 @@ describe("resolvePlan（分享页/OG/.ics 的统一入口）", () => {
 
   it("未知 id 返回 null", async () => {
     expect(await resolvePlan(uniq("share_missing"))).toBeNull();
+  });
+});
+
+// ---------- 旧 job 链接兜底开关（安全审计 R3 收尾） ----------
+// 开关只影响「PlanStore 未命中后是否回查 Job」；持久化 Plan 的读取永远不受影响。
+describe("JOB_LINK_FALLBACK · 旧 job 链接只读兜底开关", () => {
+  it("纯函数解析：缺省/空串/1 开启；0/false/off/no（含大小写/空白）关闭", () => {
+    expect(jobLinkFallbackEnabled({})).toBe(true);
+    expect(jobLinkFallbackEnabled({ JOB_LINK_FALLBACK: "" })).toBe(true);
+    expect(jobLinkFallbackEnabled({ JOB_LINK_FALLBACK: "1" })).toBe(true);
+    expect(jobLinkFallbackEnabled({ JOB_LINK_FALLBACK: "true" })).toBe(true);
+    for (const off of ["0", "false", "off", "no", "FALSE", " Off ", "No"]) {
+      expect(jobLinkFallbackEnabled({ JOB_LINK_FALLBACK: off }), off).toBe(false);
+    }
+  });
+
+  it("缺省开启：job 链接仍可读（本地/演示/旧部署不回归）", async () => {
+    vi.stubEnv("JOB_LINK_FALLBACK", "1");
+    const jobId = await makeJob({ status: "done" });
+    await getStore().jobs.update(jobId, { plan: makePlan("旧任务里的行程"), status: "done" });
+    const resolved = await resolvePlan(jobId);
+    expect(resolved?.summary).toBe("旧任务里的行程");
+  });
+
+  it("关闭后：job 链接返回 null，但持久化 Plan 照常可读", async () => {
+    vi.stubEnv("JOB_LINK_FALLBACK", "0");
+    const jobId = await makeJob({ status: "done" });
+    await getStore().jobs.update(jobId, { plan: makePlan("旧任务里的行程"), status: "done" });
+    expect(await resolvePlan(jobId)).toBeNull();
+
+    // 同一个 Job 已持久化成 Plan（commitPlan）后，分享 token 仍然可读——
+    // 开关只收窄「旧链接」，不影响新链接的读路径。
+    const shareId = (await commitPlan(jobId, makePlan("持久化版本"), INPUT))!;
+    const resolved = await resolvePlan(shareId);
+    expect(resolved?.summary).toBe("持久化版本");
   });
 });
 

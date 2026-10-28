@@ -1,3 +1,23 @@
+## 2026-10-28 底座收口：供应链/CI 加固、demo 只读闭环、真实 key 验收（S1.9）
+
+安全审计的剩余可自主项 + 真实高德 key 验收，一次做完（无需人工逐项催办）。
+
+- **供应链/CI**：GitHub Actions 全部 pin 到 commit SHA（checkout/setup-node/cache，附升级说明）；
+  `fast-uri` 3.1.8 → 3.1.9（lockfile-only，修 4 条 moderate advisory）后 `npm audit` **0 漏洞**；
+  CI 保持最小权限与既有审计门。
+- **旧链接读取面**：`JOB_LINK_FALLBACK` 开关（缺省开；`0/false/off/no` 关闭），`resolvePlan`
+  在 PlanStore 未命中时仅在开启时回查 Job；render.yaml 生产设 `JOB_LINK_FALLBACK=0`
+  （新 `share_…` 链接不受影响），缩小未授权读取面。
+- **demo 只读闭环**：新增 e2e 阶段 `phaseDemo`（独立 DEMO_SEED 服务器，3109）：check 200 /
+  repair·refine·adjust·restore 全 403 / 分享页 200；前端补只读 UI——工作台「示例行程 · 只读」
+  徽章、PlanView 隐藏编辑入口、DayArrange `readOnly`、今日/体检镜头 `.tc-demo-lock`、
+  分享页与独立行中页提示（DemoReadOnlyNote），克隆入口保留。
+- **真实 key 验收**：`npm run verify:amap` 全绿；`EVAL_CASES=3 npm run eval:cases` 实测
+  北京/上海/广州：3/3 成功、POI 验真 100%（51/51）、通勤失败 0%、预算贴合中位 82%、
+  耗时中位 341s；明细 `eval-results/2026-10-28T12-45-33.json`。
+- **文档**：NEXT_STEPS 更新（待办 1 降级为已完成 + 后续建议）、审计报告 R15 状态更新、
+  `.env.example`/AGENTS 补 `JOB_LINK_FALLBACK`。
+
 ## 2026-10-28 安全审计与底座加固（S1.8，全栈）
 
 只读安全审计（docs/SECURITY-AUDIT-2026-10-28.md，140 行，无 Critical）后，修掉 2 个 High

@@ -19,9 +19,14 @@ interface Props {
   shareId: string;
   day: PlanDay;
   onPlanChange: (plan: Plan) => void;
+  /**
+   * 示例行程（plan.demo）只读：后端会 403 拒绝 adjust，所以这里直接禁用
+   * 拖拽/↑↓/顺延/撤销，并在顶部说明原因（而不是让用户点了才吃错误）。
+   */
+  readOnly?: boolean;
 }
 
-export function DayArrange({ shareId, day, onPlanChange }: Props) {
+export function DayArrange({ shareId, day, onPlanChange, readOnly = false }: Props) {
   const [order, setOrder] = useState<number[]>(() => day.spots.map((_, i) => i));
   const [prevOrder, setPrevOrder] = useState<number[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -65,6 +70,7 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
   }
 
   function move(from: number, to: number) {
+    if (readOnly) return;
     if (to < 0 || to >= order.length || from === to) return;
     const next = [...order];
     const [moved] = next.splice(from, 1);
@@ -74,6 +80,7 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
   }
 
   async function retime() {
+    if (readOnly) return;
     setSaving(true);
     setError("");
     try {
@@ -98,7 +105,7 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
   }
 
   function undo() {
-    if (!prevOrder) return;
+    if (readOnly || !prevOrder) return;
     const next = prevOrder;
     setOrder(next);
     void save(next, order);
@@ -116,13 +123,18 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
             拖左侧手柄，或点 ↑↓ 调整顺序。保存时按真实路段与停留时长确定性重算时间轴——
             不调模型、不消耗生成配额。
           </p>
+          {readOnly && (
+            <p className="tc-demo-inline" role="note">
+              示例行程 · 只读：顺序与时间轴不可调整；克隆成你的行程后可编辑。
+            </p>
+          )}
         </div>
         <div className="arrange-actions">
           <button
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => void retime()}
-            disabled={saving}
+            disabled={readOnly || saving}
           >
             <TimerReset size={14} />
             顺延时间轴
@@ -131,7 +143,7 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={undo}
-            disabled={saving || !prevOrder}
+            disabled={readOnly || saving || !prevOrder}
           >
             <Undo2 size={14} />
             撤销上一步
@@ -148,8 +160,9 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
             <li
               key={`${spotIdx}-${spot.name}`}
               className={`arrange-item${dragFrom === pos ? " arrange-dragging" : ""}`}
-              draggable
+              draggable={!readOnly}
               onDragStart={(e) => {
+                if (readOnly) return;
                 e.dataTransfer.setData("text/plain", String(pos));
                 setDragFrom(pos);
               }}
@@ -174,7 +187,7 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
                 <button
                   type="button"
                   aria-label={`上移 ${spot.name}`}
-                  disabled={saving || pos === 0}
+                  disabled={readOnly || saving || pos === 0}
                   onClick={() => move(pos, pos - 1)}
                 >
                   <ArrowUp size={13} />
@@ -182,7 +195,7 @@ export function DayArrange({ shareId, day, onPlanChange }: Props) {
                 <button
                   type="button"
                   aria-label={`下移 ${spot.name}`}
-                  disabled={saving || pos === order.length - 1}
+                  disabled={readOnly || saving || pos === order.length - 1}
                   onClick={() => move(pos, pos + 1)}
                 >
                   <ArrowDown size={13} />

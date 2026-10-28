@@ -6,6 +6,7 @@
  *   阶段 C（dev 登录）：测试服务器 3105 → 验证码流 + 双轨配额 + 防轰炸
  *   阶段 D（微信）：桩微信 + 测试服务器 3106 → OAuth 全流程 + CSRF
  *   阶段 E（短信）：桩腾讯云短信 + 测试服务器 3107 → TC3 直签 + 服务端验证码 + 一次性消费
+ *   阶段 F（演示只读）：测试服务器 3109（DEMO_SEED=1）→ 演示 token 可读不可写（安全审计 R4）
  *   全部 tear down，退出码非零即失败
  *
  * 用法：npm test
@@ -51,7 +52,16 @@ async function pickPort(start) {
   }
   throw new Error(`从 ${start} 起找不到空闲端口`);
 }
-const PORTS = { mock: 3103, real: 3104, auth: 3105, wx: 3106, sms: 3107, pg: 3108 };
+const PORTS = {
+  mock: 3103,
+  real: 3104,
+  auth: 3105,
+  wx: 3106,
+  sms: 3107,
+  pg: 3108,
+  // 演示只读阶段（安全审计 R4）：DEMO_SEED=1 的独立服务器
+  demo: 3109,
+};
 const HAS_PG = Boolean(process.env.DATABASE_URL);
 const APP = (k) => `http://127.0.0.1:${PORTS[k]}`;
 
@@ -2799,6 +2809,93 @@ async function phaseP(api) {
   check("PG：跨天重置后剩余 = limit-1", j4.remaining === 1, `got ${j4.remaining}`);
 }
 
+// ---------------- 阶段 F：演示行程只读（安全审计 R4） ----------------
+//
+// 为什么单起一台服务器：DEMO_SEED 只在进程启动时把 demo/fixtures 灌进存储；
+// 其它阶段的服务器都不设它（生产/CI 无行为）。这里走**真实 seed 链路**验
+// 「公开演示 token 可读不可写」——这是 R4 的端到端证据（单测只钉住 seed 标记
+// 与 guard 文案，覆盖不到路由接线）。
+//
+// 演示 token 来自 demo/fixtures/suzhou-3d.json 的稳定 shareId（DEMO.md 公开）。
+// 不跑 clone：克隆会走生成管线（LLM + 配额），e2e 不为此烧桩调用；只断言所有
+// 直接写操作 403 即可（clone 源为 demo 是产品上有意的允许路径）。
+async function phaseDemo(base) {
+  console.log("\n== 演示行程只读（DEMO_SEED=1，端口 3109） ==");
+  const DEMO_SHARE = "share_Z5oYam8ahjqb";
+
+  const health = await fetch(`${base}/api/health`);
+  check("demo：health → 200", health.status === 200, `got ${health.status}`);
+
+  // 只读展示可用：seeded Plan 能打开分享页（证明 instrumentation→seed 真的跑了）
+  const pageRes = await fetch(`${base}/p/${DEMO_SHARE}`);
+  const pageHtml = await pageRes.text();
+  check(
+    "demo：分享页 → 200 且渲染行程（只读展示不受影响）",
+    pageRes.status === 200 && pageHtml.includes("苏州"),
+    `got ${pageRes.status}`,
+  );
+
+  // 读操作（体检）可用：demo 只读的是「写」，不是「读」
+  const checkRes = await fetch(`${base}/api/plan/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: DEMO_SHARE }),
+  });
+  const checkBody = await checkRes.json().catch(() => ({}));
+  check(
+    "demo：check → 200 且返回两轴报告（只读体检可用）",
+    checkRes.status === 200 &&
+      Boolean(checkBody?.report?.verdict?.consistency) &&
+      Boolean(checkBody?.report?.verdict?.facts),
+    `got ${checkRes.status} ${JSON.stringify(checkBody).slice(0, 120)}`,
+  );
+
+  const post = async (path, payload) => {
+    const r = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  const isReadOnlyError = (res) =>
+    res.status === 403 && /只读|演示/.test(String(res.body?.error ?? ""));
+
+  const repair = await post("/api/plan/repair", { shareId: DEMO_SHARE, confirm: true });
+  check(
+    "demo：repair → 403（演示行程不允许写回）",
+    isReadOnlyError(repair),
+    `got ${repair.status} ${JSON.stringify(repair.body).slice(0, 120)}`,
+  );
+
+  const refine = await post("/api/plan/refine", {
+    shareId: DEMO_SHARE,
+    action: "day",
+    day: 1,
+    instruction: "换个公园",
+  });
+  check("demo：refine → 403（不触发 LLM 就拒绝）", isReadOnlyError(refine), `got ${refine.status}`);
+
+  const adjust = await post("/api/plan/adjust", { shareId: DEMO_SHARE, op: "retime", day: 1 });
+  check(
+    "demo：adjust → 403（一键顺延也不能改演示）",
+    isReadOnlyError(adjust),
+    `got ${adjust.status}`,
+  );
+
+  // restore 的校验顺序是「结构校验 → 找行程 → demo 403」：必须传一份结构合法的
+  // plan 才能走到只读判断（用 fixture 里的真实 plan，正是客户端会回传的那种副本）
+  const fixture = JSON.parse(
+    fs.readFileSync(new URL("../demo/fixtures/suzhou-3d.json", import.meta.url), "utf8"),
+  );
+  const restore = await post("/api/plan/restore", { shareId: DEMO_SHARE, plan: fixture.plan });
+  check(
+    "demo：restore → 403（合法 plan 副本也无法篡改演示行程）",
+    isReadOnlyError(restore),
+    `got ${restore.status} ${JSON.stringify(restore.body).slice(0, 120)}`,
+  );
+}
+
 // ---------------- 主流程 ----------------
 
 async function main() {
@@ -2859,6 +2956,9 @@ async function main() {
     // 观察流式阶段，单场 e2e 的 status 请求量可达数千——测试里放大，避免把
     // 「功能断言」误伤成 429（限流本身由单测/生产默认值保障）。
     PLAN_STATUS_HOURLY_LIMIT: "20000",
+    // 显式开启旧 job 链接兜底：本阶段有「/p/<jobId> 旧链接不回归」的断言，
+    // 不能被打开发机 .env 的 JOB_LINK_FALLBACK=0 误伤（生产由 render.yaml 关）。
+    JOB_LINK_FALLBACK: "1",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.real)], {
     NEXT_DIST_DIR: `.next-t-real`,
@@ -2875,6 +2975,8 @@ async function main() {
     DAILY_FREE_LIMIT: "50",
     // status 轮询限流同上：real 的流式/行中用例密采样轮询，测试里放大避免误伤
     PLAN_STATUS_HOURLY_LIMIT: "20000",
+    // 显式开启旧 job 链接兜底：phaseB/切片有旧链接兼容断言（生产由 render.yaml 关）
+    JOB_LINK_FALLBACK: "1",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.auth)], {
     NEXT_DIST_DIR: `.next-t-auth`,
@@ -2925,17 +3027,30 @@ async function main() {
     SMS_TEMPLATE_ID: "1000000",
     AMAP_WEB_SERVICE_KEY: "", // 隔离 .env 里的真实 key，见上方 mock 服务器的注释
   });
+  // 演示只读阶段（安全审计 R4）：独立服务器 + DEMO_SEED=1，让 instrumentation
+  // 在启动时把 demo/fixtures 灌进 memory store。只读断言不调 LLM，但仍把 LLM_*
+  // 指到桩（万一断言失效走了写入路径，也不会打真实模型）。
+  spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.demo)], {
+    NEXT_DIST_DIR: `.next-t-demo`,
+    DATA_STORE: "memory",
+    DEMO_SEED: "1",
+    LLM_BASE_URL: `http://127.0.0.1:${STUB_PORT}/v1`,
+    LLM_API_KEY: "stub-key",
+    LLM_MODEL: "step-5-preview",
+    AMAP_WEB_SERVICE_KEY: "", // MOCK 模式：演示只读断言与高德无关
+  });
 
-  const [upA, upB, upC, upD, upE] = await Promise.all([
+  const [upA, upB, upC, upD, upE, upF] = await Promise.all([
     waitReady(`${APP("mock")}/`, 150000),
     waitReady(`${APP("real")}/`, 150000),
     waitReady(`${APP("auth")}/`, 150000),
     waitReady(`${APP("wx")}/`, 150000),
     waitReady(`${APP("sms")}/`, 150000),
+    waitReady(`${APP("demo")}/`, 150000),
   ]);
-  if (!upA || !upB || !upC || !upD || !upE) {
+  if (!upA || !upB || !upC || !upD || !upE || !upF) {
     console.error(
-      `❌ 测试服务器未就绪（mock=${upA} real=${upB} auth=${upC} wx=${upD} sms=${upE}）`,
+      `❌ 测试服务器未就绪（mock=${upA} real=${upB} auth=${upC} wx=${upD} sms=${upE} demo=${upF}）`,
     );
     for (const c of children) c.kill("SIGTERM");
     process.exitCode = 1;
@@ -2956,6 +3071,7 @@ async function main() {
     await phaseC(makeApi(APP("auth")));
     await phaseD(APP("wx"));
     await phaseE(APP("sms"), `http://127.0.0.1:${SMS_STUB_PORT}`);
+    await phaseDemo(APP("demo"));
   } finally {
     for (const c of children) c.kill("SIGTERM");
   }

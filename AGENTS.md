@@ -108,8 +108,10 @@ components/
   `crossSiteWriteError` 保护状态变更端点、demo 行程（`plan.demo`）只读、不得信任客户端回传的
   `verified/verification/tripCheck` 等受信字段。
 - **下一轮候选**：工作台内直接操纵的剩余部分（跨天拖动/改时长/锁定必去点）、候选池、
-  生成中可编辑骨架、行中通知；以及**真实 key 与真实部署验收**（见 NEXT_STEPS）。
-- **v5 事实层的真实高德 key 验收仍未做**（MOCK 下功能全绿，但「真实世界事实」要真 key 才闭环）：清单见 [NEXT_STEPS.md](NEXT_STEPS.md)「v5 专项验收清单」。
+  生成中可编辑骨架、行中通知；以及真实上线前的正式域名/账号/支付决策（见 NEXT_STEPS）。
+- **v5 事实层已用真实高德 key 验收（2026-10-28）**：`verify:amap` 全绿；
+  `EVAL_CASES=3 eval:cases` 实测 3/3 成功、POI 验真 100%（51/51）、通勤失败 0%、预算贴合中位 82%。
+  仍建议：20 城全量基线、对照 v4 看预警变化、境外无覆盖降级确认（清单见 NEXT_STEPS）。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
 
 ## 如何添加新功能
@@ -130,8 +132,8 @@ npm run typecheck      # TypeScript strict
 npm run lint           # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联，覆盖全部 TS/TSX
 npm run lint:js        # 只跑 ESLint（.js/.mjs 脚本）
 npm run lint:ts        # 只跑 oxlint（TS/TSX；Rust 自解析 AST，不依赖 TS 版本）
-npm run test:unit      # Vitest 1184 条（组件 + 纯逻辑）
-npm test               # e2e 769 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
+npm run test:unit      # Vitest 1195 条（组件 + 纯逻辑）
+npm test               # e2e 776 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，15 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
@@ -175,6 +177,7 @@ suspicious=warn、格式规则交给 Prettier，`react-hooks/*` 规则可用）�
 - `DATA_STORE` — memory（默认）/ postgres
 - `LLM_STREAM_DEADLINE_MS` — 流式总时长兜底（默认 10 分钟）
 - `COPILOT_HOURLY_LIMIT` — 行程管家限流（默认 40/h）
+- `JOB_LINK_FALLBACK` — 旧 job 链接的只读兜底（缺省开；生产 postgres 建议 0，见安全审计 R3）
 
 ## 注意事项
 

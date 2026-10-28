@@ -142,4 +142,51 @@ describe("Trip Workspace", () => {
     );
     searchParams = new URLSearchParams();
   });
+
+  it("demo 行程：Header 只读徽章 + 全镜头提示，规划镜头隐藏写入口", () => {
+    const demoPlan = { ...SAMPLE_PLAN, demo: true };
+    const { container } = render(<TripWorkspace plan={demoPlan} shareId="share_ws01" />);
+
+    expect(container.querySelector(".tc-demo-badge")).toHaveTextContent("示例行程 · 只读");
+    expect(screen.getByRole("note", { name: "示例行程只读提示" })).toBeInTheDocument();
+    // PlanView editable=false：重排/一句话改/一键修复入口都不渲染
+    expect(screen.queryByText("重排这天")).not.toBeInTheDocument();
+    expect(screen.queryByText("一句话改")).not.toBeInTheDocument();
+    // 克隆入口保留（demo 允许克隆成自己的行程）
+    expect(screen.getByText(/克隆成你的行程后即可编辑/)).toBeInTheDocument();
+  });
+
+  it("demo 行程：调整镜头按钮禁用 + 拖拽关闭，并说明原因", async () => {
+    const demoPlan = { ...SAMPLE_PLAN, demo: true };
+    const { container } = render(<TripWorkspace plan={demoPlan} shareId="share_ws01" />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /调整/ }));
+    expect(screen.getByText(/顺序与时间轴不可调整/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /顺延时间轴/ })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: /上移/ })[0]).toBeDisabled();
+    expect(container.querySelector(".arrange-item")).toHaveAttribute("draggable", "false");
+  });
+
+  it("demo 行程：体检镜头只读（修复卡由只读锁隐藏），体检报告仍可看", async () => {
+    stubCheckFetch();
+    const demoPlan = { ...SAMPLE_PLAN, demo: true };
+    const { container } = render(<TripWorkspace plan={demoPlan} shareId="share_ws01" />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /体检/ }));
+    expect(await screen.findByText("这份行程能不能照着走")).toBeInTheDocument();
+    // 跨组件写入口（确定性修复卡）由 .tc-demo-lock 在样式层隐藏
+    expect(container.querySelector(".tc-demo-lock")).toBeInTheDocument();
+    expect(screen.getByRole("note", { name: "示例行程只读提示" })).toBeInTheDocument();
+  });
+
+  it("非 demo 行程：没有只读徽章/提示，调整入口保持可用（负向断言）", async () => {
+    const { container } = render(<TripWorkspace plan={SAMPLE_PLAN} shareId="share_ws01" />);
+
+    expect(container.querySelector(".tc-demo-badge")).toBeNull();
+    expect(screen.queryByRole("note", { name: "示例行程只读提示" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("tab", { name: /调整/ }));
+    expect(screen.getByRole("button", { name: /顺延时间轴/ })).not.toBeDisabled();
+    expect(container.querySelector(".arrange-item")).toHaveAttribute("draggable", "true");
+  });
 });

@@ -9873,3 +9873,84 @@ main.has-result .new-head {
 .tc-today-check-link {
   margin-top: 2px;
 }
+
+/* ---------- 演示行程只读（plan.demo） ----------
+   后端对 demo 行程的写端点一律 403；这里负责「动手之前就说清楚」：
+   Header 徽章 + 全镜头提示 + 写入口禁用/隐藏（克隆始终允许）。
+   390px：提示条换行不溢出、clone 链接保持 40px 触控高度。 */
+.tc-demo-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--warn-ink);
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+  font-weight: 600;
+}
+.tc-demo-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 var(--sp-4);
+  padding: 10px 12px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--r-md);
+  background: var(--warn-bg);
+  font-size: var(--fs-small);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.tc-demo-note svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--warn-ink);
+}
+.tc-demo-note p {
+  margin: 0;
+}
+.tc-demo-note b {
+  color: var(--warn-ink);
+}
+.tc-demo-note-text {
+  color: var(--ink-2);
+}
+.tc-demo-note-link {
+  margin-left: 2px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+/* 分享页变体：通常挂在凭据卡上方，不需要额外下边距 */
+.tc-demo-note-share {
+  margin: var(--sp-3) 0 0;
+}
+/* DayArrange 顶部的行内只读说明 */
+.tc-demo-inline {
+  margin: var(--sp-2) 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--warn-ink);
+}
+/* 只读锁：跨组件隐藏会 403 的写操作入口（组件不在本任务 scope 的兜底）。
+   - 今日镜头的「重新安排接下来的行程」/「改成室内路线」
+   - 体检镜头的「确定性修复」（check 本身只读、保留） */
+.tc-demo-lock .replan-btn,
+.tc-demo-lock .today-fix-btn,
+.tc-demo-lock .tc-ws-check-repair {
+  display: none !important;
+}
+@media (max-width: 640px) {
+  .tc-demo-note {
+    padding: 8px 10px;
+    font-size: var(--fs-caption);
+  }
+  .tc-demo-note-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    margin-left: 0;
+  }
+}

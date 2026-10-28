@@ -32,6 +32,12 @@ services:
       # 启动时注入 demo/fixtures 里的真实生成行程（秒开分享页，冷启动后也在）
       - key: DEMO_SEED
         value: "1"
+      # 旧 job 链接只读兜底开关（安全审计 R3）：生产关掉后，/p/<jobId>、
+      # /api/plan/ics?id=<jobId> 等旧链接一律读不到，PlanStore 成为唯一读入口，
+      # 进一步缩小「弱凭据可读他人行程」的读取面。演示站是 memory 模式、重启后
+      # 本来也没有旧 job；已持久化的 share_… 分享链接完全不受影响。
+      - key: JOB_LINK_FALLBACK
+        value: "0"
       - key: LLM_BASE_URL
         sync: false
       - key: LLM_API_KEY

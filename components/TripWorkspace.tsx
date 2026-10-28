@@ -20,6 +20,7 @@ import { RealMap } from "./RealMap";
 import { RouteMap } from "./RouteMap";
 import { CloneCTA } from "./CloneCTA";
 import { DayArrange } from "./DayArrange";
+import { DemoReadOnlyNote } from "./DemoReadOnlyNote";
 import { ExecutabilityBadge } from "./ExecutabilityBadge";
 import { WorkspaceCheck } from "./WorkspaceCheck";
 import { track } from "@/lib/track";
@@ -94,6 +95,9 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
 
   const days = Array.isArray(plan.days) ? plan.days : [];
   const activeDay = days.find((d) => d.day === dayNo) ?? days[0];
+  // 演示行程（DEMO_SEED 注入）后端一律 403 拒绝写操作：前端提前降级——
+  // Header 徽章 + 全镜头只读提示 + 写入口禁用/隐藏；克隆始终允许（生成新 Plan）。
+  const isDemo = plan.demo === true;
 
   const verify =
     plan.verification === "ok"
@@ -151,6 +155,7 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
                 <span className="ws-meta-item">日期未设置</span>
               )}
               <span className="ws-meta-item">{statusText}</span>
+              {isDemo && <span className="ws-badge tc-demo-badge">示例行程 · 只读</span>}
             </p>
             {/* 可执行性评分（紧凑版）：工作台首屏就能看到「这条行程能不能照着走」，
                 展开可见证据链；详情区还有完整的体检列表与一键修复，两处口径同源。 */}
@@ -191,6 +196,8 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
       </header>
 
       <div className="ws-body">
+        {isDemo && <DemoReadOnlyNote plan={plan} shareId={shareId} />}
+
         {view === "plan" && (
           <>
             {days.length > 1 && (
@@ -211,7 +218,7 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
             <PlanView
               plan={plan}
               shareId={shareId}
-              editable
+              editable={!isDemo}
               ownerCheck
               hideCover
               layout="browser"
@@ -288,7 +295,12 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
                     </button>
                   ))}
                 </nav>
-                <DayArrange shareId={shareId} day={activeDay} onPlanChange={setPlan} />
+                <DayArrange
+                  shareId={shareId}
+                  day={activeDay}
+                  onPlanChange={setPlan}
+                  readOnly={isDemo}
+                />
               </>
             ) : (
               <div className="card ws-empty-inline">这份行程还没有可调整的天数。</div>
@@ -296,11 +308,19 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
           </section>
         )}
 
-        {view === "today" && <TodayView plan={plan} shareId={shareId} />}
+        {view === "today" && (
+          // demo 只读：今日重规划/改室内按钮会 403——用 tc-demo-lock 在 CSS 层隐藏
+          // （TodayView 不在本任务 scope；组件本身仍渲染只读内容）。
+          <div className={isDemo ? "tc-demo-lock" : undefined}>
+            <TodayView plan={plan} shareId={shareId} />
+          </div>
+        )}
 
         {view === "check" && (
           <section className="ws-check" aria-label="行程体检">
-            <WorkspaceCheck plan={plan} shareId={shareId} onPlanChange={setPlan} />
+            <div className={isDemo ? "tc-demo-lock" : undefined}>
+              <WorkspaceCheck plan={plan} shareId={shareId} onPlanChange={setPlan} />
+            </div>
           </section>
         )}
       </div>

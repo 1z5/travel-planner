@@ -120,18 +120,43 @@ export async function replacePlan(id: string, plan: Plan): Promise<PlanRecord | 
 }
 
 /**
+ * 旧 job 链接只读兜底开关（安全审计 R3 收尾）。
+ *
+ * 背景：升级前发出去的 `/p/<jobId>`、`/api/plan/ics?id=<jobId>`、`/t/<jobId>` 等
+ * 链接依赖 resolvePlan 在 PlanStore 未命中后回查 Job（2 小时 TTL 内可读）。但
+ * jobId 历史上是弱随机（R3 已改为 CSPRNG），旧链接的读取面越小越好。
+ *
+ * 口径：`JOB_LINK_FALLBACK` 缺省**开启**（本地/演示/旧部署零配置不回归）；
+ * `0/false/off/no`（大小写/空白不敏感）关闭——此时 PlanStore 是唯一读入口，
+ * 旧 job 链接一律读不到。生产 `render.yaml` 显式设 0（演示站 memory 模式重启后
+ * 本来也没有旧 job，关了不影响任何真实链接）。
+ *
+ * 导出纯函数是为了单测能直接钉住两态解析（不依赖真实环境变量）。
+ */
+export function jobLinkFallbackEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const raw = (env.JOB_LINK_FALLBACK ?? "").trim().toLowerCase();
+  if (raw === "") return true; // 缺省开启：保持向后兼容
+  return !["0", "false", "off", "no"].includes(raw);
+}
+
+/**
  * 统一读行程入口（分享页 / OG / .ics 都用它）：
- * 先查 PlanStore（新链接），再兜底查 Job（旧链接向后兼容）。
+ * 先查 PlanStore（新链接），再按开关决定是否兜底查 Job（旧链接向后兼容）。
  *
  * 为什么保留 Job 兜底：升级前已经发出去的 /p/<jobId> 链接、以及现有 e2e
  * 都直接拿 jobId 访问分享页。只要任务还在 2 小时 TTL 内就照常可读；
  * 超过 TTL 才失效——这比升级前「一律 2 小时失效」严格更好，不回归。
+ * 生产可用 JOB_LINK_FALLBACK=0 关掉（见 jobLinkFallbackEnabled 注释）。
  */
 export async function resolvePlan(id: string): Promise<Plan | null> {
   const store = getStore();
   const record = await store.plans.get(id);
   if (record) return record.plan;
 
+  // 旧 job 链接只读兜底：开关关闭时直接返回 null，PlanStore 成为唯一读入口
+  if (!jobLinkFallbackEnabled()) return null;
   const job = await store.jobs.get(id);
   if (job?.status === "done" && job.plan) return job.plan;
   return null;
