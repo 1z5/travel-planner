@@ -707,3 +707,61 @@ describe("PlanView browser 布局（分天目录 + 当天详情）", () => {
     expect(document.querySelector(".day-rail-item-on")).toBe(items[1]);
   });
 });
+
+describe("PlanView 长页面减滚动（吸顶 TOC）", () => {
+  it("document：TOC 锚点与目标都在（概览 / 体检预警 / 每天 / 提醒 / 准备）", () => {
+    const { container } = render(<PlanView plan={SAMPLE_PLAN} />);
+    const nav = screen.getByRole("navigation", { name: "行程页内导航" });
+
+    // 顶部是按钮（滚窗口顶部），概览是指向内容顶部的锚点
+    expect(within(nav).getByRole("button", { name: /顶部/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "概览" })).toHaveAttribute("href", "#plan-top");
+    expect(container.querySelector("#plan-top")).not.toBeNull();
+    expect(container.querySelector("#plan-packing")).not.toBeNull();
+
+    // 有预警/提醒时才出现的锚点（示例行程两者都有）
+    expect(SAMPLE_PLAN.warnings.length).toBeGreaterThan(0);
+    expect(within(nav).getByRole("link", { name: /体检预警/ })).toHaveAttribute(
+      "href",
+      "#plan-alerts",
+    );
+    expect(container.querySelector("#plan-alerts")).not.toBeNull();
+    expect(within(nav).getByRole("link", { name: "出发前提醒" })).toHaveAttribute(
+      "href",
+      "#plan-tips",
+    );
+    expect(container.querySelector("#plan-tips")).not.toBeNull();
+
+    // 每天都能从 TOC 直达（id=day-N 是既有锚点，没有改名）
+    for (const d of SAMPLE_PLAN.days) {
+      const link = within(nav).getByRole("link", { name: `Day ${d.day}` });
+      expect(link).toHaveAttribute("href", `#day-${d.day}`);
+      expect(container.querySelector(`#day-${d.day}`)).not.toBeNull();
+    }
+    // 出发前准备锚点始终存在（列表可能为空，但卡片在）
+    expect(within(nav).getByRole("link", { name: "出发前准备" })).toHaveAttribute(
+      "href",
+      "#plan-packing",
+    );
+  });
+
+  it("browser：TOC 的 Day 是「切换当天」按钮而不是死锚点，并滚到分天区域", async () => {
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+    const { container } = render(<PlanView plan={SAMPLE_PLAN} layout="browser" />);
+    const nav = screen.getByRole("navigation", { name: "行程页内导航" });
+
+    // browser 布局只渲染当天，没有其它天的 #day-N 目标 → 用按钮切换
+    const dayButtons = within(nav)
+      .getAllByRole("button")
+      .filter((b) => /^Day \d+$/.test(b.textContent?.trim() || ""));
+    expect(dayButtons).toHaveLength(SAMPLE_PLAN.days.length);
+    expect(container.querySelector("#plan-days")).not.toBeNull();
+
+    await userEvent.click(dayButtons[1]);
+    const panel = container.querySelector(".day-panel")!;
+    expect(within(panel as HTMLElement).getByText(SAMPLE_PLAN.days[1].theme)).toBeInTheDocument();
+    // 切换后滚到分天区域（jsdom 里 window.scrollTo 是空实现，断言调用即可）
+    expect(scrollTo).toHaveBeenCalled();
+    scrollTo.mockRestore();
+  });
+});

@@ -9954,3 +9954,197 @@ main.has-result .new-head {
     margin-left: 0;
   }
 }
+
+/* ============================================================
+   长页面减滚动：吸顶页内导航 / 回顶部浮钮 / 出发前准备折叠
+   （2026-10 用户反馈：分享页 500px 宽总高 1.1 万 px，回顶部再找区块太费手）
+
+   口径：
+   - TOC 吸在 AppShell 顶栏之下；工作台规划镜头还要让开自身的 tab 条；
+   - 锚点滚动偏移用 CSS 变量统一（PlanView 的 scrollToAnchor 读取它），
+     不再依赖各元素散落的 scroll-margin；
+   - print 下 TOC/浮钮全部隐藏（纸面不需要导航）。
+   ============================================================ */
+/* .app-shell 是 flex 列：main 的默认 min-width:auto 会被长内容（截图/海报/芯片行）
+   撑破视口（390px 下出现 8px 横向溢出）。放开后由内部块各自换行/横向滚动。 */
+.app-shell > main.container {
+  /* .container 的 margin:0 auto 在 flex 列里会阻止 stretch，内容 min-content 会
+     把 main 撑到 398px（390px 视口 8px 溢出）；显式铺满再交给 max-width 收敛。 */
+  width: 100%;
+  min-width: 0;
+}
+
+.plan-view {
+  /* 顶栏 52px + TOC 约 53px + 8px 呼吸位 */
+  --plan-anchor-offset: 113px;
+}
+.plan-view-browser {
+  /* 顶栏 52 + 工作台 tab 条 46 + TOC 53 + 8 */
+  --plan-anchor-offset: 160px;
+}
+.plan-view #plan-alerts,
+.plan-view #plan-tips,
+.plan-view #plan-packing,
+.plan-view [id^="day-"] {
+  scroll-margin-top: var(--plan-anchor-offset);
+}
+
+.plan-toc {
+  position: sticky;
+  top: 52px;
+  z-index: 30;
+  /* 关键：TOC 要切断「内容宽度 → 父级自动最小宽度」的传播。否则它在
+     .app-shell 这个 flex 容器里会把 chips 总宽算进 main 的自动最小宽度，
+     500px 视口被撑到 647px（横向溢出）。overflow:hidden 不够，必须加
+     inline-size 尺寸containment；内层自己横向滚动。 */
+  contain: inline-size;
+  overflow: hidden;
+  margin: 0 0 var(--sp-4);
+  background: rgba(246, 245, 242, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.plan-view-browser .plan-toc {
+  /* 工作台：AppShell 顶栏(52) + 工作台 tab 条(约 46) */
+  top: 98px;
+}
+.plan-toc-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 6px 0;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.plan-toc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: var(--font-sans);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.plan-toc-chip:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+  text-decoration: none;
+}
+.plan-toc-top {
+  color: var(--accent);
+  border-color: var(--accent-ring);
+}
+.plan-toc-count {
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+/* 吸顶 TOC 出现后，工作台左栏目录的下限也要让开，避免两层吸顶互相遮 */
+.plan-view-browser .day-rail {
+  top: 158px;
+}
+
+.back-to-top {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+.back-to-top:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 出发前准备：默认折叠（details），展开后信息量与原来一致 */
+.packing-details {
+  margin: 0;
+}
+.packing-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 56px;
+  padding: 14px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+.packing-summary::-webkit-details-marker {
+  display: none;
+}
+.packing-summary-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-4);
+}
+.packing-chevron {
+  margin-left: auto;
+  color: var(--ink-4);
+  transition: transform 0.15s ease;
+}
+.packing-details[open] .packing-chevron {
+  transform: rotate(180deg);
+}
+.packing-body {
+  padding: 0 18px 18px;
+}
+.packing-body .packing-meta {
+  display: block;
+  margin-bottom: var(--sp-2);
+}
+
+@media (max-width: 640px) {
+  .plan-toc {
+    top: 51px;
+  }
+  .plan-view-browser .plan-toc {
+    top: 97px;
+  }
+  .plan-toc-inner {
+    padding: 6px 0;
+  }
+  .back-to-top {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .packing-summary {
+    padding: 12px 14px;
+  }
+  .packing-body {
+    padding: 0 14px 14px;
+  }
+}
+
+@media print {
+  .plan-toc,
+  .back-to-top {
+    display: none !important;
+  }
+}

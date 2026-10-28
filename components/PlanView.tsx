@@ -12,6 +12,7 @@ import {
   Link2,
   CalendarDays,
   AlertTriangle,
+  ArrowUp,
   Lightbulb,
   MapPin,
   Wallet,
@@ -47,7 +48,6 @@ import { PlanCopilot } from "./PlanCopilot";
 import type { CopilotSuggestion } from "@/lib/copilot-types";
 import { RealMap } from "./RealMap";
 import { BudgetInsight } from "./BudgetInsight";
-import { CostChart } from "./CostChart";
 import { PackingList } from "./PackingList";
 import { ExecutabilityBadge } from "./ExecutabilityBadge";
 import { summarizeBudget } from "@/lib/budget";
@@ -55,6 +55,7 @@ import { suggestFix } from "@/lib/fix-actions";
 import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
 import { changeImpact, type ChangeImpact } from "@/lib/change-impact";
 import { SpotCandidates } from "./SpotCandidates";
+import { BackToTop } from "./BackToTop";
 import { formatHoursShort } from "@/lib/poi-hours";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
@@ -180,6 +181,48 @@ type WeatherCheck =
 /** 坏天气判定（与 lib/weather.ts 同口径；那边 server-only，客户端内联这一条正则） */
 function isBadWeatherText(w: string): boolean {
   return /雨|雪|雹|沙|尘|雾|霾/.test(w);
+}
+
+// ============================================================
+// 长页面跳转（吸顶 TOC / 回顶部共用）
+//
+// 为什么不在 CSS 里写 html{scroll-behavior:smooth}：那会影响站内所有锚点，
+// 且无法按 prefers-reduced-motion 降级。这里统一走 JS，滚动行为由用户系统
+// 设置决定（reduced-motion → 瞬时跳转）。
+// ============================================================
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function scrollToTop(): void {
+  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+}
+
+/** 跳到页内锚点（目标不存在时静默不动——TOC 已按数据条件渲染，这里只做防御） */
+function scrollToAnchor(id: string): void {
+  if (typeof document === "undefined") return;
+  // 「概览」= 回到行程内容顶部；直接滚到窗口顶部，避免留下粘性栏高度的空档
+  if (id === "plan-top") {
+    scrollToTop();
+    return;
+  }
+  const el = document.getElementById(id);
+  if (!el) return;
+  // 自己算偏移而不是依赖 scroll-margin：sticky TOC 的高度会随布局变化
+  // （document 只有顶栏；browser 还有工作台 tab 条），CSS 变量是唯一口径。
+  const view = document.querySelector(".plan-view");
+  const raw = view ? getComputedStyle(view).getPropertyValue("--plan-anchor-offset") : "";
+  const offset = Number.parseFloat(raw) || 108;
+  const top = el.getBoundingClientRect().top + window.scrollY - offset;
+  window.scrollTo({
+    top: Math.max(0, top),
+    behavior: prefersReducedMotion() ? "auto" : "smooth",
+  });
 }
 
 /** 行程修改请求：换一个点 / 重排一天（带一句自然语言指令） */
@@ -992,7 +1035,7 @@ export function PlanView({
   };
 
   return (
-    <>
+    <div id="plan-top" className={`plan-view${layout === "browser" ? " plan-view-browser" : ""}`}>
       {banner}
       {draftBadge && (
         <div className="draft-badge" role="status">
@@ -1196,6 +1239,97 @@ export function PlanView({
         </div>
       </motion.div>
 
+      {/* ===== 吸顶页内导航（TOC）：长页面一键跳段 =====
+          为什么吸顶：分享页/工作台规划镜头都会超过 1 屏（分享页 500px 宽实测
+          1 万+ 像素），用户看完底部提醒想回顶部看概览/预算时不必长滑。
+          为什么用横向滚动 chips 而不是竖向列表：不占纵向空间、手机可滑。
+          锚点目标都带 scroll-margin（见 globals.css），避让 AppShell 顶栏与本条。 */}
+      <nav
+        className={`plan-toc${layout === "browser" ? " plan-toc-browser" : ""}`}
+        aria-label="行程页内导航"
+      >
+        <div className="plan-toc-inner">
+          <button type="button" className="plan-toc-chip plan-toc-top" onClick={scrollToTop}>
+            <ArrowUp size={13} aria-hidden="true" />
+            顶部
+          </button>
+          <a
+            className="plan-toc-chip"
+            href="#plan-top"
+            onClick={(event) => {
+              event.preventDefault();
+              scrollToAnchor("plan-top");
+            }}
+          >
+            概览
+          </a>
+          {viewPlan.warnings.length > 0 && (
+            <a
+              className="plan-toc-chip"
+              href="#plan-alerts"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollToAnchor("plan-alerts");
+              }}
+            >
+              体检预警
+              <span className="plan-toc-count">{viewPlan.warnings.length}</span>
+            </a>
+          )}
+          {viewPlan.days.map((d) =>
+            layout === "browser" ? (
+              // browser 布局一次只渲染当天，没有其它天的 #day-N 锚点；
+              // 这里切换当天并滚到分天区域（而不是跳到不存在的锚点）。
+              <button
+                key={d.day}
+                type="button"
+                className="plan-toc-chip"
+                onClick={() => {
+                  handleDayChange(d.day);
+                  scrollToAnchor("plan-days");
+                }}
+              >
+                Day {d.day}
+              </button>
+            ) : (
+              <a
+                key={d.day}
+                className="plan-toc-chip"
+                href={`#day-${d.day}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  scrollToAnchor(`day-${d.day}`);
+                }}
+              >
+                Day {d.day}
+              </a>
+            ),
+          )}
+          {viewPlan.tips.length > 0 && (
+            <a
+              className="plan-toc-chip"
+              href="#plan-tips"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollToAnchor("plan-tips");
+              }}
+            >
+              出发前提醒
+            </a>
+          )}
+          <a
+            className="plan-toc-chip"
+            href="#plan-packing"
+            onClick={(event) => {
+              event.preventDefault();
+              scrollToAnchor("plan-packing");
+            }}
+          >
+            出发前准备
+          </a>
+        </div>
+      </nav>
+
       {/* ===== 修改失败提示（可行动文案，不吞错）===== */}
       {editError && (
         <div className="alert alert-error" role="alert">
@@ -1256,7 +1390,7 @@ export function PlanView({
           「体检而非隐瞒」的红线不能破：摘要行明确写出问题数，详情一键可达。
           少量问题（≤2）时默认展开，避免为了美观藏起关键信息。 */}
       {viewPlan.warnings.length > 0 && (
-        <details className="checkup" open={viewPlan.warnings.length <= 2}>
+        <details className="checkup" id="plan-alerts" open={viewPlan.warnings.length <= 2}>
           <summary className="checkup-head">
             <AlertTriangle size={17} className="checkup-icon" />
             <span className="checkup-title">行程体检发现 {viewPlan.warnings.length} 个问题</span>
@@ -1395,7 +1529,7 @@ export function PlanView({
           browser 布局：左目录 + 右详情。为什么默认不在所有场景用：分享页/打印
           仍然要「一页看全」的线性文档，那是文档不是界面。 */}
       {layout === "browser" ? (
-        <div className="plan-browser">
+        <div className="plan-browser" id="plan-days">
           <nav className="day-rail" aria-label="行程天数">
             {viewPlan.days.map((d) => (
               <button
@@ -1426,7 +1560,7 @@ export function PlanView({
 
       {/* ===== 出行提示 ===== */}
       {viewPlan.tips.length > 0 && (
-        <div className="card">
+        <div className="card" id="plan-tips">
           <h2
             style={{
               fontSize: 17,
@@ -1452,6 +1586,9 @@ export function PlanView({
 
       {/* ===== 出发前准备（确定性推导，不调模型；每项带依据与来源） ===== */}
       <PackingList plan={viewPlan} />
-    </>
+
+      {/* 回顶部浮钮：滚过 600px 后才出现（长页面才需要） */}
+      <BackToTop />
+    </div>
   );
 }

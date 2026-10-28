@@ -132,7 +132,7 @@ npm run typecheck      # TypeScript strict
 npm run lint           # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联，覆盖全部 TS/TSX
 npm run lint:js        # 只跑 ESLint（.js/.mjs 脚本）
 npm run lint:ts        # 只跑 oxlint（TS/TSX；Rust 自解析 AST，不依赖 TS 版本）
-npm run test:unit      # Vitest 1195 条（组件 + 纯逻辑）
+npm run test:unit      # Vitest 1202 条（组件 + 纯逻辑）
 npm test               # e2e 776 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，15 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）

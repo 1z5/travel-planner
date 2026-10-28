@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { PackingList } from "@/components/PackingList";
 import type { Plan } from "@/lib/types";
+import { derivePackingList } from "@/lib/packing";
 
 // 出发前准备卡：钉住「每项带依据与来源」「空清单如实说明」两条红线。
 
@@ -60,5 +62,40 @@ describe("PackingList", () => {
     render(<PackingList plan={indoor} />);
     expect(screen.getByText(/没有推导出特定的准备项/)).toBeInTheDocument();
     expect(screen.queryByText("防晒与遮阳")).not.toBeInTheDocument();
+  });
+});
+
+describe("PackingList 默认折叠（长页面减滚动）", () => {
+  it("默认 closed，summary 显示条数与「展开查看」；展开后条目/依据/来源仍在", async () => {
+    const { container } = render(<PackingList plan={plan} />);
+    const details = container.querySelector("details.packing-details");
+    expect(details).not.toBeNull();
+    expect((details as HTMLDetailsElement).open).toBe(false);
+
+    const summary = screen.getByText(/出发前准备/).closest("summary")!;
+    expect(summary.textContent).toMatch(/出发前准备/);
+    expect(summary.textContent).toContain(`${derivePackingList(plan).length} 项`);
+    expect(summary.textContent).toMatch(/展开查看/);
+
+    await userEvent.click(summary);
+    expect((details as HTMLDetailsElement).open).toBe(true);
+    // 展开后信息量不变：标签 + 依据 + 来源 + 天气降级说明
+    expect(screen.getByText("防晒与遮阳")).toBeInTheDocument();
+    expect(screen.getAllByText(/室外景点/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/第 1 天 · 七里山塘/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/未接入实时天气/)).toBeInTheDocument();
+  });
+
+  it("空清单：summary 如实写「无特定准备项」，展开后仍有空态说明", async () => {
+    const indoor: Plan = {
+      ...plan,
+      days: [{ day: 1, theme: "博物馆", spots: [], transitMin: 0, dailyCostCny: 0 }],
+      tips: [],
+    };
+    const { container } = render(<PackingList plan={indoor} />);
+    const summary = container.querySelector("summary.packing-summary")!;
+    expect(summary.textContent).toMatch(/无特定准备项/);
+    await userEvent.click(summary);
+    expect(screen.getByText(/没有推导出特定的准备项/)).toBeInTheDocument();
   });
 });
