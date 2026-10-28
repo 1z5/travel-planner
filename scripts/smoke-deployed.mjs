@@ -325,9 +325,24 @@ if (failed === 0) {
       const { jobId } = await r.json();
       const t0 = Date.now();
       let job = null;
+      let netErrors = 0;
       while (Date.now() - t0 < 10 * 60 * 1000) {
         await new Promise((res) => setTimeout(res, 5000));
-        job = await json(await get(`/api/plan/status?id=${jobId}`));
+        try {
+          job = await json(await get(`/api/plan/status?id=${jobId}`));
+          netErrors = 0;
+        } catch (e) {
+          // 免费实例/公网链路偶发断连：别把一次网络抖动判成「生成失败」。
+          // 连续 10 次（约 50s）都拿不到状态才认为实例真的不可达。
+          netErrors += 1;
+          process.stdout.write("x");
+          if (netErrors >= 10) {
+            fail(`轮询连续 ${netErrors} 次失败（job ${jobId}）：${e?.message ?? e}`);
+            job = null;
+            break;
+          }
+          continue;
+        }
         if (job.status === "done" || job.status === "error") break;
         process.stdout.write(".");
       }
