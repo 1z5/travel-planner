@@ -181,10 +181,22 @@ if (failed === 0) {
   console.log("\n— 生成链路 —");
   console.log("提交测试行程（成都 3 天，消耗当前 IP 1 次当日配额）…");
   try {
+    // 日期必须带：/api/plan 用 startAt/endAt 推导天数与每日时间轴（缺了直接 400）。
+    // 相对今天 +7 天，避免行程漂移到「进行中」影响后续断言。
+    const ymd = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const start = new Date(Date.now() + 7 * 86_400_000);
+    const end = new Date(start.getTime() + 2 * 86_400_000);
     const r = await get("/api/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ city: "成都", days: 3, budget: 2000, preferences: ["美食"] }),
+      body: JSON.stringify({
+        city: "成都",
+        startAt: `${ymd(start)}T10:00`,
+        endAt: `${ymd(end)}T18:00`,
+        budget: 2000,
+        preferences: ["美食"],
+      }),
     });
     if (r.status === 429) {
       const b = await json(r);
