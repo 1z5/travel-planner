@@ -1,4 +1,4 @@
-// 切片 e2e · Trip Check 公开体检 API（开放标准 / schema / CORS / MCP / 体验台）
+// 切片 e2e · Trip Check 公开体检 API（开放标准 / schema / CORS / MCP / 体验台 / 修复）
 //
 // 契约：导出 `export async function runSlice(ctx)`，ctx = { check, api, mode }
 //   - check(name, cond, detail?)：断言（与 orchestrator 共用计数）
@@ -17,13 +17,18 @@
 //  - MCP：initialize / tools/list / tools/call（verify_itinerary）/ 通知 202
 //  - /verify 体验台 200 且含「行程体检」
 //  - shareId 路径：真实生成一份行程后 200；mock 下 facts 不得是 verified（诚实降级）
+//  - 修复（document）：破损文档 → 200 changed:true / applied 含 TC-C102 / delta.improved；
+//    前后凭据格式与「修复后文档再体检 = 修复响应 credential.id」的对账链；干净文档
+//    changed:false 且 delta 为 0；非法 body 400 / 未知 share 404 / GET 405
+//  - 修复（shareId）：只读建议（persisted:false, source:share），父凭据与该行程体检凭据一致，
+//    mock 下只改时间不影响事实状态
 //
 // 配额注意：只生成 1 份行程（每台服务器）；429 时跳过 shareId 路径并明说——
-// 配额耗尽不是本切片的缺陷（与 live 切片同口径）。体检端点本身是确定性计算，
-// 每台服务器 <10 次请求，远低于 VERIFY_HOURLY_LIMIT（默认 120），不影响其他切片。
+// 配额耗尽不是本切片的缺陷（与 live 切片同口径）。体检/修复端点本身是确定性计算，
+// 每台服务器 <20 次请求，远低于 VERIFY_HOURLY_LIMIT（默认 120），不影响其他切片。
 
 const SPEC_VERSION = "trip-check/0.1";
-/** body 上限（与 app/api/verify/route.ts 的 MAX_BODY_BYTES 同步） */
+/** body 上限（与 app/api/verify/route.ts、app/api/verify/repair/route.ts 的 MAX_BODY_BYTES 同步） */
 const MAX_BODY_BYTES = 256 * 1024;
 
 // 合法样例：1 天 2 点 + 真实路段 + 全量事实，预期 100 分 A 级 / facts verified。
@@ -61,6 +66,24 @@ const SAMPLE_DOC = {
         },
       ],
       legs: [{ from: "拙政园", to: "平江路", mode: "walking", durationMin: 20, distanceM: 1300 }],
+    },
+  ],
+};
+
+// 破损样例（修复用）：第 2 个点与第 1 个点重叠 30 分钟 → TC-C102 blocking。
+// 故意不给 legs（C104 缺路段数据是 info，修复器不能编造通勤耗时）——修复后应只
+// 消除 C102、结构与评分回到 A，而 C104 仍如实留在 remainingRuleIds 里。
+const BROKEN_DOC = {
+  specVersion: SPEC_VERSION,
+  id: "e2e_repair_broken",
+  city: "苏州",
+  days: [
+    {
+      day: 1,
+      spots: [
+        { name: "拙政园", time: "09:00-11:00", type: "sight", durationMin: 120, costCny: 80 },
+        { name: "平江路", time: "10:30-12:00", type: "sight", durationMin: 90, costCny: 60 },
+      ],
     },
   ],
 };
@@ -374,7 +397,111 @@ export async function runSlice({ check, api, mode }) {
   );
 
   // ============================================================
-  // 5) shareId 路径：站内行程走同一套引擎（适配层 → 文档 → 判定）
+  // 5) 确定性修复（document 路径）：只顺延时间/删重复，不编造事实
+  // ============================================================
+  // 破损样例：时间重叠 30 分钟。修复器应把「平江路」整体后移到 11:00-12:30
+  // （只动 time，不动地点/营业时间/路段），再用同一套引擎重验出前后两份报告。
+  const repair = await postJson(`${base}/api/verify/repair`, { document: BROKEN_DOC });
+  check(
+    "修复：破损文档 → 200",
+    repair.status === 200,
+    `got ${repair.status} ${JSON.stringify(repair.body).slice(0, 160)}`,
+  );
+  check(
+    "修复：响应字段全集（document/applied/remainingRuleIds/unrepairable/before/after/delta）",
+    Boolean(repair.body?.document) &&
+      Array.isArray(repair.body?.applied) &&
+      Array.isArray(repair.body?.remainingRuleIds) &&
+      Array.isArray(repair.body?.unrepairable) &&
+      Boolean(repair.body?.before?.verdict) &&
+      Boolean(repair.body?.after?.verdict) &&
+      typeof repair.body?.delta?.improved === "boolean",
+    JSON.stringify(Object.keys(repair.body ?? {})),
+  );
+  check(
+    "修复：确实改动了（changed:true）且 applied 含 TC-C102（时间重叠）",
+    repair.body?.changed === true && repair.body?.applied?.some((a) => a?.ruleId === "TC-C102"),
+    JSON.stringify(repair.body?.applied ?? null),
+  );
+  check(
+    "修复：after 分更高、阻断更少（delta.improved 用同一把尺子量出）",
+    repair.body?.delta?.improved === true &&
+      repair.body?.delta?.score > 0 &&
+      repair.body?.after?.stats?.blocking < repair.body?.before?.stats?.blocking,
+    JSON.stringify(repair.body?.delta ?? null),
+  );
+  check(
+    "修复：前后两张凭据都是 tc_ + 32 hex，且文档变了 ID 必须变",
+    /^tc_[0-9a-f]{32}$/.test(repair.body?.parentCredential?.id ?? "") &&
+      /^tc_[0-9a-f]{32}$/.test(repair.body?.credential?.id ?? "") &&
+      repair.body.parentCredential.id !== repair.body.credential.id,
+    `${repair.body?.parentCredential?.id} → ${repair.body?.credential?.id}`,
+  );
+  // 前后凭据链可对账：拿修复后的 document 再走 /api/verify，应得到同一个 credential.id
+  const repairedVerify = await postJson(`${base}/api/verify`, { document: repair.body?.document });
+  check(
+    "修复：修复后文档再体检 → credential.id 与修复响应一致（前后凭据链可对账）",
+    repairedVerify.status === 200 &&
+      repairedVerify.body?.credential?.id === repair.body?.credential?.id,
+    `${repairedVerify.body?.credential?.id} vs ${repair.body?.credential?.id}`,
+  );
+  const parentVerify = await postJson(`${base}/api/verify`, { document: BROKEN_DOC });
+  check(
+    "修复：输入文档体检 → credential.id 与 parentCredential 一致（父凭据可复算）",
+    parentVerify.status === 200 &&
+      parentVerify.body?.credential?.id === repair.body?.parentCredential?.id,
+    `${parentVerify.body?.credential?.id} vs ${repair.body?.parentCredential?.id}`,
+  );
+  check(
+    "修复：明示不写回存储（persisted:false / source:document）",
+    repair.body?.persisted === false && repair.body?.source === "document",
+    JSON.stringify({ persisted: repair.body?.persisted, source: repair.body?.source }),
+  );
+
+  // 干净文档：没有可机械修复的问题时必须如实返回「没改动」，不能为了显得有用而改东西
+  const cleanRepair = await postJson(`${base}/api/verify/repair`, { document: SAMPLE_DOC });
+  check(
+    "修复：干净文档 → changed:false 且 delta.score 为 0（不谎报改善）",
+    cleanRepair.status === 200 &&
+      cleanRepair.body?.changed === false &&
+      cleanRepair.body?.delta?.score === 0 &&
+      (cleanRepair.body?.applied?.length ?? -1) === 0,
+    `got ${cleanRepair.status} ${JSON.stringify({
+      changed: cleanRepair.body?.changed,
+      delta: cleanRepair.body?.delta,
+    })}`,
+  );
+  check(
+    "修复：没有改动时前后凭据相同（文档未变 → ID 不变）",
+    cleanRepair.body?.credential?.id === cleanRepair.body?.parentCredential?.id,
+    `${cleanRepair.body?.credential?.id} vs ${cleanRepair.body?.parentCredential?.id}`,
+  );
+
+  // 错误路径：与 /api/verify 同契约（错误码可编程处理；GET 明确 405 而不是框架 HTML）
+  const repairBadBody = await postJson(`${base}/api/verify/repair`, {});
+  check(
+    "修复：document/shareId 都不给 → 400 invalid_request",
+    repairBadBody.status === 400 && repairBadBody.body?.error === "invalid_request",
+    `got ${repairBadBody.status} ${JSON.stringify(repairBadBody.body).slice(0, 120)}`,
+  );
+  const repairUnknown = await postJson(`${base}/api/verify/repair`, {
+    shareId: "share_doesnotexist00",
+  });
+  check(
+    "修复：未知 shareId → 404 not_found",
+    repairUnknown.status === 404 && repairUnknown.body?.error === "not_found",
+    `got ${repairUnknown.status} ${JSON.stringify(repairUnknown.body)}`,
+  );
+  const repairGetRes = await fetch(`${base}/api/verify/repair`);
+  const repairGetBody = await repairGetRes.json().catch(() => ({}));
+  check(
+    "修复：GET → 405 + 可读说明（只支持 POST，没有可查询的结果）",
+    repairGetRes.status === 405 && repairGetBody.error === "method_not_allowed",
+    `got ${repairGetRes.status} ${JSON.stringify(repairGetBody).slice(0, 120)}`,
+  );
+
+  // ============================================================
+  // 6) shareId 路径：站内行程走同一套引擎（适配层 → 文档 → 判定）
   // ============================================================
   const gen = await api.post({ city: "苏州", days: 3, budget: 2500, preferences: ["美食"] });
   if (gen.status === 429) {
@@ -415,6 +542,41 @@ export async function runSlice({ check, api, mode }) {
         "体检(mock)：未接真实数据源的行程不得标成 facts=verified",
         shared.body?.verdict?.facts?.state !== "verified",
         JSON.stringify(shared.body?.verdict?.facts?.state),
+      );
+    }
+
+    // 修复 shareId 路径：只读 Plan（不写回存储），前后凭据与体检结果可对链
+    const sharedRepair = await postJson(`${base}/api/verify/repair`, { shareId });
+    check(
+      "修复：分享行程 → 200（只读建议，不写回存储）",
+      sharedRepair.status === 200,
+      `got ${sharedRepair.status} ${JSON.stringify(sharedRepair.body).slice(0, 160)}`,
+    );
+    check(
+      "修复：shareId 路径明示 persisted:false / source:share",
+      sharedRepair.body?.persisted === false && sharedRepair.body?.source === "share",
+      JSON.stringify({
+        persisted: sharedRepair.body?.persisted,
+        source: sharedRepair.body?.source,
+      }),
+    );
+    check(
+      "修复：父凭据与该行程的体检凭据一致（同一输入 → 同一 ID，可对账）",
+      sharedRepair.body?.parentCredential?.id === shared.body?.credential?.id,
+      `${sharedRepair.body?.parentCredential?.id} vs ${shared.body?.credential?.id}`,
+    );
+    check(
+      "修复：shareId 路径也给出修复后凭据（tc_ + 32 hex）",
+      /^tc_[0-9a-f]{32}$/.test(sharedRepair.body?.credential?.id ?? ""),
+      String(sharedRepair.body?.credential?.id),
+    );
+    if (mode === "mock") {
+      // 修复器只动时间/重复项；mock 行程没有真实事实，facts 状态必须原样（不能被「修好」）
+      check(
+        "修复(mock)：只动时间/重复项，事实核验状态不变",
+        sharedRepair.body?.before?.verdict?.facts?.state ===
+          sharedRepair.body?.after?.verdict?.facts?.state,
+        `${sharedRepair.body?.before?.verdict?.facts?.state} → ${sharedRepair.body?.after?.verdict?.facts?.state}`,
       );
     }
   }

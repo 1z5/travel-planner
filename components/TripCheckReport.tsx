@@ -5,16 +5,21 @@ import {
   AlertTriangle,
   Check,
   Copy,
+  Download,
   Info,
+  Loader2,
   ShieldAlert,
   ShieldCheck,
   ShieldQuestion,
+  Wand2,
 } from "lucide-react";
+import { RULES } from "@/lib/verify/rules";
 import type {
   FactsVerdict,
   IssueEvidence,
   IssueSeverity,
   OverallStatus,
+  RepairResult,
   TripCheckCredential,
   TripCheckReport as TripCheckReportData,
   VerifyIssue,
@@ -86,6 +91,52 @@ const SEVERITY_GROUPS: {
   { severity: "warning", title: "需微调 · 能走但要改", tone: "warn" },
   { severity: "info", title: "信息不足 · 不是通过，是不知道", tone: "neutral" },
 ];
+
+// ============================================================
+// 确定性修复（POST /api/verify/repair）的展示类型
+//
+// 为什么在 UI 里定义响应类型：core 的 RepairResult 只描述「修复了什么」，
+// changed / persisted / source / 前后凭据是 API 层语义（见 app/api/verify/repair）。
+// 这样既能照契约渲染，又不会让分享页等只读场景被迫依赖修复接口。
+// ============================================================
+
+/** 修复接口 200 响应 = core RepairResult + API 层语义标记与前后凭据链 */
+export interface TripCheckRepairResponse extends RepairResult {
+  /** applied 为空 = 本来就没得修/不需要修（服务端显式给，不让各端自己数） */
+  changed: boolean;
+  /** 修复层没有写回存储（shareId 路径的 Plan 保持原样） */
+  persisted: boolean;
+  /** 修复基于哪种输入：粘贴的文档 / 站内分享行程 */
+  source: "document" | "share";
+  /** 修复前文档的凭据（与 /api/verify 对同一输入签发的一致） */
+  parentCredential: TripCheckCredential;
+  /** 修复后文档的凭据 */
+  credential: TripCheckCredential;
+}
+
+/** 与体验台 PlaygroundError 结构兼容；不 import 那个文件，避免组件间循环依赖 */
+export interface RepairViewError {
+  title: string;
+  message?: string;
+  items?: { path: string; message: string }[];
+}
+
+/** 规则标题以 rules.ts 为唯一口径，UI 不重复维护一套文案 */
+function ruleTitle(ruleId: string): string {
+  return RULES[ruleId]?.title ?? ruleId;
+}
+
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+function blockingDeltaText(reduced: number): string {
+  if (reduced > 0) return `阻断减少 ${reduced} 处`;
+  if (reduced < 0) return `阻断增加 ${-reduced} 处`;
+  return "阻断数不变";
+}
+
+type CopyState = "idle" | "ok" | "fail";
 
 /** ISO 时间 → "YYYY-MM-DD HH:MM UTC"；保留 UTC 标识，避免读者误按本地时区理解 */
 function formatIssuedAt(iso: string): string {
@@ -252,7 +303,382 @@ function CredentialBlock({
   );
 }
 
-export function TripCheckReport({ report }: { report: TripCheckReportData }) {
+/** 修复错误：复用报告页的 .tc-alert 错误样式，区分 400/404/413/429/网络错误 */
+function RepairErrorAlert({ error }: { error: RepairViewError }) {
+  return (
+    <div className="tc-alert tc-repair-alert" role="alert">
+      <div className="tc-alert-head">
+        <AlertTriangle size={17} aria-hidden="true" />
+        <h4 className="tc-repair-alert-title">{error.title}</h4>
+      </div>
+      {error.message && <p className="tc-alert-message">{error.message}</p>}
+      {error.items && error.items.length > 0 && (
+        <ul className="tc-error-list">
+          {error.items.map((item, index) => (
+            <li key={`${item.path}-${index}`}>
+              <code className="tc-mono">{item.path}</code>
+              <span>{item.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 修复结果：before→after 对比、已修/修不了清单、可复制下载的新文档、前后凭据链。
+ * 所有数字都直接来自服务端响应（同一 now + 同一口径下的两次判定），D 不在这里重算。
+ */
+function RepairResultBlock({ repair }: { repair: TripCheckRepairResponse }) {
+  const [copy, setCopy] = useState<Record<"doc" | "parent" | "after", CopyState>>({
+    doc: "idle",
+    parent: "idle",
+    after: "idle",
+  });
+  const [download, setDownload] = useState<CopyState>("idle");
+
+  const { before, after, delta, applied, unrepairable, changed } = repair;
+  const beforeGrade = before.verdict.consistency;
+  const afterGrade = after.verdict.consistency;
+  const sameCredential = repair.parentCredential.id === repair.credential.id;
+  const docJson = JSON.stringify(repair.document, null, 2);
+
+  async function copyText(text: string, key: "doc" | "parent" | "after") {
+    try {
+      if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+        throw new Error("clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(text);
+      setCopy((state) => ({ ...state, [key]: "ok" }));
+    } catch {
+      setCopy((state) => ({ ...state, [key]: "fail" }));
+    }
+  }
+
+  function downloadDocument() {
+    // Blob 下载没有服务端参与；不支持时明确提示，不让按钮变成静默失败
+    try {
+      if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+        setDownload("fail");
+        return;
+      }
+      const blob = new Blob([docJson], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "trip-check-repaired.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setDownload("ok");
+    } catch {
+      setDownload("fail");
+    }
+  }
+
+  return (
+    <div className="tc-repair-result">
+      <div className={`tc-repair-verdict ${changed ? "tc-repair-improved" : "tc-repair-noop"}`}>
+        <p className="tc-repair-verdict-label">
+          {changed
+            ? delta.improved
+              ? "已修复 · 结论改善"
+              : "已修复 · 结论未改善"
+            : "没有可机械修复的问题"}
+        </p>
+        <p className="tc-repair-verdict-text">
+          {changed
+            ? delta.improved
+              ? "修复器改了文档，并用同一套规则重新体检：下面的前后对比来自两次判定，不是修复器自说自话。"
+              : "文档确实被改动，但重新体检后分数/阻断数没有改善——这不算「修好了」，请看下面的修不了的问题。"
+            : "这份文档当前没有「顺延时间 / 删同日重复」能处理的项；其余问题需要人工判断，逐条列在下面。"}
+        </p>
+      </div>
+
+      <div className="tc-repair-compare" role="group" aria-label="修复前后对比">
+        <div className="tc-repair-side">
+          <p className="tc-repair-side-label">修复前</p>
+          <p className="tc-repair-side-grade">
+            等级 {beforeGrade.grade} · {beforeGrade.gradeLabel}
+          </p>
+          <p className="tc-repair-side-score">评分 {beforeGrade.score} / 100</p>
+          <p className="tc-repair-side-blocking">阻断 {before.stats.blocking}</p>
+        </div>
+        <span className="tc-repair-arrow" aria-hidden="true">
+          →
+        </span>
+        <div className="tc-repair-side tc-repair-side-after">
+          <p className="tc-repair-side-label">修复后</p>
+          <p className="tc-repair-side-grade">
+            等级 {afterGrade.grade} · {afterGrade.gradeLabel}
+          </p>
+          <p className="tc-repair-side-score">评分 {afterGrade.score} / 100</p>
+          <p className="tc-repair-side-blocking">阻断 {after.stats.blocking}</p>
+        </div>
+      </div>
+      <p className="tc-repair-delta">
+        分数 {signed(delta.score)} · {blockingDeltaText(delta.blockingReduced)} ·{" "}
+        {delta.gradeFrom === delta.gradeTo
+          ? `等级保持 ${delta.gradeTo}`
+          : `等级 ${delta.gradeFrom} → ${delta.gradeTo}`}
+      </p>
+
+      <div className="tc-repair-block">
+        <h4 className="tc-repair-block-title">
+          已确定性修复 <span className="tc-repair-count">{applied.length} 处</span>
+        </h4>
+        {applied.length > 0 ? (
+          <ul className="tc-repair-applied">
+            {applied.map((item, index) => (
+              <li key={`${item.ruleId}-${item.day}-${index}`}>
+                <span className="tc-repair-rule">{ruleTitle(item.ruleId)}</span>
+                <p className="tc-repair-detail">{item.detail}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="tc-hint">没有应用任何修复（文档没有变化）。</p>
+        )}
+      </div>
+
+      {/* 修不了的要显眼：这是「只改两种机械变换」这一承诺的代价，不能藏起来 */}
+      <div className="tc-repair-block tc-repair-unrepairable">
+        <h4 className="tc-repair-block-title">
+          <AlertTriangle size={15} aria-hidden="true" />
+          修不了的问题（{unrepairable.length} 条）
+        </h4>
+        {unrepairable.length > 0 ? (
+          <>
+            <p className="tc-hint">
+              这些不在机械修复范围内——修复器不会猜、也不会悄悄改掉；需要你人工判断或补数据。
+            </p>
+            <ul className="tc-repair-unrep-list">
+              {unrepairable.map((item, index) => (
+                <li key={`${item.ruleId}-${item.day ?? 0}-${index}`}>
+                  <code className="tc-rule-id">{item.ruleId}</code>
+                  <span className="tc-repair-unrep-title">{ruleTitle(item.ruleId)}</span>
+                  {(item.day !== undefined || item.spot) && (
+                    <span className="tc-repair-unrep-loc">
+                      {[item.day !== undefined ? `第 ${item.day} 天` : "", item.spot ?? ""]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                  <p className="tc-repair-unrep-reason">{item.reason}</p>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="tc-hint">没有需要修复器处理的残留问题。</p>
+        )}
+        {repair.remainingRuleIds.length > 0 && (
+          <p className="tc-repair-remaining">
+            修复后仍存在的规则：
+            {repair.remainingRuleIds.map((ruleId) => (
+              <code key={ruleId} className="tc-rule-id">
+                {ruleId}
+              </code>
+            ))}
+          </p>
+        )}
+      </div>
+
+      {changed && (
+        <div className="tc-repair-block">
+          <h4 className="tc-repair-block-title">修复后的文档</h4>
+          <p className="tc-hint">
+            这是一份新文档，原始输入没有被修改；复制或下载后自行使用（服务端
+            {repair.persisted ? "声明已持久化" : "不写回任何存储"}）。
+          </p>
+          <div className="tc-repair-doc-actions">
+            <button type="button" className="btn" onClick={() => void copyText(docJson, "doc")}>
+              {copy.doc === "ok" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} />}
+              {copy.doc === "ok" ? "已复制文档" : "复制文档 JSON"}
+            </button>
+            <button type="button" className="btn" onClick={downloadDocument}>
+              <Download size={14} aria-hidden="true" />
+              下载 .json
+            </button>
+          </div>
+          {copy.doc === "fail" && (
+            <p className="tc-copy-fb" role="status">
+              浏览器不允许写入剪贴板：展开下方 JSON 手动复制。
+            </p>
+          )}
+          {download === "ok" && (
+            <p className="tc-copy-ok" role="status">
+              已开始下载 trip-check-repaired.json。
+            </p>
+          )}
+          {download === "fail" && (
+            <p className="tc-copy-fb" role="status">
+              当前浏览器不支持直接下载：展开下方 JSON 手动保存。
+            </p>
+          )}
+          <details className="tc-json-details">
+            <summary>修复后文档 JSON（可手动复制）</summary>
+            <pre className="tc-json">{docJson}</pre>
+          </details>
+        </div>
+      )}
+
+      <div className="tc-repair-cred">
+        <h4 className="tc-repair-block-title">凭据链（可对账）</h4>
+        {sameCredential ? (
+          <>
+            <p className="tc-hint">
+              文档没有变化，所以前后凭据 ID 相同（同一输入 + 同一版本 → 同一 ID）。
+            </p>
+            <div className="tc-repair-cred-row">
+              <span className="tc-repair-cred-label">凭据</span>
+              <code className="tc-repair-cred-id" data-testid="tc-repair-parent-credential">
+                {repair.parentCredential.id}
+              </code>
+              <button
+                type="button"
+                className="btn tc-copy-btn"
+                onClick={() => void copyText(repair.parentCredential.id, "parent")}
+              >
+                {copy.parent === "ok" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} />}
+                {copy.parent === "ok" ? "已复制" : "复制"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="tc-repair-cred-row">
+              <span className="tc-repair-cred-label">修复前</span>
+              <code className="tc-repair-cred-id" data-testid="tc-repair-parent-credential">
+                {repair.parentCredential.id}
+              </code>
+              <button
+                type="button"
+                className="btn tc-copy-btn"
+                onClick={() => void copyText(repair.parentCredential.id, "parent")}
+              >
+                {copy.parent === "ok" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} />}
+                {copy.parent === "ok" ? "已复制" : "复制"}
+              </button>
+            </div>
+            <div className="tc-repair-cred-row">
+              <span className="tc-repair-cred-label">修复后</span>
+              <code className="tc-repair-cred-id" data-testid="tc-repair-credential">
+                {repair.credential.id}
+              </code>
+              <button
+                type="button"
+                className="btn tc-copy-btn"
+                onClick={() => void copyText(repair.credential.id, "after")}
+              >
+                {copy.after === "ok" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} />}
+                {copy.after === "ok" ? "已复制" : "复制"}
+              </button>
+            </div>
+            <p className="tc-repair-cred-note">
+              前后两张凭据都可复算，能对账改了哪些。把任意一张拿到{" "}
+              <code className="tc-mono">/api/verify</code> 都能独立复算出同一结论。
+            </p>
+          </>
+        )}
+        {(copy.parent === "fail" || copy.after === "fail") && (
+          <p className="tc-copy-fb" role="status">
+            浏览器不允许写入剪贴板：请手动选中上面的凭据 ID 复制（它是可选中文本）。
+          </p>
+        )}
+      </div>
+
+      <ul className="tc-repair-honesty">
+        <li>
+          <b>只动两种机械变换：</b>顺延冲突/接不上的时间、删除同一天重复点位；不调模型。
+        </li>
+        <li>
+          <b>不编造事实：</b>不加地点、不改营业时间、不补路段耗时，也不替你删独立点位。
+        </li>
+        <li>
+          <b>不写回分享行程：</b>修复结果只是一份新文档（
+          {repair.persisted ? "persisted=true，请以服务端说明为准" : "persisted=false"}
+          ），原行程与凭据不变。
+        </li>
+        <li>
+          <b>修不了的照实列出：</b>上面每一条都给了原因与下一步，不会被悄悄忽略。
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+/** 修复入口：无论报告里有没有可机械修复的问题都可点（changed=false 也会如实说明） */
+function RepairCard({
+  repair,
+  repairing,
+  repairError,
+  onRepair,
+}: {
+  repair: TripCheckRepairResponse | null;
+  repairing: boolean;
+  repairError: RepairViewError | null;
+  onRepair: () => void;
+}) {
+  return (
+    <section className="tc-repair card" aria-labelledby="tc-repair-title" aria-busy={repairing}>
+      <div className="card-body">
+        <div className="tc-repair-head">
+          <h3 id="tc-repair-title">确定性修复</h3>
+          <span className="tc-axis-note">只顺延时间 / 删同日重复 · 不调模型</span>
+        </div>
+        <p className="tc-repair-lede">
+          修复器只做两种不改变行程语义的机械变换：<b>把冲突或接不上的时间整体顺延</b>、
+          <b>删掉同一天重复的同名点位（保留第一条）</b>。不编造地点/营业时间/路段，也不替你做
+          「换哪一天、删哪个点」的取舍——修不了的会在结果里逐条列出。
+        </p>
+        <div className="tc-repair-actions">
+          <button
+            type="button"
+            className="btn btn-primary tc-repair-btn"
+            onClick={onRepair}
+            disabled={repairing}
+          >
+            {repairing ? (
+              <Loader2 size={15} className="spin" aria-hidden="true" />
+            ) : (
+              <Wand2 size={15} aria-hidden="true" />
+            )}
+            {repairing ? "修复中…" : repair ? "再修一次" : "确定性修复"}
+          </button>
+          <p className="tc-hint">
+            修复不写回分享行程；结果是一份可复制/下载的新文档，前后两张凭据都可复算。
+          </p>
+        </div>
+        {repairing && (
+          <p className="tc-status" role="status">
+            正在用同一套规则修复并重新体检…
+          </p>
+        )}
+        {repairError && <RepairErrorAlert error={repairError} />}
+        {repair && <RepairResultBlock repair={repair} />}
+      </div>
+    </section>
+  );
+}
+
+export function TripCheckReport({
+  report,
+  repair = null,
+  repairing = false,
+  repairError = null,
+  onRepair,
+}: {
+  report: TripCheckReportData;
+  /** 修复结果（可选）：分享页等只读场景不传，就不渲染修复区块 */
+  repair?: TripCheckRepairResponse | null;
+  repairing?: boolean;
+  repairError?: RepairViewError | null;
+  /** 传了才渲染「确定性修复」交互（体验台用；只读报告不传） */
+  onRepair?: () => void;
+}) {
   const { verdict, document: doc, stats, issues } = report;
   const overall = OVERALL_META[verdict.overall];
   const consistency = verdict.consistency;
@@ -334,6 +760,16 @@ export function TripCheckReport({ report }: { report: TripCheckReportData }) {
           </li>
         </ul>
       </div>
+
+      {/* 修复入口紧跟总评：先知道「哪里走不通」，再决定要不要一键机械修复 */}
+      {onRepair && (
+        <RepairCard
+          repair={repair}
+          repairing={repairing}
+          repairError={repairError}
+          onRepair={onRepair}
+        />
+      )}
 
       <div className="tc-axes">
         {/* 轴一：结构自洽性（唯一给分数的轴） */}
@@ -465,7 +901,8 @@ export function TripCheckReport({ report }: { report: TripCheckReportData }) {
         <h3 id="tc-honesty-title">这份报告的边界</h3>
         <ul>
           <li>
-            <b>只判定、不修改：</b>修复方向只是提示，引擎不会替你改行程。
+            <b>体检只判定、不修改：</b>
+            修复方向只是提示；任何修改都需要显式操作（确定性修复也只顺延时间/删重复，见上）。
           </li>
           <li>
             <b>未核验 ≠ 没问题：</b>

@@ -2,7 +2,7 @@
 
 > **一句话**：任何 AI 生成的行程，都可以用同一套确定性规则先过一遍体检，拿到一份**可复算、可对账**的结论与凭据。
 >
-> 状态：v0.1（2026-10-28）· 参考实现 Apache-2.0 · 规则集版本 `2026-10-28.1` · 引擎版本 `0.1.0`
+> 状态：v0.1（2026-10-28）· 参考实现 Apache-2.0 · 规则集版本 `2026-10-28.1` · 引擎版本 `0.2.0`
 > 实现：`lib/verify/`（纯函数引擎）+ `POST /api/verify` + `POST /api/mcp` + `/verify` 体验台
 
 ---
@@ -130,6 +130,17 @@ Trip Check 要解决的就是这个：把「行程能不能照着走」变成一
 | `TC-F204` 营业时间对不上   | blocking | 0（事实轴） | 有日期 + 营业时间原文，按 `checkOpenHours` 判定闭馆/不在营业时段         |
 | `TC-F205` 核验源故障       | info     | 0           | 存在 `error` 状态（聚合一条），不当作地点不存在                          |
 
+### 4.0 哪些规则可以「机械修复」
+
+规则元信息里有 `mechanicalFix` 字段（仅 3 条），表示确定性修复器（见 §7.3）能**在不编造数据、
+不改变语义**的前提下消除它；没有这个字段 = 只能人工改：
+
+| 规则                     | 修复方式 | 说明                                   |
+| ------------------------ | -------- | -------------------------------------- |
+| `TC-C102` 时间重叠       | `retime` | 把后一个点顺延到不与前一个重叠         |
+| `TC-C103` 时间接不上     | `retime` | 按真实路段耗时把后一个点顺延到留足通勤 |
+| `TC-C109` 同一天重复点位 | `dedupe` | 删除后出现的同名重复项（保留第一条）   |
+
 ### 4.1 评分与等级
 
 ```
@@ -157,7 +168,7 @@ grade: score ≥ 90 → A；≥ 75 → B；≥ 60 → C；否则 D
 ```jsonc
 {
   "specVersion": "trip-check/0.1",
-  "engine": { "name": "trip-check", "version": "0.1.0", "rulesetVersion": "2026-10-28.1" },
+  "engine": { "name": "trip-check", "version": "0.2.0", "rulesetVersion": "2026-10-28.1" },
   "document": { "id": "…", "city": "苏州", "days": 2, "spots": 5, "budgetCny": 900 },
   "verdict": {
     "consistency": { "score": 100, "grade": "A", "gradeLabel": "可执行", "summary": "…" },
@@ -199,7 +210,7 @@ grade: score ≥ 90 → A；≥ 75 → B；≥ 60 → C；否则 D
     "algorithm": "sha256",
     "inputHash": "…",
     "specVersion": "…",
-    "engineVersion": "0.1.0",
+    "engineVersion": "0.2.0",
     "rulesetVersion": "2026-10-28.1",
     "issuedAt": "2026-10-28T10:00:00.000Z",
     "basis": "…",
@@ -223,16 +234,39 @@ id        = "tc_" + sha256(`${specVersion}|${engineVersion}|${rulesetVersion}|${
   （事实质量取决于 `provenance` 声明）、**不是数字签名**（本版本没有密钥托管，不声称不可伪造）。
   下一步（S3）才会引入 HMAC/签名与密钥轮换，届时也必须先解决「签名只证明签发者，不证明结论正确」的叙事。
 
+### 6.1 修复前后凭据链（Repair）
+
+修复器（§7.3）会同时签发两张凭据，把「改了什么、风险降了多少」变成可对账的事实：
+
+```jsonc
+{
+  "parentCredential": { "id": "tc_…" /* 修复前文档的凭据 */ },
+  "credential": { "id": "tc_…" /* 修复后文档的凭据 */ },
+  "delta": {
+    "score": 45,
+    "gradeFrom": "D",
+    "gradeTo": "A",
+    "blockingReduced": 1,
+    "improved": true,
+  },
+}
+```
+
+两张凭据都走同一套公式（文档 + 口径 + 引擎/规则版本），所以任何一方都能分别重跑：
+① 用 parent 文档复算出 parent ID；② 用响应里的修复后 `document` 复算出 child ID；
+③ 把修复后文档再 POST `/api/verify`，必须得到同一张 child 凭据（这份响应自洽）。
+
 ## 7. 接口
 
 ### 7.1 HTTP
 
-| 方法/路径                | 说明                                                                                                                                    |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/verify`       | 体检。body：`{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                                 |
-| `GET /api/verify`        | 服务元信息（版本/规则/文档链接）                                                                                                        |
-| `GET /api/verify/schema` | 文档 JSON Schema（公开契约）                                                                                                            |
-| `POST /api/mcp`          | MCP（JSON-RPC 2.0、stateless）端点：`verify_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
+| 方法/路径                 | 说明                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/verify`        | 体检。body：`{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                                                      |
+| `POST /api/verify/repair` | 确定性修复。body 同上；返回修复后文档 + 前后报告 + 修复动作/修不了的原因 + 前后两张凭据（**不写回分享行程**）                                                |
+| `GET /api/verify`         | 服务元信息（版本/规则/文档链接）                                                                                                                             |
+| `GET /api/verify/schema`  | 文档 JSON Schema（公开契约）                                                                                                                                 |
+| `POST /api/mcp`           | MCP（JSON-RPC 2.0、stateless）端点：`verify_itinerary` / `repair_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
 
 错误码：`400 invalid_request`（含 `errors:[{path,message}]`）、`400 invalid_json`、`404 not_found`（shareId 不存在）、
 `413 payload_too_large`（body > 256 KiB）、`429 rate_limited`（默认 `VERIFY_HOURLY_LIMIT=120`/IP/小时）。
@@ -246,6 +280,54 @@ npm run dev          # 另开一个终端
 node mcp/stdio.mjs   # 把换行分隔的 JSON-RPC 从 stdin 转发到 POST /api/mcp
 ```
 
+### 7.3 确定性修复（Repair）
+
+**只做有数据依据、不改变语义的机械变换**，不编造任何事实、不替用户做取舍：
+
+- `retime`：保持第一个点不变，按「上一点结束 + 该段真实耗时」把后续点整体后移。
+  没有路段数据时只能消除时间重叠（不能证明可达——这一点由 `TC-C104` 如实说明）；
+  若顺延会超过当天 24:00，**整天回滚**（不做半截修复）。
+- `dedupe`：删除同一天内重复的同名点位（保留第一条）。
+
+修不了的问题逐条写进 `unrepairable`（缺数据 / 超 24:00 / 预算 / 节奏 / 分散 / 事实问题等），
+并给出原因；**修复器不会删独立点位、不改日期、不换点、不补营业时间**。
+
+```jsonc
+// POST /api/verify/repair  →  200
+{
+  "document": {/* 修复后的开放文档（可继续编辑/再核验） */},
+  "applied": [
+    {
+      "ruleId": "TC-C102",
+      "day": 1,
+      "spot": "平江路",
+      "detail": "第 1 天「平江路」时间 10:30-12:00 → 11:00-12:30（顺延 30 分钟，消除重叠）",
+    },
+  ],
+  "remainingRuleIds": ["TC-C104"],
+  "unrepairable": [
+    { "ruleId": "TC-C104", "day": 1, "reason": "缺少真实路段耗时，修复器不能编造通勤时间。" },
+  ],
+  "before": {/* TripCheckReport */},
+  "after": {/* TripCheckReport */},
+  "delta": {
+    "score": 45,
+    "gradeFrom": "D",
+    "gradeTo": "A",
+    "blockingReduced": 1,
+    "improved": true,
+  },
+  "changed": true,
+  "persisted": false,
+  "source": "document", // document | share
+  "parentCredential": { "id": "tc_…" },
+  "credential": { "id": "tc_…" },
+}
+```
+
+诚实边界：分享行程（`shareId`）只读不写回（`persisted:false`），用户要在产品里保存需自己确认；
+修复器只负责「把可机械消除的问题消掉」，不保证修后一定可执行（facts 轴取决于来源事实）。
+
 ## 8. 版本与兼容
 
 - **specVersion**（文档格式）：不兼容变更升 minor（0.1 → 0.2）；旧文档在旧版本报告里继续可判。
@@ -257,7 +339,8 @@ node mcp/stdio.mjs   # 把换行分隔的 JSON-RPC 从 stdin 转发到 POST /api
 
 - 不判断**价格合理性 / 排队时长 / 临时限流 / 天气突变**（这些需要实时供给，不在 v0.1 规则内）；
 - 不核验事实本身：地点/营业时间/路段的真实性取决于文档声明的来源（`provenance`）；本引擎只判定「按给定事实，行程是否自洽可行」；
-- 不自动改行程：`fixHint` 只给方向；修改属于产品侧（本仓的换一个/一句话改/一键修复/重排）；
+- 修复器（§7.3）只做机械变换（顺延时间/删重复）；换点、删点、改日期、改预算等取舍仍由人决定，
+  产品侧另有「换一个 / 一句话改 / 一键修复 / 重排」；
 - 不做预订/库存/支付；不做通用聊天；
 - MOCK/未核验数据必须显式标注 `source: "mock"` 或 `not_checked`，**不得以 MOCK 数据声称「真实世界核验」**。
 
@@ -271,10 +354,12 @@ node mcp/stdio.mjs   # 把换行分隔的 JSON-RPC 从 stdin 转发到 POST /api
 
 ## 11. 参考实现与规则演进
 
-- 代码：`lib/verify/`（types / rules / engine / schema / validate / credential / adapt / jsonld / samples）
-- 测试：`tests/lib/verify/`（规则边界、两轴、三态、可复现、适配、schema 同步）
+- 代码：`lib/verify/`（types / rules / engine / repair / schema / validate / credential / adapt / jsonld / samples / stamp）
+- 测试：`tests/lib/verify/`（规则边界、两轴、三态、可复现、修复器不变量、适配、schema 同步）
 - 客户端接入示例：`/verify` 体验台（粘贴 JSON 或分享链接）；服务端接入示例：`app/api/verify/route.ts`
 
 ## 12. 变更记录
 
 - 2026-10-28 v0.1：首版。17 条规则、两轴报告、可复算凭据、HTTP API、MCP 工具、JSON-LD 导出、公开体验台。
+- 2026-10-28 v0.1.1（引擎 0.2.0）：新增确定性修复器（retime/dedupe）+ `POST /api/verify/repair` +
+  MCP `repair_itinerary` + 修复前后凭据链；只修可机械消除的问题，其余如实列 `unrepairable`。

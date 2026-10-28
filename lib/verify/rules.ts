@@ -42,6 +42,7 @@ export const RULES: Record<string, VerifyRuleMeta> = {
     penalty: 45,
     fixHint: "调整其中一个点的开始/结束时间，或把它移到下一天。",
     since: "0.1.0",
+    mechanicalFix: "retime",
   },
   "TC-C103": {
     id: "TC-C103",
@@ -52,6 +53,7 @@ export const RULES: Record<string, VerifyRuleMeta> = {
     penalty: 45,
     fixHint: "给这段路留足时间（或换更近的点位/把下一站顺延）。",
     since: "0.1.0",
+    mechanicalFix: "retime",
   },
   "TC-C104": {
     id: "TC-C104",
@@ -113,6 +115,7 @@ export const RULES: Record<string, VerifyRuleMeta> = {
     penalty: 5,
     fixHint: "删掉重复项，或把它们合并成一次停留。",
     since: "0.1.0",
+    mechanicalFix: "dedupe",
   },
   "TC-C110": {
     id: "TC-C110",

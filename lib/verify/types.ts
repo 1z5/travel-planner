@@ -28,8 +28,8 @@ export const TRIP_CHECK_SPEC_VERSION = "trip-check/0.1";
 /** 引擎名（报告里带，便于对方核对是哪套实现出的结论） */
 export const TRIP_CHECK_ENGINE_NAME = "trip-check";
 
-/** 引擎版本：判定逻辑变化时递增（与规则集版本分开：引擎修 bug 不该改规则口径） */
-export const TRIP_CHECK_ENGINE_VERSION = "0.1.0";
+/** 引擎版本：判定/修复逻辑变化时递增（与规则集版本分开：引擎修 bug 不该改规则口径） */
+export const TRIP_CHECK_ENGINE_VERSION = "0.2.0";
 
 /** 规则集版本：规则增删/阈值调整时递增。凭据 ID 绑定它，保证「同一结论可追」 */
 export const TRIP_CHECK_RULESET_VERSION = "2026-10-28.1";
@@ -294,4 +294,64 @@ export interface VerifyRuleMeta {
   fixHint?: string;
   /** 规则引入版本（用于「这条规则什么时候开始生效」的对账） */
   since: string;
+  /**
+   * 可机械修复的规则（确定性、不编造数据）：
+   * - retime：顺延当天时间轴（重叠/接不上）
+   * - dedupe：删除同一天重复点位
+   * 没有这个字段 = 只能人工改（缺数据/换点/预算等），修复器不假装能修。
+   */
+  mechanicalFix?: "retime" | "dedupe";
+}
+
+// ============================================================
+// Trip Check Repair：从「判定」到「确定性修复 + 修复前后凭据」
+//
+// 为什么需要（2026-10 调研的最强空白）：43% 的 AI 行程日含可验证错误，但竞品
+// 都只提醒不修；产品内已有「一键修复」，却只服务自家行程。开放核验层如果只判
+// 不修，第三方拿到报告仍然要手改。修复器把「评分 + 证据 + 修复 + 重验」补成闭环，
+// 并且用前后两张凭据把「改了什么、风险降了多少」变成可对账的事实。
+//
+// 铁律：只做**有数据依据、不改变语义**的机械变换（顺延时间、删重复条目）。
+// 不编造地点/营业时间/路段，不删用户没要求删的独立点位，不替用户做取舍。
+// ============================================================
+
+/** 修复动作（逐条可对账；kind 与规则集的 mechanicalFix 对应） */
+export interface RepairApplied {
+  /** 修复掉的规则（TC-C102 / TC-C103 / TC-C109） */
+  ruleId: string;
+  day: number;
+  spot?: string;
+  /** 人话说明（含前后时刻/具体动作，供人类复核） */
+  detail: string;
+}
+
+/** 无法机械修复的残留问题（必须如实告诉调用方「为什么修不了」） */
+export interface RepairUnrepairable {
+  ruleId: string;
+  day?: number;
+  spot?: string;
+  reason: string;
+}
+
+export interface RepairResult {
+  /** 修复后的开放文档（新对象；入参不被修改） */
+  document: TripCheckDocument;
+  /** 已应用的确定性修复（空数组 = 本来就没得修/不需要修） */
+  applied: RepairApplied[];
+  /** 修复后仍存在、但不在机械修复范围内的规则（去重后的 ID，便于快速判断） */
+  remainingRuleIds: string[];
+  /** 逐条说明为什么修不了（给用户/agent 的下一步指引） */
+  unrepairable: RepairUnrepairable[];
+  before: TripCheckReport;
+  after: TripCheckReport;
+  delta: {
+    /** 结构分变化（修复后 - 修复前；可为 0） */
+    score: number;
+    gradeFrom: "A" | "B" | "C" | "D";
+    gradeTo: "A" | "B" | "C" | "D";
+    /** 阻断问题数变化（修复前 - 修复后；正数 = 减少了） */
+    blockingReduced: number;
+    /** 是否真的改善了（分数提高 或 阻断减少 或 等级上升） */
+    improved: boolean;
+  };
 }

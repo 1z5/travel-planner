@@ -28,6 +28,7 @@ import type { Plan } from "../types";
 import { planToDocument } from "./adapt";
 import { credentialOf } from "./credential";
 import { verifyDocument } from "./engine";
+import { repairDocument } from "./repair";
 import { RULES, RULE_ORDER } from "./rules";
 import { TRIP_CHECK_JSON_SCHEMA, TRIP_CHECK_SCHEMA_VERSION } from "./schema";
 import { parseTripCheckDocument, TripCheckOptionsSchema } from "./validate";
@@ -37,6 +38,7 @@ import {
   TRIP_CHECK_LIMITS,
   TRIP_CHECK_RULESET_VERSION,
   TRIP_CHECK_SPEC_VERSION,
+  type TripCheckDocument,
   type TripCheckOptions,
 } from "./types";
 
@@ -120,6 +122,26 @@ const OPTIONS_PROPERTY_SCHEMA: Record<string, unknown> = {
   },
 };
 
+/**
+ * verify_itinerary / repair_itinerary 共用的入参 schema（都是「一份文档 + 可选口径」）。
+ * 抽成常量而不是各写一份：两个工具的入参契约一旦漂移，agent 会按 A 工具的 schema
+ * 校验、却调用 B 工具，报错信息也会失真。
+ */
+const DOCUMENT_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["document"],
+  properties: {
+    document: {
+      ...DOCUMENT_PROPERTY_SCHEMA,
+      description:
+        'Trip Check v0.1 开放文档（体检/修复的输入）。specVersion 必须是 "trip-check/0.1"，days 至少 1 天。格式契约可用 get_trip_check_schema 取完整 JSON Schema。',
+    },
+    options: OPTIONS_PROPERTY_SCHEMA,
+  },
+  $defs: TRIP_CHECK_JSON_SCHEMA.$defs,
+};
+
 const EMPTY_OBJECT_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -140,20 +162,15 @@ export const MCP_TOOLS = [
     title: "行程体检（开放文档）",
     description:
       "对一份 Trip Check v0.1 开放行程文档做确定性体检，返回可对账报告：结构自洽性（时间轴/节奏/预算，0-100 分 + A-D 等级）、事实核验覆盖（点位存在性/营业时间/路程的三态覆盖，不折成分数）、按严重度排序的规则级问题与证据、以及可复算凭据 credential。只判定不改行程；未核验不等于没问题。",
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      required: ["document"],
-      properties: {
-        document: {
-          ...DOCUMENT_PROPERTY_SCHEMA,
-          description:
-            'Trip Check v0.1 开放文档。specVersion 必须是 "trip-check/0.1"，days 至少 1 天。格式契约可用 get_trip_check_schema 取完整 JSON Schema。',
-        },
-        options: OPTIONS_PROPERTY_SCHEMA,
-      },
-      $defs: TRIP_CHECK_JSON_SCHEMA.$defs,
-    },
+    inputSchema: DOCUMENT_TOOL_INPUT_SCHEMA,
+    annotations: READ_ONLY_ANNOTATIONS,
+  },
+  {
+    name: "repair_itinerary",
+    title: "行程修复（确定性）",
+    description:
+      "确定性修复一份 Trip Check v0.1 开放文档，返回修复后的新文档 + 修复前后两份报告与两张可复算凭据（parentCredential=修复前、credential=修复后），用于对账「改了什么、风险降了多少」。只做两种机械修复：顺延时间轴（消除时间段重叠 TC-C102 / 路段接不上 TC-C103）与删除同一天重复的同名点位（TC-C109）；不改日期、不加地点、不改营业时间、不补路段耗时、不按 0 补齐——不编造任何事实。修不了的问题逐条列在 unrepairable（含原因与下一步），不静默改语义。不写回任何存储、不修改入参；返回的 document 可继续调 verify_itinerary（其 credential.id 应与本工具返回的 credential.id 一致）。",
+    inputSchema: DOCUMENT_TOOL_INPUT_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   },
   {
@@ -296,19 +313,25 @@ function zodErrors(error: { issues: Array<{ path: PropertyKey[]; message: string
   }));
 }
 
-async function verifyItinerary(args: unknown, deps: McpDeps): Promise<McpToolResult> {
+/**
+ * verify_itinerary / repair_itinerary 共用的入参解析：document 必填、options 可选。
+ * 失败抛 -32602（入参不合 inputSchema = 协议层错误），并带字段路径。
+ */
+function parseDocumentArgs(
+  toolName: string,
+  args: unknown,
+): { document: TripCheckDocument; options: TripCheckOptions } {
   if (!isRecord(args)) {
     throw new RpcFault(
       JSON_RPC_ERRORS.invalidParams,
-      "verify_itinerary 需要对象参数 { document, options? }",
+      `${toolName} 需要对象参数 { document, options? }`,
     );
   }
   if (args.document === undefined) {
-    throw new RpcFault(JSON_RPC_ERRORS.invalidParams, "verify_itinerary 缺少必填参数 document", {
+    throw new RpcFault(JSON_RPC_ERRORS.invalidParams, `${toolName} 缺少必填参数 document`, {
       path: "document",
     });
   }
-  // 文档/口径校验失败是「入参不合 inputSchema」→ 协议层 -32602，并带字段路径便于定位
   const doc = parseTripCheckDocument(args.document);
   if (!doc.ok) {
     throw new RpcFault(JSON_RPC_ERRORS.invalidParams, "document 不符合 Trip Check v0.1 格式", {
@@ -321,11 +344,31 @@ async function verifyItinerary(args: unknown, deps: McpDeps): Promise<McpToolRes
       errors: zodErrors(options.error),
     });
   }
+  return { document: doc.value, options: options.data as TripCheckOptions };
+}
+
+async function verifyItinerary(args: unknown, deps: McpDeps): Promise<McpToolResult> {
+  const { document, options } = parseDocumentArgs("verify_itinerary", args);
   // 凭据必须基于「归一化后的文档 + 同口径 + 同一个 now」计算，才能和 /api/verify 对上账
-  const parsedOptions = options.data as TripCheckOptions;
   const now = deps.now ? deps.now() : new Date();
-  const report = verifyDocument(doc.value, parsedOptions, now);
-  return textResult({ ...report, credential: credentialOf(doc.value, parsedOptions, now) });
+  const report = verifyDocument(document, options, now);
+  return textResult({ ...report, credential: credentialOf(document, options, now) });
+}
+
+async function repairItinerary(args: unknown, deps: McpDeps): Promise<McpToolResult> {
+  const { document, options } = parseDocumentArgs("repair_itinerary", args);
+  // 修复 + 前后报告 + 两张凭据都用同一个 now：时间只影响展示字段，不参与修复/判定
+  const now = deps.now ? deps.now() : new Date();
+  const result = repairDocument(document, options, now);
+  return textResult({
+    ...result,
+    /** 是否真的改了文档（applied 为空 = 本来就没得修/不需要修） */
+    changed: result.applied.length > 0,
+    /** 修复前文档的凭据（与单独调 verify_itinerary 传入同一文档得到的 ID 一致） */
+    parentCredential: credentialOf(document, options, now),
+    /** 修复后文档的凭据（把返回的 document 再体检一次应得到同一个 ID） */
+    credential: credentialOf(result.document, options, now),
+  });
 }
 
 async function verifySharedTrip(args: unknown, deps: McpDeps): Promise<McpToolResult> {
@@ -407,6 +450,7 @@ type ToolHandler = (args: unknown, deps: McpDeps) => Promise<McpToolResult>;
 
 const TOOL_HANDLERS: Record<McpToolName, ToolHandler> = {
   verify_itinerary: (args, deps) => verifyItinerary(args, deps),
+  repair_itinerary: (args, deps) => repairItinerary(args, deps),
   verify_shared_trip: (args, deps) => verifySharedTrip(args, deps),
   get_trip_check_schema: () => getTripCheckSchema(),
   list_rules: () => listRules(),
@@ -450,8 +494,9 @@ function initializeResult(params: unknown) {
     capabilities: { tools: {} },
     serverInfo: { name: MCP_SERVER_INFO.name, version: MCP_SERVER_INFO.version },
     instructions:
-      "Trip Check：任何 AI 行程的可执行性体检（只读、确定性、可复算）。" +
-      "仅实现 tools 能力，不提供 resources/prompts/sampling。建议顺序：get_trip_check_schema 取文档契约 → verify_itinerary 体检第三方行程；" +
+      "Trip Check：任何 AI 行程的可执行性体检与确定性修复（不写库、可复算）。" +
+      "仅实现 tools 能力，不提供 resources/prompts/sampling。建议顺序：get_trip_check_schema 取文档契约 → verify_itinerary 体检第三方行程 → " +
+      "需要机械修复时用 repair_itinerary（只顺延时间/删同日重复，返回新文档 + 前后两张凭据，不写回任何存储；修不了的列 unrepairable）；" +
       "本平台分享行程用 verify_shared_trip（shareId 来自 /p/<id>）。报告分两轴看：结构自洽性（分数/等级）与事实核验覆盖（verified/partial/unverified）；" +
       "未核验不等于没问题。结论可用 credential.id 与其 inputHash 独立复算对账（不是数字签名）。",
   };

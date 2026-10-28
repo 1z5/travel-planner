@@ -206,6 +206,8 @@ const PAGE_CHECK_FN = String.raw`
     // Trip Check 公开体验台：两轴结论 / 问题证据 / 诚实声明都是关键文本
     '.tc-lede', '.tc-axis-summary', '.tc-axis-note', '.tc-issue-detail', '.tc-honesty',
     '.tc-coverage-row', '.tc-cred-note', '.tc-cred-id', '.tc-empty',
+    // Trip Check 修复区块（前后对比 / 修不了的原因 / 凭据链）
+    '.tc-repair', '.tc-repair-compare', '.tc-repair-unrepairable', '.tc-repair-cred-id',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);

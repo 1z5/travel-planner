@@ -155,7 +155,7 @@ LLM_API_KEY=sk-xxx LLM_BASE_URL=... PORT=3000 node .next/standalone/server.js
 npm run preflight                  # ① 配置自检：必须 🟢 GO；🔴 NO-GO 时任何一项 BLOCK 都不许继续
 npm run check:env                  # ①' 环境变量体检（格式/文档漂移/生产安全），BLOCK 同样不许继续
 npm run verify:amap                # ② 高德 key 5 秒验收（配了则 live 模式）
-node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链路冒烟（含 Trip Check 核验层；生成一步消耗 1 次当日配额）
+node scripts/smoke-deployed.mjs https://你的域名   # ③ 对着域名全链路冒烟（含 Trip Check 核验层与确定性修复；生成一步消耗 1 次当日配额）
 # ④ 观察 24 小时：服务端 [llm] tokens 日志核对成本；/api/health 配监控告警
 ```
 

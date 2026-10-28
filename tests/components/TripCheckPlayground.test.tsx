@@ -1,14 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripCheckPlayground } from "@/components/TripCheckPlayground";
+import type { TripCheckRepairResponse } from "@/components/TripCheckReport";
 import { verifyDocument } from "@/lib/verify/engine";
+import { repairDocument } from "@/lib/verify/repair";
 import { TRIP_CHECK_SAMPLES } from "@/lib/verify/samples";
 import type { TripCheckCredential, TripCheckReport } from "@/lib/verify/types";
 
-// /verify 体检台的组件测试：钉住「示例 → 提交 → 两轴报告 + 凭据」的主路径，
-// 以及 400 字段级错误、空输入不请求、?share= 自动体检。fetch 一律 stub，不触网；
-// 报告用真实引擎（lib/verify/engine.ts 是纯函数）生成，避免手写假数据掩盖契约漂移。
+// /verify 体检台的组件测试：示例 → 提交 → 两轴报告 + 凭据；
+// 以及确定性修复（/api/verify/repair）：before→after、已修/修不了、前后凭据链、
+// changed=false、错误分支。fetch 一律 stub，不触网；报告与修复结果都用真实纯函数生成
+// （engine / repair），避免手写假数据掩盖契约漂移。
+
+const NOW = new Date("2026-10-28T10:00:00.000Z");
 
 function jsonResponse(body: unknown, status = 200): Response {
   return {
@@ -23,22 +28,46 @@ const CREDENTIAL: TripCheckCredential = {
   algorithm: "sha256",
   inputHash: "a".repeat(64),
   specVersion: "trip-check/0.1",
-  engineVersion: "0.1.0",
+  engineVersion: "0.2.0",
   rulesetVersion: "2026-10-28.1",
   issuedAt: "2026-10-28T10:00:00.000Z",
   basis:
     "sha256(specVersion|engineVersion|rulesetVersion|sha256(canonical-json({document,options})))",
 };
 
+/** 修复前的凭据（输入文档） */
+const PARENT_CREDENTIAL: TripCheckCredential = {
+  ...CREDENTIAL,
+  id: "tc_parent0123456789abcdef0123456789",
+  inputHash: "b".repeat(64),
+};
+
+/** 修复后的凭据（修复后文档） */
+const AFTER_CREDENTIAL: TripCheckCredential = {
+  ...CREDENTIAL,
+  id: "tc_after9876543210fedcba9876543210",
+  inputHash: "c".repeat(64),
+};
+
 /** 用真实引擎算一份示例的报告，再补上 API 签发的凭据 */
 function reportOfSample(index: number): TripCheckReport {
   const sample = TRIP_CHECK_SAMPLES[index];
-  const report = verifyDocument(
-    sample.document,
-    {},
-    new Date("2026-10-28T10:00:00.000Z"),
-  ) as TripCheckReport;
+  const report = verifyDocument(sample.document, {}, NOW) as TripCheckReport;
   return { ...report, credential: CREDENTIAL };
+}
+
+/** 用真实修复器算示例的修复结果，再补上 API 层语义字段与前后凭据链 */
+function repairResponseOfSample(index: number): TripCheckRepairResponse {
+  const sample = TRIP_CHECK_SAMPLES[index];
+  const result = repairDocument(sample.document, {}, NOW);
+  return {
+    ...result,
+    changed: result.applied.length > 0,
+    persisted: false,
+    source: "document",
+    parentCredential: PARENT_CREDENTIAL,
+    credential: AFTER_CREDENTIAL,
+  };
 }
 
 function requestOf(fetchMock: ReturnType<typeof vi.fn>) {
@@ -173,5 +202,121 @@ describe("TripCheckPlayground", () => {
     await user.click(screen.getByRole("button", { name: /有问题的行程（闭馆\/重叠）/ }));
     expect(screen.queryByTestId("tc-credential-id")).not.toBeInTheDocument();
     expect(screen.queryByText(/等级 A · 可执行/)).not.toBeInTheDocument();
+  });
+
+  it("确定性修复：before→after、已修清单、凭据链，并沿用同一份输入", async () => {
+    const repairPayload = repairResponseOfSample(1); // 闭馆/重叠示例：可修 C102
+    const fetchMock = vi.fn(async (url: string) =>
+      url === "/api/verify/repair" ? jsonResponse(repairPayload) : jsonResponse(reportOfSample(1)),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<TripCheckPlayground />);
+
+    await user.click(screen.getByRole("button", { name: /有问题的行程（闭馆\/重叠）/ }));
+    await user.click(screen.getByRole("button", { name: "开始体检" }));
+
+    const repairRegion = await screen.findByRole("region", { name: "确定性修复" });
+    await user.click(within(repairRegion).getByRole("button", { name: "确定性修复" }));
+
+    expect(await within(repairRegion).findByText(/已修复 · 结论改善/)).toBeInTheDocument();
+    // before → after 的分数/等级来自响应里的两次真实判定
+    const compare = within(repairRegion).getByRole("group", { name: "修复前后对比" });
+    const before = repairPayload.before.verdict.consistency;
+    const after = repairPayload.after.verdict.consistency;
+    expect(compare.textContent).toContain(`等级 ${before.grade} ·`);
+    expect(compare.textContent).toContain(`等级 ${after.grade} ·`);
+    expect(compare.textContent).toContain(`评分 ${before.score} / 100`);
+    expect(compare.textContent).toContain(`评分 ${after.score} / 100`);
+    expect(compare.textContent).toContain(`阻断 ${repairPayload.before.stats.blocking}`);
+    expect(compare.textContent).toContain(`阻断 ${repairPayload.after.stats.blocking}`);
+    expect(before.grade).not.toBe(after.grade);
+
+    // 已修明细 + 修不了的显眼区块
+    for (const item of repairPayload.applied) {
+      expect(within(repairRegion).getByText(item.detail)).toBeInTheDocument();
+    }
+    expect(within(repairRegion).getByText(/修不了的问题（/)).toBeInTheDocument();
+    expect(within(repairRegion).getByText(/修复器不编造地点/)).toBeInTheDocument();
+
+    // 前后凭据链 + 新文档动作
+    expect(within(repairRegion).getByTestId("tc-repair-parent-credential")).toHaveTextContent(
+      PARENT_CREDENTIAL.id,
+    );
+    expect(within(repairRegion).getByTestId("tc-repair-credential")).toHaveTextContent(
+      AFTER_CREDENTIAL.id,
+    );
+    expect(
+      within(repairRegion).getByText(/前后两张凭据都可复算，能对账改了哪些/),
+    ).toBeInTheDocument();
+    expect(within(repairRegion).getByRole("button", { name: /复制文档 JSON/ })).toBeInTheDocument();
+    expect(within(repairRegion).getByRole("button", { name: /下载 \.json/ })).toBeInTheDocument();
+
+    // 修复请求 = 同一份输入（与体检请求体完全一致），且命中修复端点
+    const verifyCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const repairCall = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(verifyCall[0]).toBe("/api/verify");
+    expect(repairCall[0]).toBe("/api/verify/repair");
+    expect(JSON.parse(String(repairCall[1].body))).toEqual(JSON.parse(String(verifyCall[1].body)));
+
+    // 换输入后报告与修复结果一起作废
+    await user.click(screen.getByRole("button", { name: /未核验行程（杭州 1 天）/ }));
+    expect(screen.queryByRole("region", { name: "确定性修复" })).not.toBeInTheDocument();
+  });
+
+  it("修复 changed=false：明确说「没有可机械修复的问题」，不虚构改动", async () => {
+    const noopPayload: TripCheckRepairResponse = {
+      ...repairResponseOfSample(0), // 已核验示例：修复器无事可做
+      // 文档没变 → 前后凭据 ID 相同（同一输入 + 同一版本）
+      parentCredential: CREDENTIAL,
+      credential: CREDENTIAL,
+    };
+    expect(noopPayload.changed).toBe(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/api/verify/repair" ? jsonResponse(noopPayload) : jsonResponse(reportOfSample(0)),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<TripCheckPlayground />);
+
+    await user.click(screen.getByRole("button", { name: /已核验行程（苏州 2 天）/ }));
+    await user.click(screen.getByRole("button", { name: "开始体检" }));
+    const repairRegion = await screen.findByRole("region", { name: "确定性修复" });
+    await user.click(within(repairRegion).getByRole("button", { name: "确定性修复" }));
+
+    expect(await within(repairRegion).findByText("没有可机械修复的问题")).toBeInTheDocument();
+    expect(
+      within(repairRegion).getByText(/文档没有变化，所以前后凭据 ID 相同/),
+    ).toBeInTheDocument();
+    // changed=false 不展示「修复后的文档 / 下载」，避免暗示文档被改过
+    expect(
+      within(repairRegion).queryByRole("button", { name: /下载 \.json/ }),
+    ).not.toBeInTheDocument();
+    expect(within(repairRegion).queryByText(/已修复/)).not.toBeInTheDocument();
+  });
+
+  it("修复错误：429 复用统一错误展示，原体检报告不被清掉", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/api/verify/repair"
+          ? jsonResponse({ error: "rate_limited", limit: 120 }, 429)
+          : jsonResponse(reportOfSample(0)),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<TripCheckPlayground />);
+
+    await user.click(screen.getByRole("button", { name: /已核验行程（苏州 2 天）/ }));
+    await user.click(screen.getByRole("button", { name: "开始体检" }));
+    const repairRegion = await screen.findByRole("region", { name: "确定性修复" });
+    await user.click(within(repairRegion).getByRole("button", { name: "确定性修复" }));
+
+    expect(await within(repairRegion).findByText("请求太频繁（429）")).toBeInTheDocument();
+    expect(within(repairRegion).getByText(/每小时 120 次/)).toBeInTheDocument();
+    // 修复失败不应让体检报告消失
+    expect(screen.getByTestId("tc-credential-id")).toBeInTheDocument();
   });
 });

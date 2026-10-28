@@ -9099,3 +9099,352 @@ main.has-result .new-head {
     flex: 1 1 auto;
   }
 }
+
+/* ---------- 确定性修复（/verify 修复交互，POST /api/verify/repair） ----------
+   为什么放在 Trip Check 区块末尾：复用同一套 token/.card/.btn 与语义色；
+   只新增展示样式，不改报告本身的排版。移动端基准 390px：对比区单列、
+   凭据 ID 允许换行、所有按钮沿用 .btn 的 40px+ 触控目标。 */
+.tc-repair {
+  margin-bottom: var(--sp-4);
+  border-left: 3px solid var(--accent);
+}
+.tc-repair-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: var(--sp-2);
+}
+.tc-repair-head h3 {
+  font-size: var(--fs-h3);
+}
+.tc-repair-lede {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+.tc-repair-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+}
+.tc-repair-actions .tc-hint {
+  flex: 1 1 240px;
+  margin: 0;
+}
+.tc-repair-btn {
+  width: auto;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 20px;
+  font-size: var(--fs-small);
+}
+.tc-repair-alert {
+  margin-top: var(--sp-3);
+}
+.tc-repair-alert-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--err-ink);
+}
+
+/* 修复结果：before → after 对比 */
+.tc-repair-result {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+.tc-repair-verdict {
+  margin-bottom: var(--sp-3);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.tc-repair-improved {
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+}
+.tc-repair-noop {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+}
+.tc-repair-verdict-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+.tc-repair-improved .tc-repair-verdict-label {
+  color: var(--ok-ink);
+}
+.tc-repair-noop .tc-repair-verdict-label {
+  color: var(--warn-ink);
+}
+.tc-repair-verdict-text {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.tc-repair-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+}
+.tc-repair-side {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.tc-repair-side-after {
+  border-color: var(--accent-ring);
+  background: var(--accent-soft);
+}
+.tc-repair-side-label {
+  margin: 0 0 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tc-repair-side-grade {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 650;
+  color: var(--ink);
+}
+.tc-repair-side-score,
+.tc-repair-side-blocking {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.tc-repair-arrow {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--ink-3);
+  text-align: center;
+}
+.tc-repair-delta {
+  margin: var(--sp-2) 0 var(--sp-3);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+/* 已修 / 修不了 / 新文档 */
+.tc-repair-block {
+  margin-top: var(--sp-3);
+}
+.tc-repair-block-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+.tc-repair-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.tc-repair-applied {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tc-repair-applied li {
+  padding: 8px 10px;
+  border-left: 3px solid var(--ok-line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.tc-repair-rule {
+  display: inline-block;
+  margin-bottom: 2px;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  color: var(--ok-ink);
+}
+.tc-repair-detail {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.65;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+/* 修不了 = 承诺「只改两种机械变换」的代价，必须显眼：琥珀底 + 边框 */
+.tc-repair-unrepairable {
+  padding: 10px 12px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--r-md);
+  background: var(--warn-bg);
+}
+.tc-repair-unrepairable .tc-repair-block-title {
+  color: var(--warn-ink);
+}
+.tc-repair-unrepairable .tc-hint {
+  color: var(--warn-ink);
+}
+.tc-repair-unrep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+}
+.tc-repair-unrep-list li {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.tc-repair-unrep-title {
+  margin-left: 6px;
+  font-size: var(--fs-small);
+  font-weight: 650;
+  color: var(--ink);
+}
+.tc-repair-unrep-loc {
+  margin-left: 6px;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.tc-repair-unrep-reason {
+  margin: 4px 0 0;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--warn-ink);
+  overflow-wrap: anywhere;
+}
+.tc-repair-remaining {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 8px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.tc-repair-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: 6px;
+}
+.tc-copy-ok {
+  margin: 6px 0 0;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ok-ink);
+}
+
+/* 凭据链：两张 ID 等宽、可选中、可复制；换行不撑破 390px */
+.tc-repair-cred {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+.tc-repair-cred-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px var(--sp-2);
+  margin-top: 6px;
+}
+.tc-repair-cred-label {
+  flex: 0 0 48px;
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.tc-repair-cred-id {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+}
+.tc-repair-cred-row .btn {
+  flex-shrink: 0;
+}
+.tc-repair-cred-note {
+  margin: 8px 0 0;
+  font-size: var(--fs-caption);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+/* 修复的诚实声明：与结果同屏，不折叠 */
+.tc-repair-honesty {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: var(--sp-3) 0 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  list-style: none;
+  font-size: var(--fs-caption);
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.tc-repair-honesty b {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .tc-repair-compare {
+    grid-template-columns: 1fr;
+  }
+  .tc-repair-arrow {
+    transform: rotate(90deg);
+    line-height: 1;
+  }
+  .tc-repair-actions {
+    align-items: stretch;
+  }
+  .tc-repair-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .tc-repair-actions .tc-hint {
+    flex-basis: 100%;
+  }
+  .tc-repair-cred-label {
+    flex-basis: 100%;
+  }
+  .tc-repair-unrepairable {
+    padding: var(--sp-2) var(--sp-3);
+  }
+}

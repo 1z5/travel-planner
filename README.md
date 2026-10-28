@@ -22,6 +22,9 @@ AI 智能旅游规划 **v8.1**（2026-10-25 最新能力见 [CHANGELOG.md](CHANG
 - **三个入口**：`/verify` 公开体检台（贴任何 AI 行程 JSON 或分享链接）· `POST /api/verify`
   （CORS + 限流 + 无状态不落库）· `POST /api/mcp` + `npm run mcp`（MCP 工具：
   `verify_itinerary` / `verify_shared_trip` / `list_rules` / `explain_rule`）。
+- **确定性修复（S1.5）**：`POST /api/verify/repair`（MCP：`repair_itinerary`）把时间重叠 /
+  路段接不上 / 重复点位**机械修复**到可执行（只顺延时间、只删重复，不编造事实、不写回分享
+  行程），并签发**修复前后两张凭据**——「改了什么、风险降了多少」可对账。
 - **产品内接入**：分享页输出 schema.org `TouristTrip` JSON-LD，并展示这份行程的体检凭据
   （两轴结论 + 凭据 ID + 「在开放体检台查看/复算」入口）。
 - **诚实边界**：MOCK/无真实 key 期间**不声称「真实世界核验」**；示例营业时间为示意数据；

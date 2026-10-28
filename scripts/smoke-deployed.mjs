@@ -7,9 +7,10 @@
  * 依次验证：
  *   ① /api/health 配置自检（含部署 commit，可确认新版本真的上线）
  *   ② 首页可访问
- *   ③ **Trip Check 核验层**（v9 新形态，免配额、可重复）：
+ *   ③ **Trip Check 核验层 + 确定性修复**（v9 新形态，免配额、可重复）：
  *      /api/verify 元信息、/api/verify/schema、POST /api/verify 可复算凭据、
- *      /verify 体验台、robots 收录、CORS 预检
+ *      /verify 体验台、robots 收录、CORS 预检；POST /api/verify/repair 把一份
+ *      时间重叠的文档修到可执行，并给出「修复前凭据 → 修复后凭据」可对账的链
  *   ④ 提交一次真实规划并等结果（会消耗该服务器上你当前 IP 的 1 次当日配额）
  *   ⑤ 分享页凭据 + JSON-LD + shareId 核验（依赖 ④ 的产物）
  *
@@ -171,6 +172,61 @@ try {
     ok("robots.txt 已允许 /verify（公开工具页可被索引）");
   } else {
     fail("robots.txt 未允许 /verify（搜索引擎无法发现体验台）");
+  }
+
+  // 3b) 确定性修复（Repair）：破损文档 → 修复 → 前后凭据链。免配额、可重复。
+  //     为什么放进部署验收：修复器是「判定 → 修复 → 重验」闭环的核心，且它只改时间/
+  //     重复项、不编造事实；线上跑一份已知破损的文档就能证明部署产物带的是同一套引擎。
+  const brokenDoc = {
+    specVersion: "trip-check/0.1",
+    id: "deploy_smoke_repair",
+    days: [
+      {
+        day: 1,
+        spots: [
+          { name: "拙政园", time: "09:00-11:00", type: "sight", durationMin: 120, costCny: 80 },
+          { name: "平江路", time: "10:30-12:00", type: "sight", durationMin: 90, costCny: 60 },
+        ],
+      },
+    ],
+  };
+  const repairRes = await get("/api/verify/repair", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document: brokenDoc }),
+  });
+  const repair = await json(repairRes);
+  const parentCredential = repair?.parentCredential?.id ?? "";
+  const childCredential = repair?.credential?.id ?? "";
+  if (
+    repairRes.status === 200 &&
+    repair.changed === true &&
+    repair.delta?.improved === true &&
+    /^tc_[0-9a-f]{32}$/.test(parentCredential) &&
+    /^tc_[0-9a-f]{32}$/.test(childCredential)
+  ) {
+    ok(
+      `POST /api/verify/repair: ${repair.delta.gradeFrom} → ${repair.delta.gradeTo}，修复 ${repair.applied.length} 处，阻断减少 ${repair.delta.blockingReduced}`,
+    );
+    ok("修复前后凭据可对账（parentCredential → credential）");
+  } else {
+    fail(
+      `POST /api/verify/repair 异常: HTTP ${repairRes.status} ${JSON.stringify(repair).slice(0, 160)}`,
+    );
+  }
+  if (childCredential) {
+    // 修复后的文档再走一次公开核验，必须得到同一张凭据（链可复算）
+    const reRes = await get("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document: repair.document }),
+    });
+    const re = await json(reRes);
+    if (re?.credential?.id === childCredential) {
+      ok("修复后文档再核验 → 同一凭据 ID（修复结果可复算）");
+    } else {
+      fail(`修复后文档凭据不一致: ${childCredential} vs ${re?.credential?.id}`);
+    }
   }
 } catch (e) {
   fail(`Trip Check 验收异常: ${e?.message ?? e}`);

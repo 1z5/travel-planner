@@ -78,10 +78,11 @@ components/
 
 - **产品阶段再次切换（2026-10-28）**：全球市场重调研后，从「To C 产品感」进入
   **「行程可执行性核验层」**阶段——卖「可复算的证据」而不是「生成行程」：
-  Trip Check 开放标准 v0.1 + 两轴报告 + 可复算凭据 + `/api/verify` + MCP（`/api/mcp`）已落地。
-  新功能先对照 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md)
-  与 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)；上一阶段路线图
-  [docs/PRODUCT-UPGRADE-2026-10.md](docs/PRODUCT-UPGRADE-2026-10.md) 保留为历史。
+  Trip Check 开放标准 v0.1 + 两轴报告 + 可复算凭据 + 确定性修复（`/api/verify/repair`，前后凭据链）
+  - `/api/verify` + MCP（`/api/mcp`）已落地。
+    新功能先对照 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md)
+    与 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)；上一阶段路线图
+    [docs/PRODUCT-UPGRADE-2026-10.md](docs/PRODUCT-UPGRADE-2026-10.md) 保留为历史。
 - **产品阶段已切换（2026-10）**：能力补齐阶段结束，进入「To C 产品感」阶段——定位改为
   **「会体检的行程规划师」**，路线图/优先级/不做清单见
   [docs/PRODUCT-UPGRADE-2026-10.md](docs/PRODUCT-UPGRADE-2026-10.md)。新功能先对照那份文档的
@@ -89,7 +90,8 @@ components/
 - **Phase 0（官网/产品分离）已落地**：`/` 是「我的行程」、`/new` 是新建、`/about` 才是营销页；根布局不再挂站点头尾，产品页用 `AppShell`。下一步是 Trip Workspace（双栏 + 直接操纵），不要再把营销区块加回产品页。
 - **产品已到 v9（2026-10-28）**：在 v8.1 能力链之上新增 **Trip Check 核验层**
   （开放标准 v0.1 / 两轴报告 / 可复算凭据 / `/api/verify` / MCP `/api/mcp` / `/verify` 体验台 /
-  分享页凭据与 JSON-LD）。测试基线 **1111 单测 + 641 e2e**；视觉回归脚本已扩到 13 页
+  确定性修复（Repair）+ 前后凭据链 / 分享页凭据与 JSON-LD）。测试基线以 `npm run gate` 实测为准；
+  视觉回归脚本已扩到 13 页
   （DSH 沙箱下无法启动 headless Chrome，`/verify` 用 Chrome DevTools MCP 实测验收）。
   下一阶段按 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md) 的 S2（真实 key 验收 + 买方问价），
   未拿到买方信号前不投入 B 端白标/签名凭据。
@@ -195,9 +197,10 @@ node scripts/smoke-deployed.mjs https://travel-planner-demo.onrender.com
 ```
 
 它依次验证：①health + commit ②首页 ③**Trip Check**（`/api/verify` 元信息、
-`/api/verify/schema`、POST `/api/verify` 可复算凭据 + CORS、`/verify` 体验台、robots）
-④真实生成一次（消耗 1 次当日配额）⑤分享页体检凭据 + schema.org JSON-LD + shareId 核验。
-绿了才算「上线验收通过」；③ 不烧配额，push 后可先单独跑它快速判断新形态是否生效。
+`/api/verify/schema`、POST `/api/verify` 可复算凭据 + CORS、`/verify` 体验台、robots、修复器）
+④确定性修复（`/api/verify/repair`：破损文档 → 修复 → 前后凭据链可复算，免配额）
+⑤真实生成一次（消耗 1 次当日配额）⑥分享页体检凭据 + schema.org JSON-LD + shareId 核验。
+绿了才算「上线验收通过」；③④ 不烧配额，push 后可先单独跑它们快速判断新形态是否生效。
 
 ### 度量闭环（北极星可计算）
 

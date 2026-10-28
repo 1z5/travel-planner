@@ -614,19 +614,20 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 
 错误：手机号格式→400；验证码错误→401；配额用尽→429（文案区分登录/未登录并引导）。
 
-## Trip Check 公开体检 API（`/api/verify` + `/api/mcp`）
+## Trip Check 公开体检 / 修复 API（`/api/verify` + `/api/verify/repair` + `/api/mcp`）
 
-把「这份 AI 行程能不能照着走」做成**可复算、可对账**的公开判定（Trip Check 开放标准 v0.1）。判定是确定性纯函数（`lib/verify/engine.ts`：不调模型、当前时间只用于 `checkedAt`、不参与任何判定），输入一份开放行程文档，输出**两轴报告**与**可复算凭据**。完整规范、规则表、凭据算法与合规边界见 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)。
+把「这份 AI 行程能不能照着走」做成**可复算、可对账**的公开判定（Trip Check 开放标准 v0.1）。判定是确定性纯函数（`lib/verify/engine.ts`：不调模型、当前时间只用于 `checkedAt`、不参与任何判定），输入一份开放行程文档，输出**两轴报告**与**可复算凭据**。另有**确定性修复**（`POST /api/verify/repair`）：只做顺延时间/删重复这类有数据依据的机械变换，返回修复前后两份报告与**前后两张凭据**（可对账「改了什么、风险降了多少」）。完整规范、规则表、凭据算法与合规边界见 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)。
 
 两轴刻意分开，任何一方缺失都必须显式说明：`verdict.consistency`（结构自洽性：只靠文档判时间轴/节奏/预算，给 0-100 分 + A/B/C/D）与 `verdict.facts`（事实核验：地点/营业时间/路段「谁核的、核到哪一步」，用覆盖率 + 四态表达，不折成分数）。
 
-| 方法 | 路径                 | 说明                                                                                                                                |
-| ---- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| POST | `/api/verify`        | 体检。body `{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                              |
-| GET  | `/api/verify`        | 服务元信息：`{ name, specVersion, engineVersion, rulesetVersion, schema, docs }`                                                    |
-| GET  | `/api/verify/schema` | 开放文档 JSON Schema（draft 2020-12），`Cache-Control: public, max-age=3600`                                                        |
-| POST | `/api/mcp`           | MCP（JSON-RPC 2.0、stateless）：`verify_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
-| GET  | `/verify`            | 公开体检体验台（粘贴 JSON 或分享链接）                                                                                              |
+| 方法 | 路径                 | 说明                                                                                                                                                     |
+| ---- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST | `/api/verify`        | 体检。body `{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                                                   |
+| POST | `/api/verify/repair` | 确定性修复：顺延时间/删重复 → 前后两份报告 + 前后凭据链（不写回任何存储）                                                                                |
+| GET  | `/api/verify`        | 服务元信息：`{ name, specVersion, engineVersion, rulesetVersion, schema, docs }`                                                                         |
+| GET  | `/api/verify/schema` | 开放文档 JSON Schema（draft 2020-12），`Cache-Control: public, max-age=3600`                                                                             |
+| POST | `/api/mcp`           | MCP（JSON-RPC 2.0、stateless）：`verify_itinerary` / `repair_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
+| GET  | `/verify`            | 公开体检体验台（粘贴 JSON 或分享链接）                                                                                                                   |
 
 ### POST /api/verify
 
@@ -647,7 +648,7 @@ curl -sX POST http://localhost:3000/api/verify \
 ```jsonc
 {
   "specVersion": "trip-check/0.1",
-  "engine": { "name": "trip-check", "version": "0.1.0", "rulesetVersion": "2026-10-28.1" },
+  "engine": { "name": "trip-check", "version": "0.2.0", "rulesetVersion": "2026-10-28.1" },
   "verdict": {
     "consistency": { "score": 100, "grade": "A", "gradeLabel": "可执行", "summary": "…" },
     "facts": {
@@ -677,7 +678,7 @@ curl -sX POST http://localhost:3000/api/verify \
     "algorithm": "sha256",
     "inputHash": "…", // sha256(canonicalJson({ document, options }))
     "specVersion": "trip-check/0.1",
-    "engineVersion": "0.1.0",
+    "engineVersion": "0.2.0",
     "rulesetVersion": "2026-10-28.1",
     "issuedAt": "2026-10-28T10:00:00.000Z", // 只做展示，不参与 ID 计算
     "basis": "sha256(specVersion|engineVersion|rulesetVersion|sha256(canonical-json({document,options})))",
@@ -707,24 +708,84 @@ curl -sX POST http://localhost:3000/api/verify \
 - `Access-Control-Allow-Headers: Content-Type`
 - `Access-Control-Expose-Headers: X-Trip-Check-Spec`
 - 响应头 `X-Trip-Check-Spec: trip-check/0.1`（调用方据此确认对方实现的规范版本）
-- `OPTIONS /api/verify`、`OPTIONS /api/verify/schema` → **204**（无 body）
+- `OPTIONS /api/verify`、`OPTIONS /api/verify/schema`、`OPTIONS /api/verify/repair` → **204**（无 body）
 
 ### 限流与配额
 
 - 按 IP 小时桶：`VERIFY_HOURLY_LIMIT`（默认 120/小时）；**参数校验之前不扣额度**（坏请求不消耗），也不做失败退还（否则刷子可用失败请求绕过计数）。
+- 体检（`verify`）与修复（`verify-repair`）各用一个独立桶，额度同为 `VERIFY_HOURLY_LIMIT`，互不占用。
 - 不消耗生成配额；无登录门槛。`shareId` 路径不写库、不修改行程（只读判定）。
+
+### POST /api/verify/repair（确定性修复 + 前后凭据链）
+
+在体检之上做**确定性修复**：只做「有数据依据、不改变语义」的机械变换——**顺延时间轴**消除时间重叠/接不上（`TC-C102`/`TC-C103`）、**删除同一天重复的同名点位**（`TC-C109`，保留第一条）；修完用**同一套引擎**重验，返回修复前后两份报告和**两张可复算凭据**。body 与 `/api/verify` 完全一致（`document` 或 `shareId` 二选一 + 可选 `options`）：
+
+```bash
+curl -sX POST http://localhost:3000/api/verify/repair \
+  -H 'Content-Type: application/json' \
+  -d '{"document":{"specVersion":"trip-check/0.1","days":[{"day":1,"spots":[{"name":"拙政园","time":"09:00-11:00"},{"name":"平江路","time":"10:30-12:00"}]}]}}'
+```
+
+**200**：
+
+```jsonc
+{
+  "document": { "…": "修复后的开放文档（新对象；可直接再 POST /api/verify 复算）" },
+  "applied": [
+    {
+      "ruleId": "TC-C102",
+      "day": 1,
+      "spot": "平江路",
+      "detail": "第 1 天「平江路」时间 10:30-12:00 → 11:00-12:30（顺延 30 分钟，消除重叠）",
+    },
+  ],
+  "remainingRuleIds": ["TC-C104", "TC-F201", "TC-F203"], // 修复后仍存在的规则（去重，便于快速判断）
+  "unrepairable": [
+    { "ruleId": "TC-C104", "day": 1, "reason": "缺少真实路段耗时，修复器不能编造通勤时间。" },
+  ],
+  "before": { "…": "TripCheckReport（输入文档，与 after 同一 options + 同一 now）" },
+  "after": { "…": "TripCheckReport（修复后文档，用同一把尺子重验）" },
+  "delta": {
+    "score": 45,
+    "gradeFrom": "D",
+    "gradeTo": "A",
+    "blockingReduced": 1,
+    "improved": true,
+  },
+  "changed": true, // applied.length > 0
+  "persisted": false, // 不写回任何存储；shareId 路径的 Plan 保持原样
+  "source": "document", // document | share
+  "parentCredential": { "id": "tc_…", "…": "输入文档的凭据" },
+  "credential": { "id": "tc_…", "…": "修复后文档的凭据" },
+}
+```
+
+**语义（红线）**：
+
+- 只顺延时间 / 删重复项，**不编造任何事实**：不加地点、不改营业时间、不补路段耗时、不删独立点位、不替用户做取舍（换点/拆天/改预算不在修复范围）。
+- 修不了的问题逐条写进 `unrepairable` 并给原因（缺路段数据 `TC-C104`、超预算 `TC-C108`、闭馆日 `TC-F204`、顺延会越过 24:00 等）；**修不了就说修不了**，绝不悄悄改。
+- `changed:false` 时 `applied` 为空、`delta.score:0`——没改动就如实说没改动，不谎报改善。
+- `shareId` 路径只读（响应 `persisted:false`）：修复结果是**建议**，采用与否由用户/调用方决定；产品内修改仍走 `/api/plan/refine` 等既有入口。
+
+**凭据链（可对账）**：
+
+- `parentCredential = credentialOf(输入文档, options, now)`、`credential = credentialOf(修复后文档, options, now)`；`before`/`after` 与两张凭据共用**同一个 `now`**（时间只进 `checkedAt`/`issuedAt`，不参与 ID 计算）。
+- 把响应里的 `document` 再 POST 给 `/api/verify`，得到的 `credential.id` 必须与这里的 `credential.id` 相同；把输入文档再 POST 给 `/api/verify`，必须等于 `parentCredential.id`——任何一方都能独立复算「改了什么、风险降了多少」。
+
+**错误**：与 `/api/verify` 同码（400 `invalid_json`、400 `invalid_request` + `errors[].path`、404 `not_found`、413 `payload_too_large`、429 `rate_limited`、500 `internal_error`）。**`GET /api/verify/repair` → 405** `{ "error": "method_not_allowed" }`：修复是一次性确定性计算、不落库，没有可查询的结果。
 
 ### MCP（agent 调用入口）
 
 `POST /api/mcp` 接受单条 JSON-RPC 2.0 消息（stateless，不维护会话）；`initialize` 回显请求的 `protocolVersion`（缺省 `2025-06-18`），只声明 `tools` 能力（诚实：未实现 resources/prompts）。
 
-| 工具                    | 参数                     | 说明                                |
-| ----------------------- | ------------------------ | ----------------------------------- |
-| `verify_itinerary`      | `{ document, options? }` | 对任意开放文档体检，返回报告 + 凭据 |
-| `verify_shared_trip`    | `{ shareId }`            | 对站内分享行程体检                  |
-| `get_trip_check_schema` | `{}`                     | 取 JSON Schema 契约                 |
-| `list_rules`            | `{}`                     | 取规则清单（ID/严重度/扣分/说明）   |
-| `explain_rule`          | `{ ruleId }`             | 解释单条规则                        |
+| 工具                    | 参数                     | 说明                                                                          |
+| ----------------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `verify_itinerary`      | `{ document, options? }` | 对任意开放文档体检，返回报告 + 凭据                                           |
+| `repair_itinerary`      | `{ document, options? }` | 确定性修复（只顺延时间/删重复），返回新文档 + `before`/`after` + 前后两张凭据 |
+| `verify_shared_trip`    | `{ shareId }`            | 对站内分享行程体检                                                            |
+| `get_trip_check_schema` | `{}`                     | 取 JSON Schema 契约                                                           |
+| `list_rules`            | `{}`                     | 取规则清单（ID/严重度/扣分/说明）                                             |
+| `explain_rule`          | `{ ruleId }`             | 解释单条规则                                                                  |
 
 - `tools/call` 结果：`{ content: [{ type: "text", text: "<JSON 字符串>" }], isError? }`；错误码 `-32700` parse / `-32600` invalid request / `-32601` method not found / `-32602` invalid params。
 - 通知（无 `id`，如 `notifications/initialized`）→ **202 空 body**。
@@ -734,8 +795,8 @@ curl -sX POST http://localhost:3000/api/verify \
 
 - **无状态判定**：不落库输入文档、不缓存 POI 数据；开放的是判定规则与凭据格式，不是任何地图/POI 数据授权。
 - 事实是否真实取决于文档声明的 `provenance` / `verification` 三态（`hit`/`miss`/`error`/`not_checked`）：**`miss` ≠ 地点不存在（是来源没有），`not_checked` ≠ 没问题**；MOCK/未核验数据不得声称「真实世界核验」。
-- 不判断价格合理性/排队时长/天气突变，不预订/支付，不自动改行程（`fixHint` 只给方向）。
-- 测试：`scripts/e2e-slices/verify.mjs`（mock/real 两台服务器各跑一遍，幂等）覆盖元信息/schema/CORS 预检/合法与非法文档/可复算凭据/shareId/413/MCP/体验台。
+- 不判断价格合理性/排队时长/天气突变，不预订/支付，不自动改行程（体检的 `fixHint` 只给方向；修复只在**调用方主动请求**时做机械变换，且不写回存储）。
+- 测试：`scripts/e2e-slices/verify.mjs`（mock/real 两台服务器各跑一遍，幂等）覆盖元信息/schema/CORS 预检/合法与非法文档/可复算凭据/shareId/413/MCP/体验台/修复（破损文档、`delta.improved`、前后凭据链可复算、干净文档 `changed:false`、shareId 只读建议）。
 
 ## Plan Schema（done 时返回）
 

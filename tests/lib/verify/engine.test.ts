@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { verifyDocument } from "@/lib/verify/engine";
 import { RULES } from "@/lib/verify/rules";
 import { getSample, TRIP_CHECK_SAMPLES } from "@/lib/verify/samples";
-import type { TripCheckDocument } from "@/lib/verify/types";
+import { TRIP_CHECK_ENGINE_VERSION, type TripCheckDocument } from "@/lib/verify/types";
 
 // 固定「当前时间」：engine 只把它写进 checkedAt，不参与判定——注入后报告可完全复现
 const FIXED = new Date("2026-10-28T10:00:00.000Z");
@@ -296,7 +296,7 @@ describe("Trip Check engine · 可复现与健壮性", () => {
   it("报告带引擎/规则集版本，规则清单完整", () => {
     const r = verify(sample("verified"));
     expect(r.engine.name).toBe("trip-check");
-    expect(r.engine.version).toBe("0.1.0");
+    expect(r.engine.version).toBe(TRIP_CHECK_ENGINE_VERSION);
     expect(r.ruleset.ruleIds).toContain("TC-C104");
     expect(r.specVersion).toBe("trip-check/0.1");
   });

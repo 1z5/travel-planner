@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, FileJson, Info, Loader2, Play, Share2, Trash2 } from "lucide-react";
 import { TRIP_CHECK_SAMPLES, type TripCheckSample } from "@/lib/verify/samples";
 import type { TripCheckOptions, TripCheckReport as TripCheckReportData } from "@/lib/verify/types";
-import { TripCheckReport } from "@/components/TripCheckReport";
+import { TripCheckReport, type TripCheckRepairResponse } from "@/components/TripCheckReport";
 
 // ============================================================
 // Trip Check 公开体验台（客户端）
@@ -50,14 +50,29 @@ function isReport(value: unknown): value is TripCheckReportData {
   return isRecord(value.verdict.consistency) && isRecord(value.verdict.facts);
 }
 
+/** 修复响应守卫：形状不对就明确报错，不把半截数据渲染成「修好了」 */
+function isRepairResponse(value: unknown): value is TripCheckRepairResponse {
+  if (!isRecord(value)) return false;
+  if (!isRecord(value.document) || !isRecord(value.delta)) return false;
+  if (!isReport(value.before) || !isReport(value.after)) return false;
+  if (!Array.isArray(value.applied) || !Array.isArray(value.unrepairable)) return false;
+  if (!Array.isArray(value.remainingRuleIds)) return false;
+  if (typeof value.changed !== "boolean") return false;
+  if (!isRecord(value.parentCredential) || !isRecord(value.credential)) return false;
+  return true;
+}
+
 function utf8Bytes(text: string): number {
   if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(text).length;
   // 极老环境兜底：按 UTF-8 最坏情况估算，宁可提前提示也不要让请求被 413 打回
   return text.length * 3;
 }
 
-/** HTTP 错误 → 可操作文案（400 保留字段级 path） */
-async function httpErrorOf(res: Response): Promise<PlaygroundError> {
+/** HTTP 错误 → 可操作文案（400 保留字段级 path）；action 只影响兜底句的措辞 */
+async function httpErrorOf(
+  res: Response,
+  action: "verify" | "repair" = "verify",
+): Promise<PlaygroundError> {
   let payload: unknown = null;
   try {
     payload = await res.json();
@@ -111,7 +126,7 @@ async function httpErrorOf(res: Response): Promise<PlaygroundError> {
   }
   return {
     title: `服务端返回 HTTP ${res.status}`,
-    message: "这次体检没有完成，请稍后重试。",
+    message: `这次${action === "repair" ? "修复" : "体检"}没有完成，请稍后重试。`,
   };
 }
 
@@ -125,18 +140,35 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<TripCheckReportData | null>(null);
   const [error, setError] = useState<PlaygroundError | null>(null);
+  // 修复结果与体检报告分开管理：修复是一份派生结果，重新体检/换输入都要整体作废
+  const [repairResult, setRepairResult] = useState<TripCheckRepairResponse | null>(null);
+  const [repairing, setRepairing] = useState(false);
+  const [repairError, setRepairError] = useState<PlaygroundError | null>(null);
   const loadingRef = useRef(false);
+  const repairingRef = useRef(false);
   const autoRanRef = useRef(false);
   const resultRef = useRef<HTMLDivElement | null>(null);
+  // 修复必须沿用「产出当前报告的那份输入」：document 用原始 JSON、shareId 用同一个 ID
+  const lastBodyRef = useRef<Record<string, unknown> | null>(null);
 
   const jsonBytes = useMemo(() => utf8Bytes(jsonText), [jsonText]);
   const tooLarge = jsonBytes > MAX_BODY_BYTES;
+  // 体检/修复互斥：两者共用同一份输入，任一在飞行中都不允许改输入或重发，
+  // 避免「修复结果回来时输入已经换了」的竞态（旧修复结果不能贴到新报告上）
+  const busy = loading || repairing;
+
+  /** 报告/修复一起作废：旧结论不能看起来像新输入的结论 */
+  const clearOutcome = useCallback(() => {
+    setReport(null);
+    setRepairResult(null);
+    setRepairError(null);
+  }, []);
 
   const submit = useCallback(
     async (input: SubmitInput) => {
       if (loadingRef.current) return;
       setError(null);
-      setReport(null);
+      clearOutcome();
 
       // 提交前先拦下「空输入 / 非法 JSON」——不浪费一次请求，也不把本地语法错误
       // 伪装成服务端 400（用户会以为是接口坏了）
@@ -196,6 +228,8 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
           });
           return;
         }
+        // 记住这份输入，修复时原样复用（不重新解析 textarea，避免与报告输入不一致）
+        lastBodyRef.current = body;
         setReport(data);
         // 把焦点移到结果区，键盘/读屏用户不用再猜报告出现在哪
         if (typeof requestAnimationFrame === "function") {
@@ -211,7 +245,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
         setLoading(false);
       }
     },
-    [pace],
+    [pace, clearOutcome],
   );
 
   // ?share= 自动体检一次；autoRanRef 保证 StrictMode 双执行 / 口径切换不会重复请求
@@ -221,13 +255,62 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
     void submit({ mode: "share", shareId: initialShareId });
   }, [initialShareId, submit]);
 
+  /**
+   * 确定性修复：用「产出当前报告的那份输入」再 POST 一次 /api/verify/repair。
+   * 修复结果不写回输入框、也不替换报告——它是一份可复制/下载的建议，用户自己决定是否采用。
+   */
+  const runRepair = useCallback(async () => {
+    if (repairingRef.current || loadingRef.current) return;
+    const body = lastBodyRef.current;
+    if (!body) {
+      setRepairError({
+        title: "还没有可以修复的体检报告",
+        message: "先完成一次体检；修复会沿用同一份输入与判定口径。",
+      });
+      return;
+    }
+    repairingRef.current = true;
+    setRepairing(true);
+    setRepairError(null);
+    setRepairResult(null);
+    try {
+      const res = await fetch("/api/verify/repair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        setRepairError(await httpErrorOf(res, "repair"));
+        return;
+      }
+      const data = (await res.json()) as unknown;
+      if (!isRepairResponse(data)) {
+        setRepairError({
+          title: "响应格式不符合约定",
+          message:
+            "服务端返回的不是修复结果。请重试；若持续出现，检查 /api/verify/repair 是否已部署。",
+        });
+        return;
+      }
+      setRepairResult(data);
+    } catch {
+      setRepairError({
+        title: "网络错误：没收到响应",
+        message: "修复请求没有收到响应，请检查网络后重试；当前体检报告不受影响。",
+      });
+    } finally {
+      repairingRef.current = false;
+      setRepairing(false);
+    }
+  }, []);
+
   function loadSample(sample: TripCheckSample) {
     setMode("document");
     setJsonText(JSON.stringify(sample.document, null, 2));
     setSampleId(sample.id);
     setError(null);
     // 旧结论对应的是旧输入：换输入必须清掉，否则看起来像新输入的体检结果
-    setReport(null);
+    clearOutcome();
   }
 
   function clearAll() {
@@ -235,17 +318,17 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
     setShareId("");
     setSampleId(null);
     setError(null);
-    setReport(null);
+    clearOutcome();
   }
 
   function switchMode(next: Mode) {
     setMode(next);
     setError(null);
-    setReport(null);
+    clearOutcome();
   }
 
   return (
-    <section className="tc-playground" aria-labelledby="tc-playground-title" aria-busy={loading}>
+    <section className="tc-playground" aria-labelledby="tc-playground-title" aria-busy={busy}>
       <div className="tc-panel card">
         <div className="card-body">
           <div className="tc-panel-head">
@@ -266,7 +349,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                 className={`btn tc-seg-btn${mode === "document" ? " tc-seg-active" : ""}`}
                 aria-pressed={mode === "document"}
                 onClick={() => switchMode("document")}
-                disabled={loading}
+                disabled={busy}
               >
                 <FileJson size={15} aria-hidden="true" />
                 粘贴 JSON
@@ -276,7 +359,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                 className={`btn tc-seg-btn${mode === "share" ? " tc-seg-active" : ""}`}
                 aria-pressed={mode === "share"}
                 onClick={() => switchMode("share")}
-                disabled={loading}
+                disabled={busy}
               >
                 <Share2 size={15} aria-hidden="true" />
                 分享 ID
@@ -296,7 +379,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                         className={`tc-sample${sampleId === sample.id ? " tc-sample-active" : ""}`}
                         aria-pressed={sampleId === sample.id}
                         onClick={() => loadSample(sample)}
-                        disabled={loading}
+                        disabled={busy}
                       >
                         <span className="tc-sample-label">{sample.label}</span>
                         <span className="tc-sample-desc">{sample.description}</span>
@@ -330,14 +413,14 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                   onChange={(event) => {
                     setJsonText(event.target.value);
                     setSampleId(null);
-                    setReport(null);
+                    clearOutcome();
                   }}
                   placeholder={'{\n  "specVersion": "trip-check/0.1",\n  "days": [ ... ]\n}'}
                   spellCheck={false}
                   autoCapitalize="off"
                   autoCorrect="off"
                   aria-describedby="tc-json-help"
-                  disabled={loading}
+                  disabled={busy}
                 />
                 <p className="tc-hint" id="tc-json-help">
                   需要 <code className="tc-mono">specVersion: &quot;trip-check/0.1&quot;</code> 与{" "}
@@ -362,14 +445,14 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                 value={shareId}
                 onChange={(event) => {
                   setShareId(event.target.value);
-                  setReport(null);
+                  clearOutcome();
                 }}
                 placeholder="share_xxxxxxxxxxxx"
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
                 aria-describedby="tc-share-help"
-                disabled={loading}
+                disabled={busy}
               />
               <p className="tc-hint" id="tc-share-help">
                 从分享页地址 <code className="tc-mono">/p/share_…</code> 里取这段 ID；
@@ -389,7 +472,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                     : { mode: "share", shareId },
                 )
               }
-              disabled={loading}
+              disabled={busy}
             >
               {loading ? (
                 <Loader2 size={16} className="spin" aria-hidden="true" />
@@ -406,7 +489,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                 className="tc-select"
                 value={pace}
                 onChange={(event) => setPace(event.target.value as Pace)}
-                disabled={loading}
+                disabled={busy}
                 aria-describedby="tc-pace-help"
               >
                 {PACE_OPTIONS.map((option) => (
@@ -416,12 +499,7 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              className="btn tc-clear-btn"
-              onClick={clearAll}
-              disabled={loading}
-            >
+            <button type="button" className="btn tc-clear-btn" onClick={clearAll} disabled={busy}>
               <Trash2 size={14} aria-hidden="true" />
               清空
             </button>
@@ -431,7 +509,13 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
           </p>
 
           <p className="tc-status" role="status" aria-live="polite">
-            {loading ? "正在用确定性规则引擎复算这份文档…" : ""}
+            {loading
+              ? "正在用确定性规则引擎复算这份文档…"
+              : repairing
+                ? "正在确定性修复（只顺延时间/删重复）并重新体检…"
+                : repairResult
+                  ? "确定性修复完成。"
+                  : ""}
           </p>
 
           {error && (
@@ -460,7 +544,15 @@ export function TripCheckPlayground({ initialShareId }: { initialShareId?: strin
       </div>
 
       <div className="tc-result" ref={resultRef} tabIndex={-1}>
-        {report && <TripCheckReport report={report} />}
+        {report && (
+          <TripCheckReport
+            report={report}
+            repair={repairResult}
+            repairing={repairing}
+            repairError={repairError}
+            onRepair={() => void runRepair()}
+          />
+        )}
       </div>
     </section>
   );
