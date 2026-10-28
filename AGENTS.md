@@ -102,6 +102,11 @@ components/
   （隐私口径：只收 shareId/城市/第几天，不收手机号与 IP）+ `GET /api/events/summary?token=`
   只读看板（未配置 `METRICS_TOKEN` 一律 404）。纯函数在 `lib/metrics.ts`，存储走 Store 双实现
   （memory 上限 5000 条 / postgres `TripEvent` 表）。看板口径见 API.md。
+- **底座安全（2026-10-28）**：只读审计见 [docs/SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)，
+  基线决策见 [ADR-016](docs/adr/016-security-hardening-baseline.md)。新增/修改 API 必须：
+  用 `lib/http-body.ts` 的 `readJsonBody`（不要裸 `req.json()`）、用 `lib/http-origin.ts` 的
+  `crossSiteWriteError` 保护状态变更端点、demo 行程（`plan.demo`）只读、不得信任客户端回传的
+  `verified/verification/tripCheck` 等受信字段。
 - **下一轮候选**：工作台内直接操纵的剩余部分（跨天拖动/改时长/锁定必去点）、候选池、
   生成中可编辑骨架、行中通知；以及**真实 key 与真实部署验收**（见 NEXT_STEPS）。
 - **v5 事实层的真实高德 key 验收仍未做**（MOCK 下功能全绿，但「真实世界事实」要真 key 才闭环）：清单见 [NEXT_STEPS.md](NEXT_STEPS.md)「v5 专项验收清单」。
@@ -125,8 +130,8 @@ npm run typecheck      # TypeScript strict
 npm run lint           # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联，覆盖全部 TS/TSX
 npm run lint:js        # 只跑 ESLint（.js/.mjs 脚本）
 npm run lint:ts        # 只跑 oxlint（TS/TSX；Rust 自解析 AST，不依赖 TS 版本）
-npm run test:unit      # Vitest 1163 条（组件 + 纯逻辑）
-npm test               # e2e 753 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
+npm run test:unit      # Vitest 1184 条（组件 + 纯逻辑）
+npm test               # e2e 769 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，15 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 import { resolvePlan } from "@/lib/plan-repo";
 import { JSON_RPC_ERRORS, handleMcpMessage } from "@/lib/verify/mcp";
 import { TRIP_CHECK_SPEC_VERSION } from "@/lib/verify/types";
@@ -61,6 +62,18 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
+  // 0) 按 IP 小时桶限流：这是公开部署的无鉴权端点（MCP 客户端不保证带 cookie），
+  //    没有限流时一个脚本就能把进程 CPU 打满（repair 工具会做完整判定）。
+  //    放在读 body 之前：避免为高频垃圾请求反复分配大字符串。
+  const rl = await checkProxyRateLimit(req.headers, "mcp", "MCP_HOURLY_LIMIT", 120);
+  if (!rl.allowed) {
+    return rpcErrorResponse(
+      429,
+      JSON_RPC_ERRORS.invalidRequest,
+      `请求过于频繁：每小时最多 ${rl.limit} 次，请稍后再试`,
+    );
+  }
+
   // 1) 读原文再交给 mcp.ts：由它负责 JSON.parse（才能给出 -32700 的语义），
   //    也保证 route 不重复实现协议解包。
   let text: string;

@@ -1,12 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getJob, getJobStage, interruptJob, isJobStale, JOB_INTERRUPTED_ERROR } from "@/lib/jobs";
 import { peek } from "@/lib/ratelimit";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET /api/plan/status?id=job_xxx
+//
+// 限流（安全审计 R3）：jobId 是读任务结果的唯一凭据，旧链接还能经 resolvePlan
+// 读回行程。jobId 已改为 CSPRNG（见 lib/jobs.ts newJobId），这里再加一层按 IP
+// 小时桶（默认 3600/小时）——正常前端 3s 轮询远到不了，但把「换 id 批量试探」
+// 的成本从零提到可观测。额度给的宽是因为轮询是产品主链路，不能误伤。
 export async function GET(req: NextRequest) {
+  const rl = await checkProxyRateLimit(
+    req.headers,
+    "plan-status",
+    "PLAN_STATUS_HOURLY_LIMIT",
+    20000,
+  );
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `查询太频繁：每小时最多 ${rl.limit} 次，请稍后再试`, limit: rl.limit },
+      { status: 429 },
+    );
+  }
+
   const id = req.nextUrl.searchParams.get("id") ?? "";
   const job = await getJob(id);
   if (!job) {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { clientIpFromHeaders } from "@/lib/client-ip";
+import { demoWriteBlockedMessage } from "@/lib/demo-seed";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { newEventId } from "@/lib/metrics";
 import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
@@ -149,14 +152,22 @@ function assertsPlanMatchesDocument(plan: Plan, document: ReturnType<typeof plan
 }
 
 export async function POST(req: NextRequest) {
-  // 1) 参数校验（放在限流之前：畸形请求不消耗小时额度）
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
+  // 0) 浏览器跨站写保护：cookie 认证的写端点必须同源（无 Origin 的 curl/agent 放行）。
+  //    这是纵深防御；分享 token 本身仍是匿名写的主要凭据。
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
   }
-  const parsed = BodySchema.safeParse(raw);
+
+  // 1) 参数校验（放在限流之前：畸形请求不消耗小时额度）；体积上限 16 KiB
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+  const parsed = BodySchema.safeParse(body.json);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "参数不正确" },
@@ -175,6 +186,13 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json({ error: "行程不存在或已被删除" }, { status: 404 });
+  }
+
+  // 2b) 演示行程只读（安全审计 R4）：必须在限流/写回之前判断——
+  //     否则公开 token 既可能被刷额度，也可能被真的改坏演示工件。
+  const demoBlocked = demoWriteBlockedMessage(record.plan);
+  if (demoBlocked) {
+    return NextResponse.json({ error: demoBlocked }, { status: 403 });
   }
 
   // 3) 限流（确认行程有效之后再扣；失败路径 refund，一次失败不吃用户次数）

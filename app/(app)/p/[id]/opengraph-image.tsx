@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
+import { headers } from "next/headers";
 import { resolvePlan } from "@/lib/plan-repo";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 import { formatCny, summarizeBudget } from "@/lib/budget";
 
 // 分享卡片图：分享到微信/Twitter 时渲染「城市 + 天数 + 概览」而非裸链接。
@@ -21,6 +23,16 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
+  // OG 图同样是 Satori 渲染（CPU 放大点）：按 IP 小时桶限流；爬虫/转发预览的
+  // 正常量远低于上限（300/h），超限回 429 让抓取方稍后重试。
+  const h = await headers();
+  const rl = await checkProxyRateLimit(h, "og", "OG_HOURLY_LIMIT", 300);
+  if (!rl.allowed) {
+    return new Response("请求过于频繁", {
+      status: 429,
+      headers: { "Cache-Control": "no-store", "Retry-After": "300" },
+    });
+  }
   const { id } = await params;
   // 同分享页：新 token 读持久化 Plan，旧 jobId 链接兜底读任务（OG 不回归）
   const plan = await resolvePlan(id);

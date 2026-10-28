@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { readJsonBody } from "@/lib/http-body";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 import type { Plan } from "@/lib/types";
@@ -33,14 +34,17 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
+  // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）。
+  //    先用 readJsonBody 兜住体积（16 KiB 足够 shareId；App Router 的 req.json()
+  //    本身没有上限，公开端点被塞大包会直接吃内存）。
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
   }
-  const parsed = BodySchema.safeParse(raw);
+  const parsed = BodySchema.safeParse(body.json);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "参数不正确" },

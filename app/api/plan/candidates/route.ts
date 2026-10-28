@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { demoWriteBlockedMessage } from "@/lib/demo-seed";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { getPlanForEdit, replacePlan } from "@/lib/plan-repo";
 import { buildReplacementSpot, findCandidates } from "@/lib/candidates";
 import { lookupPoi, AMAP_MOCK, type PoiLookup } from "@/lib/amap";
@@ -75,13 +78,19 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
+  // 0) 浏览器跨站写保护 + body 上限（安全审计 R1/R11：替换是写操作）
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
   }
-  const parsed = ApplySchema.safeParse(raw);
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+  const parsed = ApplySchema.safeParse(body.json);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "参数不正确" },
@@ -101,6 +110,11 @@ export async function POST(req: NextRequest) {
   const record = await getPlanForEdit(shareId);
   if (!record) {
     return NextResponse.json({ error: "这份行程不存在或已被删除" }, { status: 404 });
+  }
+  // 演示行程只读（安全审计 R4）：「候选替换」也是写操作
+  const demoBlocked = demoWriteBlockedMessage(record.plan);
+  if (demoBlocked) {
+    return NextResponse.json({ error: demoBlocked }, { status: 403 });
   }
   const dayPlan = record.plan.days.find((d) => d.day === day);
   const oldSpot = dayPlan?.spots[spotIndex];

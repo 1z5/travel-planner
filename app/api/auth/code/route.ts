@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthProvider } from "@/lib/auth/providers";
+import { readJsonBody } from "@/lib/http-body";
 import { consume, hourKey } from "@/lib/ratelimit";
 import { clientIpFromHeaders } from "@/lib/client-ip";
 
@@ -14,7 +15,16 @@ const PHONE_LIMIT = Number(process.env.SMS_PHONE_LIMIT || 5);
 const IP_LIMIT = Number(process.env.SMS_IP_LIMIT || 20);
 
 export async function POST(req: NextRequest) {
-  const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
+  // body 上限 16 KiB（安全审计 R1）：只有手机号一个短字段。
+  // 超限单独 413；非法 JSON 保持原有 400「手机号格式不正确」文案风格。
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "手机号格式不正确" },
+      { status: body.status },
+    );
+  }
+  const parsed = BodySchema.safeParse(body.json);
   if (!parsed.success) {
     return NextResponse.json({ error: "手机号格式不正确" }, { status: 400 });
   }

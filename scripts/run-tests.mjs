@@ -336,9 +336,35 @@ async function phaseA(api) {
 
   console.log("\n== 故障注入 ==");
 
+  console.log("-- 安全：body 上限（安全审计 R1）--");
+  // 公开生成入口先量 body（16 KiB）：超限 413，且**不消耗配额**——
+  // 下一条用例的 remaining=49 会反证「413 没有扣额度」。
+  const bigPlanBody = JSON.stringify({
+    city: "成都",
+    days: 3,
+    budget: 1000,
+    padding: "x".repeat(64 * 1024),
+  });
+  const bigPlanRes = await fetch(`${api.baseUrl}/api/plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: bigPlanBody,
+  });
+  check(
+    "body 上限：>16KiB 的生成请求 → 413（不是 500/OOM）",
+    bigPlanRes.status === 413,
+    `got ${bigPlanRes.status}`,
+  );
+
   console.log("-- 用例 1：正常链路（返回真实苏州 fixture）--");
   const r1 = await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] });
   check("POST 202", r1.status === 202, `got ${r1.status}`);
+  // 安全审计 R3：jobId 是能力凭据，必须是 CSPRNG（job_ + 22 位 base64url = 128 bit）
+  check(
+    "jobId 是 CSPRNG 能力凭据（job_ + 22 位 base64url，不含可读时间戳）",
+    /^job_[A-Za-z0-9_-]{22}$/.test(String(r1.body.jobId)),
+    String(r1.body.jobId),
+  );
   const j1 = await api.waitJob(r1.body.jobId);
   check("任务 done", j1.status === "done", JSON.stringify(j1).slice(0, 120));
   const plan = j1.plan ?? {};
@@ -748,7 +774,15 @@ async function phaseA(api) {
     j11.plan?.startDate === "2026-10-10",
     `got ${j11.plan?.startDate}`,
   );
-  const ics = await (await fetch(`${api.baseUrl}/api/plan/ics?id=${r11.body.jobId}`)).text();
+  const icsRes = await fetch(`${api.baseUrl}/api/plan/ics?id=${r11.body.jobId}`);
+  const ics = await icsRes.text();
+  // 安全审计 R12：.ics 是私有工件（含逐日行程），不能被中间缓存/共享设备留存
+  const icsCache = icsRes.headers.get("cache-control") ?? "";
+  check(
+    ".ics 私有缓存头（private, no-store）",
+    /private/.test(icsCache) && /no-store/.test(icsCache),
+    icsCache || "(无 Cache-Control)",
+  );
   const vevents = (ics.match(/BEGIN:VEVENT/g) ?? []).length;
   check(".ics 含 VCALENDAR 头", ics.includes("BEGIN:VCALENDAR") && ics.includes("END:VCALENDAR"));
   check(".ics 每个 spot 一个 VEVENT（fixture 16 个点）", vevents === 16, `got ${vevents}`);
@@ -1469,8 +1503,9 @@ async function phaseA(api) {
   const sw = await fetch(`${api.baseUrl}/sw.js`);
   const swText = await sw.text();
   check(
-    "PWA：sw.js 200 且覆盖行中/分享页离线缓存",
-    sw.status === 200 && swText.includes("/t/") && swText.includes("/p/"),
+    // 安全加固后：SW 只缓存 /t 行中页；/p 分享页的 URL 是能力凭据，不再落长期本地缓存（审计 R13）
+    "PWA：sw.js 200 且只缓存行中页（/p 不缓存）",
+    sw.status === 200 && swText.includes("/t/") && !swText.includes('startsWith("/p/")'),
     `${sw.status}`,
   );
   for (const icon of ["/icons/icon-192.png", "/icons/icon-512.png", "/apple-touch-icon.png"]) {
@@ -2081,6 +2116,45 @@ async function phaseB(api) {
     body: JSON.stringify({ name: "plan_opened", shareId: "x" }),
   });
   check("埋点：shareId 格式不对 → 400", evBadShare.status === 400, `got ${evBadShare.status}`);
+
+  // 安全审计 R14：meta 只允许原始值（string≤40/number/boolean）且序列化 ≤1 KiB
+  const postEvent = async (payload, rawBody) =>
+    fetch(`${api.baseUrl}/api/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: rawBody ?? JSON.stringify(payload),
+    });
+  const evMetaOk = await postEvent({ name: "upgrade_intent", meta: { tier: "team" } });
+  check(
+    "埋点：合法 meta（短字符串/布尔/数字）→ 204",
+    evMetaOk.status === 204,
+    `got ${evMetaOk.status}`,
+  );
+  const evMetaNested = await postEvent({ name: "upgrade_intent", meta: { obj: { a: 1 } } });
+  check("埋点：meta 嵌套对象 → 400", evMetaNested.status === 400, `got ${evMetaNested.status}`);
+  const evMetaLong = await postEvent({
+    name: "upgrade_intent",
+    meta: { note: "x".repeat(41) },
+  });
+  check("埋点：meta 字符串超 40 字 → 400", evMetaLong.status === 400, `got ${evMetaLong.status}`);
+  const evMetaBig = await postEvent({
+    name: "upgrade_intent",
+    meta: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, "y".repeat(40)])),
+  });
+  check(
+    "埋点：meta 序列化超 1 KiB → 400（防大对象污染看板/存储）",
+    evMetaBig.status === 400,
+    `got ${evMetaBig.status}`,
+  );
+  const evBodyBig = await postEvent(
+    null,
+    JSON.stringify({ name: "plan_opened", padding: "x".repeat(32 * 1024) }),
+  );
+  check(
+    "埋点：>16KiB body → 413（安全审计 R1）",
+    evBodyBig.status === 413,
+    `got ${evBodyBig.status}`,
+  );
   // 看板：无 token / 错 token → 404，且响应体必须是 JSON（不是 Next 的 not-found 页）
   const sumNoToken = await fetch(`${api.baseUrl}/api/events/summary`);
   const sumNoTokenBody = await sumNoToken.text();
@@ -2346,14 +2420,45 @@ async function phaseB(api) {
     });
     return { status: r.status, body: await r.json().catch(() => ({})) };
   };
-  const r1 = await postRestore({ shareId: j.shareId, plan: j.plan });
+  // 安全审计 R5：撤销的输入是客户端副本，服务端必须剥离受信字段，否则持 token
+  // 者可以伪造「POI 已核验 / 已确定性修复 + 假凭据链」。
+  const forgedPlan = {
+    ...j.plan,
+    verified: true,
+    verification: "ok",
+    verifiedAt: Date.now(),
+    grounding: { candidates: 99, closedSkipped: 0, closedOut: 0 },
+    verificationReport: { fastDraftSpots: 99 },
+    tripCheck: { credentialId: "tc_forged", parentCredentialId: "tc_parent", checkedAt: 1 },
+    warnings: ["这是客户端伪造的预警文案"],
+  };
+  const r1 = await postRestore({ shareId: j.shareId, plan: forgedPlan });
   check(
-    "撤销：合法 plan → 200 且 revision 递增、内容与提交一致",
+    "撤销：合法 plan → 200 且 revision 递增",
     r1.status === 200 &&
       typeof r1.body.revision === "number" &&
       r1.body.revision >= 2 &&
       r1.body.plan?.city === j.plan.city,
     `got ${r1.status} ${JSON.stringify(r1.body).slice(0, 120)}`,
+  );
+  check(
+    "撤销：剥离客户端伪造的受信字段（verified=false，无 verification/tripCheck/grounding/verificationReport）",
+    r1.body.plan?.verified === false &&
+      r1.body.plan?.verification === undefined &&
+      r1.body.plan?.tripCheck === undefined &&
+      r1.body.plan?.grounding === undefined &&
+      r1.body.plan?.verificationReport === undefined,
+    JSON.stringify({
+      verified: r1.body.plan?.verified,
+      verification: r1.body.plan?.verification,
+      tripCheck: r1.body.plan?.tripCheck ?? null,
+    }),
+  );
+  check(
+    "撤销：warnings 服务端重算（不保留客户端伪造文案）",
+    Array.isArray(r1.body.plan?.warnings) &&
+      !(r1.body.plan.warnings ?? []).includes("这是客户端伪造的预警文案"),
+    JSON.stringify(r1.body.plan?.warnings ?? null),
   );
   const r2 = await postRestore({ shareId: j.shareId, plan: j.plan });
   check(
@@ -2438,6 +2543,31 @@ async function phaseC(api) {
   }
   const spam = await api.authPost("/api/auth/code", { phone: "13800138000" });
   check("同手机号第 6 条验证码 → 429（5 条/小时）", spam.status === 429, `got ${spam.status}`);
+
+  // 验证码撞码防护（安全审计 R9）：同一手机号+IP 失败 10 次/小时后 429，
+  // 锁定期间即使验证码正确也不再放行（防分布式撞码）。
+  const otpPhone = "13600136000";
+  let lastWrong = 0;
+  for (let i = 0; i < 10; i++) {
+    lastWrong = (await api.authPost("/api/auth/verify", { phone: otpPhone, code: "000000" }))
+      .status;
+  }
+  check("验证码：前 10 次错误仍是 401（还没到上限）", lastWrong === 401, `got ${lastWrong}`);
+  const otpLocked = await api.authPost("/api/auth/verify", { phone: otpPhone, code: "000000" });
+  check(
+    "验证码：失败 10 次后 → 429（手机号+IP 小时桶）",
+    otpLocked.status === 429,
+    `got ${otpLocked.status}`,
+  );
+  const otpLockedRight = await api.authPost("/api/auth/verify", {
+    phone: otpPhone,
+    code: "123456",
+  });
+  check(
+    "验证码：锁定期间正确码同样 429（锁的是尝试面，不是单次猜测）",
+    otpLockedRight.status === 429,
+    `got ${otpLockedRight.status}`,
+  );
 }
 
 // ---------------- 阶段 D：微信 OAuth（桩微信） ----------------
@@ -2508,6 +2638,28 @@ async function phaseD(base) {
     headers: { Cookie: wxCookie },
   });
   check("伪造 state → 400", bad.status === 400, `got ${bad.status}`);
+
+  // 7. 开放重定向（安全审计 R10）：state 里携带的 redirect 必须是本站相对路径。
+  //    `//evil.com` 与 `/\evil.com` 都能通过天真的 startsWith("/") 检查，
+  //    callback 必须解析 URL 后校验 origin，拒绝时回本站 "/"。
+  //    断言口径说明：不比较 loc.origin（Next dev 可能把 127.0.0.1 归一化成
+  //    localhost，host 语义在反代后也不可靠）；安全等价断言是「落点路径必须是
+  //    /，且绝不能是外站 host」。
+  for (const evil of ["//evil.example", "/\\evil.example", "https://evil.example/phish"]) {
+    const craftedState = `nonce1234.${Buffer.from(evil).toString("base64url")}`;
+    const crafted = await fetch(
+      `${base}/api/auth/wechat/callback?code=stub_wx_code&state=${encodeURIComponent(craftedState)}`,
+      { redirect: "manual", headers: { Cookie: `wx_state=${craftedState}` } },
+    );
+    const loc = new URL(crafted.headers.get("location") ?? "http://invalid.invalid/");
+    check(
+      `微信回调：拒绝开放重定向「${evil}」（回本站 /）`,
+      (crafted.status === 307 || crafted.status === 302) &&
+        loc.pathname === "/" &&
+        loc.hostname !== "evil.example",
+      `${crafted.status} location=${loc.toString().slice(0, 60)}`,
+    );
+  }
 }
 
 // ---------------- 阶段 E：短信 provider（真实实现走桩腾讯云） ----------------
@@ -2703,6 +2855,10 @@ async function main() {
     // summary 路由不存在时 Next 返回 text/html 404，「无 token → 404」照样通过
     // ——所以必须同时验成功路径与响应体是 JSON。
     METRICS_TOKEN: "e2e-metrics-token",
+    // status 轮询限流（安全审计 R3，生产默认 3600/h）：live 切片用 25ms 密采样
+    // 观察流式阶段，单场 e2e 的 status 请求量可达数千——测试里放大，避免把
+    // 「功能断言」误伤成 429（限流本身由单测/生产默认值保障）。
+    PLAN_STATUS_HOURLY_LIMIT: "20000",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.real)], {
     NEXT_DIST_DIR: `.next-t-real`,
@@ -2717,6 +2873,8 @@ async function main() {
     // 本阶段要跑「营业时间/时间轴/一键修复/行中模式」多组用例，会多次提交生成任务；
     // 显式放大配额，避免被开发机 .env 的 DAILY_FREE_LIMIT 截断（与 mock 服务器同思路）。
     DAILY_FREE_LIMIT: "50",
+    // status 轮询限流同上：real 的流式/行中用例密采样轮询，测试里放大避免误伤
+    PLAN_STATUS_HOURLY_LIMIT: "20000",
   });
   spawnCmd("node", ["node_modules/next/dist/bin/next", "dev", "-p", String(PORTS.auth)], {
     NEXT_DIST_DIR: `.next-t-auth`,

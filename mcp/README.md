@@ -152,8 +152,10 @@ stdio 桥在连不上服务 / 响应不是 JSON 时输出 `-32001`（服务自�
   completion；`initialize` 的 `instructions` 里也这么写。
 - **无状态**：不做 session（`Mcp-Session-Id`）、不提供 GET/SSE 服务端推送；stdio 桥串行转发，
   同一时刻最多 1 个在途请求。
-- **无鉴权、无限流**：端点面向本地开发与公开演示；`verify_shared_trip` 只能读到不可猜测的分享
-  token。**不要把 `/api/mcp` 直接暴露到公网**（请在前面加网关限流/鉴权）。
+- **公开、无鉴权、按 IP 限流**：端点面向公开演示与本地开发，已按 `MCP_HOURLY_LIMIT`（默认
+  120 次/小时/IP）限流；`verify_shared_trip` 只能读到不可猜测的分享 token。生产环境仍建议在
+  前面加网关/鉴权（例如企业客户只允许内网调用），并注意 `verify_shared_trip` 的分享 token
+  本身就是能力凭据。
 - **只读、不写库**：所有工具都不写任何存储、不改站内行程；`repair_itinerary` 在内存里生成新文档并返回
   （入参不变、不落库），是否采用由调用方决定。`credential.id` 是可复算哈希，不是数字签名。
 

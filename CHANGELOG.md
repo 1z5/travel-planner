@@ -1,3 +1,27 @@
+## 2026-10-28 安全审计与底座加固（S1.8，全栈）
+
+只读安全审计（docs/SECURITY-AUDIT-2026-10-28.md，140 行，无 Critical）后，修掉 2 个 High
+与 4 个 Medium，并把「可信证据不可伪造」落成代码约束。
+
+- **审计**：覆盖认证/CSRF、分享 token 授权模型、限流/配额/DoS、输入注入、隐私/索引/PWA 缓存、
+  秘密/SSRF、安全响应头、依赖、部署/CI、Trip Check 新公开面；给出风险表 + 证据 + 修复建议 +
+  「已接受/设计取舍」+「未验证清单」。
+- **请求边界**：新增 `lib/http-body.ts`（readJsonBody，含 Content-Length 与实际字节双检），
+  铺到全部 JSON 端点（普通 16–64 KiB；verify/mcp 256 KiB）；裸 `req.json()` 清零。
+- **能力凭据**：jobId 改 `crypto.randomBytes(16)`；`/api/plan/status`、`/api/plan/ics` 限流，
+  ics `private, no-store`。
+- **演示只读**：`DEMO_SEED` 行程打 `demo: true`，refine/restore/repair/adjust 一律 403。
+- **可信字段不可回传**：restore 剥离 tripCheck/verified/verification/verifiedAt/grounding/
+  verificationReport，warnings 用 refreshTimeWarnings 重算，整份标记未核验。
+- **写保护与 CPU 面**：`lib/http-origin.ts` 同源校验铺到写端点；海报/OG 限流 + CDN 缓存；
+  MCP 120/h 限流；events meta 原始值 + ≤1 KiB；微信回调开放重定向修复；验证码失败次数上限。
+- **隐私与头**：私页 `X-Robots-Tag: noindex, noarchive`；SW 只缓存 /t；HSTS/COOP/CORP/
+  关闭 X-Powered-By；CI `permissions: contents: read`。
+- **产品升级（行中）**：TodayView 新增「今天体检」卡——行程进行中只请求一次
+  `/api/plan/check`，只列今天的可行动问题（含营业窗口建议），无问题/事实未核验如实说明，
+  失败不阻塞今日主流程，可跳完整今日体检。
+- **验收**：gate 全绿；部署冒烟新增安全探针（安全头、超大 body→413、demo 写→403）。
+
 ## 2026-10-28 可分享的行程体检报告工件 + 营业窗口建议（S1.7）
 
 S1.6 之后，结论仍锁在产品页面里——分享页只有一张凭据卡，工作台要本机链接。本轮把「证据」

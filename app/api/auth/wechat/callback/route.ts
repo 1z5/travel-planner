@@ -27,13 +27,7 @@ export async function GET(req: NextRequest) {
   }
 
   const [, redirectB64] = state.split(".");
-  let redirect = "/";
-  try {
-    redirect = Buffer.from(redirectB64 ?? "", "base64url").toString() || "/";
-  } catch {
-    /* 用默认 */
-  }
-  if (!redirect.startsWith("/")) redirect = "/"; // 防开放重定向
+  const redirect = safeRedirectPath(redirectB64, req.nextUrl.origin);
 
   const { token, maxAgeSec } = createSession(`wx:${openid}`);
   const res = NextResponse.redirect(new URL(redirect, req.nextUrl.origin));
@@ -53,4 +47,36 @@ export async function GET(req: NextRequest) {
     secure: cookieSecure(),
   });
   return res;
+}
+
+/**
+ * 把 state 里携带的落地路径校验成**本站相对路径**（安全审计 R10 开放重定向）。
+ *
+ * 为什么不能只用 `redirect.startsWith("/")`：`//evil.com` 与 `/\evil.com` 都能
+ * 通过前缀检查，而浏览器把 `new URL("//evil.com", origin)` 解析成外站——
+ * 攻击者构造一条微信登录链接就能在 OAuth 成功后把用户带去钓鱼站。
+ *
+ * 口径（两道）：
+ * 1. 归一化反斜杠（浏览器在 URL 里把 `\` 当 `/`），然后必须是「单个 / 开头的
+ *    路径」——`//host` 与 `/\host` 都被挡回 "/"；
+ * 2. 再用 URL 解析一次，origin 必须与本站一致（防编码/协议相对等变体）；
+ * 通过后只返回 pathname+search+hash（绝对同源 URL 也降级成路径）。
+ * 任何异常一律回 "/"（fail-closed，绝不跳到未知目标）。
+ */
+function safeRedirectPath(redirectB64: string | undefined, origin: string): string {
+  let raw = "/";
+  try {
+    raw = Buffer.from(redirectB64 ?? "", "base64url").toString("utf8") || "/";
+  } catch {
+    return "/";
+  }
+  const normalized = raw.replace(/\\/g, "/");
+  if (!normalized.startsWith("/") || normalized.startsWith("//")) return "/";
+  try {
+    const target = new URL(normalized, origin);
+    if (target.origin !== origin) return "/";
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return "/";
+  }
 }

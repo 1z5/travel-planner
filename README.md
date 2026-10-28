@@ -25,6 +25,10 @@ AI 智能旅游规划 **v8.1**（2026-10-25 最新能力见 [CHANGELOG.md](CHANG
 - **确定性修复（S1.5）**：`POST /api/verify/repair`（MCP：`repair_itinerary`）把时间重叠 /
   路段接不上 / 重复点位**机械修复**到可执行（只顺延时间、只删重复，不编造事实、不写回分享
   行程），并签发**修复前后两张凭据**——「改了什么、风险降了多少」可对账。
+- **安全与底座（S1.8）**：公开匿名产品的底座做了一轮只读审计（[SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)，
+  无 Critical）并完成首轮加固：统一 body 上限、jobId CSPRNG、演示行程只读、restore 剥离
+  客户端回传的核验元数据（「已核验/已修复」不可被伪造）、写端点同源校验、海报/OG/MCP 限流、
+  私页 noindex、SW 只缓存行中页、HSTS/COOP/CORP/关闭版本指纹、CI 最小权限。
 - **进入产品主流程（S1.6）**：工作台第五镜头「体检」（`/w/<id>?view=check`）展示两轴证据与
   修复入口；`POST /api/plan/check` 只读判定、`POST /api/plan/repair` 先预览后确认写入
   （revision+1，`expectedRevision` 乐观并发），写回后重算时间轴/营业时间预警，

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { answerCopilot, CopilotError } from "@/lib/copilot";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
 import { clientIpFromHeaders } from "@/lib/client-ip";
@@ -53,26 +55,36 @@ const BodySchema = z
 
 // 全局限流（审计 P0-3）：聊天每次都是一次 LLM 调用，单 IP 小时桶防不住伪造
 // IP 或真实爆量。这里再加一层进程内并发闸门（见 lib/capacity-gate.ts）。
+//
+// body 上限 64 KiB（安全审计 R1）：12 条 × 500 字中文约 18KB，64 KiB 留足信封余量；
+// 读取放在拿 LLM 槽之前，超大请求不占全局并发名额。
 export async function POST(req: NextRequest) {
+  // 0) 浏览器跨站写保护（纵深防御；分享 token 仍是匿名写的主要凭据）
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
+  }
+  const body = await readJsonBody(req, 64 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+
   const release = tryAcquireSlot("llm");
   if (!release) {
     return NextResponse.json({ error: "当前请求较多，请稍后再试" }, { status: 503 });
   }
   try {
-    return await handlePost(req);
+    return await handlePost(req, body.json);
   } finally {
     release();
   }
 }
 
-async function handlePost(req: NextRequest) {
+async function handlePost(req: NextRequest, raw: unknown) {
   // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
-  }
   const parsed = BodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(

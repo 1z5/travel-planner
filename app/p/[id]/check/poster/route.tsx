@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { resolvePlan } from "@/lib/plan-repo";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 import { stampPlan } from "@/lib/verify/stamp";
 import { buildCheckPosterModel } from "@/lib/trip-check-report";
 
@@ -31,7 +32,14 @@ const FAINT = "#8a7d6c";
 const clamp = (text: string, max: number) =>
   text.length > max ? `${text.slice(0, max - 1)}…` : text;
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const rl = await checkProxyRateLimit(req.headers, "poster", "POSTER_HOURLY_LIMIT", 120);
+  if (!rl.allowed) {
+    return new Response("海报生成过于频繁，请稍后再试", {
+      status: 429,
+      headers: { "Retry-After": "600", "Cache-Control": "no-store" },
+    });
+  }
   const { id } = await params;
   // 与分享页/报告页同口径：新 token 读持久化 Plan，旧 jobId 链接兜底
   const plan = await resolvePlan(id);
@@ -166,6 +174,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         <div style={{ display: "flex", fontSize: 24, color: MUTED }}>{model.brandLine}</div>
       </div>
     </div>,
-    size,
+    {
+      ...size,
+      headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" },
+    },
   );
 }

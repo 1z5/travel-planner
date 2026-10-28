@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TodayView } from "@/components/TodayView";
 import type { Plan, PlanSpot } from "@/lib/types";
+import { verifyDocument } from "@/lib/verify/engine";
+import type { TripCheckDocument, TripCheckReport } from "@/lib/verify/types";
 
 // 控制「今天/现在」：只 mock 两个读时钟的函数，tripToday/spotNow 保持真实
 // （它们已被 lib 单测覆盖）——这里测的是「真实行中逻辑 + 可控时钟输入」。
@@ -129,9 +131,100 @@ function weatherOk(dayWeather = "中雨", nightWeather = "多云") {
   } as unknown as Response;
 }
 
-/** 在 TodayView 里，点「查看今天天气」是第一次 fetch；之后才是 refine */
+// ============================================================
+// 今日体检（/api/plan/check）的测试夹具
+//
+// 报告用真实引擎生成（不是手写假 JSON）：这样「今天的 day 过滤、suggestion、
+// 无 day 的全局问题」都是真实语义，而不是测试自说自话。
+// ============================================================
+
+const CHECK_TODAY = "2026-10-18"; // 与 mockClock.today 对齐（行程第 1 天）
+
+/** 今天无阻断/微调问题：只有一条「缺路段」信息不足（day 1） */
+function cleanCheckReport(): TripCheckReport {
+  const doc: TripCheckDocument = {
+    specVersion: "trip-check/0.1",
+    city: "成都",
+    days: [
+      {
+        day: 1,
+        spots: [{ name: "宽窄巷子", time: "09:00-11:00", durationMin: 120, costCny: 50 }],
+      },
+    ],
+  };
+  return verifyDocument(doc, {}, new Date("2026-10-18T10:00:00Z")) as TripCheckReport;
+}
+
+/**
+ * 今天 3 条可行动问题（都是 TC-F204 营业时间不符 + suggestion）：
+ * 第 1 天 3 个点都是 22:00 之后到、营业到 21:00 → 3 条阻断；另外加超预算
+ * （TC-C108，无 evidence.day）验证「全局问题不列进今天」。
+ */
+function reportWithTodayIssues(): TripCheckReport {
+  const spot = (name: string, time: string) => ({
+    name,
+    time,
+    type: "sight" as const,
+    durationMin: 30,
+    costCny: 100,
+    hours: { openTime: "周一至周日 10:30-21:00" },
+    verification: { source: "amap" as const, existence: "hit" as const, hours: "hit" as const },
+  });
+  const doc: TripCheckDocument = {
+    specVersion: "trip-check/0.1",
+    city: "成都",
+    budgetCny: 100,
+    provenance: { poi: { source: "amap" } },
+    days: [
+      {
+        day: 1,
+        date: CHECK_TODAY,
+        spots: [
+          spot("宽窄巷子", "22:00-22:30"),
+          spot("陈麻婆豆腐", "22:30-23:00"),
+          spot("人民公园", "23:00-23:30"),
+        ],
+      },
+      {
+        day: 2,
+        date: "2026-10-19",
+        spots: [spot("大熊猫繁育研究基地", "22:00-22:30")],
+      },
+    ],
+  };
+  return verifyDocument(doc, {}, new Date("2026-10-18T10:00:00Z")) as TripCheckReport;
+}
+
+function checkResponse(report: TripCheckReport): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ report, credential: { id: "tc_test" }, planRevision: 1, tripCheck: null }),
+  } as unknown as Response;
+}
+
+/** 默认 fetch：只接受今日体检；其它请求说明测试用例漏了 mock（直接抛，避免静默造假） */
+function checkOnlyFetch(report: TripCheckReport) {
+  return vi.fn(async (url: string) => {
+    if (String(url) === "/api/plan/check") return checkResponse(report);
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+}
+
+function checkCallCount(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter((call) => call[0] === "/api/plan/check").length;
+}
+
+// 所有用例默认有一个可用的今日体检响应（避免测试真的打网络）；
+// 需要失败/404 的用例在 test 内再 vi.stubGlobal 覆盖。
+beforeEach(() => {
+  vi.stubGlobal("fetch", checkOnlyFetch(cleanCheckReport()));
+});
+
+/** 在 TodayView 里，点「查看今天天气」是第一次请求；之后才是 refine */
 function weatherThen(fix: (url: string, init?: RequestInit) => Promise<unknown> | unknown) {
   return vi.fn(async (url: string, init?: RequestInit) => {
+    if (String(url) === "/api/plan/check") return checkResponse(cleanCheckReport());
     if (String(url).startsWith("/api/weather")) return weatherOk();
     return (await fix(url, init)) as Response;
   });
@@ -360,8 +453,12 @@ describe("TodayView 天气与一键改室内", () => {
     expect(await screen.findByText(/中雨/)).toBeInTheDocument();
     await userEvent.click(screen.getByText("把今天改成室内路线"));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const [url, init] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    // 请求顺序：今日体检（挂载）→ 天气（点击）→ 改行程（点击）
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const refineCall = fetchMock.mock.calls.find(
+      (call) => call[0] === "/api/plan/refine",
+    ) as unknown as [string, RequestInit];
+    const [url, init] = refineCall;
     expect(url).toBe("/api/plan/refine");
     expect(JSON.parse(String(init.body))).toMatchObject({
       shareId: "share_test123",
@@ -454,5 +551,142 @@ describe("TodayView 天气与一键改室内", () => {
     await userEvent.click(await screen.findByText("查看今天天气"));
     expect(await screen.findByText(/室外景点可放心安排/)).toBeInTheDocument();
     expect(screen.queryByText("把今天改成室内路线")).not.toBeInTheDocument();
+  });
+});
+
+describe("TodayView 今天体检（行中只读）", () => {
+  beforeEach(() => {
+    mockClock.today = "2026-10-18";
+    mockClock.minutes = 9 * 60 + 30;
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("出行中：只请求一次，列出今天的问题（含建议/最多 2 条/还有 N 条）且不列全局问题", async () => {
+    const fetchMock = checkOnlyFetch(reportWithTodayIssues());
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TodayView plan={basePlan()} shareId="share_test123" />);
+
+    expect(await screen.findByText("今天体检")).toBeInTheDocument();
+    const card = screen.getByText("今天体检").closest("section")!;
+    await waitFor(() => expect(checkCallCount(fetchMock)).toBe(1));
+
+    // 两轴口径：结构等级 + facts 如实（当前是部分核验）
+    expect(within(card).getByText(/结构 A/)).toBeInTheDocument();
+    expect(within(card).getByText(/事实：部分核验/)).toBeInTheDocument();
+    expect(within(card).getByText(/未核验 ≠ 没问题/)).toBeInTheDocument();
+
+    // 今天 3 条可行动问题 → 只列 2 条；有 suggestion 的用建议文本
+    expect(within(card).getAllByText(/可安排在/)).toHaveLength(2);
+    expect(within(card).getByText(/还有 1 条需注意的问题/)).toBeInTheDocument();
+    // 无 evidence.day 的全局问题（超预算）不能算到「今天」
+    expect(within(card).queryByText(/超出预算/)).not.toBeInTheDocument();
+
+    expect(within(card).getByRole("link", { name: /查看完整今日体检/ })).toHaveAttribute(
+      "href",
+      "/w/share_test123?view=check",
+    );
+  });
+
+  it("今天没有可行动问题：明确说「今天没有发现阻断问题」，保留 facts 口径", async () => {
+    // 只有一条无 day 的全局超预算问题 + 一条 day1 的「缺路段」信息不足
+    const doc: TripCheckDocument = {
+      specVersion: "trip-check/0.1",
+      city: "成都",
+      budgetCny: 10,
+      days: [
+        {
+          day: 1,
+          spots: [{ name: "宽窄巷子", time: "09:00-11:00", durationMin: 120, costCny: 100 }],
+        },
+      ],
+    };
+    const report = verifyDocument(doc, {}, new Date("2026-10-18T10:00:00Z")) as TripCheckReport;
+    vi.stubGlobal("fetch", checkOnlyFetch(report));
+    render(<TodayView plan={basePlan()} shareId="share_test123" />);
+
+    expect(await screen.findByText("今天体检")).toBeInTheDocument();
+    const card = screen.getByText("今天体检").closest("section")!;
+    expect(within(card).getByText("按文档数据，今天没有发现阻断问题。")).toBeInTheDocument();
+    expect(within(card).queryByText(/超出预算/)).not.toBeInTheDocument();
+    // facts 未核验要如实说（未核验 ≠ 没问题）
+    expect(within(card).getByText(/事实：未核验/)).toBeInTheDocument();
+  });
+
+  it("出发前 / 已结束后：不请求今日体检，也不渲染卡片", async () => {
+    const fetchMock = checkOnlyFetch(cleanCheckReport());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const before = render(
+      <TodayView
+        plan={{ ...basePlan(), startDate: "2026-11-01", endDate: "2026-11-03" }}
+        shareId="share_test123"
+      />,
+    );
+    expect(await screen.findByText(/还有 14 天出发/)).toBeInTheDocument();
+    expect(screen.queryByText("今天体检")).not.toBeInTheDocument();
+    expect(checkCallCount(fetchMock)).toBe(0);
+    before.unmount();
+
+    render(
+      <TodayView
+        plan={{ ...basePlan(), startDate: "2000-01-01", endDate: "2000-01-03" }}
+        shareId="share_test123"
+      />,
+    );
+    expect(await screen.findByText("行程已结束")).toBeInTheDocument();
+    expect(screen.queryByText("今天体检")).not.toBeInTheDocument();
+    expect(checkCallCount(fetchMock)).toBe(0);
+  });
+
+  it("接口失败/限流：一行降级 + 重试；今日时间轴与点位不受影响", async () => {
+    let checks = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url) === "/api/plan/check") {
+        checks += 1;
+        if (checks === 1) {
+          return {
+            ok: false,
+            status: 429,
+            json: async () => ({ error: "rate_limited", limit: 120 }),
+          } as unknown as Response;
+        }
+        return checkResponse(cleanCheckReport());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TodayView plan={basePlan()} shareId="share_test123" />);
+
+    expect(await screen.findByText("体检暂时不可用（不影响今日行程）")).toBeInTheDocument();
+    // 主流程仍在：时间轴、点位、导航都在
+    expect(screen.getByText("今日时间轴")).toBeInTheDocument();
+    expect(screen.getByText("宽窄巷子")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /重试/ }));
+    expect(await screen.findByText("按文档数据，今天没有发现阻断问题。")).toBeInTheDocument();
+    expect(checks).toBe(2);
+  });
+
+  it("行程不存在（404）：静默不展示卡片，不打扰今日主流程", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url) === "/api/plan/check") {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: "not_found" }),
+        } as unknown as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TodayView plan={basePlan()} shareId="share_test123" />);
+
+    expect(await screen.findByText("今日时间轴")).toBeInTheDocument();
+    await waitFor(() => expect(checkCallCount(fetchMock)).toBe(1));
+    expect(screen.queryByText("今天体检")).not.toBeInTheDocument();
+    expect(screen.queryByText("体检暂时不可用（不影响今日行程）")).not.toBeInTheDocument();
   });
 });

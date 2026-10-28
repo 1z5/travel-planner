@@ -9746,3 +9746,130 @@ main.has-result .new-head {
     justify-content: center;
   }
 }
+
+/* ---------- 行中「今天体检」卡（TodayView） ----------
+   复用 .card/.today-section-title/.today-helper/.today-degrade；这里只补紧凑排版。
+   移动端 390px：长证据自动换行、重试按钮保持 40px 触控高度、不横向溢出。 */
+.tc-today-check .card-body {
+  padding: var(--sp-3) var(--sp-4);
+}
+.tc-today-check-lede {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.tc-today-check-facts-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.tc-today-check-grade {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 2px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  color: var(--ink);
+}
+.tc-today-check-grade-A,
+.tc-today-check-grade-B {
+  border-color: var(--ok-line);
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+}
+.tc-today-check-grade-C {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.tc-today-check-grade-D {
+  border-color: var(--err-line);
+  background: var(--err-bg);
+  color: var(--err-ink);
+}
+.tc-today-check-score {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.tc-today-check-facts {
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.tc-today-check-facts-warn {
+  color: var(--warn-ink);
+  font-weight: 600;
+}
+.tc-today-check-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+}
+.tc-today-check-issue {
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn-line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.tc-today-check-issue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.tc-today-check-issue-title {
+  font-size: var(--fs-small);
+  font-weight: 650;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.tc-today-check-issue-brief {
+  margin: 4px 0 0;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-today-check-clear {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ok-ink);
+}
+.tc-today-check-more,
+.tc-today-check-info {
+  margin: 0 0 4px;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.tc-today-check-info {
+  color: var(--warn-ink);
+}
+.tc-today-check-degrade {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.tc-today-check-degrade .today-degrade {
+  flex: 1 1 200px;
+  margin: 0;
+}
+.tc-today-check-retry {
+  width: auto;
+  flex-shrink: 0;
+}
+.tc-today-check-link {
+  margin-top: 2px;
+}

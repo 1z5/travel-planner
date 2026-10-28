@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   BedDouble,
@@ -16,7 +16,9 @@ import {
   Loader2,
   MapPin,
   Navigation,
+  RefreshCw,
   Route,
+  ShieldCheck,
   ShoppingBag,
   TrainFront,
   Utensils,
@@ -24,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import type { Plan, PlanDay, PlanLeg, PlanSpot, TransportMode } from "@/lib/types";
+import type { FactsVerdict, TripCheckReport, VerifyIssue } from "@/lib/verify/types";
 import {
   distMeters,
   fmtDist,
@@ -36,7 +39,7 @@ import {
 } from "@/lib/trip-day";
 import { formatHoursShort } from "@/lib/poi-hours";
 import { parseTimeRange } from "@/lib/schedule";
-import { TodayExecutionCard, useArrivedSpots } from "./TodayExecutionCard";
+import { useArrivedSpots } from "./TodayExecutionCard";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
 // 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
 import type { ReplanResult } from "@/lib/replan";
@@ -164,6 +167,152 @@ type ReplanState =
   | { status: "error"; error: string };
 
 /**
+ * 今日体检的状态机（只读）：idle 未到出行日 / loading / done 有报告 /
+ * unavailable 接口失败（一行降级 + 重试）/ hidden 行程不存在（静默不展示）。
+ *
+ * 为什么单独一套而不是复用 WorkspaceCheck：行中只关心「今天」这一屏，
+ * 需要极紧凑、失败不阻塞主流程；完整报告由 /w/<id>?view=check 承载。
+ */
+type TodayCheckState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; report: TripCheckReport }
+  | { status: "unavailable" }
+  | { status: "hidden" };
+
+const FACTS_LABEL: Record<FactsVerdict["state"], string> = {
+  verified: "已核验",
+  partial: "部分核验",
+  unverified: "未核验",
+  inconclusive: "无可核验点位",
+};
+
+/** 行中卡片里的一句话证据：有引擎算出的建议就用建议，否则用问题详情（截断保持紧凑） */
+function issueBrief(issue: VerifyIssue): string {
+  const text = issue.suggestion ?? issue.detail;
+  return text.length > 96 ? `${text.slice(0, 95)}…` : text;
+}
+
+/**
+ * 「今天体检」卡片：只展示今天的问题，最多 2 条；失败/限流降级为一行 + 重试。
+ * 设计上刻意不抢执行焦点：没有按钮（除重试）、不自动滚动、不改行程。
+ */
+function TodayCheckCard({
+  state,
+  dayNo,
+  shareId,
+  onRetry,
+}: {
+  state: Exclude<TodayCheckState, { status: "idle" } | { status: "hidden" }>;
+  dayNo: number;
+  shareId: string;
+  onRetry: () => void;
+}) {
+  const report = state.status === "done" ? state.report : null;
+  const consistency = report?.verdict.consistency;
+  const facts = report?.verdict.facts;
+  const todayIssues = report ? report.issues.filter((item) => item.evidence.day === dayNo) : [];
+  const actionable = todayIssues.filter(
+    (item) => item.severity === "blocking" || item.severity === "warning",
+  );
+  const visible = actionable.slice(0, 2);
+  const hiddenCount = actionable.length - visible.length;
+  const infoCount = todayIssues.filter((item) => item.severity === "info").length;
+  const factsLabel = facts ? (FACTS_LABEL[facts.state] ?? facts.state) : "";
+
+  return (
+    <section
+      className="card tc-today-check"
+      aria-labelledby="tc-today-check-title"
+      aria-busy={state.status === "loading"}
+    >
+      <div className="card-body">
+        <h2 className="today-section-title" id="tc-today-check-title">
+          <ShieldCheck size={16} aria-hidden="true" />
+          今天体检
+        </h2>
+        <p className="tc-today-check-lede">
+          只读判定：按这份行程文档的数据看今天会不会踩坑。不改行程、不需要操作。
+        </p>
+
+        {state.status === "loading" && (
+          <p className="today-helper" role="status">
+            <Loader2 size={14} className="spin" aria-hidden="true" />
+            正在按文档数据检查今天…
+          </p>
+        )}
+
+        {state.status === "unavailable" && (
+          <div className="tc-today-check-degrade">
+            <p className="today-degrade" role="status">
+              体检暂时不可用（不影响今日行程）
+            </p>
+            <button type="button" className="btn tc-today-check-retry" onClick={onRetry}>
+              <RefreshCw size={14} aria-hidden="true" />
+              重试
+            </button>
+          </div>
+        )}
+
+        {consistency && facts && (
+          <>
+            <div className="tc-today-check-facts-row">
+              <span className={`tc-today-check-grade tc-today-check-grade-${consistency.grade}`}>
+                结构 {consistency.grade}
+                <span className="tc-today-check-score"> · {consistency.score}/100</span>
+              </span>
+              <span
+                className={
+                  facts.state === "verified"
+                    ? "tc-today-check-facts"
+                    : "tc-today-check-facts tc-today-check-facts-warn"
+                }
+              >
+                事实：{factsLabel}
+                {facts.state === "verified" ? "" : "（未核验 ≠ 没问题）"}
+              </span>
+            </div>
+
+            {visible.length > 0 ? (
+              <ul className="tc-today-check-issues">
+                {visible.map((issue, index) => (
+                  <li key={`${issue.ruleId}-${index}`} className="tc-today-check-issue">
+                    <div className="tc-today-check-issue-head">
+                      <span className="tc-today-check-issue-title">
+                        {issue.severity === "blocking" ? "阻断" : "需微调"} · {issue.title}
+                      </span>
+                      <code className="tc-rule-id">{issue.ruleId}</code>
+                    </div>
+                    <p className="tc-today-check-issue-brief">{issueBrief(issue)}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="tc-today-check-clear">按文档数据，今天没有发现阻断问题。</p>
+            )}
+
+            {hiddenCount > 0 && (
+              <p className="tc-today-check-more">
+                还有 {hiddenCount} 条需注意的问题，见完整今日体检。
+              </p>
+            )}
+            {infoCount > 0 && (
+              <p className="tc-today-check-info">
+                另有 {infoCount} 条信息不足（不是通过，是不知道）。
+              </p>
+            )}
+
+            <Link href={`/w/${shareId}?view=check`} className="btn-link tc-today-check-link">
+              查看完整今日体检 →
+            </Link>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
  * 两个行程点之间的路段条：方式 + 距离 + 时长 + 可展开的分步指令。
  *
  * 单独拆组件是为了让「legs 缺失/字段畸形」的降级逻辑只写一处：旧行程没有 legs
@@ -251,6 +400,43 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   // 重规划建议同样只在点击时求解（毫秒级，但也没有「页面一打开就该算」的理由）
   const [replan, setReplan] = useState<ReplanState>({ status: "idle" });
 
+  // 今日体检：只读接口（/api/plan/check），只在「行程进行中」自动拉一次；
+  // 失败一律降级，绝不阻塞今天的主流程（今天怎么走才是第一优先级）。
+  const [todayCheck, setTodayCheck] = useState<TodayCheckState>({ status: "idle" });
+  const todayCheckRequested = useRef(false);
+
+  const checkToday = useCallback(async () => {
+    setTodayCheck({ status: "loading" });
+    try {
+      const r = await fetch("/api/plan/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId }),
+      });
+      // 行程不存在（旧/失效链接）：静默不展示，不打扰行中体验
+      if (r.status === 404) {
+        setTodayCheck({ status: "hidden" });
+        return;
+      }
+      if (!r.ok) {
+        setTodayCheck({ status: "unavailable" });
+        return;
+      }
+      const data = (await r.json().catch(() => null)) as {
+        report?: TripCheckReport;
+      } | null;
+      const report = data?.report;
+      if (!report?.verdict?.consistency || !report.verdict.facts) {
+        setTodayCheck({ status: "unavailable" });
+        return;
+      }
+      setTodayCheck({ status: "done", report });
+    } catch {
+      // 网络错误/限流/服务端异常：一行降级，用户可重试
+      setTodayCheck({ status: "unavailable" });
+    }
+  }, [shareId]);
+
   const days: PlanDay[] = Array.isArray(viewPlan.days) ? viewPlan.days : [];
   const city = typeof viewPlan.city === "string" && viewPlan.city.trim() ? viewPlan.city : "行程";
 
@@ -265,6 +451,16 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   // dayNo 这里用防御式计算（currentDay 可能不存在），与下方 during 分支的
   // dayNo 同源；非出行日读 day 1 的记录也不会有副作用（UI 不展示）。
   const arrivedSpots = useArrivedSpots(shareId, today?.kind === "during" ? today.dayIndex + 1 : 1);
+
+  // 出行日自动拉一次今日体检（before/after/unknown 一律不发请求）。
+  // 请求是只读、无外部上游、毫秒级，但也要防重：todayCheckRequested 只放行一次；
+  // 失败后的「重试」是用户显式动作，不经过这个 ref。
+  useEffect(() => {
+    if (today?.kind !== "during" || todayCheckRequested.current) return;
+    todayCheckRequested.current = true;
+    // eslint-disable-next-line react/set-state-in-effect -- 挂载后按需拉取只读体检（与外部系统同步）
+    void checkToday();
+  }, [today?.kind, checkToday]);
 
   // 行程被改过（今天换成室内路线）后，之前算出的直线距离可能对应的是旧点位：
   // 清掉定位结果，宁可让用户重新点一次，也不把旧距离贴在新景点上。
@@ -763,6 +959,19 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
           )}
         </div>
       </section>
+
+      {/* ===== 今天体检：只在出行中展示；只读、失败降级、不抢执行焦点 ===== */}
+      {today?.kind === "during" &&
+        currentDay &&
+        todayCheck.status !== "idle" &&
+        todayCheck.status !== "hidden" && (
+          <TodayCheckCard
+            state={todayCheck}
+            dayNo={currentDay.day}
+            shareId={shareId}
+            onRetry={() => void checkToday()}
+          />
+        )}
 
       {/* ===== 离我多远：用户主动定位，一次算出今天各站距离 ===== */}
       {hasLocatableSpot && (

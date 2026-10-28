@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
 import { matchSpotName, replanSolve } from "@/lib/replan";
 import { parseTimeRange } from "@/lib/schedule";
@@ -76,14 +78,22 @@ function parseClock(hhmm: string): number | null {
 }
 
 export async function POST(req: NextRequest) {
-  // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
+  // 0) 浏览器跨站写保护（无 Origin 的 curl/e2e 放行；replan 只读计算但仍会读行程）
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
   }
-  const parsed = BodySchema.safeParse(raw);
+
+  // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）。
+  //    body 上限 16 KiB（安全审计 R1）：shareId + day + nowMin，足够。
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+  const parsed = BodySchema.safeParse(body.json);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "参数不正确" },

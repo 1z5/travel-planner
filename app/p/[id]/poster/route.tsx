@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { resolvePlan } from "@/lib/plan-repo";
 import { buildPosterModel } from "@/lib/poster-model";
+import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
 
 // 竖版行程海报：1080×1920，供「保存海报 → 微信发朋友」。
 //
@@ -22,7 +23,16 @@ const INK = "#221d16";
 const PAPER = "#f6f0e4";
 const ACCENT = "#c2410c";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // 海报是 CPU 放大点（Satori 1080×1920），公开 URL 可被脚本反复触发生成。
+  // 按 IP 小时桶限流；正常转发/保存一次足够，限流不会误伤真实用户。
+  const rl = await checkProxyRateLimit(req.headers, "poster", "POSTER_HOURLY_LIMIT", 120);
+  if (!rl.allowed) {
+    return new Response("海报生成过于频繁，请稍后再试", {
+      status: 429,
+      headers: { "Retry-After": "600", "Cache-Control": "no-store" },
+    });
+  }
   const { id } = await params;
   // 与分享页/OG 同口径：新 token 读持久化 Plan，旧 jobId 链接兜底
   const plan = await resolvePlan(id);
@@ -110,6 +120,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         </div>
       </div>
     </div>,
-    size,
+    {
+      ...size,
+      // 传播物：允许 CDN 缓存 1 小时（URL 里是分享 token 本身，与分享链接同权限）。
+      // 没有缓存时每个转发预览都会重跑一次 Satori——免费实例扛不住。
+      headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" },
+    },
   );
 }

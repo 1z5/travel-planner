@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { extractTripConditions } from "@/lib/trip-extract";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { LlmError } from "@/lib/planner";
 import { consume, hourKey, refund } from "@/lib/ratelimit";
 import { clientIpFromHeaders } from "@/lib/client-ip";
@@ -32,14 +34,23 @@ function extractHourlyLimit(): number {
 }
 
 export async function POST(req: NextRequest) {
-  // 1) 参数校验（放在限流之前：坏请求不该消耗用户的小时额度）
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
+  // 0) 浏览器跨站写保护（无 Origin 的 curl/agent 放行）
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
   }
-  const parsed = BodySchema.safeParse(raw);
+
+  // 1) 参数校验（放在限流之前：坏请求不该消耗用户的小时额度）。
+  //    body 上限 32 KiB：text 最长 4000 字，中文按 UTF-8 3-4 字节算最坏 ~16KB，
+  //    加 JSON 信封留一倍余量（安全审计 R1；普通端点 16KiB 对 4000 字中文偏紧）。
+  const body = await readJsonBody(req, 32 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+  const parsed = BodySchema.safeParse(body.json);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "参数不正确" },

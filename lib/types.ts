@@ -175,6 +175,14 @@ export interface Plan {
   }; // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动部分未核 / pending=流式生成中尚未收尾
   grounding?: PlanGrounding; // 事实先行摘要（生成前用真实 POI 事实约束过模型）
   /**
+   * 演示/种子行程标记（DEMO_SEED 注入的 fixture）。
+   *
+   * 为什么：演示 token 写在公开的 DEMO.md 里，若允许写操作，任何人可改演示工件
+   * （安全审计 R4）。带这个标记的 Plan 在 refine/restore/repair/adjust 等写端点
+   * 一律 403 只读；克隆不受影响（克隆生成的是新 Plan）。
+   */
+  demo?: boolean;
+  /**
    * Trip Check 元数据（v9 起）：这份行程最近一次确定性修复的凭据链与计数。
    *
    * 为什么存在 Plan 里而不是另建表：核验结论可由 plan 随时重算，但「用户确实

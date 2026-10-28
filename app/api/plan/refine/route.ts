@@ -7,6 +7,9 @@ import {
   resolveFixDay,
   type FixKind,
 } from "@/lib/fix-actions";
+import { demoWriteBlockedMessage } from "@/lib/demo-seed";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
 import {
   refinePlan,
@@ -125,26 +128,36 @@ interface AppliedFix {
 // 全局限流（审计 P0-3）：refine 是同步 LLM 调用，单 IP 小时桶防不住伪造 IP
 // 或真实爆量。这里再加一层进程内并发闸门（与生成共享 LLM 额度，见
 // lib/capacity-gate.ts），满了直接 503，不浪费一次模型调用。
+//
+// body 读取放在拿 LLM 槽之前（安全审计 R1）：16 KiB 上限直接回 413，
+// 不让超大请求占着全局并发名额。
 export async function POST(req: NextRequest) {
+  // 0) 浏览器跨站写保护（纵深防御；分享 token 仍是匿名写的主要凭据）
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
+  }
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+
   const release = tryAcquireSlot("llm");
   if (!release) {
     return NextResponse.json({ error: "当前请求较多，请稍后再试" }, { status: 503 });
   }
   try {
-    return await handlePost(req);
+    return await handlePost(req, body.json);
   } finally {
     release();
   }
 }
 
-async function handlePost(req: NextRequest) {
+async function handlePost(req: NextRequest, raw: unknown) {
   // 1) 参数校验（放在限流之前：畸形请求不该消耗用户的小时额度）
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
-  }
   const parsed = BodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
@@ -165,6 +178,12 @@ async function handlePost(req: NextRequest) {
       );
     }
     return NextResponse.json({ error: "行程不存在或已被删除" }, { status: 404 });
+  }
+
+  // 2b) 演示行程只读（安全审计 R4）：DEMO.md 里的公开 token 不能成为公开写接口
+  const demoBlocked = demoWriteBlockedMessage(record.plan);
+  if (demoBlocked) {
+    return NextResponse.json({ error: demoBlocked }, { status: 403 });
   }
 
   // 3) 目标位置必须真实存在于这份行程（用户可能拿着旧页面点按钮）

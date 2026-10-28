@@ -61,6 +61,57 @@ try {
   fail(`/api/health 不可达: ${e?.message ?? e}（域名解析/安全组/服务是否起）`);
 }
 
+// ①b 安全基线探针（只读；加固不只在代码里，部署后也要验证）
+try {
+  const home = await get("/");
+  const h = home.headers;
+  const needHeaders = [
+    "strict-transport-security",
+    "cross-origin-opener-policy",
+    "cross-origin-resource-policy",
+    "x-content-type-options",
+  ];
+  const missing = needHeaders.filter((k) => !h.get(k));
+  const powered = h.get("x-powered-by");
+  if (missing.length === 0 && !powered) {
+    ok("安全响应头齐全（HSTS/COOP/CORP/nosniff；无 X-Powered-By）");
+  } else {
+    fail(
+      `安全响应头缺失: ${missing.join(",") || "无"}${powered ? `；X-Powered-By 仍为 ${powered}` : ""}`,
+    );
+  }
+
+  // 超大 body → 413（请求边界；不发有效 shareId，不写库）
+  const big = JSON.stringify({ shareId: `share_${"x".repeat(40)}`, pad: "x".repeat(32 * 1024) });
+  const bigRes = await fetch(`${BASE}/api/plan/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: big,
+    signal: AbortSignal.timeout(15000),
+  });
+  if (bigRes.status === 413) {
+    ok("超大请求体 → 413（body 上限生效）");
+  } else {
+    fail(`请求体上限未生效: HTTP ${bigRes.status}`);
+  }
+
+  // 演示行程写保护（DEMO.md 公开 token + confirm:true；被拦截时不会改数据）
+  const demoRes = await fetch(`${BASE}/api/plan/repair`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ shareId: "share_Z5oYam8ahjqb", confirm: true }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const demoBody = await json(demoRes);
+  if (demoRes.status === 403) {
+    ok("演示行程写操作 → 403（demo 只读）");
+  } else {
+    fail(`演示行程写未拦截: HTTP ${demoRes.status} ${JSON.stringify(demoBody).slice(0, 100)}`);
+  }
+} catch (e) {
+  fail(`安全基线探针异常: ${e?.message ?? e}`);
+}
+
 // ② 首页
 try {
   const r = await get("/");

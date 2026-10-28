@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { generatePlan, generateOutline, generateDay } from "./planner";
 import { generateDraftPlan } from "./draft-plan";
 import { buildFastDraft, isPublishableFastDraft } from "./fast-draft";
@@ -173,8 +174,23 @@ function startHeartbeat(store: Store, jobId: string): () => void {
   return () => clearInterval(timer);
 }
 
+/**
+ * 生成任务 id（能力凭据）。
+ *
+ * 为什么必须是 CSPRNG（安全审计 R3）：jobId 是「读任务结果 + 旧链接分享页」的
+ * 唯一凭据，旧的 `job_<毫秒时间戳 base36><Math.random 4 位>` 只有约 20 bit 随机性，
+ * 且时间戳可读、Math.random 不是密码学随机——理论上可枚举他人任务。改成
+ * `crypto.randomBytes(16)`（128 bit，base64url 22 字符）后不可猜测；
+ * `job_` 前缀保留，便于日志/排障一眼区分 share token（`share_…`）。
+ *
+ * 导出是为了单测能直接钉住格式/熵（不启动生成管线）。
+ */
+export function newJobId(): string {
+  return `job_${randomBytes(16).toString("base64url")}`;
+}
+
 function newId(): string {
-  return `job_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return newJobId();
 }
 
 /**

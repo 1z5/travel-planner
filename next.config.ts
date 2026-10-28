@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
   // distDir 可被环境变量覆盖：测试编排器会让多台 dev 服务器各用独立
   // distDir，否则共用 .next 会互相踩踏构建状态（随机编译失败/挂起）
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // 不暴露 Next 版本（扫描器按版本找已知漏洞的第一步）
+  poweredByHeader: false,
   async headers() {
     // 面向陌生人的公共部署：安全头集。
     //
@@ -45,6 +47,12 @@ const nextConfig: NextConfig = {
     ].join("; ");
 
     return [
+      // 私页（分享/行中/工作台/报告）不允许被索引：robots.txt 只是协议，搜索引擎/聚合器
+      // 可能不遵守；X-Robots-Tag 是响应级强制口径（审计 R13）。
+      {
+        source: "/(p|t|w|r)/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, noarchive" }],
+      },
       {
         source: "/(.*)",
         headers: [
@@ -53,12 +61,26 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Content-Security-Policy", value: csp },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+          // 进程隔离/资源隔离：本应用不需要被跨源 window 引用，也不希望被嵌入
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
           // HSTS 只在 HTTPS 下有意义；没有自定义域名/证书时先不开，
           // 否则 http 环境会被浏览器记住并强制跳 https（本地开发会坏）。
-          // 部署到 HTTPS 域名后取消下面这行注释即可。
-          // ...(process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")
-          //   ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]
-          //   : []),
+          // 生产（Render 注入 RENDER_EXTERNAL_URL=https://… 或显式 NEXT_PUBLIC_SITE_URL）
+          // 才下发；本地/预览 http 环境保持关闭。
+          ...((
+            process.env.NEXT_PUBLIC_SITE_URL ??
+            process.env.RENDER_EXTERNAL_URL ??
+            ""
+          ).startsWith("https://")
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains",
+                },
+              ]
+            : []),
         ],
       },
     ];

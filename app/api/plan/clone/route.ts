@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createJob } from "@/lib/jobs";
+import { readJsonBody } from "@/lib/http-body";
+import { crossSiteWriteError } from "@/lib/http-origin";
 import { consume, refund } from "@/lib/ratelimit";
 import { readSession } from "@/lib/auth/session";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
@@ -54,6 +56,22 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // 0) 浏览器跨站写保护（纵深防御；分享 token 仍是匿名写的主要凭据）
+  const crossSite = crossSiteWriteError(req);
+  if (crossSite) {
+    return NextResponse.json({ error: crossSite }, { status: 403 });
+  }
+
+  // 0b) 先读 body 再扣配额（安全审计 R1）：超大请求直接 413，不消耗生成配额。
+  //     16 KiB 足够 shareId + overrides（日期/预算/节奏几个短字段）。
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      { error: body.status === 413 ? body.error : "请求格式不正确，需要 JSON body" },
+      { status: body.status },
+    );
+  }
+
   // 1) 配额（提交即扣，任何后续失败都归还——与 /api/plan 同口径）
   const q = quotaOf(req);
   const quota = await consume(q.key, q.limit);
@@ -64,15 +82,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 429 });
   }
 
-  // 2) 参数校验
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    await refund(q.key);
-    return NextResponse.json({ error: "请求格式不正确，需要 JSON body" }, { status: 400 });
-  }
-  const parsed = BodySchema.safeParse(raw);
+  // 2) 参数校验（配额已扣，失败必须退还）
+  const parsed = BodySchema.safeParse(body.json);
   if (!parsed.success) {
     await refund(q.key);
     return NextResponse.json(

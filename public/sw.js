@@ -1,8 +1,10 @@
-// 行中/分享页的离线外壳（Service Worker）。
+// 行中页的离线外壳（Service Worker）。
 //
-// 为什么只缓存「导航」且只覆盖 /t 与 /p：行中模式的核心诉求是「地铁里/境外
-// 没信号时也能看到今天的安排」。行程数据是服务端渲染进 HTML 的，所以缓存
-// **导航响应**就够——断网时打开过的行中页/分享页仍然可读。
+// 为什么只缓存 /t 导航（不再缓存 /p）：行中模式的核心诉求是「地铁里/境外
+// 没信号时也能看到今天的安排」，/t 是执行镜头、离线价值最高。而 /p 分享页
+// 的 URL 本身就是能力凭据（拿到链接可读/可共编），SW 缓存会忽略服务端的
+// `Cache-Control: no-store`，把带 token 的页面永久留在设备上（审计 R13）。
+// 取舍：分享页离线可读性下降，换取「私有工件不落长期本地缓存」。
 //
 // 刻意不做：
 // - 不缓存 /api（数据会过期，行中要的是「最后一次看到的安排」，不是实时数据，
@@ -12,7 +14,7 @@
 //
 // 注册时机见 components/PwaBootstrap.tsx（仅生产环境注册）。
 
-const CACHE = "tp-trip-shell-v1";
+const CACHE = "tp-trip-shell-v2";
 const OFFLINE_MESSAGE = "当前离线，且没有可用的缓存页面。请连网后重试。";
 
 // 跳过 waiting：装完立刻接管，行中场景等不起「关闭所有标签页再打开」
@@ -42,8 +44,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  const isTripNav =
-    req.mode === "navigate" && (url.pathname.startsWith("/t/") || url.pathname.startsWith("/p/"));
+  const isTripNav = req.mode === "navigate" && url.pathname.startsWith("/t/");
   if (!isTripNav) return;
 
   event.respondWith(

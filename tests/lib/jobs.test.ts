@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clearStage, dayFailureError, dayStage, getJobStage, setStage } from "@/lib/jobs";
+import { clearStage, dayFailureError, dayStage, getJobStage, newJobId, setStage } from "@/lib/jobs";
 
 // dayFailureError 把「哪一天、哪个阶段、什么原因、已成功几天」组织成可行动的信息。
 //
@@ -90,5 +90,22 @@ describe("阶段遥测（stage）", () => {
     expect(getJobStage(b)).toBe("verify");
     clearStage(a);
     clearStage(b);
+  });
+});
+
+// 安全审计 R3：jobId 是「读任务结果 / 旧链接分享页」的能力凭据，必须不可枚举。
+describe("jobId 能力凭据（CSPRNG）", () => {
+  it("格式：job_ + 22 位 base64url（16 字节 CSPRNG），URL-safe", () => {
+    const id = newJobId();
+    expect(id).toMatch(/^job_[A-Za-z0-9_-]{22}$/);
+  });
+
+  it("不可猜测：连续生成不重复，且不再带可读的毫秒时间戳前缀", () => {
+    const ids = new Set(Array.from({ length: 200 }, () => newJobId()));
+    expect(ids.size).toBe(200);
+    // 旧实现是 job_<Date.now().toString(36)><Math.random>：时间戳可读、随机仅 ~20 bit。
+    // 新实现的第一段不应等于当前毫秒时间戳的 base36（概率上可忽略的碰撞不影响此断言）。
+    const stamp = Date.now().toString(36);
+    for (const id of ids) expect(id.startsWith(`job_${stamp}`)).toBe(false);
   });
 });

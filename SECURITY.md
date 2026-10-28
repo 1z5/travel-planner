@@ -30,6 +30,24 @@
 **不在范围内**：需要已登录账号权限的社会工程学、拒绝服务（DoS）压测、第三方服务
 （高德/LLM 提供方）自身的问题——请直接报告给对应服务商。
 
+## 已知加固基线（2026-10-28）
+
+完整只读审计（无 Critical）与残余风险清单见 [docs/SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)。
+当前已落地（决策见 [ADR-016](docs/adr/016-security-hardening-baseline.md)）：
+
+- 所有 JSON 端点统一 body 上限（普通 16–64 KiB；开放核验/MCP 256 KiB），超限 413；
+- jobId 使用 CSPRNG，`/api/plan/status`、`/api/plan/ics` 限流，ics 私有缓存；
+- `DEMO_SEED` 演示行程只读（写端点 403）；
+- 撤销修改（restore）不再信任客户端回传的核验/修复元数据（剥离后服务端重算预警）；
+- 浏览器写端点同源校验（Origin / Sec-Fetch-Site；非浏览器客户端放行）；
+- 海报/OG 限流 + CDN 缓存；MCP 端点限流；
+- 安全响应头：CSP、HSTS（HTTPS）、COOP/CORP、noindex（私页）、关闭 `X-Powered-By`；
+- Service Worker 只缓存 `/t` 行中页（分享页 URL 是能力凭据，不再落长期本地缓存）。
+
+**仍不在范围**：DoS 压测、第三方服务（高德/LLM）自身问题、需要账号权限的社会工程学。
+**已接受风险**：分享 token 即能力（拿链接可共编）、开放核验/MCP 无鉴权（限流兜底）、
+凭据是确定性哈希而非签名、CSP 仍含 `unsafe-inline`、依赖链 `fast-uri` moderate（上游无 fix）。
+
 ## 致谢
 
 经确认有效的报告会在修复发布时致谢（除非你要求匿名）。

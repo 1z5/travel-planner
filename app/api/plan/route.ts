@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createJob } from "@/lib/jobs";
+import { readJsonBody } from "@/lib/http-body";
 import { consume, refund } from "@/lib/ratelimit";
 import { readSession } from "@/lib/auth/session";
 import { validateProfile, type TravelProfile } from "@/lib/profile";
@@ -160,6 +161,19 @@ function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolea
 }
 
 export async function POST(req: NextRequest) {
+  // 0) 先读 body（安全审计 R1）：App Router 的 req.json() 没有体积上限，
+  //    公开生成入口被塞大包会直接吃内存。16 KiB 足够表单（城市/日期/预算/偏好/
+  //    档案/活动），超限 413 且**不消耗配额**。
+  const body = await readJsonBody(req, 16 * 1024);
+  if (!body.ok) {
+    return NextResponse.json(
+      {
+        error: body.status === 413 ? body.error : "参数不完整：需要城市、起止时间、预算（元）",
+      },
+      { status: body.status },
+    );
+  }
+
   // 1) 配额（提交即扣，失败归还）
   const q = quotaOf(req);
   const quota = await consume(q.key, q.limit);
@@ -173,7 +187,7 @@ export async function POST(req: NextRequest) {
   // 2) 参数校验
   let input: z.infer<typeof InputSchema>;
   try {
-    input = InputSchema.parse(await req.json());
+    input = InputSchema.parse(body.json);
   } catch (e) {
     await refund(q.key);
     const msg = e instanceof z.ZodError ? e.issues[0]?.message : null;

@@ -12,6 +12,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 最小权限：CI 只读仓库内容（默认 token 权限过大；审计 R15）
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
