@@ -40,11 +40,21 @@ const get = (path, init = {}) =>
   fetch(`${BASE}${path}`, { ...init, signal: AbortSignal.timeout(15000) });
 const json = async (res) => res.json().catch(() => ({}));
 
-// ① 健康检查
+// ① 健康检查（免费实例冷启动/自动重启时首个请求可能失败：重试 3 次再判死）
 console.log(`目标: ${BASE}`);
 let healthCommit = null;
 try {
-  const h = await json(await get("/api/health"));
+  let h = null;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3 && !h; attempt += 1) {
+    try {
+      h = await json(await get("/api/health"));
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  if (!h) throw lastErr ?? new Error("health 无响应");
   if (h.status !== "ok") {
     fail(`health 返回异常: ${JSON.stringify(h)}`);
   } else {
