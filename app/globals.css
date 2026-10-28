@@ -9448,3 +9448,198 @@ main.has-result .new-head {
     padding: var(--sp-2) var(--sp-3);
   }
 }
+
+/* ---------- 工作台「体检」镜头（?view=check） ----------
+   复用 /verify 的 .tc-report/.tc-verdict/.tc-axis/.tc-issue/.tc-credential
+   与 .tc-repair-*（同一套设计语言）；这里只补工作台布局、两段式修复的确认条、
+   修复历史与写入成功提示。移动端基准 390px：单列、按钮通栏、凭据 ID 可换行。 */
+.tc-ws-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.tc-ws-check-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.tc-ws-check-head-main {
+  max-width: 780px;
+}
+.tc-ws-check-title {
+  margin: 6px 0 8px;
+  font-size: clamp(22px, 3vw, 28px);
+}
+.tc-ws-check-lede {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+.tc-ws-check-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.tc-ws-check-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: var(--sp-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+}
+
+/* 报告区：结构沿用 .tc-report，只收敛间距/标题级别 */
+.tc-ws-check-report {
+  margin: 0;
+}
+.tc-ws-check-report-title {
+  margin: 6px 0 4px;
+  font-size: clamp(20px, 3vw, 26px);
+}
+.tc-ws-check-note {
+  margin-top: var(--sp-3);
+}
+
+/* 预览 → 确认写入：确认条是「写入」的唯一入口，主按钮保持 44px+ */
+.tc-ws-check-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+.tc-ws-check-confirm-btn {
+  width: auto;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 20px;
+  font-size: var(--fs-small);
+}
+.tc-ws-check-confirm .tc-hint {
+  flex: 1 1 240px;
+  margin: 0;
+}
+
+/* 写入成功：只报告服务端声明的事实（persisted/revision/applied） */
+.tc-ws-check-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: var(--sp-3);
+  padding: 10px 12px;
+  border: 1px solid var(--ok-line);
+  border-radius: var(--r-md);
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+  font-size: var(--fs-small);
+  line-height: 1.65;
+}
+.tc-ws-check-notice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.tc-ws-check-notice p {
+  margin: 0;
+}
+.tc-ws-check-notice p + p {
+  margin-top: 4px;
+  font-size: var(--fs-caption);
+}
+
+.tc-ws-check-alert {
+  margin-top: var(--sp-3);
+}
+.tc-ws-check-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* 修复历史：只读声明，数字缺失就写「未记录」，不补 0 */
+.tc-ws-check-history {
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.tc-ws-check-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: var(--sp-2);
+}
+.tc-ws-check-history-head h3 {
+  font-size: var(--fs-title);
+}
+.tc-ws-check-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+}
+.tc-ws-check-history-grid > div {
+  min-width: 0;
+}
+.tc-ws-check-history-grid dt {
+  font-size: var(--fs-caption);
+  color: var(--ink-3);
+}
+.tc-ws-check-history-grid dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-small);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.tc-ws-check-history .tc-hint {
+  margin: 0;
+}
+
+/* 工作台里修复卡与报告之间的间距由 .tc-ws-check 的 gap 负责 */
+.tc-ws-check-repair {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .tc-ws-check-head {
+    flex-direction: column;
+  }
+  .tc-ws-check-actions {
+    width: 100%;
+  }
+  .tc-ws-check-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .tc-ws-check-confirm {
+    align-items: stretch;
+  }
+  .tc-ws-check-confirm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .tc-ws-check-confirm > .btn:not(.tc-ws-check-confirm-btn) {
+    width: 100%;
+    justify-content: center;
+  }
+  .tc-ws-check-confirm .tc-hint {
+    flex-basis: 100%;
+  }
+  .tc-ws-check-history {
+    padding: var(--sp-3) var(--sp-4);
+  }
+}

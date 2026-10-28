@@ -174,4 +174,29 @@ export interface Plan {
     timeFixed: number; // 初版「时间接不上」在精排版被修正的段数（近似：初版未算通勤，按真实路段数计）
   }; // 验真完成度：mock=未接高德 / ok=全部核完 / partial=高德波动部分未核 / pending=流式生成中尚未收尾
   grounding?: PlanGrounding; // 事实先行摘要（生成前用真实 POI 事实约束过模型）
+  /**
+   * Trip Check 元数据（v9 起）：这份行程最近一次确定性修复的凭据链与计数。
+   *
+   * 为什么存在 Plan 里而不是另建表：核验结论可由 plan 随时重算，但「用户确实
+   * 采纳过修复」是一个**事件事实**（父凭据 → 子凭据、修复了几处、第几版），
+   * 重算不出来。Plan 本身是 JSON 聚合（revision 已经承载版本语义），放这里
+   * 不引入迁移，也能让分享页/工作台直接展示「已修复」的证据链。
+   *
+   * 诚实边界：只记录 mechanical repair（顺延/去重）；不写「体检通过」之类的
+   * 主观结论——那由 Trip Check 报告实时判定，不能固化成历史声明。
+   */
+  tripCheck?: {
+    /** 最近一次修复后的凭据（子） */
+    credentialId: string;
+    /** 修复前的凭据（父）；没有修复过则缺省 */
+    parentCredentialId?: string;
+    /** 最近一次核验/修复的时间（ms） */
+    checkedAt: number;
+    /** 最近一次修复时间（ms）；只做 check 不修复时缺省 */
+    repairedAt?: number;
+    /** 累计确定性修复次数（每次持久化 +1） */
+    repairCount?: number;
+    /** 最近一次修复应用的机械变换条数 */
+    applied?: number;
+  };
 }

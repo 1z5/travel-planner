@@ -131,6 +131,12 @@ export default async function SharePage({
         </span>
         <span className="pm-sep" aria-hidden="true" />
         <span className="pm-source">数据来源 高德开放平台</span>
+        {plan.tripCheck && (
+          <>
+            <span className="pm-sep" aria-hidden="true" />
+            <span className="pm-ok">已确定性修复</span>
+          </>
+        )}
       </div>
 
       {/* 结构化数据（schema.org TouristTrip）：搜索引擎/聚合器可直接读取行程，
@@ -155,6 +161,17 @@ export default async function SharePage({
           <Link href={`/verify?share=${id}`} className="btn-link">
             在开放体检台查看完整报告 / 复算凭据 →
           </Link>
+          {plan.tripCheck && (
+            <p className="muted">
+              已在第 {plan.tripCheck.repairCount ?? 1} 次确定性修复中写入新版本 · 修复链：
+              <code>{plan.tripCheck.parentCredentialId ?? "—"}</code> →{" "}
+              <code>{plan.tripCheck.credentialId}</code>
+              <br />
+              <Link href={`/w/${id}?view=check`} className="btn-link">
+                在工作台查看体检记录 →
+              </Link>
+            </p>
+          )}
         </div>
       </section>
 

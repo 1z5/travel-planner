@@ -22,6 +22,7 @@ export const EVENT_NAMES = [
   "today_arrived", // 行中：点「我已到达」（前端记，带 day）——「照着走完」的强信号
   "upgrade_intent", // 定价页「我想要这个」意愿收集（前端记，meta.tier = 候选付费点）
   "plan_restored", // 撤销这次修改（服务端记）——「改坏了能退回去」的使用频次
+  "plan_repaired", // 产品内确定性修复并写回（服务端记）——「体检 → 修复」闭环的使用频次
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

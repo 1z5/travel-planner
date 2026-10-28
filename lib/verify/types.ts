@@ -321,6 +321,17 @@ export interface RepairApplied {
   ruleId: string;
   day: number;
   spot?: string;
+  /**
+   * 被修复点在**输入文档当天 spots 数组里的原始下标**（0 基）。
+   * 为什么需要：产品侧要把「修复后文档」的变更套回内部 Plan（Plan 有 period/
+   * reason/rainBackup 等文档里没有的字段）。按名称套不稳（重复点正是要删的那种），
+   * 按下标才可逆；删除类修复按原始下标降序应用即可。
+   */
+  spotIndex?: number;
+  /** 时间类修复：原时刻（"HH:MM-HH:MM"） */
+  from?: string;
+  /** 时间类修复：新时刻 */
+  to?: string;
   /** 人话说明（含前后时刻/具体动作，供人类复核） */
   detail: string;
 }

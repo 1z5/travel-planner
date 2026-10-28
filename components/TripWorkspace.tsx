@@ -9,6 +9,7 @@ import {
   ListChecks,
   Map as MapIcon,
   Navigation,
+  ShieldCheck,
   SlidersHorizontal,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
@@ -20,32 +21,35 @@ import { RouteMap } from "./RouteMap";
 import { CloneCTA } from "./CloneCTA";
 import { DayArrange } from "./DayArrange";
 import { ExecutabilityBadge } from "./ExecutabilityBadge";
+import { WorkspaceCheck } from "./WorkspaceCheck";
 import { track } from "@/lib/track";
 
 // ============================================================
-// Trip Workspace：一个行程对象，四个镜头。
+// Trip Workspace：一个行程对象，五个镜头。
 //
 // 之前「行程 = 一页长文档」：预算、预警、逐天、管家、准备全部平铺，
 // 用户要么从头滚到尾，要么去另一个 URL（/t/）看今天。这里把同一份 Plan
 // 拆成可切换的镜头：
-//   规划（完整内容，含修改/体检/管家）
+//   规划（完整内容，含修改/管家）
 //   地图（按天看的真实路线 + 当日点位）
 //   调整（直接操纵当天点位顺序：拖拽/↑↓ + 确定性重算 + 撤销）
 //   今日（行中执行视角）
+//   体检（Trip Check：两轴结论 + 规则级证据 + 凭据 + 修复预览/确认写入）
 // Trip Header 常驻：城市/天数/日期/核验状态/倒计时 + 复制链接/分享页。
 // 出发当天默认落到「今日」镜头——产品自己知道现在该看什么。
 // ============================================================
 
-type View = "plan" | "map" | "arrange" | "today";
+type View = "plan" | "map" | "arrange" | "today" | "check";
 
 const TABS: Array<{ id: View; label: string; icon: typeof ListChecks }> = [
   { id: "plan", label: "规划", icon: ListChecks },
   { id: "map", label: "地图", icon: MapIcon },
   { id: "arrange", label: "调整", icon: SlidersHorizontal },
   { id: "today", label: "今日", icon: Navigation },
+  { id: "check", label: "体检", icon: ShieldCheck },
 ];
 
-const VIEWS: View[] = ["plan", "map", "arrange", "today"];
+const VIEWS: View[] = ["plan", "map", "arrange", "today", "check"];
 
 export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shareId: string }) {
   const [plan, setPlan] = useState<Plan>(initialPlan);
@@ -293,6 +297,12 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
         )}
 
         {view === "today" && <TodayView plan={plan} shareId={shareId} />}
+
+        {view === "check" && (
+          <section className="ws-check" aria-label="行程体检">
+            <WorkspaceCheck plan={plan} shareId={shareId} onPlanChange={setPlan} />
+          </section>
+        )}
       </div>
     </div>
   );

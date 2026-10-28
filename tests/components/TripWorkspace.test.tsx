@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // CloneCTA 用 useRouter 做克隆后跳转——jsdom 里没有 App Router 上下文
 let searchParams = new URLSearchParams();
@@ -6,14 +6,61 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   useSearchParams: () => searchParams,
 }));
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripWorkspace } from "@/components/TripWorkspace";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { verifyDocument } from "@/lib/verify/engine";
+import type { TripCheckCredential, TripCheckReport } from "@/lib/verify/types";
 
-// Trip Workspace：一个行程三个镜头。这里只钉「壳」的契约——镜头可切换、
-// 默认在规划、地图镜头按天给点位、今日镜头渲染行中视图。
-// PlanView/TodayView 自身的行为由它们各自的测试覆盖。
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+/** 工作台「体检」镜头挂载时会 POST /api/plan/check；这里给一份最小合法响应 */
+function stubCheckFetch() {
+  const report = verifyDocument(
+    {
+      specVersion: "trip-check/0.1",
+      city: "苏州",
+      days: [{ day: 1, spots: [{ name: "拙政园", time: "09:00-10:00" }] }],
+    },
+    {},
+    new Date("2026-10-28T10:00:00.000Z"),
+  ) as TripCheckReport;
+  const credential: TripCheckCredential = {
+    id: "tc_wscheck0123456789abcdef0123456",
+    algorithm: "sha256",
+    inputHash: "d".repeat(64),
+    specVersion: "trip-check/0.1",
+    engineVersion: "0.2.0",
+    rulesetVersion: "2026-10-28.1",
+    issuedAt: "2026-10-28T10:00:00.000Z",
+    basis:
+      "sha256(specVersion|engineVersion|rulesetVersion|sha256(canonical-json({document,options})))",
+  };
+  const fetchMock = vi.fn(
+    async (_url: string, _init?: RequestInit) =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          shareId: "share_ws01",
+          planRevision: 1,
+          report: { ...report, credential },
+          credential,
+          tripCheck: null,
+        }),
+      }) as unknown as Response,
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+// Trip Workspace：一个行程五个镜头。这里只钉「壳」的契约——镜头可切换、
+// 默认在规划、地图镜头按天给点位、今日镜头渲染行中视图、体检镜头深链可用。
+// PlanView/TodayView/WorkspaceCheck 自身的行为由它们各自的测试覆盖。
 
 describe("Trip Workspace", () => {
   it("默认进入规划镜头，Header 带城市/天数/核验状态", () => {
@@ -68,5 +115,31 @@ describe("Trip Workspace", () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText.mock.calls[0][0]).toContain("/p/share_ws01");
     expect(await screen.findByText("已复制")).toBeInTheDocument();
+  });
+
+  it("第五镜头「体检」：切过去会拉取并渲染体检报告", async () => {
+    const fetchMock = stubCheckFetch();
+    render(<TripWorkspace plan={SAMPLE_PLAN} shareId="share_ws01" />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /体检/ }));
+    expect(screen.getByRole("tab", { name: /体检/ })).toHaveAttribute("aria-selected", "true");
+
+    expect(await screen.findByText("这份行程能不能照着走")).toBeInTheDocument();
+    expect(screen.getByTestId("tc-ws-check-credential-id")).toBeInTheDocument();
+    // 工作台挂载时还会 fire-and-forget 上报 plan_opened（/api/events），只筛体检请求
+    const checkCalls = fetchMock.mock.calls.filter((call) => call[0] === "/api/plan/check");
+    expect(checkCalls).toHaveLength(1);
+  });
+
+  it("深链 ?view=check 直接落到体检镜头", async () => {
+    stubCheckFetch();
+    searchParams = new URLSearchParams("view=check");
+    render(<TripWorkspace plan={SAMPLE_PLAN} shareId="share_ws01" />);
+
+    expect(screen.getByRole("tab", { name: /体检/ })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() =>
+      expect(screen.getByTestId("tc-ws-check-credential-id")).toBeInTheDocument(),
+    );
+    searchParams = new URLSearchParams();
   });
 });

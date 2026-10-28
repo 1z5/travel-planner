@@ -321,6 +321,39 @@ if (failed === 0 && shareId) {
     } else {
       fail(`shareId 核验异常: HTTP ${r.status} ${JSON.stringify(rep).slice(0, 120)}`);
     }
+
+    // 产品内核验：check 只读 + repair 预览（**不写回**，避免改演示站行程）
+    const checkRes = await get("/api/plan/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shareId }),
+    });
+    const check = await json(checkRes);
+    if (checkRes.status === 200 && check.report?.verdict && check.credential?.id) {
+      ok(
+        `/api/plan/check: ${check.report.verdict.consistency.grade}/${check.report.verdict.consistency.score} · facts=${check.report.verdict.facts?.state} · revision=${check.planRevision}`,
+      );
+    } else {
+      fail(`/api/plan/check 异常: HTTP ${checkRes.status} ${JSON.stringify(check).slice(0, 120)}`);
+    }
+    const previewRes = await get("/api/plan/repair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shareId }),
+    });
+    const preview = await json(previewRes);
+    if (
+      previewRes.status === 200 &&
+      preview.persisted === false &&
+      typeof preview.changed === "boolean" &&
+      Array.isArray(preview.applied)
+    ) {
+      ok(`/api/plan/repair 预览: changed=${preview.changed}，不写入（演示站行程保持不变）`);
+    } else {
+      fail(
+        `/api/plan/repair 预览异常: HTTP ${previewRes.status} ${JSON.stringify(preview).slice(0, 120)}`,
+      );
+    }
   } catch (e) {
     fail(`分享页核验异常: ${e?.message ?? e}`);
   }

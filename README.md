@@ -25,6 +25,10 @@ AI 智能旅游规划 **v8.1**（2026-10-25 最新能力见 [CHANGELOG.md](CHANG
 - **确定性修复（S1.5）**：`POST /api/verify/repair`（MCP：`repair_itinerary`）把时间重叠 /
   路段接不上 / 重复点位**机械修复**到可执行（只顺延时间、只删重复，不编造事实、不写回分享
   行程），并签发**修复前后两张凭据**——「改了什么、风险降了多少」可对账。
+- **进入产品主流程（S1.6）**：工作台第五镜头「体检」（`/w/<id>?view=check`）展示两轴证据与
+  修复入口；`POST /api/plan/check` 只读判定、`POST /api/plan/repair` 先预览后确认写入
+  （revision+1，`expectedRevision` 乐观并发），写回后重算时间轴/营业时间预警，
+  并把 parent→child 凭据链记进 `plan.tripCheck`；分享页显示「已确定性修复」与凭据链。
 - **产品内接入**：分享页输出 schema.org `TouristTrip` JSON-LD，并展示这份行程的体检凭据
   （两轴结论 + 凭据 ID + 「在开放体检台查看/复算」入口）。
 - **诚实边界**：MOCK/无真实 key 期间**不声称「真实世界核验」**；示例营业时间为示意数据；

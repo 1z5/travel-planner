@@ -208,6 +208,8 @@ const PAGE_CHECK_FN = String.raw`
     '.tc-coverage-row', '.tc-cred-note', '.tc-cred-id', '.tc-empty',
     // Trip Check 修复区块（前后对比 / 修不了的原因 / 凭据链）
     '.tc-repair', '.tc-repair-compare', '.tc-repair-unrepairable', '.tc-repair-cred-id',
+    // 工作台第五镜头「体检」（两轴 / 证据 / 修复预览与确认写入）
+    '.tc-ws-check', '.tc-ws-check-lede', '.tc-ws-check-issue', '.tc-ws-check-unrepairable',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);
@@ -449,6 +451,12 @@ async function main() {
         name: "workspace",
         path: `/w/${shareId}`,
         required: [".trip-workspace", ".ws-tabs", ".ws-daynav"],
+      },
+      {
+        // 第五镜头「体检」：两轴报告 + 修复预览/确认写入（数据来自 /api/plan/check）
+        name: "workspace-check",
+        path: `/w/${shareId}?view=check`,
+        required: [".trip-workspace", ".ws-tabs", ".tc-ws-check"],
       },
       {
         name: "share",

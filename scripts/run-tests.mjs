@@ -198,7 +198,16 @@ function makeApi(base) {
 //   authPost/me），mode 为 "mock"（3103 无高德 key）或 "real"（3104 高德桩）。
 // 模块自行判断模式适用性（如行中重规划在 mock 下只验降级文案，real 下验求解）。
 // 每个切片模块会在 mock 与 real 两台服务器上各跑一遍，必须幂等。
-const SLICE_NAMES = ["poster", "clone", "report", "replan", "profile", "live", "verify"];
+const SLICE_NAMES = [
+  "poster",
+  "clone",
+  "report",
+  "replan",
+  "profile",
+  "live",
+  "verify",
+  "plan-check",
+];
 
 async function runSlices(api, mode) {
   for (const name of SLICE_NAMES) {

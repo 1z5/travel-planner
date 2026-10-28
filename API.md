@@ -798,6 +798,86 @@ curl -sX POST http://localhost:3000/api/verify/repair \
 - 不判断价格合理性/排队时长/天气突变，不预订/支付，不自动改行程（体检的 `fixHint` 只给方向；修复只在**调用方主动请求**时做机械变换，且不写回存储）。
 - 测试：`scripts/e2e-slices/verify.mjs`（mock/real 两台服务器各跑一遍，幂等）覆盖元信息/schema/CORS 预检/合法与非法文档/可复算凭据/shareId/413/MCP/体验台/修复（破损文档、`delta.improved`、前后凭据链可复算、干净文档 `changed:false`、shareId 只读建议）。
 
+## 产品内 Trip Check（`/api/plan/check` + `/api/plan/repair`）
+
+把核验层接进产品主流程的**站内**入口。与开放端点（上一章）的分工：
+
+|            | 开放端点 `/api/verify`、`/api/verify/repair` | 产品内端点 `/api/plan/check`、`/api/plan/repair`             |
+| ---------- | -------------------------------------------- | ------------------------------------------------------------ |
+| 输入       | 任意开放文档 `{document}` 或分享链接         | 站内行程 `{shareId}`（分享 token 即凭据）                    |
+| 是否写库   | **不写**（无状态判定/建议）                  | check 只读；repair `confirm:true` 才写回 Plan（revision+1）  |
+| 额外返回   | 报告 + 凭据                                  | + `planRevision`（并发基准）、`tripCheck`（修复历史/凭据链） |
+| 典型调用方 | 第三方前端/agent/MCP                         | 本产品工作台「体检」镜头                                     |
+
+### POST /api/plan/check
+
+body `{ shareId }`（`^[A-Za-z0-9_-]{6,64}$`；分享 token；旧 job 链接也可**只读**体检）。
+
+- **200**：`{ shareId, planRevision, report, credential, tripCheck }`
+  - `planRevision`：持久化 Plan 的版本号（`number`）；旧 job 链接没有版本 → `null`（调用方据此禁用「修复写回」）
+  - `report` / `credential`：与 `POST /api/verify` 同一套 `planToDocument → verifyDocument → credentialOf`（同一个 `now`）——同一行程在两边拿到的凭据 ID 一致，口径不分叉
+  - `tripCheck`：该行程最近一次修复的 `{ credentialId, parentCredentialId?, checkedAt, repairedAt?, repairCount?, applied? }`；**没修过为 `null`**（不编修复历史）
+- 只读：不推进 revision、不写库；重复调用凭据 ID 不变（时间只影响时间戳字段）
+- 限流：`PLAN_CHECK_HOURLY_LIMIT`（默认 120 次/小时/IP）
+- 404 `{ "error": "行程不存在或已被删除" }`
+
+```bash
+curl -sX POST http://localhost:3000/api/plan/check \
+  -H 'Content-Type: application/json' \
+  -d '{"shareId":"share_xxx"}'
+```
+
+### POST /api/plan/repair
+
+body `{ shareId, confirm?: boolean, expectedRevision?: number }`。两步式：**先预览、确认才写**。
+
+- **预览**（缺省 / `confirm:false`）：不写库、不推进 revision
+
+  **200**：`{ changed, persisted:false, planRevision, before, after, applied, unrepairable, parentCredential, credential }`
+
+- **确认写入**（`confirm:true`）：
+  - `expectedRevision` 给定且 ≠ 当前 revision → **409** `{ error, revision }`（不覆盖别人的修改；客户端刷新后用新版本重试）
+  - `changed:false`（没有可机械修复的问题）→ **200** `{ changed:false, persisted:false, planRevision, … }`，**不写**
+  - `changed:true` → 把机械变更套回内部 Plan（保留 period/reason/poi/legs 等开放文档没有的字段）、`plan.warnings = refreshTimeWarnings(...)`（保持产品内 ExecutabilityBadge 与新判定一致）、`plan.tripCheck` 记录前后凭据链与 `repairCount+1`，`replacePlan` 落库（revision+1），并记埋点 `plan_repaired`
+
+  **200**：`{ changed:true, persisted:true, revision, plan, before, after, applied, unrepairable, parentCredential, credential }`
+
+- 只有**持久化 Plan** 可修：旧 job 链接 → 404（只读历史结果）。修复语义与开放修复端点完全一致（只顺延时间/删同日重复、不编造事实、不替用户取舍；修不了的进 `unrepairable`）；写回前服务端会自检「套回后的 Plan 与修复后文档逐点一致」，不一致宁可不写（500 + 退还限流名额）
+- 限流：`REPAIR_HOURLY_LIMIT`（默认 30 次/小时/IP，预览与确认各记一次；409/异常退还名额）
+- 写回后分享页 `/p/<shareId>` 与工作台会显示「已确定性修复 · 修复链 parent → child」
+
+```jsonc
+// POST /api/plan/repair  { "shareId": "share_xxx", "confirm": true, "expectedRevision": 1 }  →  200
+{
+  "changed": true,
+  "persisted": true,
+  "revision": 2, // 旧版本 + 1
+  "plan": { "…": "写回后的 Plan（含 tripCheck）" },
+  "before": { "…": "TripCheckReport（修复前）" },
+  "after": { "…": "TripCheckReport（修复后，同一把尺子）" },
+  "applied": [
+    {
+      "ruleId": "TC-C103",
+      "day": 1,
+      "spot": "…",
+      "spotIndex": 2,
+      "from": "10:10-11:10",
+      "to": "10:40-11:40",
+      "detail": "…",
+    },
+  ],
+  "unrepairable": [{ "ruleId": "TC-F204", "day": 1, "spot": "…", "reason": "…" }],
+  "parentCredential": { "id": "tc_…" },
+  "credential": { "id": "tc_…" },
+}
+```
+
+**错误码**：400（JSON/参数非法）、404（行程不存在/旧 job 链接不可修）、409（版本冲突，带当前 `revision`）、429（限流，带 `limit`）、500（服务端异常；不写回任何半截结果）。
+
+**凭据链**：`parentCredential` = 修复前 Plan 的文档凭据（与 check 返回的 `credential.id` 相同）、`credential` = 修复后 Plan 的文档凭据；写入后再 check 一次，`planRevision` 为新版本且 `tripCheck.credentialId` 等于该 `credential.id`——「改了哪几处、风险降了多少」可对账。
+
+> 测试：`scripts/e2e-slices/plan-check.mjs`（mock/real 两台服务器各跑一遍，幂等）：check 两轴/凭据/版本、只读幂等、旧 job 链接只读、预览不写、`changed:true` 真写入（revision+1/tripCheck 链/分享页可见/结论不劣于修复前）、`changed:false` 明确不写、409/404/400。
+
 ## Plan Schema（done 时返回）
 
 ```typescript
@@ -853,6 +933,14 @@ curl -sX POST http://localhost:3000/api/verify/repair \
   };
                                      // 缺失 = 本次生成**没有**使用事实层（未接高德 / 检索失败 / MOCK 模式）
                                      // ——前端要能区分「没用」与「用了但很少」，不能一律显示徽章
+  tripCheck?: {                       // 产品内确定性修复历史（/api/plan/repair 写回；缺失 = 没修过）
+    credentialId: string;             // 修复后文档的凭据（tc_…，可用 /api/verify 复算）
+    parentCredentialId?: string;      // 修复前文档的凭据（前后链可对账）
+    checkedAt: number;                // 最近一次核验/修复时间（ms）
+    repairedAt?: number;              // 最近一次修复时间（ms）；只体检不修复时缺省
+    repairCount?: number;             // 累计确定性修复次数（每次持久化 +1）
+    applied?: number;                 // 最近一次修复应用的机械变换条数
+  };
 }
 ```
 

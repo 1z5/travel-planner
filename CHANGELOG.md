@@ -1,3 +1,26 @@
+## 2026-10-28 核验层进入产品主流程：工作台体检镜头 + 持久化修复版本（S1.6，全栈）
+
+背景：S1/S1.5 的 Trip Check 仍是「产品外的一套工具」——分享页只有一张凭据卡、修复只能在
+/verify 拿到一份新 JSON，用户要自己搬回产品。本轮把它接进主流程，形成「体检 → 证据 →
+预览修复 → 确认写入 → 新版本 + 前后凭据」的产品内闭环。
+
+- **工作台第五镜头「体检」**（`/w/<id>?view=check`，深链支持）：两轴结论、规则级证据、
+  凭据、修复入口都在产品内；分享页凭据卡可深链到这里。
+- **后端**：`POST /api/plan/check`（只读判定，返回 planRevision 供乐观并发；按 IP 限流、
+  不占生成配额）与 `POST /api/plan/repair`（**先预览后写入**：confirm=false 返回
+  before/after/applied/unrepairable/前后凭据且 persisted:false；confirm=true 才写回并
+  revision+1；expectedRevision 不匹配 → 409；独立小时桶限流）。
+- **写入只含机械变更**：用 repair 的 `spotIndex`（原始下标）把顺延/去重套回 Plan，不丢
+  period/reason/rainBackup；写回后调用 `refreshTimeWarnings` 重算时间轴/营业时间预警——
+  否则产品内旧徽章会和新判定自相矛盾（两套判定语言必须同步，这是本轮最大的坑）。
+- **凭据链落进 Plan**：`plan.tripCheck = { credentialId, parentCredentialId, checkedAt,
+repairedAt, repairCount, applied }`；分享页显示「已确定性修复」与 parent→child 凭据链，
+  保持分享页只读。埋点新增 `plan_repaired`（采纳率可观测，隐私口径不变）。
+- **文档**：ADR-014、蓝图 S1.6、README/API.md/AGENTS 同步；部署冒烟新增
+  `/api/plan/check` 与 `/api/plan/repair` 预览（**不写回演示站**）。
+
+验收：`npm run gate` 全绿；工作台体检镜头与修复确认写入实测；部署冒烟覆盖产品内核验端点。
+
 ## 2026-10-28 Trip Check Repair：从「判定」到「确定性修复 + 前后凭据链」（引擎 0.2.0）
 
 背景：全球调研里最硬的空白是「43% 的 AI 行程日含可验证错误，但竞品只提醒不修」

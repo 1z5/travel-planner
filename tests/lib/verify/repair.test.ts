@@ -39,6 +39,10 @@ describe("Trip Check Repair · 能修的（确定性、不编造）", () => {
     expect(r.applied).toHaveLength(1);
     expect(r.applied[0].ruleId).toBe("TC-C102");
     expect(r.applied[0].spot).toBe("平江路");
+    // 产品侧要把变更套回 Plan：必须带原始下标与前后时刻（不是只给一句 detail）
+    expect(r.applied[0].spotIndex).toBe(1);
+    expect(r.applied[0].from).toBe("10:30-12:00");
+    expect(r.applied[0].to).toBe("11:00-12:30");
     expect(r.document.days[0].spots[1].time).toBe("11:00-12:30");
     expect(r.after.stats.blocking).toBe(0);
     expect(r.after.verdict.consistency.score).toBe(100);

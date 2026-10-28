@@ -94,28 +94,37 @@ interface DayRepairOutcome {
   unrepairable: RepairUnrepairable[];
 }
 
-/** 删除同一天重复的同名点位（保留第一条） */
-function dedupeDay(day: DocDay): RepairApplied[] {
+/**
+ * 删除同一天重复的同名点位（保留第一条）。
+ *
+ * 返回值带 keptIndexes：kept 里每个点在**原始 spots 数组**中的下标。
+ * 后续 retime 的 RepairApplied.spotIndex 必须用原始下标，产品侧才能把变更
+ * 套回内部 Plan（Plan 的 spot 还有 period/reason/rainBackup 等文档字段外的属性）。
+ */
+function dedupeDay(day: DocDay): { applied: RepairApplied[]; keptIndexes: number[] } {
   const spots = Array.isArray(day.spots) ? day.spots : [];
   const seen = new Set<string>();
   const kept: DocSpot[] = [];
+  const keptIndexes: number[] = [];
   const applied: RepairApplied[] = [];
-  for (const spot of spots) {
+  spots.forEach((spot, index) => {
     const key = spot.name.trim();
     if (seen.has(key)) {
       applied.push({
         ruleId: "TC-C109",
         day: day.day,
         spot: spot.name,
+        spotIndex: index,
         detail: `删除第 ${day.day} 天重复点位「${spot.name}」（保留第一次出现的那条）`,
       });
-      continue;
+      return;
     }
     seen.add(key);
     kept.push(spot);
-  }
+    keptIndexes.push(index);
+  });
   day.spots = kept;
-  return applied;
+  return { applied, keptIndexes };
 }
 
 /**
@@ -126,7 +135,7 @@ function dedupeDay(day: DocDay): RepairApplied[] {
  * 不能证明可达，这一点由引擎的 TC-C104 如实说出）。若会超过当天 24:00，
  * 整天的顺延回滚（不做局部半截修复，避免产生自相矛盾的文档）。
  */
-function retimeDay(day: DocDay): DayRepairOutcome {
+function retimeDay(day: DocDay, originalIndexes: number[]): DayRepairOutcome {
   const spots = Array.isArray(day.spots) ? day.spots : [];
   const outcome: DayRepairOutcome = { applied: [], unrepairable: [] };
   if (spots.length < 2) return outcome;
@@ -189,6 +198,9 @@ function retimeDay(day: DocDay): DayRepairOutcome {
       ruleId: causes[i] ?? "TC-C103",
       day: day.day,
       spot: spots[i].name,
+      spotIndex: originalIndexes[i],
+      from: before,
+      to: after,
       detail: `第 ${day.day} 天「${spots[i].name}」时间 ${before} → ${after}（顺延 ${planned[i].start - original[i].start} 分钟，消除${causes[i] === "TC-C102" ? "重叠" : "时间接不上"}）`,
     });
   }
@@ -214,10 +226,11 @@ export function repairDocument(
   const unrepairable: RepairUnrepairable[] = [];
 
   for (const day of repaired.days ?? []) {
-    // 1) 去重（先做，避免重复点参与后续时间轴规划）
-    applied.push(...dedupeDay(day));
-    // 2) 顺延时间轴
-    const outcome = retimeDay(day);
+    // 1) 去重（先做，避免重复点参与后续时间轴规划）；返回原始下标映射
+    const dedupe = dedupeDay(day);
+    applied.push(...dedupe.applied);
+    // 2) 顺延时间轴（用原始下标标注变更，产品侧才能套回 Plan）
+    const outcome = retimeDay(day, dedupe.keptIndexes);
     applied.push(...outcome.applied);
     unrepairable.push(...outcome.unrepairable);
   }
