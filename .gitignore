@@ -7,6 +7,7 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 eval-results/
+research/
 coverage/
 .e2e-lock/
 .DS_Store

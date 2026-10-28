@@ -20,6 +20,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }> = [
     { path: "/", priority: 1, changeFrequency: "daily" },
     { path: "/new", priority: 0.9, changeFrequency: "weekly" },
+    // 开放体检台（Trip Check）：公开工具页，第三方开发者也是从搜索引擎找过来的
+    { path: "/verify", priority: 0.8, changeFrequency: "weekly" },
     { path: "/about", priority: 0.7, changeFrequency: "monthly" },
     { path: "/cities", priority: 0.8, changeFrequency: "weekly" },
     { path: "/pricing", priority: 0.5, changeFrequency: "monthly" },

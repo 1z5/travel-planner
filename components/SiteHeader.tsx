@@ -29,6 +29,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="site-nav" aria-label="主导航">
+          <Link href="/verify">行程体检</Link>
           <Link href="/about#how">怎么工作</Link>
           <Link href="/about#cap">产品能力</Link>
           <Link href="/about#trust">数据可信</Link>

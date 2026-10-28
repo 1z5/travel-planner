@@ -614,6 +614,129 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 
 错误：手机号格式→400；验证码错误→401；配额用尽→429（文案区分登录/未登录并引导）。
 
+## Trip Check 公开体检 API（`/api/verify` + `/api/mcp`）
+
+把「这份 AI 行程能不能照着走」做成**可复算、可对账**的公开判定（Trip Check 开放标准 v0.1）。判定是确定性纯函数（`lib/verify/engine.ts`：不调模型、当前时间只用于 `checkedAt`、不参与任何判定），输入一份开放行程文档，输出**两轴报告**与**可复算凭据**。完整规范、规则表、凭据算法与合规边界见 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)。
+
+两轴刻意分开，任何一方缺失都必须显式说明：`verdict.consistency`（结构自洽性：只靠文档判时间轴/节奏/预算，给 0-100 分 + A/B/C/D）与 `verdict.facts`（事实核验：地点/营业时间/路段「谁核的、核到哪一步」，用覆盖率 + 四态表达，不折成分数）。
+
+| 方法 | 路径                 | 说明                                                                                                                                |
+| ---- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| POST | `/api/verify`        | 体检。body `{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                              |
+| GET  | `/api/verify`        | 服务元信息：`{ name, specVersion, engineVersion, rulesetVersion, schema, docs }`                                                    |
+| GET  | `/api/verify/schema` | 开放文档 JSON Schema（draft 2020-12），`Cache-Control: public, max-age=3600`                                                        |
+| POST | `/api/mcp`           | MCP（JSON-RPC 2.0、stateless）：`verify_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
+| GET  | `/verify`            | 公开体检体验台（粘贴 JSON 或分享链接）                                                                                              |
+
+### POST /api/verify
+
+| 字段       | 类型                                             | 必填   | 说明                                                                                      |
+| ---------- | ------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------- |
+| `document` | object                                           | 二选一 | 开放行程文档（`specVersion: "trip-check/0.1"`，见 `GET /api/verify/schema`）              |
+| `shareId`  | string                                           | 二选一 | 站内持久分享 token（`share_` 开头）；内部 Plan 经适配层转成同一开放格式，走**同一套**判定 |
+| `options`  | `{ pace?: "relaxed" \| "balanced" \| "packed" }` | 否     | 判定口径（默认 `balanced`）；参与凭据哈希——同一文档换口径结论可以不同，必须可追           |
+
+```bash
+curl -sX POST http://localhost:3000/api/verify \
+  -H 'Content-Type: application/json' \
+  -d '{"shareId":"share_xxx"}'
+```
+
+**200**：`TripCheckReport` + `credential`（完整字段见 [docs/TRIP-CHECK-STANDARD.md §5](docs/TRIP-CHECK-STANDARD.md)）：
+
+```jsonc
+{
+  "specVersion": "trip-check/0.1",
+  "engine": { "name": "trip-check", "version": "0.1.0", "rulesetVersion": "2026-10-28.1" },
+  "verdict": {
+    "consistency": { "score": 100, "grade": "A", "gradeLabel": "可执行", "summary": "…" },
+    "facts": {
+      "state": "verified",
+      "coverage": { "poiTotal": 2, "poiChecked": 2, "routesTotal": 1, "routesChecked": 1 },
+      "sources": { "amap": 2 },
+    },
+    "overall": "ok", // ok | warnings | blocking | unverified
+    "summary": "…",
+  },
+  "issues": [
+    {
+      "ruleId": "TC-C104",
+      "category": "consistency",
+      "severity": "info",
+      "title": "…",
+      "detail": "…",
+      "evidence": {},
+      "fixHint": "…",
+    },
+  ],
+  "stats": { "blocking": 0, "warnings": 0, "infos": 1, "total": 1 },
+  "ruleset": { "version": "2026-10-28.1", "ruleIds": ["…"] },
+  "checkedAt": "2026-10-28T10:00:00.000Z",
+  "credential": {
+    "id": "tc_…", // 同一文档 + 同一口径 + 同一引擎/规则版本 → 同一 ID（与签发时间无关）
+    "algorithm": "sha256",
+    "inputHash": "…", // sha256(canonicalJson({ document, options }))
+    "specVersion": "trip-check/0.1",
+    "engineVersion": "0.1.0",
+    "rulesetVersion": "2026-10-28.1",
+    "issuedAt": "2026-10-28T10:00:00.000Z", // 只做展示，不参与 ID 计算
+    "basis": "sha256(specVersion|engineVersion|rulesetVersion|sha256(canonical-json({document,options})))",
+  },
+}
+```
+
+`credential.id` 只证明「结论可被重跑核对」，**不是数字签名**、不证明判定绝对正确——口径写在公开文档里，任何人都能独立复算。
+
+### 错误
+
+| HTTP | body                                                                | 场景                                                                 |
+| ---- | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 400  | `{ "error": "invalid_json" }`                                       | body 不是合法 JSON                                                   |
+| 400  | `{ "error": "invalid_request", "errors": [{ "path", "message" }] }` | 文档/请求不满足契约；`path` 逐字段定位（如 `days.0.spots.0.name`）   |
+| 404  | `{ "error": "not_found" }`                                          | `shareId` 不存在（旧 jobId 链接在任务 TTL 内仍可解析）               |
+| 413  | `{ "error": "payload_too_large", "limit": 262144 }`                 | body > 256 KiB（按 UTF-8 **字节**算，不是字符数）                    |
+| 429  | `{ "error": "rate_limited", "limit": 120 }`                         | 超过 `VERIFY_HOURLY_LIMIT`（默认 120 次/小时/IP）                    |
+| 500  | `{ "error": "internal_error" }`                                     | 引擎异常（纯函数，理论上不应出现；返回 JSON 而不是框架 HTML 错误页） |
+
+### CORS
+
+公开端点的调用方是第三方浏览器/agent，因此**成功与错误响应、以及预检**都带同一套头：
+
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET,POST,OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type`
+- `Access-Control-Expose-Headers: X-Trip-Check-Spec`
+- 响应头 `X-Trip-Check-Spec: trip-check/0.1`（调用方据此确认对方实现的规范版本）
+- `OPTIONS /api/verify`、`OPTIONS /api/verify/schema` → **204**（无 body）
+
+### 限流与配额
+
+- 按 IP 小时桶：`VERIFY_HOURLY_LIMIT`（默认 120/小时）；**参数校验之前不扣额度**（坏请求不消耗），也不做失败退还（否则刷子可用失败请求绕过计数）。
+- 不消耗生成配额；无登录门槛。`shareId` 路径不写库、不修改行程（只读判定）。
+
+### MCP（agent 调用入口）
+
+`POST /api/mcp` 接受单条 JSON-RPC 2.0 消息（stateless，不维护会话）；`initialize` 回显请求的 `protocolVersion`（缺省 `2025-06-18`），只声明 `tools` 能力（诚实：未实现 resources/prompts）。
+
+| 工具                    | 参数                     | 说明                                |
+| ----------------------- | ------------------------ | ----------------------------------- |
+| `verify_itinerary`      | `{ document, options? }` | 对任意开放文档体检，返回报告 + 凭据 |
+| `verify_shared_trip`    | `{ shareId }`            | 对站内分享行程体检                  |
+| `get_trip_check_schema` | `{}`                     | 取 JSON Schema 契约                 |
+| `list_rules`            | `{}`                     | 取规则清单（ID/严重度/扣分/说明）   |
+| `explain_rule`          | `{ ruleId }`             | 解释单条规则                        |
+
+- `tools/call` 结果：`{ content: [{ type: "text", text: "<JSON 字符串>" }], isError? }`；错误码 `-32700` parse / `-32600` invalid request / `-32601` method not found / `-32602` invalid params。
+- 通知（无 `id`，如 `notifications/initialized`）→ **202 空 body**。
+- 本地 stdio 桥：`npm run dev` 后 `node mcp/stdio.mjs`（换行分隔 JSON-RPC；目标地址 `TRIP_CHECK_URL`，默认 `http://127.0.0.1:3000`）。详见 [mcp/README.md](mcp/README.md)。
+
+### 诚实边界
+
+- **无状态判定**：不落库输入文档、不缓存 POI 数据；开放的是判定规则与凭据格式，不是任何地图/POI 数据授权。
+- 事实是否真实取决于文档声明的 `provenance` / `verification` 三态（`hit`/`miss`/`error`/`not_checked`）：**`miss` ≠ 地点不存在（是来源没有），`not_checked` ≠ 没问题**；MOCK/未核验数据不得声称「真实世界核验」。
+- 不判断价格合理性/排队时长/天气突变，不预订/支付，不自动改行程（`fixHint` 只给方向）。
+- 测试：`scripts/e2e-slices/verify.mjs`（mock/real 两台服务器各跑一遍，幂等）覆盖元信息/schema/CORS 预检/合法与非法文档/可复算凭据/shareId/413/MCP/体验台。
+
 ## Plan Schema（done 时返回）
 
 ```typescript

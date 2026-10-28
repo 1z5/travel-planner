@@ -24,6 +24,7 @@
     "demo:gen": "node scripts/demo-gen.mjs",
     "demo:warm": "node scripts/warm-demo.mjs",
     "demo:polish": "node scripts/demo-polish.mjs",
+    "mcp": "node mcp/stdio.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",

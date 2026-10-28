@@ -1,3 +1,56 @@
+## 2026-10-28 产品形态跃迁：Trip Check 行程可执行性核验层（v9）
+
+背景：2026-10 全球市场重调研（市场/平台迁移、竞品与痛点、数据与分发可行性三份，证据见
+`docs/PRODUCT-REVOLUTION-2026-10.md` 的链接与本地 `research/2026-10-global/`）结论——
+**「生成行程」已被大厂与 agent 商品化**（ChatGPT/Claude/OTA/地图 App 都能生成），
+**基础「体检」也被数据源做成了原生能力**（高德 2026 原生 15 维推演 + 闭店识别 + 改进建议；
+Ask Maps 全球铺开、可拍照纠正营业时间），继续在 To C 卖「会体检」是逆风；而需求侧
+规划采用率 50–86%、**委托率只有 6–8%**（Amadeus n≈1,000），68% 仍更信任品牌、66% 不接受
+AI 代订（Expedia×YouGov n=5,700+ 一手），中国 86% 用过 AI 但 **67.5% 会回 OTA 二次核验**；
+平台明确不背责任（OpenAI 关停站内结账、Google UCP/AP2 让商家做 merchant of record、
+Claude 预订前先确认）。同命题竞品 Tripician 已出现（PhocusWire 2026-10-18）。**真正稀缺的是
+「可复算、可对账的可执行性判定」**——平台不背责任，供给方就需要能自证行程没问题的证据。
+
+本轮把产品形态从「生成行程」升级为「卖证据」：开放标准 + 两轴报告 + 可复算凭据 +
+API/MCP 分发；C 端产品保留为展示面与试验场。三个刻意的设计取舍：两轴分开（结构自洽性
+vs 事实核验，不拿一个总分掩盖不确定性）、三态透传（hit/miss/error/not_checked 不混用）、
+凭据只保证「可复算」不冒充签名（没有密钥托管时不制造假信任）。
+
+- **Trip Check 开放标准 v0.1**（`docs/TRIP-CHECK-STANDARD.md`）：开放行程文档格式
+  （JSON Schema 2020-12，`GET /api/verify/schema`）、三态语义、17 条规则与扣分表、
+  两轴报告结构、凭据算法（canonicalJson + sha256）、版本策略、局限与合规边界。
+- **确定性引擎 `lib/verify/`**：`types` / `rules`（规则唯一权威）/ `engine`（纯函数、
+  client-safe；时间只写 `checkedAt`、不参与判定）/ `credential`（同一输入 + 同版本引擎
+  → 同一 ID）/ `adapt`（内部 Plan→开放文档；partial 不把「没核完」说成核过）/ `jsonld`
+  （schema.org TouristTrip）/ `samples`（已核验/有问题/未核验三份示例）。
+- **公开 API**：`POST /api/verify`（`document` 或 `shareId` 二选一，两条路径共用同一套
+  engine+credential；CORS；无状态不落库；body ≤256KiB；`VERIFY_HOURLY_LIMIT` 默认 120/IP/小时；
+  错误码 `invalid_json` / `invalid_request`(带 path) / `not_found` / `payload_too_large` /
+  `rate_limited`）；`GET /api/verify` 元信息；`GET /api/verify/schema`（缓存 1h）。
+- **MCP**：`POST /api/mcp`（JSON-RPC 2.0 stateless，仅 tools 能力：`verify_itinerary` /
+  `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule`）+
+  `mcp/stdio.mjs` 零依赖本地桥（`npm run mcp`）；无 session/SSE，README 明写无鉴权无限流
+  「不要直接挂公网」。
+- **产品面**：`/verify` 公开体检台（三份示例、贴任意 JSON、分享链接自动体检、判定口径、
+  两轴报告、问题按阻断/微调/信息分组、凭据复制、诚实声明）；SiteHeader 增加「行程体检」；
+  分享页输出 schema.org JSON-LD，并展示「行程体检凭据」卡（两轴结论 + 凭据 ID + 跳转
+  `/verify?share=<id>` 复算）。
+- **文档**：`docs/PRODUCT-REVOLUTION-2026-10.md`（决策与带链接证据）、`docs/adr/012`、
+  README 新章节、API.md Trip Check 章节、PRODUCT-UPGRADE 标注历史、AGENTS 阶段指针与基线更新、
+  `.env.example` 增加 `VERIFY_HOURLY_LIMIT`、sitemap 收录 `/verify`、visual-check 覆盖新页面。
+- **验收**：`npm run gate` 全绿——typecheck / lint（0 error，60 条存量 warning）/ format /
+  **1111 单测**（新增 89 条：`lib/verify` 规则/引擎/适配/凭据/JSON-LD/校验/MCP 83 + 体验台组件 6）/
+  **641 e2e**（+81，新增 verify 切片：元信息/schema/CORS/可复算凭据/错误路径/shareId/MCP/体验台）。
+  视觉验收：DSH 文件沙箱会拦 headless Chrome 的 Crashpad 写入，`npm run gate:visual` 在本机
+  沙箱内无法跑完（脚本已把 /verify 加进 13 页配置）；改用 Chrome DevTools MCP 对 /verify 实测：
+  1440 桌面与 500px 窄屏无横向溢出、A/100/verified 与 D/55/blocking 两种报告渲染正确、
+  控制台 0 error，截图见 `eval-results/visual/`（本地）。
+  新增文件均有注释解释「为什么」；客户端不 import server-only；未引入新依赖。
+
+诚实边界（必须随版本一起传播）：MOCK/无真实高德 key 期间不声称「真实世界核验」；
+示例里的营业时间是示意数据，不构成真实营业时间承诺；凭据不是数字签名；高德协议 §7.3
+禁止存储/缓存，因此核验 API 无状态、不建事实库——商用前另有许可问题（见路线图 S2/S3）。
+
 ## 2026-10 开源：Apache-2.0（版权归作者所有）
 
 从「保留所有权利」转为 **Apache-2.0** 开源，仓库转 public。

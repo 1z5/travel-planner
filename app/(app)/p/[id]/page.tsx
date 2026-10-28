@@ -7,6 +7,7 @@ import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
 import { WishlistButton } from "@/components/WishlistButton";
+import { stampPlan } from "@/lib/verify/stamp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,13 @@ export default async function SharePage({
       )
     : 0;
 
+  // 行程体检凭据（Trip Check v0.1）：把这份行程转成开放文档 → 确定性判定 → 可复算凭据。
+  // 为什么在分享页露：分享页是「给别人看的工件」，正是「可对账证据」最该出现的地方
+  // （调研结论：平台不背责任 → 供给方/分享者需要能自证行程没问题的凭证）。
+  // 实现在 lib/verify/stamp.ts（RSC 渲染体不直接调 Date/哈希，见该文件注释）；
+  // MOCK/未核验会如实显示，不会被包装成「真实核验」。
+  // schema.org TouristTrip 同时输出：搜索引擎/聚合器无需接 API 就能结构化读取行程。
+
   if (!plan) {
     return (
       <main className="container">
@@ -88,6 +96,16 @@ export default async function SharePage({
       </main>
     );
   }
+
+  // 体检工件在「确认 plan 存在」之后计算，避免把 null 分支也卷进判定/凭据逻辑。
+  const siteBase = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.RENDER_EXTERNAL_URL;
+  const stamp = stampPlan(plan, siteBase ? { id, url: `${siteBase}/p/${id}` } : { id });
+  const checkFactsLabel: Record<string, string> = {
+    verified: "已核验",
+    partial: "部分核验",
+    unverified: "未核验",
+    inconclusive: "无可核验点位",
+  };
 
   return (
     <main className="container">
@@ -114,6 +132,32 @@ export default async function SharePage({
         <span className="pm-sep" aria-hidden="true" />
         <span className="pm-source">数据来源 高德开放平台</span>
       </div>
+
+      {/* 结构化数据（schema.org TouristTrip）：搜索引擎/聚合器可直接读取行程，
+          不需要接我们的 API。内容只含文档已有事实，不含核验结论（schema.org 没有对应词汇）。 */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stamp.jsonLdInline }} />
+
+      {/* 行程体检凭据：两轴结论 + 可复算 ID + 跳转开放报告。
+          故意放在分享页最上方——「可对账的证据」就是给别人看的第一件东西。 */}
+      <section className="card" aria-label="行程体检凭据">
+        <div className="card-body">
+          <p className="muted">Trip Check · 行程体检凭据（开放标准 v0.1）</p>
+          <p>
+            结构自洽性 <strong>{stamp.report.verdict.consistency.grade}</strong>（
+            {stamp.report.verdict.consistency.score} 分） · 事实核验{" "}
+            <strong>
+              {checkFactsLabel[stamp.report.verdict.facts.state] ??
+                stamp.report.verdict.facts.state}
+            </strong>
+            {stamp.report.verdict.facts.state !== "verified" && "（未核验 ≠ 没问题）"} · 凭据{" "}
+            <code>{stamp.credential.id}</code>
+          </p>
+          <Link href={`/verify?share=${id}`} className="btn-link">
+            在开放体检台查看完整报告 / 复算凭据 →
+          </Link>
+        </div>
+      </section>
+
       {/* 传播型 CTA：看到别人行程的人，一键生成自己的 */}
       <div className="share-cta">
         <div className="share-cta-text">
