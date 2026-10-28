@@ -175,8 +175,8 @@ git add demo/fixtures && git commit -m "chore(demo): 重新生成演示行程" &
 
 正式对外/长期在线/多实例/登录/付费/数据资产 → 不要用这套。
 正式方案见 [DEPLOY.md](DEPLOY.md)：`DATA_STORE=postgres` + 登录厂商 + 监控告警 + 部署验收
-（`preflight` / `smoke-deployed`）。审计里的 P0 清单见
-`/Users/zephyr/dev/travel-planner-audit/2026-10-26-项目痛点审计.md`。
+（`preflight` / `smoke-deployed`）。安全审计与遗留风险见
+[docs/SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)（历史本地审计目录不随仓库发布）。
 
 - **打磨**（不烧 token，跑产品自己的「一键顺延」把预警降下来）：`npm run demo:polish`
   （默认打磨成都；`DEMO_POLISH=suzhou-3d,chengdu-4d` 指定多条）。适合「分享页评分太低」时用——

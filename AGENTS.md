@@ -29,7 +29,7 @@ AI 行程规划平台：用户输入目的地/时间/预算/偏好 → step-5 �
 app/
   (app)/page.tsx        我的行程（产品入口，读 localStorage 索引）
   (app)/new/page.tsx    新建行程（产品态壳 + 客户端表单）
-  (app)/w/[id]/          Trip Workspace（规划/地图/调整/今日四镜头）
+  (app)/w/[id]/          Trip Workspace（规划/地图/调整/今日/体检 五镜头）
   (app)/p/[id]/         分享页（只读行程工件）
   (app)/t/[id]/         行中模式（同一行程的执行镜头）
   (app)/r/[id]/         旅程报告
@@ -76,32 +76,18 @@ components/
 
 ## 开工前先看这里（当前状态）
 
-- **产品阶段再次切换（2026-10-28）**：全球市场重调研后，从「To C 产品感」进入
-  **「行程可执行性核验层」**阶段——卖「可复算的证据」而不是「生成行程」：
-  Trip Check 开放标准 v0.1 + 两轴报告 + 可复算凭据 + 确定性修复（前后凭据链）+ `/api/verify` +
-  MCP（`/api/mcp`）已落地；**并已进入产品主流程**（工作台第五镜头「体检」、`/api/plan/check` /
-  `/api/plan/repair` 预览→确认写入、`plan.tripCheck` 修复版本与凭据链）；**结论可传播**
-  （`/p/<id>/check` 公开报告页 + 竖版海报 + 纯文本报告 + `GET /api/verify/openapi` 契约）。
-  新功能先对照
-  [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md) 与
-  [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)；上一阶段路线图
-  [docs/PRODUCT-UPGRADE-2026-10.md](docs/PRODUCT-UPGRADE-2026-10.md) 保留为历史。
-- **产品阶段已切换（2026-10）**：能力补齐阶段结束，进入「To C 产品感」阶段——定位改为
-  **「会体检的行程规划师」**，路线图/优先级/不做清单见
-  [docs/PRODUCT-UPGRADE-2026-10.md](docs/PRODUCT-UPGRADE-2026-10.md)。新功能先对照那份文档的
-  产品线（A 可信可见化 / B 内容起手 / C 手机行中 / D 留存与商业）判断该不该做。
-- **Phase 0（官网/产品分离）已落地**：`/` 是「我的行程」、`/new` 是新建、`/about` 才是营销页；根布局不再挂站点头尾，产品页用 `AppShell`。下一步是 Trip Workspace（双栏 + 直接操纵），不要再把营销区块加回产品页。
-- **产品已到 v9（2026-10-28）**：在 v8.1 能力链之上新增 **Trip Check 核验层**
-  （开放标准 v0.1 / 两轴报告 / 可复算凭据 / `/api/verify` / MCP `/api/mcp` / `/verify` 体验台 /
-  确定性修复（Repair）+ 前后凭据链 / 分享页凭据与 JSON-LD）。测试基线以 `npm run gate` 实测为准；
-  视觉回归脚本已扩到 15 页
-  （DSH 沙箱下无法启动 headless Chrome，`/verify` 用 Chrome DevTools MCP 实测验收）。
-  下一阶段按 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md) 的 S2（真实 key 验收 + 买方问价），
-  未拿到买方信号前不投入 B 端白标/签名凭据。
-- **度量闭环已落地**：北极星「照着走完的比例」第一次可计算——`POST /api/events` 埋点
-  （隐私口径：只收 shareId/城市/第几天，不收手机号与 IP）+ `GET /api/events/summary?token=`
-  只读看板（未配置 `METRICS_TOKEN` 一律 404）。纯函数在 `lib/metrics.ts`，存储走 Store 双实现
-  （memory 上限 5000 条 / postgres `TripEvent` 表）。看板口径见 API.md。
+- **当前阶段（2026-10-28，v9）**：从「To C 产品感」进入**「行程可执行性核验层」**——卖可复算的证据，
+  而不是再做一个行程生成器：Trip Check 开放标准 v0.1（两轴报告 / 17 规则 / 可复算凭据）+
+  确定性修复（前后凭据链）+ `/api/verify` + MCP `/api/mcp` + 工作台第五镜头「体检」+
+  `/api/plan/check|repair` 预览→确认写入 + 分享页凭据/JSON-LD + 可分享报告页/海报 + 安全加固。
+  入口：[docs/README.md](docs/README.md)；当前策略 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md)；
+  标准 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)；上线行动 [NEXT_STEPS.md](NEXT_STEPS.md)。
+- **历史阶段已归档**：v8 及以前的「To C 产品化 / 事实先行」路线在 [docs/archive/](docs/archive/)，
+  只作决策脉络，不要按归档文档排期。Phase 0（官网/产品分离）已完成：`/` 是我的行程、`/new` 新建、
+  `/about` 营销页；产品页用 `AppShell`，不要再把营销区块加回产品页。
+- **度量闭环**：`POST /api/events`（隐私口径：只收 shareId/城市/第几天，不收手机号与 IP）+
+  `GET /api/events/summary?token=` 只读看板（未配置 `METRICS_TOKEN` 一律 404）；纯函数在
+  `lib/metrics.ts`，Store 双实现（memory 上限 5000 条 / postgres `TripEvent` 表）。
 - **底座安全（2026-10-28）**：只读审计见 [docs/SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)，
   基线决策见 [ADR-016](docs/adr/016-security-hardening-baseline.md)。新增/修改 API 必须：
   用 `lib/http-body.ts` 的 `readJsonBody`（不要裸 `req.json()`）、用 `lib/http-origin.ts` 的
@@ -256,6 +242,18 @@ UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 di
   视觉/QA 脚本一律用独立 dist 目录与动态端口。
 - **任务板**：开工先 `team_task_list` → `claim`，完成 `complete`；报告里写清
   改了哪些文件、验证结果、给集成者的注意事项。
+
+### 公开仓库叙事规范（2026-10-28 起）
+
+本仓库对外公开，文档与提交信息会被用户、买家、以及后续 AI 直接当作项目事实来源：
+
+- 用**中性项目口径**：不写求职/个人简历语境，不写「面试/简历」类内部安排；
+- 不写本机绝对路径（`/Users/...`）、占位联系方式（`security@your-domain.example` 之类）——
+  联系渠道用 GitHub Security Advisories 或真实可收信地址；
+- 对外数字必须可复现：测试条数以 `npm run gate` 实测为准，评测数字注明城市数/日期；
+- 新增文档先登记到 [docs/README.md](docs/README.md)；被取代的路线图移入 [docs/archive/](docs/archive/)
+  并加归档 banner，不要让过期文档和当前策略打架；
+- 已知限制/取舍写进文档（README「已知边界」、ADR、NEXT_STEPS），不要用营销话术盖过去。
 
 ### 给 AI 代理的「诚实工程」检查
 

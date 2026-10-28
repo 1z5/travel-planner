@@ -1,9 +1,13 @@
+> **状态：已归档（历史路线图，2026-10-28 起）**。本文件记录「To C 产品化」阶段的规划，
+> 当前阶段是「行程可执行性核验层」，见 [当前策略](../PRODUCT-REVOLUTION-2026-10.md) 与
+> [TRIP-CHECK-STANDARD](../TRIP-CHECK-STANDARD.md)。保留原因：决策脉络可追溯，不要按本文档排期。
+
 # 产品升级蓝图 2026-10（Sprint 0 已落地）
 
 > **2026-10-28 更新**：全球市场重调研后，产品形态已再次升级——从「To C 产品化」转向
 > **「行程可执行性核验层」（Trip Check 开放标准 + 可复算凭据 + API/MCP）**。
-> 本轮决策与证据见 [PRODUCT-REVOLUTION-2026-10.md](PRODUCT-REVOLUTION-2026-10.md) 与
-> [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)；本文档保留为上一阶段路线图。
+> 本轮决策与证据见 [PRODUCT-REVOLUTION-2026-10.md](../PRODUCT-REVOLUTION-2026-10.md) 与
+> [TRIP-CHECK-STANDARD.md](../TRIP-CHECK-STANDARD.md)；本文档保留为上一阶段路线图。
 
 > 本文是给下一个人/AI agent 看的执行版路线图。完整调研证据（竞品/差评/开源清单，含来源链接）
 > 在本地审计目录 `product-upgrade/`，不进仓库；这里只保留结论与可执行项。

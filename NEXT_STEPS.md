@@ -4,11 +4,11 @@
 
 ## 当前状态（一句话）
 
-代码就绪：生成（含 5-7 天分日流式）/体检/配额/三种登录/分享闭环/**事实先行（v5）** 全部实现并有测试覆盖（**1184 条单测 + 776 条 e2e**，真实模型与真实高德 key 均通过冒烟）；仓库 `1z5/travel-planner` 同步并在 Render 演示部署（`travel-planner-demo.onrender.com`）；CI 六道门（含依赖审计、action pin SHA、Prisma Client 生成）。**未上线的原因：正式域名/登录凭据/付费决策未就位。**
+代码就绪：生成（含 5-7 天分日流式）/体检/配额/三种登录/分享闭环/**事实先行（v5）** 全部实现并有测试覆盖（**1202 条单测 + 776 条 e2e**，真实模型与真实高德 key 均通过冒烟）；仓库 `1z5/travel-planner` 同步并在 Render 演示部署（`travel-planner-demo.onrender.com`）；CI 六道门（含依赖审计、action pin SHA、Prisma Client 生成）。**未上线的原因：正式域名/登录凭据/付费决策未就位。**
 
 技术栈已全面升级到当前最新稳定版：Next 16 / React 19 / openai SDK 7 / zod 4 / Prisma 7 / TypeScript 5.9。（TypeScript 7 实测不可用——Next 15.5 的配置加载器需要 `ts.sys.fileExists`，等 Next 支持后重试，过程记录在 CHANGELOG。）
 
-> **v5「事实先行」已落地**（提交 `ad502fe`）：生成前先从高德取真实素材清单（名称/营业时间/闭馆日/评分/人均）注入 prompt，行程天生可执行。架构决策见 [ADR-006](docs/adr/006-ground-truth-first.md)，产品路线见 [产品北极星](docs/PRODUCT-NORTH-STAR.md)。
+> **v5「事实先行」已落地**（提交 `ad502fe`）：生成前先从高德取真实素材清单（名称/营业时间/闭馆日/评分/人均）注入 prompt，行程天生可执行。架构决策见 [ADR-006](docs/adr/006-ground-truth-first.md)，产品路线见 [产品北极星](docs/archive/PRODUCT-NORTH-STAR.md)。
 > **✅ v5 已用真实高德 key 验收（2026-10-28）**：`npm run verify:amap` 全绿（POI + 通勤矩阵可用）；
 > `EVAL_CASES=3 npm run eval:cases` 在北京/上海/广州 3 城实测：**3/3 生成成功、POI 验真 100%（51/51）、
 > 通勤估算失败 0%、预算贴合中位 82%、耗时中位 341s**；明细见 `eval-results/2026-10-28T12-45-33.json`。
@@ -79,7 +79,7 @@ v6「传播飞轮 + 在场智能 + 记忆与生长」六切片全部完成：海
 （五字段 + 推断治理）、流式生长体验（stage 遥测 + 天数逐张生长）。
 **506 条 e2e + 781 条单测全绿**，详见 CHANGELOG 的 v6 记录与 README 的 v6 章节。
 
-剩余赛道（产品北极星见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md)）：
+剩余赛道（产品北极星见 [docs/archive/PRODUCT-NORTH-STAR.md](docs/archive/PRODUCT-NORTH-STAR.md)）：
 
 | 顺序 | 赛道               | 一句话                                                 | 第一个提交大致工作量                          |
 | ---- | ------------------ | ------------------------------------------------------ | --------------------------------------------- |
@@ -99,4 +99,4 @@ v6「传播飞轮 + 在场智能 + 记忆与生长」六切片全部完成：海
 
 ## 决策记录（为什么是现在这样）
 
-关键工程决策与踩坑记录见 CHANGELOG.md；测试体系见 README「测试」节；部署陷阱见 DEPLOY.md；产品路线见 [docs/PRODUCT-NORTH-STAR.md](docs/PRODUCT-NORTH-STAR.md)。
+关键工程决策与踩坑记录见 CHANGELOG.md；测试体系见 README「测试」节；部署陷阱见 DEPLOY.md；产品路线见 [docs/archive/PRODUCT-NORTH-STAR.md](docs/archive/PRODUCT-NORTH-STAR.md)。

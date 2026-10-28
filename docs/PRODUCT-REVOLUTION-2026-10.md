@@ -1,7 +1,7 @@
 # 产品形态跃迁 2026-10：从「会体检的行程规划师」到「行程可执行性核验层」
 
 > 本文是 2026-10-28 全球市场重调研后的产品决策文档（执行版）。
-> 上一轮蓝图（To C 产品化，见 [PRODUCT-UPGRADE-2026-10.md](PRODUCT-UPGRADE-2026-10.md)）的 S0–S4 已基本落地；
+> 上一轮蓝图（To C 产品化，见 [PRODUCT-UPGRADE-2026-10.md](archive/PRODUCT-UPGRADE-2026-10.md)）的 S0–S4 已基本落地；
 > 本轮不是再加一个功能，而是**改产品的形态与买家**。
 >
 > 调研证据（本轮三份，本地目录不进仓库）：`research/2026-10-global/`（R1 市场与平台迁移 / R2 竞品与用户痛点 / R3 数据与分发可行性）。
@@ -161,7 +161,7 @@ S1/S1.5 的核验层此前还是「产品外面的一套工具」：分享页一
 ### 3.4 S1.8 增量：底座安全加固 + 行中「今日体检」
 
 产品开始承载「可信证据」后，底座的可信度变成产品的一部分。S1.8 做了一次只读安全审计
-（[SECURITY-AUDIT-2026-10-28.md](../SECURITY-AUDIT-2026-10-28.md)，无 Critical），并把结论
+（[SECURITY-AUDIT-2026-10-28.md](./SECURITY-AUDIT-2026-10-28.md)，无 Critical），并把结论
 落成代码约束（详见 [ADR-016](adr/016-security-hardening-baseline.md)）：
 
 - 统一请求体上限、jobId CSPRNG、demo 行程只读、restore 不再接受客户端回传的核验/修复元数据

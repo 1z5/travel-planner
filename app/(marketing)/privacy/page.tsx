@@ -105,7 +105,8 @@ export default function PrivacyPage() {
         {/* 占位邮箱用 RFC 2606 保留域名 .example（不可达），上线前必须换成真实可收信邮箱：
             对外法律文本里放一个看起来像真的假邮箱，比明确标注「待替换」更糟。 */}
         <p>
-          数据相关问题请联系：<code>privacy@your-domain.example</code>（上线前替换为真实邮箱）。
+          数据相关问题请通过仓库 Issues
+          联系我们；正式上线前会公布专用隐私邮箱。请勿在公开渠道粘贴个人信息。
           我们会在合理期限内答复。
         </p>
 

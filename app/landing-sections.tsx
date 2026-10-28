@@ -103,10 +103,10 @@ export function LandingSections() {
           <div className="trust-card">
             <h3>工程化验收</h3>
             <p>
-              1,500+ 自动化测试覆盖输入边界、上游故障、分日流式与分享链路； CI
+              1,200+ 单测与 770+ e2e 断言覆盖输入边界、上游故障、分日流式与分享链路； CI
               逐次跑类型检查、构建与全量测试。
             </p>
-            <span className="trust-meta">998 单测 + 545 端到端断言</span>
+            <span className="trust-meta">1,202 单测 + 776 e2e（当前基线）</span>
           </div>
           <div className="trust-card">
             <h3>隐私边界</h3>

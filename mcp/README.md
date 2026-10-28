@@ -36,7 +36,7 @@ printf '%s\n' \
   "mcpServers": {
     "trip-check": {
       "command": "node",
-      "args": ["/Users/zephyr/dev/travel-planner/mcp/stdio.mjs"],
+      "args": ["<你的仓库路径>/mcp/stdio.mjs"],
       "env": { "TRIP_CHECK_URL": "http://127.0.0.1:3000" }
     }
   }

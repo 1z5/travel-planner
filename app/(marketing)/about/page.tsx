@@ -42,7 +42,8 @@ export default function AboutPage() {
             </Link>
           </p>
           <p className="about-facts">
-            20+ 城市实测通过 · 逐项标注核验状态 · 1,500+ 自动化测试 · 数据来自高德开放平台
+            3 城真实高德 key 实测（2026-10）· 逐项标注核验状态 · 1,900+ 项自动化检查 ·
+            数据来自高德开放平台
           </p>
         </div>
       </section>
