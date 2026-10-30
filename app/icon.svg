@@ -1,4 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="22" fill="#2563eb"/>
-  <text x="50" y="68" font-size="52" text-anchor="middle" dominant-baseline="middle">🗺️</text>
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#ff7a4d"/>
+      <stop offset="0.55" stop-color="#e2451c"/>
+      <stop offset="1" stop-color="#b42a0c"/>
+    </linearGradient>
+    <linearGradient id="s" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" fill="#edf1f7"/>
+  <rect x="17" y="17" width="66" height="66" rx="20" fill="url(#t)"/>
+  <rect x="17" y="17" width="66" height="66" rx="20" fill="url(#s)"/>
+  <text x="50" y="53" font-family="Songti SC, STSong, SimSun, serif" font-size="38" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#fffdf7">行</text>
 </svg>

@@ -14,14 +14,32 @@ import sharp from "sharp";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// 品牌源图：暖纸底 + 陶土橙圆角方块 + 墨色「行」字（与 brand-mark 同一语言）。
-// 文字用通用衬线栈：sharp 用 libvips 渲染 SVG，本机有中文字体（macOS 宋体/苹方），
-// CI 上同样有系统字体回退；若未来换 CI 镜像需确认字体存在。
+// 品牌源图（ATLAS v6）：冷瓷底 + 珊瑚渐变圆角方块 + 白色「行」字。
+// 与页头 brand-mark 同一语言：渐变方向 150deg、上缘高光、字形用衬线（印章感）。
+// sharp 用 libvips 渲染 SVG，文字依赖系统字体（macOS 宋体/苹方，CI 有回退）；
+// 换 CI 镜像时需确认字体存在，否则「行」会退化成方框。
 const SOURCE = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#f6f0e4"/>
-  <rect x="96" y="96" width="320" height="320" rx="72" fill="#c2410c"/>
-  <text x="256" y="256" font-family="Songti SC, STSong, SimSun, serif" font-size="176"
-        text-anchor="middle" dominant-baseline="central" fill="#f6f0e4">行</text>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#ff7a4d"/>
+      <stop offset="0.55" stop-color="#e2451c"/>
+      <stop offset="1" stop-color="#b42a0c"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff5e33" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff5e33" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#edf1f7"/>
+  <circle cx="256" cy="286" r="190" fill="url(#glow)"/>
+  <rect x="88" y="88" width="336" height="336" rx="104" fill="url(#tile)"/>
+  <rect x="88" y="88" width="336" height="336" rx="104" fill="url(#sheen)"/>
+  <text x="256" y="268" font-family="Songti SC, STSong, SimSun, serif" font-size="196"
+        font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#fffdf7">行</text>
 </svg>`;
 
 const TARGETS = [
