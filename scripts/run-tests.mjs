@@ -1507,7 +1507,8 @@ async function phaseA(api) {
       mfJson?.display === "standalone" &&
       Array.isArray(mfJson?.icons) &&
       mfJson.icons.length >= 2 &&
-      mfJson.theme_color === "#c2410c",
+      // ATLAS v6 品牌色：陶土橙 #c2410c → 珊瑚 #c73310（见 app/manifest.ts）
+      mfJson.theme_color === "#c73310",
     `${mf.status} ${JSON.stringify(mfJson)?.slice(0, 120)}`,
   );
   const sw = await fetch(`${api.baseUrl}/sw.js`);
