@@ -1,8 +1,20 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { ChevronRight, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { executabilityOf, formatCheckedAt } from "@/lib/executability";
+
+/**
+ * 评分环的语义色档位：A/B 为通过、C 为需微调、D 为走不通。
+ * 颜色只从 --at-ok/warn/err 取（见 atlas-evidence.css 的 .exec-ring-*），
+ * 组件只决定档位，不写死颜色——主题切换时环会跟着 token 走。
+ */
+function ringTone(grade: "A" | "B" | "C" | "D"): "ok" | "warn" | "bad" {
+  if (grade === "A" || grade === "B") return "ok";
+  if (grade === "C") return "warn";
+  return "bad";
+}
 
 // ============================================================
 // 可执行性评分卡：产品差异化的「前台化」
@@ -35,14 +47,30 @@ export function ExecutabilityBadge({ plan, compact = false }: { plan: Plan; comp
 
   const unverified = r.state === "unverified";
   const Icon = unverified ? ShieldAlert : ShieldCheck;
+  // 评分环：A–D 四档用语义 token 上色；--at-ring-pct 传给 CSS 的 conic-gradient。
+  // 环内是等级字母（分数在 pill 里，避免同一屏出现两个「分数」读数）。
+  const tone = r.grade ? ringTone(r.grade) : "warn";
+  const ringStyle = {
+    "--at-ring-pct": r.score ?? 0,
+  } as CSSProperties;
 
   return (
     <details className={`exec-badge${compact ? " exec-compact" : ""}`} data-state={r.state}>
       <summary className="exec-summary">
+        {!unverified && r.score !== null && (
+          <span
+            className={`exec-ring at-ring exec-ring-${tone}`}
+            style={ringStyle}
+            aria-hidden="true"
+          >
+            {r.grade}
+          </span>
+        )}
         <span className="exec-pill">
           <Icon size={13} />
           {unverified ? "未核验" : `${r.grade} · 可执行性 ${r.score}`}
         </span>
+
         <span className="exec-summary-text">{r.summary}</span>
         <ChevronRight className="exec-chevron" size={14} aria-hidden="true" />
       </summary>

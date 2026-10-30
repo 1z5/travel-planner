@@ -1,0 +1,4268 @@
+/* ============================================================
+   ATLAS v6 · evidence 分片（分享 / 体检 / 今日 / 报告）
+   ------------------------------------------------------------
+   这一片负责「证据面」：用户把行程拿给别人看、拿核验结论对账、行中照着走。
+   双面语言：
+   - 刊物面（/p、/r）：旅行刊物。衬线大标题、留白、细线网格、页边 meta、
+     可打印可收藏；打印时回到「黑白文档」。
+   - 仪器面（/p/check、/verify、/w?view=check、/t）：可复算凭据。等宽编号、
+     评分环、证据表、票根凭据（打孔/条码/印章）、修复前后 diff。
+   两者共用：--at-* token、mono 数据面、hairline 刻度、accent 只做「结论色」。
+
+   硬约束（见 docs/design/ATLAS-V6.md）：
+   - 只覆盖 v5 globals.css 的既有 class，不删 class、不改文案；
+   - 颜色全部取 --at-*（装饰渐变允许 color-mix）；
+   - 列表正文不用 backdrop-filter（只在封面/粘性条/凭据票根上用）；
+   - 移动端 390px 无横向溢出、触控 ≥40px；prefers-reduced-motion 降级；
+   - @media print：刊物面白底黑字、隐藏交互件与装饰。
+   ============================================================ */
+
+/* ============================================================
+   0. 证据面公共器物
+   ============================================================ */
+
+/* 页面画布：证据面不铺满玻璃，而是「一张纸 / 一块面板」居中 */
+.at-evidence-page {
+  max-width: var(--at-maxw);
+}
+
+/* 等宽读数：数字一律 tabular，避免对账时跳列 */
+.at-readout {
+  font-family: var(--at-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* 纸面细线：横向一条从实到虚的规则线（刊物分节的「栏线」） */
+.at-hairline {
+  height: 1px;
+  border: none;
+  background: linear-gradient(90deg, var(--at-line-2), transparent 88%);
+}
+
+/* 角标刻度：仪器面板四角取景框（复用 base 的 .at-ticks 语义，这里给证据面更细的刻度） */
+.at-gauge-corners {
+  position: relative;
+}
+.at-gauge-corners::before,
+.at-gauge-corners::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.at-gauge-corners::before {
+  top: 0;
+  left: 0;
+  border-top: 1px solid var(--at-accent);
+  border-left: 1px solid var(--at-accent);
+}
+.at-gauge-corners::after {
+  right: 0;
+  bottom: 0;
+  border-right: 1px solid var(--at-accent);
+  border-bottom: 1px solid var(--at-accent);
+}
+
+/* 印章：圆形压印 + 外圈虚线。只承载信息（核验结论），不做纯装饰堆叠。
+   content 由使用处给（CSS 文本不进 DOM，不干扰组件测试的文字断言）。 */
+.at-stamp {
+  --at-stamp-color: var(--at-accent);
+  display: inline-grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  padding: 6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--at-stamp-color);
+  box-shadow:
+    inset 0 0 0 3px color-mix(in oklab, var(--at-stamp-color) 14%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--at-stamp-color) 20%, transparent);
+  color: var(--at-stamp-color);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(-8deg);
+  opacity: 0.92;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+.at-stamp-ok {
+  --at-stamp-color: var(--at-ok);
+}
+.at-stamp-warn {
+  --at-stamp-color: var(--at-warn);
+}
+.at-stamp-bad {
+  --at-stamp-color: var(--at-err);
+}
+
+/* 条码：凭据票根右侧的「可扫描感」竖条（真正的可复算凭据是文本 ID，条码只是版式） */
+.at-barcode {
+  width: 58px;
+  height: 48px;
+  flex: 0 0 auto;
+  opacity: 0.62;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--at-ink) 0 2px,
+    transparent 2px 4px,
+    var(--at-ink) 4px 5px,
+    transparent 5px 9px,
+    var(--at-ink) 9px 12px,
+    transparent 12px 14px,
+    var(--at-ink) 14px 15px,
+    transparent 15px 20px
+  );
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+/* ============================================================
+   1. 页面 meta 条（/p、/p/check、/r 共用）
+   ------------------------------------------------------------
+   v5 是一条「面包屑」；v6 改成刊物的「卷首信息行」：等宽、细线、
+   数字 tabular，像杂志目录页顶端的期号/日期/定价。
+   ============================================================ */
+
+.page-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+  margin: var(--sp-2) 0 var(--sp-4);
+  padding: 10px 0;
+  border-top: 1.5px solid var(--at-line-2);
+  border-bottom: 1px solid var(--at-line);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.page-meta > * {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+.page-meta .page-back {
+  color: var(--at-accent);
+  text-decoration: none;
+  letter-spacing: 0.06em;
+  min-height: 40px;
+}
+.page-meta .page-back:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.page-meta .pm-sep {
+  width: 1px;
+  height: 11px;
+  background: var(--at-line-2);
+  flex: 0 0 auto;
+}
+.page-meta .pm-ok {
+  color: var(--at-ok);
+}
+.page-meta .pm-ok::before,
+.page-meta .pm-muted::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.page-meta .pm-muted {
+  color: var(--at-ink-4);
+}
+.page-meta .pm-source {
+  margin-left: auto;
+  color: var(--at-ink-4);
+  letter-spacing: 0.08em;
+}
+
+/* ============================================================
+   2. 分享页：旅行刊物封面
+   ============================================================ */
+
+/* .poster = 封面纸：不再是圆角卡片，而是一张「有页边距的刊物纸」。
+   顶栏保留粗栏线，底部给出 colophon（版权/编号）位置。 */
+.poster {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(22px, 3.4vw, 44px) clamp(20px, 3.4vw, 44px) clamp(18px, 2.6vw, 32px);
+  margin-bottom: var(--sp-5);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: linear-gradient(180deg, var(--at-surface-solid), var(--at-surface-2));
+  box-shadow:
+    0 1px 0 var(--at-line-soft),
+    var(--at-shadow-md);
+  isolation: isolate;
+}
+
+/* 刊物刊头：期号式的 mono 眉题 + 双线 */
+.poster::before {
+  content: "ATLAS · 行程特辑 / THE ITINERARY EDITION";
+  display: block;
+  padding: 0 0 12px;
+  margin-bottom: clamp(16px, 2.4vw, 26px);
+  border-bottom: 1.5px solid var(--at-line-2);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--at-accent);
+  text-transform: uppercase;
+}
+
+/* 封面等高线纹理：地图之外再给一层图纸暗示（不遮挡文字，mask 收在右上角） */
+.poster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(
+      circle at 84% 6%,
+      transparent 0 34px,
+      var(--at-line-soft) 34px 35px,
+      transparent 36px
+    ),
+    radial-gradient(
+      circle at 84% 6%,
+      transparent 0 62px,
+      var(--at-line-soft) 62px 63px,
+      transparent 64px
+    ),
+    radial-gradient(
+      circle at 84% 6%,
+      transparent 0 96px,
+      var(--at-line-soft) 96px 97px,
+      transparent 98px
+    ),
+    radial-gradient(
+      circle at 84% 6%,
+      transparent 0 138px,
+      var(--at-line-soft) 138px 139px,
+      transparent 140px
+    );
+}
+
+/* 城市名：刊物主视觉。中文衬线在超大字号下字重 700 才不「糊」，字距收紧。 */
+.poster-city {
+  margin: 0;
+  font-family: var(--at-serif);
+  font-size: clamp(60px, 10.4vw, 132px);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+/* 副题：刊物的「导语行」——衬线体、大字号，读起来像一篇旅记的副标题 */
+.poster-sub {
+  margin: clamp(12px, 1.8vw, 18px) 0 0;
+  max-width: 52ch;
+  font-family: var(--at-serif);
+  font-size: clamp(15px, 1.7vw, 19px);
+  line-height: 1.65;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 卷首信息行（组件渲染）：日期区间 / 核验状态 / 凭据 / 档案号。
+   刊物封面的「页眉小字」——等宽、字距拉开、用竖线分隔，不抢城市名。 */
+.poster-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  margin: clamp(12px, 1.8vw, 16px) 0 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-4);
+  text-transform: uppercase;
+}
+.poster-meta-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border-left: 1px solid var(--at-line-2);
+  font-variant-numeric: tabular-nums;
+}
+.poster-meta-item:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+/* 规格行：杂志版权页式的「统计条」。数字用衬线大号，标签用 mono 小号。 */
+.poster-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: clamp(20px, 3vw, 30px);
+  padding: 14px 0;
+  border-top: 1px solid var(--at-line);
+  border-bottom: 1px solid var(--at-line);
+}
+.poster-badge {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 9px;
+  align-items: center;
+  padding: 0 clamp(14px, 2.4vw, 28px);
+  border-left: 1px solid var(--at-line);
+  background: none;
+  border-radius: 0;
+  min-width: 0;
+}
+.poster-badge:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+.poster-badge-icon {
+  grid-row: 1 / span 2;
+  color: var(--at-accent);
+  margin: 0;
+}
+.poster-badge-value {
+  font-family: var(--at-serif);
+  font-size: clamp(24px, 2.6vw, 32px);
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--at-ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.poster-badge-label {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.poster-badge-tone-ok .poster-badge-value {
+  color: var(--at-ok);
+}
+.poster-badge-tone-warn .poster-badge-value {
+  color: var(--at-warn);
+}
+.poster-badge-tone-err .poster-badge-value {
+  color: var(--at-err);
+}
+
+/* 封面地图：全出血（负边距顶到纸边），叠一层网格 + 内投影，图注压在图上 */
+.poster-map-wrap {
+  position: relative;
+  margin: clamp(20px, 3vw, 28px) calc(clamp(20px, 3.4vw, 44px) * -1) 0;
+  border: none;
+  border-top: 1px solid var(--at-line);
+  border-bottom: 1px solid var(--at-line);
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--at-bg-deep);
+  box-shadow: none;
+  min-height: 220px;
+}
+.poster-map-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--at-line-soft) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--at-line-soft) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+html[data-theme="dark"] .poster-map-wrap::after {
+  mix-blend-mode: screen;
+  opacity: 0.3;
+}
+.poster-map-cap {
+  position: absolute;
+  left: clamp(16px, 2.4vw, 28px);
+  bottom: 14px;
+  z-index: 1;
+  margin: 0;
+  padding: 6px 11px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+  max-width: calc(100% - 28px);
+  overflow-wrap: anywhere;
+}
+
+/* 封面底部：传播入口靠右，左侧留「归档编号」样式的印刷小字（不编数据，只印口径） */
+.poster-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--at-line);
+}
+.poster-foot::before {
+  content: "ATLAS TRAVEL EDITION · 可打印 / 可收藏";
+  margin-right: auto;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+  order: -1;
+}
+.poster-report-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 2px;
+  font-size: var(--at-fs-small);
+  font-weight: 650;
+  color: var(--at-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--at-dur-1) ease;
+}
+.poster-report-link:hover {
+  border-bottom-color: var(--at-accent);
+}
+
+/* 传播 CTA（「也想去 X？」）：刊物的征订/订阅栏——左侧主张，右侧动作 */
+.share-cta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin: var(--sp-5) 0;
+  padding: clamp(16px, 2.4vw, 22px) clamp(18px, 2.6vw, 26px);
+  border: 1px solid var(--at-line);
+  border-left: 3px solid var(--at-accent);
+  border-radius: var(--at-r-md);
+  background: linear-gradient(90deg, var(--at-accent-soft), transparent 62%), var(--at-surface-2);
+}
+.share-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.share-cta-text strong {
+  font-family: var(--at-serif);
+  font-size: clamp(19px, 2.2vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.share-cta-text span {
+  font-size: var(--at-fs-small);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.share-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.share-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--at-r-pill);
+  background: linear-gradient(180deg, var(--at-primary-from), var(--at-primary-to));
+  color: var(--at-on-primary);
+  font-size: var(--at-fs-small);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 24px -12px var(--at-accent-glow);
+}
+.share-cta-btn:hover {
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+.share-clone-count {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--at-ink-4);
+}
+
+/* ---------- 吸顶导航偏移按新壳重新校准 ----------
+   globals.css 里 `.plan-toc{top:52px}` / `--plan-anchor-offset:113px` 是按 v5 的
+   52px 实心顶栏定的；ATLAS v6 顶栏是悬浮药丸（top 10 + 高 56 → 底 66px），
+   TOC 停在 52px 会被药丸压住一截，锚点跳转会钻到 TOC 后面。
+   用 :not(.plan-view-browser) 把 specificity 提到 0,3,0，只影响刊物布局
+   （分享页/报告页/结果页），不碰工作台的 browser 布局（那边用自己的变量）。 */
+.plan-view:not(.plan-view-browser) .plan-toc {
+  top: 74px;
+}
+.plan-view:not(.plan-view-browser) {
+  --plan-anchor-offset: 136px;
+}
+
+/* 分享页上的体检凭据卡（首屏第一件「证据」）：票根式样，撕口 + 印章位 */
+main.at-share-page > .card[aria-label="行程体检凭据"] {
+  position: relative;
+  margin: var(--sp-4) 0;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-2);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+main.at-share-page > .card[aria-label="行程体检凭据"]::before,
+main.at-share-page > .card[aria-label="行程体检凭据"]::after {
+  content: "";
+  position: absolute;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--at-bg);
+  border: 1px solid var(--at-line);
+  pointer-events: none;
+}
+main.at-share-page > .card[aria-label="行程体检凭据"]::before {
+  left: 18px;
+}
+main.at-share-page > .card[aria-label="行程体检凭据"]::after {
+  right: 18px;
+}
+main.at-share-page > .card[aria-label="行程体检凭据"] .card-body > .muted:first-child {
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+}
+main.at-share-page > .card[aria-label="行程体检凭据"] code {
+  font-family: var(--at-mono);
+  font-size: 0.94em;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+/* 触控阈值 39.5px（scripts/visual-check.mjs 的 CONTROL_SELECTOR 含 a.btn-link）：
+   34px 会被判失败；用 40px，视觉上仍是紧凑链接。 */
+main.at-share-page > .card[aria-label="行程体检凭据"] .btn-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: var(--at-fs-small);
+}
+
+/* 演示行程提示条（v5 是黄色 alert）：证据面用「档案标注」样式 */
+main.at-share-page .demo-readonly-note,
+main.at-share-page [class*="demo-note"] {
+  font-family: var(--at-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+/* ============================================================
+   3. 体检报告：可复算凭据（报告页 + 工作台 + 体验台共用 tc-*）
+   ============================================================ */
+
+/* 报告根：仪器面板的「底板」——细线分区，不用大圆角堆叠 */
+.tc-report {
+  --tc-pad: clamp(16px, 2.4vw, 26px);
+}
+
+/* 报告头：左「城市 · 天数 · 点位」的刊头，右「判定时间」的时刻牌 */
+.tc-report-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px var(--sp-4);
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1.5px solid var(--at-line-2);
+}
+.tc-report-eyebrow {
+  margin: 0 0 8px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+}
+.tc-report-title {
+  margin: 0 0 6px;
+  font-family: var(--at-sans);
+  font-size: clamp(21px, 2.8vw, 30px);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--at-ink);
+}
+.tc-report-doc {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.tc-report-time {
+  margin: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 总评：航显板式的读数带——左侧结论，右侧三个大数字（阻断/微调/信息） */
+.tc-verdict {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 var(--sp-4);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-2);
+}
+.tc-verdict::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--at-ink-4);
+}
+.tc-verdict-ok {
+  border-color: var(--at-ok-line);
+  background: linear-gradient(90deg, var(--at-ok-bg), var(--at-surface-2) 72%);
+}
+.tc-verdict-ok::before {
+  background: var(--at-ok);
+}
+.tc-verdict-warn {
+  border-color: var(--at-warn-line);
+  background: linear-gradient(90deg, var(--at-warn-bg), var(--at-surface-2) 72%);
+}
+.tc-verdict-warn::before {
+  background: var(--at-warn);
+}
+.tc-verdict-bad {
+  border: 1px solid var(--at-err-line);
+  background: linear-gradient(90deg, var(--at-err-bg), var(--at-surface-2) 72%);
+}
+.tc-verdict-bad::before {
+  width: 4px;
+  background: var(--at-err);
+}
+.tc-verdict-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: clamp(14px, 2vw, 20px) clamp(14px, 2vw, 22px);
+  min-width: 0;
+}
+.tc-verdict-main svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+.tc-verdict-label {
+  margin: 0 0 4px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.tc-verdict-summary {
+  margin: 0;
+  font-size: var(--at-fs-body);
+  line-height: 1.65;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-verdict-ok .tc-verdict-main svg,
+.tc-verdict-ok .tc-verdict-label {
+  color: var(--at-ok);
+}
+.tc-verdict-warn .tc-verdict-main svg,
+.tc-verdict-warn .tc-verdict-label {
+  color: var(--at-warn);
+}
+.tc-verdict-bad .tc-verdict-main svg,
+.tc-verdict-bad .tc-verdict-label {
+  color: var(--at-err);
+}
+
+/* 三个统计格：像仪表上的三段读数（大数字 + 小标签 + 竖分隔） */
+.tc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid var(--at-line);
+}
+.tc-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding: 12px clamp(10px, 1.6vw, 18px);
+  border: none;
+  border-left: 1px solid var(--at-line);
+  border-radius: 0;
+  background: none;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+  white-space: nowrap;
+}
+.tc-stat:first-child {
+  border-left: none;
+}
+.tc-stat b {
+  font-family: var(--at-mono);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tc-stat-bad b {
+  color: var(--at-err);
+}
+.tc-stat-warn b {
+  color: var(--at-warn);
+}
+.tc-stat-neutral b {
+  color: var(--at-ink-2);
+}
+
+/* 两轴：并排的「仪表模块」 */
+.tc-axes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: var(--sp-4);
+}
+.tc-axis {
+  position: relative;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: hidden;
+}
+.tc-axis::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--at-accent-vivid), transparent 70%);
+  opacity: 0.7;
+}
+.tc-axis .card-body {
+  padding: clamp(15px, 2vw, 22px);
+}
+.tc-axis-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--at-line);
+}
+.tc-axis-head h3 {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-2);
+}
+.tc-axis-note {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-4);
+  text-transform: uppercase;
+}
+.tc-axis-summary {
+  margin: 12px 0 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-axis-foot {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--at-line);
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-4);
+}
+
+/* 等级环：把 v5 的「方形字母章」重做为 conic-gradient 评分环。
+   --at-ring-pct 由组件行内样式传入（= 结构分），环内是等级字母。 */
+.tc-grade-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 20px);
+  min-width: 0;
+}
+.tc-grade-badge {
+  --at-ring-pct: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(84px, 11vw, 104px);
+  height: clamp(84px, 11vw, 104px);
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--at-surface-solid) 0 66%, transparent 67%),
+    conic-gradient(
+      var(--at-ring-color, var(--at-accent)) calc(var(--at-ring-pct) * 1%),
+      var(--at-line) 0
+    );
+  box-shadow:
+    inset 0 0 0 1px var(--at-line),
+    0 0 0 6px color-mix(in oklab, var(--at-ring-color, var(--at-accent)) 7%, transparent);
+  color: var(--at-ring-color, var(--at-accent));
+  font-family: var(--at-mono);
+  font-size: clamp(34px, 4.4vw, 44px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.tc-grade-ok {
+  --at-ring-color: var(--at-ok);
+}
+.tc-grade-warn {
+  --at-ring-color: var(--at-warn);
+}
+.tc-grade-bad {
+  --at-ring-color: var(--at-err);
+}
+.tc-grade-label {
+  margin: 0 0 2px;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-2);
+  text-transform: uppercase;
+}
+.tc-score {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.tc-score b {
+  font-size: clamp(22px, 2.6vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+}
+
+/* 事实轴：覆盖率是一张「查了多少」的对账表 */
+.tc-facts-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-pill);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.tc-facts-state::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.tc-facts-ok {
+  border-color: var(--at-ok-line);
+  background: var(--at-ok-bg);
+  color: var(--at-ok);
+}
+.tc-facts-warn {
+  border-color: var(--at-warn-line);
+  background: var(--at-warn-bg);
+  color: var(--at-warn);
+}
+.tc-facts-neutral {
+  color: var(--at-ink-3);
+}
+.tc-coverage {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 12px 0 0;
+  border-top: 1px solid var(--at-line);
+}
+.tc-coverage-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 0.34fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--at-line-soft);
+}
+.tc-coverage-row dt {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-coverage-row dd {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.6;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.tc-coverage-row dd b {
+  font-family: var(--at-mono);
+  font-size: 1.08em;
+  color: var(--at-ink);
+}
+.tc-sources {
+  margin-top: 12px;
+}
+.tc-sources-title {
+  margin: 0 0 6px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-source-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.tc-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--at-line);
+  list-style: none;
+}
+.tc-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.tc-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--at-warn);
+}
+
+/* 规则级问题：证据台账。分组标题像航显分组条，单条像表行 */
+.tc-issues {
+  margin-bottom: var(--sp-4);
+}
+.tc-issues-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1.5px solid var(--at-line-2);
+}
+.tc-issues-head h3 {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-2);
+}
+.tc-issue-group {
+  margin-bottom: 16px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  overflow: hidden;
+  background: var(--at-surface);
+}
+.tc-group-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 9px clamp(12px, 1.8vw, 18px);
+  border-bottom: 1px solid var(--at-line);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-2);
+}
+.tc-group-title::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--at-ink-4);
+}
+.tc-group-bad .tc-group-title {
+  background: var(--at-err-bg);
+  color: var(--at-err);
+}
+.tc-group-bad .tc-group-title::before {
+  background: var(--at-err);
+  box-shadow: 0 0 10px var(--at-err);
+}
+.tc-group-warn .tc-group-title {
+  background: var(--at-warn-bg);
+  color: var(--at-warn);
+}
+.tc-group-warn .tc-group-title::before {
+  background: var(--at-warn);
+}
+.tc-group-neutral .tc-group-title {
+  color: var(--at-ink-3);
+}
+.tc-group-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+.tc-issue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-issue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
+  padding: 14px clamp(12px, 1.8vw, 18px) 15px;
+  border-top: 1px solid var(--at-line-soft);
+}
+.tc-issue:first-child {
+  border-top: none;
+}
+.tc-issue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tc-issue-title {
+  margin: 0;
+  font-size: var(--at-fs-title);
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+}
+.tc-rule-id {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid var(--at-line-2);
+  border-radius: 4px;
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.tc-issue-detail {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-evidence {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: 4px 16px;
+  margin: 3px 0 0;
+  padding: 9px 0 0;
+  border-top: 1px dashed var(--at-line);
+  list-style: none;
+}
+.tc-evidence li {
+  position: relative;
+  padding-left: 13px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.tc-evidence li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: var(--at-accent);
+  font-weight: 700;
+}
+.tc-fix {
+  margin: 2px 0 0;
+  padding: 8px 11px;
+  border-left: 2px solid var(--at-accent);
+  border-radius: 0 var(--at-r-sm) var(--at-r-sm) 0;
+  background: var(--at-accent-soft);
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-fix b {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+  margin-right: 4px;
+}
+.tc-empty {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-md);
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+
+/* 凭据：票根。上缘打孔 + 条码 + 印章 + 等宽 ID，可复制（复制按钮保留 40px） */
+.tc-credential {
+  position: relative;
+  margin: 0 0 var(--sp-4);
+  padding-top: 0;
+  overflow: hidden;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-md);
+  background:
+    linear-gradient(180deg, var(--at-surface-2), var(--at-surface)) padding-box,
+    var(--at-surface-solid);
+  box-shadow: var(--at-shadow-sm);
+}
+.tc-credential::before {
+  content: "";
+  display: block;
+  height: 10px;
+  border-bottom: 1px dashed var(--at-line-2);
+  background-image: radial-gradient(circle at center, var(--at-bg) 0 3.5px, transparent 4px);
+  background-size: 18px 10px;
+  background-position: 6px 0;
+}
+.tc-credential::after {
+  content: "可复算 · REPRODUCIBLE";
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 4px 9px;
+  border: 1px solid var(--at-accent);
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--at-accent) 7%, transparent);
+  color: var(--at-accent);
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+.tc-credential .card-body {
+  padding: clamp(15px, 2vw, 22px);
+}
+.tc-credential-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--at-line);
+}
+.tc-credential-head h3 {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-2);
+}
+.tc-cred-id-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--at-line);
+  border-left: 3px solid var(--at-accent);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-solid);
+}
+.tc-cred-id {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: var(--at-mono);
+  font-size: clamp(12px, 1.6vw, 15px);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.45;
+  color: var(--at-ink);
+  word-break: break-all;
+  user-select: all;
+}
+.tc-cred-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px 0;
+  margin: 14px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--at-line);
+  border-bottom: 1px solid var(--at-line);
+  background: var(--at-line-soft);
+}
+.tc-cred-grid > div {
+  padding: 10px 12px;
+  background: var(--at-surface-solid);
+  min-width: 0;
+}
+.tc-cred-grid dt {
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-cred-grid dd {
+  margin: 3px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.5;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-cred-note {
+  margin: 12px 0 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--at-ok);
+}
+.tc-cred-sub {
+  margin: 6px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-4);
+  overflow-wrap: anywhere;
+}
+.tc-cred-sub code {
+  background: var(--at-surface-2);
+}
+.tc-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.tc-copy-btn {
+  height: 40px;
+  min-height: 40px;
+}
+.tc-copy-fb,
+.tc-copy-ok {
+  margin: 6px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-warn);
+}
+.tc-copy-ok {
+  color: var(--at-ok);
+}
+.tc-json-details {
+  margin-top: 12px;
+  border-top: 1px dashed var(--at-line);
+}
+.tc-json-details summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-3);
+  cursor: pointer;
+}
+.tc-json-details summary::before {
+  content: "›";
+  margin-right: 7px;
+  color: var(--at-accent);
+  transition: transform var(--at-dur-1) ease;
+}
+.tc-json-details[open] summary::before {
+  transform: rotate(90deg);
+}
+.tc-json {
+  max-height: 340px;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-bg-deep);
+  font-family: var(--at-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--at-ink-2);
+  white-space: pre;
+  tab-size: 2;
+}
+.tc-credential-missing {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 var(--sp-4);
+  padding: 10px 14px;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  font-size: var(--at-fs-caption);
+  color: var(--at-ink-3);
+}
+
+/* 边界声明：刊物末页的「编辑说明」——小字、两栏、细线 */
+.tc-honesty {
+  padding: clamp(14px, 2vw, 20px) clamp(15px, 2vw, 22px);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-2);
+}
+.tc-honesty h3 {
+  margin: 0 0 10px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.tc-honesty ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 6px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-honesty li {
+  position: relative;
+  padding-left: 13px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.tc-honesty li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--at-ink-4);
+}
+.tc-honesty b {
+  color: var(--at-ink-2);
+}
+
+/* ============================================================
+   4. 体检报告页 /p/[id]/check：证书式的刊头
+   ============================================================ */
+
+.tc-report-page {
+  max-width: var(--at-maxw-narrow);
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-8);
+}
+.tc-report-page-hero {
+  position: relative;
+  max-width: none;
+  margin: var(--sp-3) 0 var(--sp-5);
+  padding: clamp(18px, 2.6vw, 28px) clamp(16px, 2.6vw, 28px) clamp(16px, 2.2vw, 22px);
+  border: 1px solid var(--at-line);
+  border-top: 3px solid var(--at-ink);
+  border-radius: 0 0 var(--at-r-md) var(--at-r-md);
+  background: linear-gradient(180deg, var(--at-surface-solid), var(--at-surface-2));
+  box-shadow: var(--at-shadow-sm);
+  overflow: hidden;
+}
+.tc-report-page-hero::after {
+  content: "TRIP CHECK · ISSUED";
+  position: absolute;
+  top: 14px;
+  right: clamp(14px, 2.4vw, 24px);
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--at-ink-4);
+}
+.tc-report-page-title {
+  margin: 8px 0 10px;
+  font-family: var(--at-serif);
+  font-size: clamp(28px, 5vw, 52px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--at-ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.tc-report-page-headline {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--at-accent);
+  background: var(--at-accent-soft);
+  font-family: var(--at-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.65;
+  color: var(--at-accent);
+  overflow-wrap: anywhere;
+}
+.tc-report-page-lede {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--at-fs-small);
+  line-height: 1.75;
+  color: var(--at-ink-3);
+}
+/* 报告页印章：压在刊头右侧（避开右上角的 ISSUED 小字），移动端收进正文流 */
+.at-cred-hero-stamp {
+  position: absolute;
+  top: 40px;
+  right: clamp(14px, 2.6vw, 26px);
+}
+@media (max-width: 720px) {
+  .at-cred-hero-stamp {
+    position: static;
+    display: grid;
+    width: 64px;
+    height: 64px;
+    margin: 0 0 12px;
+    font-size: 9px;
+  }
+}
+.tc-report-page-foot {
+  margin: var(--sp-6) 0 var(--sp-2);
+  padding-top: var(--sp-4);
+  border-top: 1.5px solid var(--at-line-2);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-3);
+}
+.tc-report-page-foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--at-accent);
+  text-decoration: none;
+}
+.tc-report-page-foot a:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   5. 确定性修复结果：前后 diff（票根式对照）
+   ============================================================ */
+
+.tc-repair,
+.tc-repair.card {
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.tc-repair .card-body {
+  padding: clamp(15px, 2vw, 22px);
+}
+.tc-repair-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--at-line);
+}
+.tc-repair-head h3 {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-2);
+}
+.tc-repair-lede {
+  margin: 0 0 14px;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+}
+.tc-repair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.tc-repair-btn {
+  height: 46px;
+  min-height: 46px;
+}
+.tc-repair-verdict {
+  padding: 12px 14px;
+  border: 1px solid var(--at-line);
+  border-left: 3px solid var(--at-ink-4);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+}
+.tc-repair-improved {
+  border-left-color: var(--at-ok);
+  background: var(--at-ok-bg);
+}
+.tc-repair-noop {
+  border-left-color: var(--at-warn);
+  background: var(--at-warn-bg);
+}
+.tc-repair-verdict-label {
+  margin: 0 0 3px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-2);
+}
+.tc-repair-improved .tc-repair-verdict-label {
+  color: var(--at-ok);
+}
+.tc-repair-noop .tc-repair-verdict-label {
+  color: var(--at-warn);
+}
+.tc-repair-verdict-text {
+  margin: 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-2);
+}
+
+/* 前后对比：两联票。左「修复前」中性、右「修复后」语义色，中间箭头 */
+.tc-repair-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  margin: 14px 0 0;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  overflow: hidden;
+  background: var(--at-surface-solid);
+}
+.tc-repair-side {
+  padding: 14px clamp(12px, 2vw, 18px);
+  min-width: 0;
+}
+.tc-repair-side-label {
+  margin: 0 0 7px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-repair-side-grade {
+  margin: 0;
+  font-size: var(--at-fs-body);
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.tc-repair-side-score,
+.tc-repair-side-blocking {
+  margin: 3px 0 0;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.tc-repair-arrow {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  border-left: 1px dashed var(--at-line-2);
+  border-right: 1px dashed var(--at-line-2);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 16px;
+  color: var(--at-accent);
+}
+.tc-repair-side-after {
+  background: color-mix(in oklab, var(--at-ok) 5%, var(--at-surface-solid));
+}
+.tc-repair-side-after .tc-repair-side-label {
+  color: var(--at-ok);
+}
+.tc-repair-delta {
+  margin: 10px 0 0;
+  padding: 7px 11px;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-repair-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--at-line);
+}
+.tc-repair-block-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.tc-repair-count {
+  padding: 1px 7px;
+  border-radius: var(--at-r-pill);
+  background: var(--at-accent-soft);
+  color: var(--at-accent);
+  letter-spacing: 0.04em;
+}
+.tc-repair-applied {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-repair-applied li {
+  padding: 10px 12px;
+  border: 1px solid var(--at-line);
+  border-left: 2px solid var(--at-ok);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  min-width: 0;
+}
+.tc-repair-rule {
+  display: block;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ok);
+}
+.tc-repair-detail {
+  margin: 4px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-repair-unrepairable {
+  padding: clamp(12px, 2vw, 16px);
+  border: 1px solid var(--at-warn-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-warn-bg);
+}
+.tc-repair-unrepairable .tc-repair-block-title {
+  color: var(--at-warn);
+}
+.tc-repair-unrep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-repair-unrep-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 9px;
+  padding: 9px 11px;
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-solid);
+}
+.tc-repair-unrep-title {
+  font-size: var(--at-fs-caption);
+  font-weight: 650;
+  color: var(--at-ink-2);
+}
+.tc-repair-unrep-loc {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-4);
+}
+.tc-repair-unrep-reason {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.tc-repair-remaining {
+  margin: 10px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 2;
+  color: var(--at-ink-2);
+}
+.tc-repair-remaining .tc-rule-id {
+  margin: 0 4px;
+}
+.tc-repair-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tc-repair-cred {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1.5px solid var(--at-line-2);
+}
+.tc-repair-cred-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 7px;
+  padding: 8px 10px;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+}
+.tc-repair-cred-label {
+  min-width: 52px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-repair-cred-id {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-family: var(--at-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--at-ink);
+  word-break: break-all;
+  user-select: all;
+}
+.tc-repair-cred-note {
+  margin: 8px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.tc-repair-honesty {
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px dashed var(--at-line-2);
+  list-style: none;
+}
+.tc-repair-honesty li {
+  position: relative;
+  padding-left: 14px;
+  margin-bottom: 5px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.tc-repair-honesty li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--at-ink-4);
+}
+
+/* 状态/提示：航显小字 */
+.tc-status {
+  margin: 10px 0 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-accent);
+}
+.tc-hint {
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+
+/* 错误：红框 + 等宽字段列表（保留 v5 语义，收紧为面板） */
+.tc-alert {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--at-err-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-err-bg);
+}
+.tc-alert-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tc-alert-head h3,
+.tc-repair-alert-title {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  font-weight: 700;
+  color: var(--at-err);
+}
+.tc-alert-head svg {
+  flex: 0 0 auto;
+  color: var(--at-err);
+}
+.tc-alert-message {
+  margin: 6px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-2);
+}
+.tc-error-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-error-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--at-line-soft);
+  font-size: var(--at-fs-caption);
+  color: var(--at-ink-2);
+}
+.tc-error-list code {
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  color: var(--at-err);
+  background: none;
+  padding: 0;
+}
+
+/* ============================================================
+   6. 工作台体检镜头：读数面板 + 修复预览 + 确认写入
+   ============================================================ */
+
+.tc-ws-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.tc-ws-check-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px var(--sp-4);
+  padding: clamp(15px, 2vw, 20px) clamp(16px, 2vw, 22px);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background:
+    radial-gradient(120% 160% at 100% 0%, var(--at-accent-soft), transparent 60%), var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+}
+.tc-ws-check-head-main {
+  min-width: 0;
+}
+.tc-ws-check-title {
+  margin: 0 0 5px;
+  font-family: var(--at-sans);
+  font-size: clamp(20px, 2.6vw, 27px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--at-ink);
+}
+.tc-ws-check-lede {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+.tc-ws-check-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.tc-ws-check-state {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+}
+.tc-ws-check-report {
+  padding: 0;
+}
+.tc-ws-check-report-title {
+  margin: 0 0 10px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-ws-check-repair {
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface);
+}
+.tc-ws-check-repair .card-body {
+  padding: clamp(15px, 2vw, 22px);
+}
+.tc-ws-check-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--at-accent-ring);
+  border-radius: var(--at-r-md);
+  background: var(--at-accent-soft);
+}
+.tc-ws-check-confirm-btn {
+  height: 46px;
+  min-height: 46px;
+}
+.tc-ws-check-confirm .tc-hint {
+  flex: 1 1 240px;
+  margin: 0;
+}
+.tc-ws-check-notice {
+  margin-top: 12px;
+  padding: 10px 13px;
+  border: 1px solid var(--at-ok-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-ok-bg);
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ok);
+}
+.tc-ws-check-readonly {
+  margin: 10px 0 0;
+}
+.tc-ws-check-alert {
+  margin: 0;
+}
+.tc-ws-check-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.tc-ws-check-history {
+  padding: clamp(15px, 2vw, 20px) clamp(16px, 2vw, 22px);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-2);
+}
+.tc-ws-check-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-bottom: 9px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--at-line);
+}
+.tc-ws-check-history-head h3 {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.tc-ws-check-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  background: var(--at-line-soft);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  overflow: hidden;
+}
+.tc-ws-check-history-grid > div {
+  padding: 10px 12px;
+  background: var(--at-surface-solid);
+  min-width: 0;
+}
+.tc-ws-check-history-grid dt {
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-ws-check-history-grid dd {
+  margin: 4px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.5;
+  color: var(--at-ink-2);
+  overflow-wrap: anywhere;
+}
+.tc-ws-check-history-grid .tc-mono {
+  font-size: 10.5px;
+  word-break: break-all;
+}
+
+/* ============================================================
+   7. 公开体检台 /verify：仪器操作台
+   ============================================================ */
+
+.tc-page {
+  padding-top: var(--sp-4);
+}
+.tc-page.at-verify-page {
+  position: relative;
+}
+.tc-hero {
+  position: relative;
+  max-width: 860px;
+  margin-bottom: var(--sp-6);
+  padding: clamp(18px, 2.6vw, 28px) clamp(16px, 2.6vw, 28px) clamp(16px, 2.4vw, 24px);
+  border: 1px solid var(--at-line);
+  border-top: 3px solid var(--at-ink);
+  border-radius: 0 0 var(--at-r-md) var(--at-r-md);
+  background: linear-gradient(180deg, var(--at-surface-solid), var(--at-surface-2));
+  box-shadow: var(--at-shadow-sm);
+  overflow: hidden;
+}
+.tc-hero::after {
+  content: "CONSOLE · TRIP CHECK";
+  position: absolute;
+  top: 13px;
+  right: clamp(14px, 2.4vw, 24px);
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--at-ink-4);
+}
+.tc-title {
+  margin: 8px 0 12px;
+  font-family: var(--at-sans);
+  font-size: clamp(28px, 4.6vw, 48px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+  text-wrap: balance;
+}
+.tc-lede {
+  margin: 0 0 14px;
+  max-width: 68ch;
+  font-size: var(--at-fs-body);
+  line-height: 1.75;
+  color: var(--at-ink-2);
+}
+.tc-lede b {
+  color: var(--at-ink);
+}
+.tc-version-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 9px 13px;
+  border: 1px solid var(--at-line);
+  border-left: 3px solid var(--at-accent);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.9;
+  color: var(--at-ink-3);
+  overflow-wrap: anywhere;
+}
+.tc-version-line a {
+  color: var(--at-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.tc-version-line a:hover {
+  text-decoration: underline;
+}
+.tc-version-sep {
+  color: var(--at-line-2);
+  margin: 0;
+}
+.tc-mono {
+  font-family: var(--at-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 操作台面板：顶部一条 mono 状态栏 + 细线分区；不做玻璃（列表页性能） */
+.tc-playground {
+  position: relative;
+  margin: 0 0 var(--sp-6);
+}
+.tc-panel.card {
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: hidden;
+}
+.tc-panel .card-body {
+  padding: clamp(15px, 2.2vw, 24px);
+}
+/* 状态栏：面板左上角的「运行指示」（伪元素，不占 DOM 文案） */
+.tc-panel .card-body::before {
+  content: "INPUT · TRIP_CHECK/0.1 · DETERMINISTIC";
+  display: block;
+  margin: calc(clamp(15px, 2.2vw, 24px) * -1) calc(clamp(15px, 2.2vw, 24px) * -1)
+    clamp(14px, 2vw, 18px);
+  padding: 7px clamp(15px, 2.2vw, 24px);
+  border-bottom: 1px solid var(--at-line);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--at-ink-4);
+}
+.tc-panel-head {
+  margin-bottom: 16px;
+}
+.tc-panel-title {
+  margin: 0;
+  font-family: var(--at-sans);
+  font-size: clamp(18px, 2.2vw, 22px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--at-ink);
+}
+.tc-panel-sub {
+  margin: 6px 0 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+.tc-label {
+  margin: 0 0 7px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.tc-mode-block {
+  margin-bottom: 14px;
+}
+.tc-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-md);
+  background: var(--at-bg-deep);
+}
+.tc-seg-btn {
+  min-height: 40px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--at-r-sm);
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--at-ink-3);
+}
+.tc-seg-btn:hover {
+  background: var(--at-surface);
+  color: var(--at-ink);
+  transform: none;
+  box-shadow: none;
+  border-color: var(--at-line);
+}
+.tc-seg-active,
+.tc-seg-active:hover {
+  border-color: var(--at-line-2);
+  background: var(--at-surface-solid);
+  color: var(--at-accent);
+  font-weight: 700;
+  box-shadow: var(--at-shadow-sm);
+}
+.tc-samples-block {
+  margin-bottom: 16px;
+}
+.tc-samples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 208px), 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-sample {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  min-height: 66px;
+  padding: 10px 12px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  color: var(--at-ink-2);
+  font-family: var(--at-sans);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--at-dur-1) ease,
+    background-color var(--at-dur-1) ease,
+    transform var(--at-dur-1) var(--at-ease-out);
+}
+.tc-sample:hover {
+  border-color: var(--at-accent-ring);
+  background: var(--at-surface-solid);
+  transform: translateY(-1px);
+}
+.tc-sample-active {
+  border-color: var(--at-accent);
+  background: var(--at-accent-soft);
+}
+.tc-sample-label {
+  font-size: var(--at-fs-small);
+  font-weight: 650;
+  color: var(--at-ink);
+  line-height: 1.4;
+}
+.tc-sample-desc {
+  font-size: var(--at-fs-caption);
+  line-height: 1.55;
+  color: var(--at-ink-3);
+}
+.tc-sample-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 8px 11px;
+  border-left: 2px solid var(--at-warn);
+  background: var(--at-warn-bg);
+  border-radius: 0 var(--at-r-sm) var(--at-r-sm) 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-warn);
+}
+.tc-sample-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.tc-field {
+  margin-bottom: 14px;
+}
+.tc-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.tc-inline-label {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.tc-hint-warn {
+  color: var(--at-err);
+}
+.tc-textarea {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  margin-top: 7px;
+  padding: 12px 14px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  background: var(--at-bg-deep);
+  color: var(--at-ink);
+  font-family: var(--at-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  resize: vertical;
+}
+.tc-textarea:focus {
+  outline: none;
+  border-color: var(--at-accent);
+  box-shadow: 0 0 0 4px var(--at-accent-soft);
+}
+.tc-input {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  font-family: var(--at-mono);
+  letter-spacing: 0.02em;
+}
+.tc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--at-line);
+}
+.tc-run-btn {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 22px;
+}
+.tc-pace {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.tc-pace .tc-select {
+  height: 40px;
+  padding: 0 10px;
+  font-family: var(--at-sans);
+  font-size: var(--at-fs-small);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tc-clear-btn {
+  margin-left: auto;
+}
+.tc-result {
+  margin-top: var(--sp-5);
+  scroll-margin-top: 76px;
+}
+.tc-result:focus {
+  outline: none;
+}
+/* 体验台的报告放在「结果托盘」里：顶部 mono 分隔条，避免报告像凭空出现 */
+.tc-result > .tc-report {
+  padding-top: 18px;
+  border-top: 1.5px solid var(--at-line-2);
+}
+
+/* 解释区：手册页式排版（编号小节 + 细线） */
+.tc-explainer,
+.tc-limits,
+.tc-cta {
+  counter-reset: tc-sec;
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--at-line);
+}
+.tc-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-family: var(--at-sans);
+  font-size: clamp(18px, 2.2vw, 23px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--at-ink);
+}
+.tc-section-title::before {
+  counter-increment: tc-sec;
+  content: "0" counter(tc-sec);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--at-accent);
+  transform: translateY(-2px);
+}
+.tc-section-lede {
+  max-width: 70ch;
+  margin: 0 0 16px;
+  font-size: var(--at-fs-small);
+  line-height: 1.75;
+  color: var(--at-ink-3);
+}
+.tc-axis-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-axis-card {
+  padding: 14px 16px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface);
+  min-width: 0;
+}
+.tc-axis-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--at-line);
+}
+.tc-axis-card h3 {
+  margin: 0;
+  font-size: var(--at-fs-body);
+  font-weight: 650;
+}
+.tc-axis-card-tag {
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+}
+.tc-axis-card p {
+  margin: 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+.tc-limits-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 7px 20px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.tc-limits-list li {
+  position: relative;
+  padding-left: 14px;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+}
+.tc-limits-list li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--at-warn);
+}
+.tc-limits-foot {
+  margin: 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.7;
+  color: var(--at-ink-4);
+}
+.tc-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.tc-cta-title {
+  margin: 0 0 4px;
+  font-family: var(--at-serif);
+  font-size: clamp(19px, 2.4vw, 25px);
+  font-weight: 700;
+}
+.tc-cta p {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  color: var(--at-ink-3);
+}
+
+/* ============================================================
+   8. 行中镜头 /t：夜间测绘台
+   ============================================================ */
+
+.today-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: var(--at-maxw-narrow);
+  margin: 0 auto;
+}
+.today-root > .card {
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* 头部：测绘台的「当前任务牌」——大标题 + 状态跑道 + mono 副题 */
+.today-hero {
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid var(--at-accent);
+}
+.today-hero::after {
+  content: "LIVE · TODAY";
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--at-accent);
+  opacity: 0.7;
+}
+.today-hero .card-body {
+  padding: clamp(16px, 2.4vw, 24px);
+}
+.today-kicker {
+  margin: 0 0 8px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+}
+.today-title {
+  margin: 0;
+  font-size: clamp(26px, 4.4vw, 40px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+}
+.today-sub {
+  margin: 8px 0 0;
+  font-family: var(--at-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.today-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--at-line);
+  border-left: 3px solid var(--at-accent);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  color: var(--at-ink-2);
+}
+.today-status svg {
+  flex: 0 0 auto;
+  color: var(--at-accent);
+}
+.today-status-during {
+  border-left-color: var(--at-accent-vivid);
+  background: linear-gradient(90deg, var(--at-accent-soft), transparent 70%), var(--at-surface-2);
+}
+.today-status-text {
+  font-size: var(--at-fs-body);
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--at-ink);
+  font-variant-numeric: tabular-nums;
+}
+.today-status-detail {
+  margin: 6px 0 0;
+  font-family: var(--at-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--at-ink-3);
+}
+.today-helper {
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.today-degrade {
+  margin: 6px 0 0;
+  padding: 8px 11px;
+  border-left: 2px solid var(--at-warn);
+  background: var(--at-warn-bg);
+  border-radius: 0 var(--at-r-sm) var(--at-r-sm) 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-warn);
+}
+
+/* 分区标题：仪表分组标签 */
+.today-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.today-section-title svg {
+  flex: 0 0 auto;
+  color: var(--at-accent);
+}
+.today-root .card-body {
+  padding: clamp(15px, 2.2vw, 22px);
+}
+
+/* 天气：读数牌（大温度 + 天气 + 建议），坏天气时转 warn 边框 */
+.today-weather {
+  border-left: 3px solid var(--at-teal);
+}
+.today-weather-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  font-size: var(--at-fs-small);
+  line-height: 1.6;
+  color: var(--at-ink-2);
+}
+.today-temp {
+  font-family: var(--at-mono);
+  font-size: clamp(20px, 2.6vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--at-teal);
+  font-variant-numeric: tabular-nums;
+}
+.today-weather-warn {
+  margin: 8px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-warn);
+}
+.today-weather-btn,
+.today-locate-btn,
+.today-fix-btn {
+  height: 40px;
+  min-height: 40px;
+}
+.today-fix {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--at-warn-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-warn-bg);
+}
+.today-fix-hint {
+  margin: 8px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.today-fix-done {
+  margin: 10px 0 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--at-ok);
+}
+.today-fix-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 8px 11px;
+  border-radius: var(--at-r-sm);
+  background: var(--at-err-bg);
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-err);
+}
+.today-fix-error svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* 今日时间轴：一根测量尺。左侧时刻列 + 轨道点 + 右侧内容；点位之间是路段 */
+.today-timeline {
+  position: relative;
+}
+.today-timeline .card-body {
+  padding-bottom: 8px;
+}
+.today-spots {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.today-spots::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 47px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--at-line-2) 6%,
+    var(--at-line-2) 94%,
+    transparent
+  );
+  pointer-events: none;
+}
+.today-spot {
+  position: relative;
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  column-gap: 14px;
+  padding: 0 0 16px;
+  border: none;
+  min-width: 0;
+}
+.today-spot:first-child {
+  padding-top: 2px;
+}
+.today-spot-head {
+  grid-column: 1;
+  padding-top: 1px;
+  min-width: 0;
+}
+.today-spot-time {
+  position: relative;
+  z-index: 1;
+  display: block;
+  font-family: var(--at-mono);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* 轨道点：位于左侧时刻列与内容之间 */
+.today-spot-head::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 43px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--at-line-2);
+  background: var(--at-surface-solid);
+  z-index: 1;
+}
+.today-spot-now .today-spot-head::after {
+  border-color: var(--at-accent);
+  background: var(--at-accent);
+  box-shadow:
+    0 0 0 4px var(--at-accent-soft),
+    0 0 14px var(--at-accent-glow);
+}
+.today-spot-next .today-spot-head::after {
+  border-color: var(--at-accent);
+  background: var(--at-surface-solid);
+}
+.today-mark-now,
+.today-mark-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--at-accent-ring);
+  border-radius: var(--at-r-pill);
+  background: var(--at-accent-soft);
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--at-accent);
+  white-space: nowrap;
+}
+.today-mark-now {
+  background: var(--at-accent);
+  border-color: var(--at-accent);
+  color: var(--at-on-primary);
+}
+.today-spot-name {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--at-fs-title);
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+}
+.today-spot-now .today-spot-name {
+  color: var(--at-accent);
+}
+.today-spot .type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+  background: var(--at-surface-2);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+}
+.today-spot-meta {
+  grid-column: 2;
+  margin: 3px 0 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.today-spot .poi-chips {
+  grid-column: 2;
+  margin: 5px 0 0;
+}
+.today-spot .poi-chip {
+  font-size: 9.5px;
+  padding: 1px 6px;
+}
+.today-spot-backup {
+  grid-column: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 5px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.today-spot-backup svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--at-teal);
+}
+.today-spot-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+.today-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  /* 同样是可点链接：守 40px 触控热区 */
+  min-height: 40px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.today-spot-dist {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--at-teal);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 路段：轨道上的连接段（虚线 + 交通方式） */
+.today-leg {
+  grid-column: 2;
+  position: relative;
+  margin: 8px 0 2px;
+  padding: 7px 10px 7px 12px;
+  border-left: 2px dashed var(--at-line-2);
+  border-radius: 0 var(--at-r-sm) var(--at-r-sm) 0;
+  background: var(--at-surface-2);
+}
+.today-leg-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.today-leg-summary svg {
+  color: var(--at-accent);
+}
+.today-leg-steps {
+  margin-top: 4px;
+}
+.today-leg-steps summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+  cursor: pointer;
+}
+.today-leg-steps summary::before {
+  content: "›";
+  margin-right: 6px;
+  color: var(--at-accent);
+}
+.today-leg-steps[open] summary::before {
+  content: "⌄";
+}
+.today-leg-steps ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.today-leg-steps li {
+  font-size: var(--at-fs-caption);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+
+/* 今日合计：仪表底部的汇总行 */
+.today-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 6px 0 0;
+  padding: 11px 0 4px;
+  border-top: 1.5px solid var(--at-line-2);
+}
+.today-foot-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.today-foot-item svg {
+  color: var(--at-accent);
+}
+
+/* 出发前预览：清单式的「第一天路线单」 */
+.today-preview-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--at-line);
+}
+.today-preview-item {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--at-line-soft);
+  min-width: 0;
+}
+.today-preview-time {
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.today-preview-name {
+  font-size: var(--at-fs-small);
+  font-weight: 600;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+}
+.today-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 12px;
+}
+.today-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.today-stat svg {
+  color: var(--at-accent);
+}
+.today-summary {
+  margin: 10px 0 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+}
+
+/* 底部导航：测绘台的「切换镜头」按钮条 */
+.today-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+}
+.today-link {
+  flex: 1 1 160px;
+  justify-content: center;
+  height: 46px;
+  min-height: 46px;
+}
+.today-link-home {
+  flex: 0 1 auto;
+}
+
+/* 今日体检（tc-today-check）：紧凑读数条 */
+.tc-today-check {
+  border-left: 3px solid var(--at-accent);
+}
+.tc-today-check-lede {
+  margin: 0 0 12px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.tc-today-check-facts-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tc-today-check-grade,
+.tc-today-check-facts {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-2);
+}
+.tc-today-check-grade-A,
+.tc-today-check-grade-B {
+  border-color: var(--at-ok-line);
+  color: var(--at-ok);
+}
+.tc-today-check-grade-C {
+  border-color: var(--at-warn-line);
+  color: var(--at-warn);
+}
+.tc-today-check-grade-D {
+  border-color: var(--at-err-line);
+  color: var(--at-err);
+}
+.tc-today-check-facts {
+  color: var(--at-ok);
+  border-color: var(--at-ok-line);
+}
+.tc-today-check-facts-warn {
+  color: var(--at-warn);
+  border-color: var(--at-warn-line);
+  background: var(--at-warn-bg);
+}
+.tc-today-check-score {
+  font-weight: 600;
+  opacity: 0.8;
+}
+.tc-today-check-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-today-check-issue {
+  padding: 9px 11px;
+  border: 1px solid var(--at-line);
+  border-left: 2px solid var(--at-warn);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-2);
+}
+.tc-today-check-issue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tc-today-check-issue-title {
+  font-size: var(--at-fs-caption);
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.tc-today-check-issue-brief {
+  margin: 3px 0 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.tc-today-check-clear {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: var(--at-r-sm);
+  background: var(--at-ok-bg);
+  font-size: var(--at-fs-caption);
+  color: var(--at-ok);
+}
+.tc-today-check-more,
+.tc-today-check-info {
+  margin: 8px 0 0;
+  font-size: var(--at-fs-caption);
+  color: var(--at-ink-3);
+}
+.tc-today-check-degrade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.tc-today-check-retry {
+  height: 40px;
+  min-height: 40px;
+}
+.tc-today-check-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: 6px;
+  font-size: var(--at-fs-small);
+}
+
+/* 重规划建议面板：航显样式的「保留 / 放弃」两联清单 */
+.replan-card {
+  border-left: 3px solid var(--at-violet);
+}
+.replan-btn {
+  height: 44px;
+  min-height: 44px;
+}
+.replan-result {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--at-line);
+}
+.replan-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 7px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.replan-sub-ok {
+  color: var(--at-ok);
+}
+.replan-sub-drop {
+  color: var(--at-warn);
+}
+.replan-kept,
+.replan-dropped {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--at-line-soft);
+}
+.replan-kept li,
+.replan-dropped li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--at-line-soft);
+  min-width: 0;
+}
+.replan-dropped li {
+  grid-template-columns: minmax(0, 1fr);
+}
+.replan-time {
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--at-ok);
+  font-variant-numeric: tabular-nums;
+}
+.replan-name {
+  font-size: var(--at-fs-small);
+  font-weight: 600;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+}
+.replan-reason {
+  margin-top: 2px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.replan-notes {
+  margin: 10px 0 0;
+  padding-left: 16px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+.replan-disclaimer {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border: 1px dashed var(--at-line-2);
+  border-radius: var(--at-r-sm);
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.replan-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: var(--at-r-sm);
+  background: var(--at-err-bg);
+  font-size: var(--at-fs-caption);
+  color: var(--at-err);
+}
+.replan-error svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   9. 旅程报告 /r：行程档案
+   ============================================================ */
+
+.report-poster {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(20px, 3vw, 38px) clamp(18px, 3vw, 38px) clamp(16px, 2.4vw, 26px);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--at-line);
+  border-top: 3px solid var(--at-ink);
+  border-radius: var(--at-r-lg);
+  background: linear-gradient(180deg, var(--at-surface-solid), var(--at-surface-2));
+  box-shadow: var(--at-shadow-md);
+  isolation: isolate;
+}
+/* 档案角标：右上角的等宽编号位（报告编号由组件渲染进 .report-archive-no） */
+.report-poster::after {
+  content: "TRAVEL ARCHIVE";
+  position: absolute;
+  top: 12px;
+  right: clamp(14px, 2.6vw, 24px);
+  font-family: var(--at-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--at-ink-4);
+  pointer-events: none;
+}
+.report-statusbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 5px 11px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-2);
+}
+.report-statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--at-ink-4);
+}
+.report-statusbar-past .report-statusbar-dot {
+  background: var(--at-ink-4);
+}
+.report-statusbar-ongoing {
+  border-color: var(--at-accent-ring);
+  background: var(--at-accent-soft);
+  color: var(--at-accent);
+}
+.report-statusbar-ongoing .report-statusbar-dot {
+  background: var(--at-accent);
+  box-shadow: 0 0 10px var(--at-accent-glow);
+}
+.report-statusbar-upcoming {
+  border-color: var(--at-teal-soft);
+  color: var(--at-teal);
+}
+.report-statusbar-upcoming .report-statusbar-dot {
+  background: var(--at-teal);
+}
+.report-statusbar-date {
+  color: var(--at-ink-3);
+  font-weight: 600;
+}
+.report-eyebrow {
+  display: block;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+}
+.report-city {
+  margin: 8px 0 0;
+  font-family: var(--at-serif);
+  font-size: clamp(44px, 7vw, 88px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.report-sub {
+  margin: 12px 0 0;
+  max-width: 60ch;
+  font-family: var(--at-serif);
+  font-size: clamp(14px, 1.6vw, 17px);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+}
+.report-meta {
+  margin: 10px 0 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  line-height: 1.8;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-top: clamp(18px, 2.6vw, 26px);
+  padding-top: 14px;
+  border-top: 1.5px solid var(--at-line-2);
+}
+.report-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 clamp(10px, 1.8vw, 20px);
+  border-left: 1px solid var(--at-line);
+  min-width: 0;
+}
+.report-stat:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+.report-stat-icon {
+  color: var(--at-accent);
+  margin-bottom: 3px;
+}
+.report-stat-value {
+  font-family: var(--at-serif);
+  font-size: clamp(24px, 3.2vw, 38px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.report-stat-label {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.report-stat-sub {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--at-ink-4);
+}
+.report-section {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--at-line);
+}
+.report-section-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 12px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.report-section-head svg {
+  flex: 0 0 auto;
+  color: var(--at-accent);
+}
+.report-section-count {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.report-food-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  overflow: hidden;
+  background: var(--at-line-soft);
+}
+.report-food-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--at-surface-solid);
+  min-width: 0;
+}
+.report-food-name {
+  font-size: var(--at-fs-small);
+  font-weight: 600;
+  color: var(--at-ink);
+  overflow-wrap: anywhere;
+}
+.report-food-cost {
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.report-route-day {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--at-line);
+}
+.report-route-day:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.report-route-day-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+}
+.report-route-day-head strong {
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-accent);
+}
+.report-route-theme {
+  font-family: var(--at-serif);
+  font-size: var(--at-fs-body);
+  font-weight: 600;
+  color: var(--at-ink);
+}
+.report-route-dist {
+  margin-left: auto;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.report-day-map {
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  overflow: hidden;
+  background: var(--at-bg-deep);
+  min-height: 120px;
+}
+.report-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1.5px solid var(--at-line-2);
+}
+.report-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface-raised);
+  color: var(--at-ink-2);
+  font-size: var(--at-fs-small);
+  font-weight: 650;
+  text-decoration: none;
+  transition:
+    transform var(--at-dur-1) var(--at-ease-out),
+    border-color var(--at-dur-1) ease;
+}
+.report-cta-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--at-accent-ring);
+  color: var(--at-ink);
+  text-decoration: none;
+}
+.report-cta-btn-ghost {
+  background: transparent;
+  color: var(--at-ink-3);
+}
+.report-footnote {
+  margin: var(--sp-5) 0 var(--sp-2);
+  padding-top: 12px;
+  border-top: 1px solid var(--at-line);
+  font-size: var(--at-fs-caption);
+  line-height: 1.7;
+  color: var(--at-ink-4);
+}
+
+/* 档案信息条：/r 页首屏的「编号 / 判定 / 口径」等宽行（组件渲染） */
+.report-archive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0 0 12px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--at-ink-4);
+}
+.report-archive-no {
+  color: var(--at-accent);
+  letter-spacing: 0.12em;
+}
+
+/* ============================================================
+   10. 可执行性徽章（exec-*）
+   ============================================================ */
+
+.exec-badge {
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-2);
+  box-shadow: none;
+}
+.exec-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 46px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.exec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface-solid);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.exec-pill svg {
+  color: var(--at-accent);
+}
+.exec-badge[data-state="verified"] .exec-pill {
+  border-color: var(--at-ok-line);
+  color: var(--at-ok);
+}
+.exec-badge[data-state="verified"] .exec-pill svg {
+  color: var(--at-ok);
+}
+.exec-badge[data-state="unverified"] .exec-pill {
+  border-color: var(--at-warn-line);
+  background: var(--at-warn-bg);
+  color: var(--at-warn);
+}
+.exec-badge[data-state="unverified"] .exec-pill svg {
+  color: var(--at-warn);
+}
+.exec-summary-text {
+  flex: 1 1 180px;
+  min-width: 0;
+  font-size: var(--at-fs-caption);
+  line-height: 1.6;
+  color: var(--at-ink-3);
+}
+.exec-chevron {
+  flex: 0 0 auto;
+  color: var(--at-ink-4);
+  transition: transform var(--at-dur-1) ease;
+}
+.exec-badge[open] .exec-chevron {
+  transform: rotate(90deg);
+}
+/* 评分环：summary 里的小环，--at-ring-pct 由组件行内样式给 */
+.exec-ring {
+  --at-ring-pct: 0;
+  --at-ring-size: 34px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--at-ring-size);
+  height: var(--at-ring-size);
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--at-surface-solid) 0 70%, transparent 71%),
+    conic-gradient(
+      var(--at-ring-color, var(--at-ok)) calc(var(--at-ring-pct) * 1%),
+      var(--at-line) 0
+    );
+  font-family: var(--at-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--at-ring-color, var(--at-ok));
+  font-variant-numeric: tabular-nums;
+}
+.exec-ring-ok {
+  --at-ring-color: var(--at-ok);
+}
+.exec-ring-warn {
+  --at-ring-color: var(--at-warn);
+}
+.exec-ring-bad {
+  --at-ring-color: var(--at-err);
+}
+.exec-compact .exec-ring {
+  --at-ring-size: 28px;
+  font-size: 10px;
+}
+.exec-detail {
+  padding: 0 12px 12px;
+  border-top: 1px dashed var(--at-line);
+}
+.exec-evidence {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 3px 16px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.exec-evidence li {
+  position: relative;
+  padding-left: 12px;
+  font-size: var(--at-fs-caption);
+  line-height: 1.7;
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.exec-evidence li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.66em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--at-ok);
+}
+.exec-evidence b {
+  font-family: var(--at-mono);
+  color: var(--at-ink);
+}
+.exec-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.exec-issues li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-sm);
+  background: var(--at-surface-solid);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  color: var(--at-ink-3);
+}
+.exec-tag {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--at-surface-2);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-2);
+}
+.exec-tag-timeline,
+.exec-tag-hours {
+  background: var(--at-err-bg);
+  color: var(--at-err);
+}
+.exec-tag-pace,
+.exec-tag-route,
+.exec-tag-budget {
+  background: var(--at-warn-bg);
+  color: var(--at-warn);
+}
+.exec-issue-count {
+  font-variant-numeric: tabular-nums;
+}
+.exec-hint {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--at-line);
+  font-size: var(--at-fs-caption);
+  line-height: 1.65;
+  color: var(--at-ink-4);
+}
+.exec-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+}
+.exec-pending .exec-pill {
+  border-color: var(--at-line-2);
+  background: var(--at-surface-2);
+  color: var(--at-ink-3);
+}
+.exec-pending .exec-summary-text {
+  color: var(--at-ink-4);
+}
+
+/* ============================================================
+   11. 移动端（≤720px）：单列、字号收敛、无横向溢出
+   ============================================================ */
+
+@media (max-width: 720px) {
+  .page-meta {
+    gap: 0 9px;
+    font-size: 9.5px;
+    letter-spacing: 0.07em;
+    padding: 8px 0;
+  }
+  .page-meta .pm-source {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .poster {
+    padding: 20px 16px 18px;
+    border-radius: var(--at-r-md);
+  }
+  .poster::before {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+  }
+  .poster-city {
+    font-size: clamp(48px, 15vw, 68px);
+    letter-spacing: -0.035em;
+  }
+  .poster-badges {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 0;
+  }
+  .poster-badge {
+    padding: 0 12px;
+  }
+  .poster-badge:nth-child(odd) {
+    border-left: none;
+    padding-left: 0;
+  }
+  .poster-map-wrap {
+    margin-left: -16px;
+    margin-right: -16px;
+    min-height: 190px;
+  }
+  .poster-map-cap {
+    left: 12px;
+    bottom: 10px;
+    right: 12px;
+    width: fit-content;
+    font-size: 9.5px;
+  }
+  .poster-foot::before {
+    flex-basis: 100%;
+    margin-bottom: 2px;
+  }
+  .poster-foot {
+    justify-content: flex-start;
+  }
+  .share-cta {
+    padding: 14px 14px;
+  }
+  .share-cta-actions {
+    gap: 7px;
+  }
+
+  /* 报告 */
+  .tc-report-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-report-time {
+    justify-self: start;
+  }
+  .tc-verdict {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-stats {
+    border-left: none;
+    border-top: 1px solid var(--at-line);
+  }
+  .tc-stat b {
+    font-size: 24px;
+  }
+  .tc-axes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-grade-badge {
+    width: 82px;
+    height: 82px;
+    font-size: 32px;
+  }
+  .tc-cred-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tc-credential::after {
+    position: static;
+    display: inline-block;
+    margin: 0 0 10px;
+    transform: rotate(-2deg);
+  }
+  .tc-repair-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-repair-arrow {
+    width: auto;
+    height: 30px;
+    border: none;
+    border-top: 1px dashed var(--at-line-2);
+    border-bottom: 1px dashed var(--at-line-2);
+    font-size: 13px;
+  }
+  .tc-evidence {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-coverage-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+  .tc-report-page-hero::after,
+  .tc-hero::after {
+    position: static;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .tc-report-page-title {
+    font-size: clamp(26px, 8vw, 36px);
+  }
+  .tc-ws-check-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-ws-check-actions {
+    justify-content: flex-start;
+  }
+  .tc-clear-btn {
+    margin-left: 0;
+  }
+  .tc-actions {
+    gap: 9px;
+  }
+  .tc-textarea {
+    min-height: 180px;
+    font-size: 11.5px;
+  }
+
+  /* 报告（/r） */
+  .report-poster {
+    padding: 20px 16px 16px;
+    border-radius: var(--at-r-md);
+  }
+  .report-city {
+    font-size: clamp(40px, 13vw, 56px);
+  }
+  .report-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 0;
+  }
+  .report-stat:nth-child(odd) {
+    border-left: none;
+    padding-left: 0;
+  }
+  .report-stat-value {
+    font-size: 26px;
+  }
+  .report-route-dist {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .report-cta-btn {
+    flex: 1 1 100%;
+  }
+
+  /* 行中 */
+  .today-title {
+    font-size: clamp(25px, 8vw, 34px);
+  }
+  .today-spot {
+    grid-template-columns: 54px minmax(0, 1fr);
+    column-gap: 12px;
+  }
+  .today-spots::before {
+    left: 40px;
+  }
+  .today-spot-head::after {
+    left: 36px;
+  }
+  .today-preview-item {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+  .today-link {
+    flex: 1 1 100%;
+  }
+  .exec-summary {
+    gap: 8px;
+  }
+}
+
+/* 390px 极窄：再收一档字号，保证城市名/凭据 ID 不溢出 */
+@media (max-width: 420px) {
+  .poster-city {
+    font-size: 46px;
+  }
+  .report-city {
+    font-size: 40px;
+  }
+  .tc-report-title {
+    font-size: 21px;
+  }
+  .tc-issue-title {
+    font-size: 15.5px;
+  }
+  .tc-cred-id {
+    font-size: 11.5px;
+  }
+}
+
+/* ============================================================
+   12. 减少动效：只保留透明度（base 已统一压缩时长，这里关掉装饰动效）
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .poster,
+  .report-poster,
+  .tc-report-page-hero,
+  .tc-hero,
+  .today-hero,
+  .tc-json-details summary::before,
+  .exec-chevron,
+  .poster-report-link {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   13. 打印：刊物面回到纸（黑白可读，隐藏交互件与装饰）
+   ============================================================ */
+
+@media print {
+  .page-meta,
+  .share-cta,
+  .poster-foot,
+  .report-cta,
+  .tc-report-page-foot,
+  .tc-repair,
+  .tc-json-details,
+  .tc-copy-btn,
+  .tc-segmented,
+  .tc-actions,
+  .today-links {
+    display: none !important;
+  }
+  .poster,
+  .report-poster,
+  .tc-report-page-hero,
+  .tc-hero {
+    border: none !important;
+    border-top: 2px solid #000 !important; /* 打印面显式黑白 */
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  .poster::after,
+  .report-poster::after,
+  .tc-credential::after,
+  .at-barcode,
+  .poster-map-wrap::after {
+    display: none !important;
+  }
+  .tc-verdict,
+  .tc-verdict-ok,
+  .tc-verdict-warn,
+  .tc-verdict-bad,
+  .tc-grade-badge,
+  .tc-credential,
+  .tc-axis,
+  .tc-issue-group,
+  .tc-honesty,
+  .tc-repair-unrepairable {
+    background: transparent !important;
+    border-color: #333 !important;
+  }
+  .tc-grade-badge {
+    background: none !important;
+    box-shadow: none !important;
+    color: #000 !important;
+  }
+  .tc-grade-badge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid #000 !important;
+    border-radius: 50%;
+  }
+  .poster-map-wrap,
+  .report-day-map {
+    break-inside: avoid;
+  }
+  .tc-issue,
+  .tc-issue-group,
+  .report-route-day {
+    break-inside: avoid;
+  }
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+  h1,
+  h2,
+  h3,
+  .poster-city,
+  .report-city,
+  .tc-report-title,
+  .tc-report-page-title {
+    color: #000 !important;
+  }
+}

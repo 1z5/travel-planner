@@ -80,9 +80,31 @@ function firstDayRoute(plan: Plan): { day: Plan["days"][number]; points: RoutePo
 }
 
 /**
+ * 封面的「卷首信息行」：日期区间 / 核验状态 / 凭据 / 档案号。
+ *
+ * 为什么用 mono 行而不是再加徽章：封面主视觉是城市名，任何多出来的大数字都会
+ * 抢焦点；刊物封面的信息密度靠「页眉小字」承担。这里只陈述 plan 里已有的状态，
+ * 不做推断（缺日期就不印日期，未核验就照实写「未核验」）。
+ */
+function coverMetaLines(plan: Plan, shareId: string): string[] {
+  const lines: string[] = [];
+  if (plan.startDate) {
+    lines.push(plan.endDate ? `${plan.startDate} → ${plan.endDate}` : `${plan.startDate} 出发`);
+  }
+  if (plan.verification === "ok") lines.push("POI 已核验");
+  else if (plan.verification === "mock") lines.push("MOCK · 未核验");
+  else if (plan.verification === "partial") lines.push("部分核验");
+  if (plan.tripCheck?.credentialId) lines.push(`凭据 ${plan.tripCheck.credentialId.slice(0, 12)}…`);
+  // 档案号取分享 token 尾部：它是这份行程的稳定标识，不是编出来的编号
+  const no = shareId.startsWith("share_") ? shareId.slice(6) : shareId;
+  if (no) lines.push(`NO. ${no.slice(-6).toUpperCase()}`);
+  return lines;
+}
+
+/**
  * 分享页顶部海报：城市大标题 + 一行副题 + 数据徽章 + 首日路线 + 底部传播入口。
- * 视觉走深色 Premium 设计系统（衬线大标题 / 暖橙强调），入场动画与 PlanView
- * 的卡片同一套节奏，保证整页动效一致。
+ * 视觉走「旅行刊物」：衬线大标题、卷首等宽信息行、全出血首日路线图。
+ * 入场动画与 PlanView 的卡片同一套节奏，保证整页动效一致。
  */
 export function PosterCover({ plan, shareId }: PosterCoverProps) {
   const days = Array.isArray(plan.days) ? plan.days.length : 0;
@@ -92,6 +114,7 @@ export function PosterCover({ plan, shareId }: PosterCoverProps) {
   const budget = summarizeBudget(plan);
   const theme = themeSegment(plan);
   const route = firstDayRoute(plan);
+  const metaLines = coverMetaLines(plan, shareId);
 
   // 副题：N 天 · M 站 · 人均 ¥X · 主题（缺的段整段不出现，不留「人均 ¥0」这种假数据）
   const subParts: string[] = [];
@@ -109,6 +132,16 @@ export function PosterCover({ plan, shareId }: PosterCoverProps) {
     >
       <h1 className="poster-city">{plan.city}</h1>
       {subParts.length > 0 && <p className="poster-sub">{subParts.join(" · ")}</p>}
+
+      {metaLines.length > 0 && (
+        <p className="poster-meta at-readout">
+          {metaLines.map((line) => (
+            <span className="poster-meta-item" key={line}>
+              {line}
+            </span>
+          ))}
+        </p>
+      )}
 
       <div className="poster-badges">
         {days > 0 && (

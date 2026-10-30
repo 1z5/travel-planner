@@ -109,7 +109,7 @@ export default async function SharePage({
   };
 
   return (
-    <main className="container">
+    <main className="container at-evidence-page at-share-page">
       {/* 页面元信息：面包屑 + 核验状态 + 数据来源。
           企业级分享页要让打开的人立刻知道「这是什么、可信度如何」。 */}
       <div className="page-meta">

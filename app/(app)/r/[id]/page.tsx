@@ -75,7 +75,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <main className="container">
+    <main className="container at-evidence-page at-report-page">
       <div className="page-meta">
         <Link href="/" className="page-back">
           ← 我的行程

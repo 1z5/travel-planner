@@ -61,7 +61,7 @@ export default async function VerifyPage({
   const initialShareId = typeof share === "string" && share.trim() ? share.trim() : undefined;
 
   return (
-    <main className="tc-page">
+    <main className="tc-page at-verify-page">
       <div className="container tc-inner">
         <header className="tc-hero">
           <p className="about-eyebrow">

@@ -96,7 +96,7 @@ export default async function CheckReportPage({ params }: { params: Promise<{ id
   const reportUrl = siteBase ? `${siteBase}/p/${id}/check` : undefined;
 
   return (
-    <main className="container tc-report-page">
+    <main className="container tc-report-page at-evidence-page at-cred-page">
       <div className="page-meta">
         <Link href={`/p/${id}`} className="page-back">
           ← 返回行程分享页
@@ -128,6 +128,21 @@ export default async function CheckReportPage({ params }: { params: Promise<{ id
           不是固化的历史结论；两轴分开、每条问题带规则 ID 与可对账证据，凭据 ID 可被任何人
           独立复算。判定之后真实世界的变化（营业时间调整、临时闭馆等）不在报告覆盖范围内。
         </p>
+        {/* 印章：用真实的两轴事实状态盖章（已验证/部分/未核验各不相同）。
+            它是「结论的视觉锚点」，不是装饰——所以内容必须来自 factsState。 */}
+        <span
+          className={`at-stamp at-cred-hero-stamp ${
+            factsState === "verified"
+              ? "at-stamp-ok"
+              : factsState === "partial"
+                ? "at-stamp-warn"
+                : "at-stamp-bad"
+          }`}
+          aria-hidden="true"
+        >
+          {factsLabel}
+        </span>
+
         <TripCheckShareActions
           report={report}
           credentialId={stamp.credential.id}

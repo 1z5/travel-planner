@@ -86,10 +86,23 @@ export function TripReport({ plan, shareId }: { plan: Plan; shareId: string }) {
     ...(dateLabel ? [dateLabel] : []),
   ];
 
+  // 档案编号：取分享 token 尾部（这份行程的稳定标识），不是另编的流水号。
+  // 用途是「同一份报告被转发多次时，收件人能对上原件」，所以必须来自真实 token。
+  const archiveNo = (shareId.startsWith("share_") ? shareId.slice(6) : shareId)
+    .slice(-8)
+    .toUpperCase();
+
   return (
     <>
       {/* ---------- 海报卡（截图主体）：状态 + 城市 + 大数字网格 ---------- */}
       <article className="report-poster">
+        {/* 档案信息行：编号 / 视角 / 数据口径。刊物末页的版权页语法 */}
+        <div className="report-archive">
+          <span className="report-archive-no">NO. {archiveNo}</span>
+          <span>行程档案 · TRIP ARCHIVE</span>
+          <span>数据来源：行程本身的规划数据</span>
+        </div>
+
         {report.status !== "unknown" && (
           <div className={`report-statusbar report-statusbar-${report.status}`}>
             <span className="report-statusbar-dot" aria-hidden="true" />

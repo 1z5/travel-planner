@@ -66,7 +66,7 @@ export default async function TodayPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <main className="container">
+    <main className="container at-evidence-page at-today-page">
       {/* 今日视图的状态全部由客户端按「本地时区」判定（SSR 的服务端时区可能
           与用户手机不同），所以这里只做数据读取与页面骨架。 */}
       {/* 演示行程只读：后端写操作会 403，这里套 .tc-demo-lock 隐藏「重新安排/改室内」等按钮 */}

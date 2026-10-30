@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useState } from "react";
 import {
   AlertTriangle,
@@ -239,6 +240,8 @@ function CredentialBlock({
           <code className="tc-cred-id" data-testid="tc-credential-id">
             {credential.id}
           </code>
+          {/* 条码只是票根的版式暗示：真正可复算的凭据是上面这段可选中文本 */}
+          <span className="at-barcode" aria-hidden="true" />
           <button
             type="button"
             className="btn tc-copy-btn"
@@ -786,8 +789,11 @@ export function TripCheckReport({
               <span className="tc-axis-note">只看文档自身 · A–D + 分数</span>
             </div>
             <div className="tc-grade-row">
+              {/* 评分环：conic-gradient 的进度 = 结构分（0-100），环内是等级字母。
+                  分量与「评分 N / 100」同源（只来自 verdict.consistency），不另算。 */}
               <span
                 className={`tc-grade-badge tc-grade-${GRADE_TONE[consistency.grade]}`}
+                style={{ "--at-ring-pct": consistency.score } as CSSProperties}
                 aria-hidden="true"
               >
                 {consistency.grade}
