@@ -73,8 +73,13 @@ export default async function CityTemplatePage({ params }: { params: Promise<{ s
         </header>
 
         <div className="cities-variants">
-          {t.variants.map((v) => (
-            <article key={v.days} className="cities-variant" data-days={v.days}>
+          {t.variants.map((v, i) => (
+            <article
+              key={v.days}
+              className="cities-variant"
+              data-days={v.days}
+              data-plate={String(i + 1).padStart(2, "0")}
+            >
               <div className="cities-variant-head">
                 <h2 className="cities-variant-title">{v.days} 天</h2>
                 <span className="cities-variant-budget">

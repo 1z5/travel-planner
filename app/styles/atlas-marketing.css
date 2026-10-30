@@ -1,0 +1,1628 @@
+/* ============================================================
+   ATLAS v6 · 营销面分片（owner: atlas-marketing）
+   ------------------------------------------------------------
+   覆盖范围（只改表达层，不改文案/DOM 语义）：
+   - 营销壳：SiteHeader（悬浮玻璃指令条）/ SiteFooter（仪器铭牌）
+   - /about：Hero 图纸底 + 主张 + 产品预览面板 + LandingSections
+   - /cities、/cities/[slug]：「地图册页」（plate）视觉
+   - /pricing：候选能力读数卡
+   - /privacy、/terms：法律文档排版（正文可读性优先）
+
+   规则（见 docs/design/ATLAS-V6.md）：
+   1. 颜色只用 --at-* token；装饰性渐变可写 color-mix；
+   2. 玻璃只用于顶栏 / 页脚 / hero 预览面板，列表不用 backdrop-filter；
+   3. 不动 app/globals.css，不动 tokens/base/shell 三层的选择器语义；
+   4. 交互控件 ≥40px；390px 无横向溢出；Light / Nocturne 双主题都可读；
+   5. 动效全部在 prefers-reduced-motion 下由 base 层统一降级。
+   ============================================================ */
+
+/* ============================================================
+   1. 营销壳 · 顶栏（与产品壳 .app-topbar 同族的悬浮玻璃条）
+   ============================================================ */
+
+.site-header {
+  position: sticky;
+  top: 10px;
+  z-index: 60;
+  padding: 0 12px;
+  background: transparent;
+  border-bottom: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.site-header-inner {
+  max-width: var(--at-maxw);
+  margin: 0 auto;
+  padding: 7px 10px 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-md), var(--at-glass-edge);
+  backdrop-filter: var(--at-glass-blur);
+  -webkit-backdrop-filter: var(--at-glass-blur);
+}
+
+.site-header .brand {
+  min-width: 0;
+  gap: 9px;
+}
+.site-header .brand-name {
+  font-family: var(--at-sans);
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: var(--at-tracking-tight);
+  line-height: 1.1;
+}
+.site-header .brand-sub {
+  font-family: var(--at-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  color: var(--at-ink-3);
+}
+
+/* 导航：玻璃胶囊条目 */
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 11px;
+  border-radius: var(--at-r-pill);
+  color: var(--at-ink-3);
+  font-size: var(--at-fs-small);
+  font-weight: 550;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--at-dur-1) ease,
+    background-color var(--at-dur-1) ease;
+}
+.site-nav a:hover {
+  color: var(--at-ink);
+  background: var(--at-accent-soft);
+}
+.site-nav a:focus-visible {
+  color: var(--at-ink);
+}
+
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* 仪器状态字：装饰性，给顶栏一个「正在运行」的读数感 */
+.site-header-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--at-ink-3);
+  white-space: nowrap;
+}
+.site-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--at-accent);
+  box-shadow: 0 0 10px var(--at-accent-glow);
+}
+
+/* 顶栏 CTA：保持 40px（触控门禁），只换 v6 的圆角与光晕 */
+.site-header .btn-primary.btn-sm {
+  border-radius: var(--at-r-pill);
+  box-shadow: 0 8px 22px -14px var(--at-accent-glow);
+}
+.site-header .btn-ghost.btn-sm {
+  border-radius: var(--at-r-pill);
+}
+
+/* ============================================================
+   2. 营销壳 · 页脚（仪器铭牌 + 三列导航 + 型号条）
+   ============================================================ */
+
+.site-footer {
+  margin-top: 72px;
+  border-top: 1px solid var(--at-line);
+  background: color-mix(in oklab, var(--at-bg-deep) 70%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.site-footer-inner {
+  max-width: var(--at-maxw);
+  margin: 0 auto;
+  padding: 40px var(--at-gutter) 28px;
+  display: grid;
+  grid-template-columns: 1.35fr repeat(3, minmax(0, 0.55fr));
+  gap: 36px 28px;
+  align-items: start;
+}
+
+.footer-brand .brand {
+  gap: 9px;
+}
+.footer-brand .brand-name {
+  font-family: var(--at-sans);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: var(--at-tracking-tight);
+}
+.footer-brand .brand-sub {
+  font-family: var(--at-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--at-ink-3);
+}
+
+.footer-desc {
+  margin-top: 14px;
+  max-width: 34em;
+  font-size: var(--at-fs-small);
+  line-height: 1.8;
+  color: var(--at-ink-3);
+}
+
+/* 铭牌：把「数据来源 / 引擎 / 标准」压成一行可读的型号条 */
+.footer-plate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 16px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--at-ink-3);
+}
+.footer-plate-sep {
+  width: 1px;
+  height: 9px;
+  background: var(--at-line-2);
+}
+
+.footer-col h4 {
+  margin: 0 0 12px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.footer-col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.footer-col a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  font-size: var(--at-fs-small);
+  color: var(--at-ink-2);
+  text-decoration: none;
+  transition: color var(--at-dur-1) ease;
+}
+.footer-col a:hover {
+  color: var(--at-accent);
+}
+/* 「定价 / 隐私」同在一个 li 里：横排并留间距，避免两行挤成一段 */
+.footer-col li a + a {
+  margin-left: 12px;
+}
+
+.site-footer-bottom {
+  max-width: var(--at-maxw);
+  margin: 0 auto;
+  padding: 14px var(--at-gutter) 18px;
+  border-top: 1px solid var(--at-line);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 18px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-3);
+}
+
+/* ============================================================
+   3. 营销内容通用节奏
+   ============================================================ */
+
+.about-sections {
+  padding-top: 8px;
+}
+.about-sections .at-rule {
+  margin: 44px 0;
+}
+.at-rule {
+  margin: 44px 0;
+}
+
+/* 营销页画布由 body 极光提供，不叠旧纸面的暖底 */
+.about-page,
+.pricing-page,
+.cities-page,
+.legal-page {
+  background: transparent;
+}
+
+/* ============================================================
+   4. /about Hero：图纸底 + 大号主张 + 产品预览面板
+   ============================================================ */
+
+.about-hero {
+  position: relative;
+  overflow: clip;
+  padding: clamp(52px, 7vw, 88px) 0 clamp(40px, 5vw, 64px);
+  border-bottom: 1px solid var(--at-line);
+}
+.about-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.78fr);
+  gap: clamp(28px, 4vw, 56px);
+  align-items: center;
+  max-width: var(--at-maxw);
+  padding-bottom: 0;
+}
+
+.about-hero-copy {
+  min-width: 0;
+}
+
+.about-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 18px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+}
+.about-eyebrow .eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--at-accent);
+  box-shadow: 0 0 10px var(--at-accent-glow);
+}
+
+/* 主张：大号无衬线 + 紧字距。这是 v6 与 v5「衬线杂志」最大的差别。 */
+.about-title {
+  margin: 0 0 20px;
+  font-family: var(--at-sans);
+  font-size: clamp(36px, 5.2vw, 66px);
+  font-weight: 680;
+  line-height: 1.08;
+  letter-spacing: -0.032em;
+  color: var(--at-ink);
+}
+.about-lede {
+  max-width: 34em;
+  margin: 0 0 26px;
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--at-ink-2);
+}
+.about-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.about-actions .btn {
+  width: auto;
+  min-width: 0;
+  min-height: 52px;
+  border-radius: var(--at-r-md);
+  font-family: var(--at-sans);
+  font-size: 15px;
+}
+.about-actions .btn-ghost {
+  height: 52px;
+  padding: 0 22px;
+  border-color: var(--at-line-2);
+  background: var(--at-surface-2);
+  color: var(--at-ink-2);
+}
+.about-actions .btn-ghost:hover {
+  border-color: var(--at-accent-ring);
+  background: var(--at-accent-soft);
+  color: var(--at-accent);
+}
+.about-facts {
+  margin: 0;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.9;
+  color: var(--at-ink-3);
+}
+.about-facts + .about-facts {
+  margin-top: 4px;
+}
+.about-cities-link {
+  color: var(--at-accent);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid var(--at-accent-ring);
+  padding-bottom: 1px;
+}
+.about-cities-link:hover {
+  border-bottom-color: var(--at-accent);
+}
+
+/* 产品预览面板：唯一允许的「第二层玻璃」。展示产品长什么样，不是插画。 */
+.about-preview {
+  position: relative;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-lg), var(--at-glass-edge);
+  backdrop-filter: var(--at-glass-blur);
+  -webkit-backdrop-filter: var(--at-glass-blur);
+  transform: rotate(-0.6deg);
+}
+.about-preview .pp-bar {
+  border-bottom: 1px solid var(--at-line);
+  background: var(--at-surface-2);
+  padding: 11px 15px;
+}
+.about-preview .pp-title {
+  font-family: var(--at-sans);
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.about-preview .pp-status {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--at-ok);
+}
+.about-preview .pp-status-dot {
+  background: var(--at-ok);
+  box-shadow: 0 0 8px color-mix(in oklab, var(--at-ok) 55%, transparent);
+}
+.about-preview .pp-meta {
+  padding: 9px 15px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--at-ink-3);
+  border-bottom: 1px solid var(--at-line);
+}
+.about-preview .pp-sep {
+  background: var(--at-line-2);
+}
+.about-preview .pp-days {
+  padding: 6px 0;
+}
+.about-preview .pp-days li {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 11px 15px;
+}
+.about-preview .pp-days li + li {
+  border-top: 1px solid var(--at-line);
+}
+.about-preview .pp-dayno {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--at-accent);
+}
+.about-preview .pp-theme {
+  font-family: var(--at-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--at-ink);
+}
+.about-preview .pp-count {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  color: var(--at-ink-3);
+}
+.about-preview .pp-foot {
+  padding: 9px 15px;
+  background: var(--at-surface-2);
+  border-top: 1px solid var(--at-line);
+}
+.about-preview .pp-note {
+  font-family: var(--at-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+}
+
+/* ============================================================
+   5. LandingSections：Bento + 仪表读数
+   ============================================================ */
+
+.about-sections .legend {
+  margin-bottom: 18px;
+}
+
+/* ---- 5.1 怎么做到的：三张过程卡 ---- */
+.about-sections .how {
+  margin: 0 0 8px;
+}
+.about-sections .how-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.about-sections .how-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100%;
+  padding: 22px 22px 24px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--at-surface-2) 88%, transparent),
+    var(--at-surface)
+  );
+  box-shadow: var(--at-shadow-sm);
+  transition:
+    transform var(--at-dur-2) var(--at-ease-out),
+    border-color var(--at-dur-2) ease,
+    box-shadow var(--at-dur-2) var(--at-ease-out);
+}
+.about-sections .how-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--at-accent-ring);
+  box-shadow: var(--at-shadow-md);
+}
+.about-sections .how-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 24px;
+  margin: 0 0 4px;
+  border: 1px solid var(--at-accent-ring);
+  border-radius: var(--at-r-sm);
+  background: var(--at-accent-soft);
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--at-accent);
+  line-height: 1;
+}
+.about-sections .how-item h3 {
+  margin: 0;
+  font-family: var(--at-sans);
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: var(--at-tracking-tight);
+  color: var(--at-ink);
+}
+.about-sections .how-item p {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.8;
+  color: var(--at-ink-3);
+}
+
+/* ---- 5.2 指标带：等宽大数字（不是大数字海报） ---- */
+.about-sections .stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 8px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  overflow: hidden;
+}
+.about-sections .stat {
+  position: relative;
+  padding: 22px 20px;
+  text-align: left;
+  border-right: 1px solid var(--at-line);
+}
+.about-sections .stat:last-child {
+  border-right: none;
+}
+.about-sections .stat-num {
+  display: block;
+  font-family: var(--at-mono);
+  font-size: clamp(28px, 3.4vw, 42px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--at-accent);
+  font-variant-numeric: tabular-nums;
+}
+.about-sections .stat-label {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-3);
+}
+
+/* ---- 5.3 数据可信 / 中立承诺：Bento 卡 + 等宽编号 ---- */
+.about-sections .trust {
+  margin: 0 0 8px;
+}
+.about-sections .trust-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-line);
+  overflow: hidden;
+  counter-reset: at-trust;
+}
+.about-sections .trust-card {
+  position: relative;
+  padding: 22px 22px 24px;
+  background: var(--at-surface);
+  counter-increment: at-trust;
+  transition: background-color var(--at-dur-2) ease;
+}
+.about-sections .trust-card:hover {
+  background: var(--at-surface-2);
+}
+.about-sections .trust-card::before {
+  content: counter(at-trust, decimal-leading-zero);
+  display: block;
+  margin-bottom: 10px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--at-accent);
+}
+.about-sections .trust-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--at-sans);
+  font-size: 15.5px;
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.about-sections .trust-card p {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.8;
+  color: var(--at-ink-3);
+}
+/* 「中立承诺」是 4 张卡：最后一张通栏收尾，避免 3 列网格留出空的灰格 */
+.about-sections #neutrality .trust-card:nth-child(4) {
+  grid-column: span 3;
+}
+.about-sections .trust-card strong {
+  color: var(--at-ink-2);
+  font-weight: 650;
+}
+.about-sections .trust-meta {
+  display: block;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--at-line);
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--at-ink-3);
+}
+
+/* ---- 5.4 能力矩阵：12 栅格 Bento（每卡一个等宽编号） ---- */
+.about-sections .cap-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  counter-reset: at-cap;
+}
+.about-sections .cap-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 100%;
+  padding: 20px 20px 22px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  counter-increment: at-cap;
+  transition:
+    transform var(--at-dur-2) var(--at-ease-out),
+    border-color var(--at-dur-2) ease,
+    box-shadow var(--at-dur-2) var(--at-ease-out);
+}
+.about-sections .cap-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--at-accent-ring);
+  box-shadow: var(--at-shadow-md);
+}
+.about-sections .cap-item::before {
+  content: counter(at-cap, decimal-leading-zero);
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--at-ink-3);
+}
+.about-sections .cap-item svg {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 6px;
+  color: var(--at-accent);
+}
+.about-sections .cap-item h3 {
+  margin: 0;
+  padding-right: 26px;
+  font-family: var(--at-sans);
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.about-sections .cap-item p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--at-ink-3);
+}
+/* Bento 节奏：6+3+3 / 4+4+4 / 3+3+3+3 / 6+3+3（13 项） */
+.about-sections .cap-item:nth-child(1),
+.about-sections .cap-item:nth-child(11) {
+  grid-column: span 6;
+}
+.about-sections .cap-item:nth-child(2),
+.about-sections .cap-item:nth-child(3),
+.about-sections .cap-item:nth-child(7),
+.about-sections .cap-item:nth-child(8),
+.about-sections .cap-item:nth-child(9),
+.about-sections .cap-item:nth-child(10),
+.about-sections .cap-item:nth-child(12),
+.about-sections .cap-item:nth-child(13) {
+  grid-column: span 3;
+}
+.about-sections .cap-item:nth-child(4),
+.about-sections .cap-item:nth-child(5),
+.about-sections .cap-item:nth-child(6) {
+  grid-column: span 4;
+}
+/* 大卡文案稍大，形成 bento 权重差 */
+.about-sections .cap-item:nth-child(1) p,
+.about-sections .cap-item:nth-child(11) p {
+  font-size: var(--at-fs-small);
+}
+
+/* ---- 5.5 FAQ：玻璃行（details/summary） ---- */
+.about-sections .faq {
+  margin: 0;
+  counter-reset: at-faq;
+}
+.about-sections .faq details {
+  margin-bottom: 8px;
+  padding: 2px 16px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface);
+  counter-increment: at-faq;
+  transition:
+    border-color var(--at-dur-1) ease,
+    background-color var(--at-dur-1) ease;
+}
+.about-sections .faq details:hover {
+  border-color: var(--at-line-2);
+}
+.about-sections .faq details[open] {
+  border-color: var(--at-accent-ring);
+  background: color-mix(in oklab, var(--at-accent-soft) 55%, var(--at-surface));
+}
+.about-sections .faq summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 0;
+  font-family: var(--at-sans);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--at-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.about-sections .faq summary::-webkit-details-marker {
+  display: none;
+}
+.about-sections .faq summary::before {
+  content: counter(at-faq, decimal-leading-zero);
+  flex: 0 0 auto;
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-3);
+}
+.about-sections .faq summary svg:first-child {
+  color: var(--at-accent);
+  flex: 0 0 auto;
+}
+.about-sections .faq-chevron {
+  margin-left: auto;
+  color: var(--at-ink-3);
+  transition: transform var(--at-dur-2) var(--at-ease-out);
+}
+.about-sections .faq details[open] .faq-chevron {
+  transform: rotate(180deg);
+}
+.about-sections .faq details p {
+  margin: 0 0 14px;
+  padding: 0 0 0 32px;
+  font-size: var(--at-fs-small);
+  line-height: 1.85;
+  color: var(--at-ink-3);
+}
+
+/* ============================================================
+   6. /cities：地图册页（Atlas plate）
+   ============================================================ */
+
+.cities-page {
+  padding: clamp(40px, 6vw, 64px) 0 40px;
+}
+.cities-page .container {
+  max-width: var(--at-maxw);
+  padding-bottom: 0;
+}
+.cities-hero {
+  max-width: 760px;
+  margin-bottom: 36px;
+}
+.cities-title {
+  margin: 0 0 10px;
+  font-family: var(--at-sans);
+  font-size: clamp(30px, 4.6vw, 52px);
+  font-weight: 680;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+}
+.cities-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--at-ink-2);
+}
+.cities-lede b {
+  color: var(--at-ink);
+  font-weight: 650;
+}
+.cities-season {
+  margin: 10px 0 0;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-3);
+}
+.cities-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--at-ink-3);
+}
+.cities-crumb a {
+  color: var(--at-ink-2);
+  text-decoration: none;
+}
+.cities-crumb a:hover {
+  color: var(--at-accent);
+}
+
+/* 城市卡：plate 编号（data-plate 由列表索引生成，不是编造的事实） */
+.cities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cities-card {
+  position: relative;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  overflow: hidden;
+  transition:
+    transform var(--at-dur-2) var(--at-ease-out),
+    border-color var(--at-dur-2) ease,
+    box-shadow var(--at-dur-2) var(--at-ease-out);
+}
+.cities-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--at-accent-ring);
+  box-shadow: var(--at-shadow-md);
+}
+.cities-card::after {
+  content: "PLATE " attr(data-plate);
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-family: var(--at-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: var(--at-ink-3);
+  pointer-events: none;
+}
+.cities-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 18px 18px;
+  min-height: 44px;
+  text-decoration: none;
+  color: inherit;
+}
+.cities-card-region {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--at-accent);
+}
+.cities-card-city {
+  margin-top: 2px;
+  font-family: var(--at-sans);
+  font-size: 27px;
+  font-weight: 680;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+}
+.cities-card-tagline {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--at-ink-3);
+}
+.cities-card-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cities-days-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-3);
+}
+
+/* 详情页：条件模板 = plate 卡 + 注记 */
+.cities-variants {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.cities-variant {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 20px 22px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  transition:
+    transform var(--at-dur-2) var(--at-ease-out),
+    border-color var(--at-dur-2) ease;
+}
+.cities-variant:hover {
+  transform: translateY(-2px);
+  border-color: var(--at-accent-ring);
+}
+.cities-variant::after {
+  content: "PLATE " attr(data-plate);
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font-family: var(--at-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: var(--at-ink-3);
+  pointer-events: none;
+}
+.cities-variant-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 56px;
+}
+.cities-variant-title {
+  margin: 0;
+  font-family: var(--at-sans);
+  font-size: 22px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--at-ink);
+}
+.cities-variant-budget {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--at-ink-3);
+  white-space: nowrap;
+}
+.cities-variant-prefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.cities-pref-chip {
+  padding: 2px 9px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  color: var(--at-ink-3);
+}
+.cities-variant-blurb {
+  flex: 1;
+  margin: 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.75;
+  color: var(--at-ink-3);
+}
+.cities-variant .btn {
+  align-self: flex-start;
+  min-height: 40px;
+  border-radius: var(--at-r-pill);
+}
+.cities-honest {
+  margin-bottom: 28px;
+  padding: 20px 22px;
+  border: 1px solid var(--at-line);
+  border-left: 2px solid var(--at-accent);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-2);
+}
+.cities-honest h2 {
+  margin: 0 0 10px;
+  font-family: var(--at-sans);
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.cities-honest ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--at-fs-small);
+  line-height: 1.8;
+  color: var(--at-ink-3);
+}
+.cities-honest b {
+  color: var(--at-ink-2);
+}
+.cities-others h2 {
+  margin: 0 0 10px;
+  font-family: var(--at-sans);
+  font-size: 16px;
+  font-weight: 650;
+}
+.cities-others ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.cities-others a {
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding: 4px 0;
+}
+.cities-others a:hover {
+  color: var(--at-accent);
+  border-bottom-color: var(--at-accent-ring);
+}
+.cities-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 36px;
+  padding: 22px 24px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+}
+.cities-cta h2 {
+  margin: 0 0 4px;
+  font-family: var(--at-sans);
+  font-size: 17px;
+  font-weight: 650;
+}
+.cities-cta p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+.cities-cta .btn {
+  width: auto;
+  height: 52px;
+  padding: 0 26px;
+  border-radius: var(--at-r-pill);
+}
+
+/* ============================================================
+   7. /pricing：候选能力读数卡
+   ============================================================ */
+
+.pricing-page {
+  padding: clamp(40px, 6vw, 64px) 0 40px;
+}
+.pricing-inner {
+  max-width: var(--at-maxw);
+  padding-bottom: 0;
+}
+.pricing-hero {
+  max-width: 820px;
+  margin-bottom: 32px;
+}
+.pricing-title {
+  margin: 0 0 14px;
+  font-family: var(--at-sans);
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 680;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+}
+.pricing-lede {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--at-ink-2);
+}
+.pricing-honest {
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--at-warn-line);
+  border-left: 2px solid var(--at-warn);
+  border-radius: var(--at-r-md);
+  background: var(--at-warn-bg);
+  font-size: var(--at-fs-small);
+  line-height: 1.8;
+  color: var(--at-ink-2);
+}
+.pricing-honest b {
+  color: var(--at-ink);
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  margin-bottom: 32px;
+  align-items: start;
+}
+.pricing-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 22px 24px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-sm);
+  transition:
+    transform var(--at-dur-2) var(--at-ease-out),
+    border-color var(--at-dur-2) ease,
+    box-shadow var(--at-dur-2) var(--at-ease-out);
+}
+.pricing-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--at-line-2);
+  box-shadow: var(--at-shadow-md);
+}
+.pricing-card-free {
+  border-color: var(--at-accent-ring);
+  background:
+    radial-gradient(
+      120% 80% at 100% 0%,
+      color-mix(in oklab, var(--at-accent-soft) 90%, transparent),
+      transparent 70%
+    ),
+    var(--at-surface);
+  box-shadow:
+    var(--at-shadow-md),
+    0 0 0 1px var(--at-accent-ring) inset;
+}
+/* 候选卡的 tier 标识：来自组件 data-tier（真实标识，不是编造）。
+   放在卡片最上方当作 plate 编号行——不压标题/价格。 */
+.pricing-card[data-tier]::before {
+  content: attr(data-tier);
+  align-self: flex-start;
+  padding: 2px 8px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-3);
+}
+.pricing-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pricing-card-head h2 {
+  margin: 0;
+  font-family: var(--at-sans);
+  font-size: 18px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--at-ink);
+}
+.pricing-price {
+  font-family: var(--at-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+  white-space: nowrap;
+}
+.pricing-card-free .pricing-price {
+  font-size: 26px;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  color: var(--at-accent);
+}
+.pricing-card-desc {
+  margin: 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.75;
+  color: var(--at-ink-3);
+}
+.pricing-card-why {
+  flex: 1;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--at-line);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--at-ink-3);
+}
+.pricing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+}
+.pricing-card .btn {
+  align-self: flex-start;
+  min-height: 40px;
+  border-radius: var(--at-r-pill);
+}
+.pricing-card .btn-primary {
+  height: 44px;
+  padding: 0 20px;
+  font-size: var(--at-fs-small);
+  border-radius: var(--at-r-pill);
+}
+.intent-btn-done {
+  border-color: var(--at-ok-line);
+  background: var(--at-ok-bg);
+  color: var(--at-ok);
+}
+
+.pricing-faq {
+  padding-top: 24px;
+  border-top: 1px solid var(--at-line);
+}
+.pricing-faq h2 {
+  margin: 0 0 16px;
+  font-family: var(--at-sans);
+  font-size: 20px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+.pricing-faq dl {
+  margin: 0;
+}
+.pricing-faq dt {
+  margin-top: 14px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--at-ink-3);
+}
+.pricing-faq dd {
+  margin: 6px 0 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.8;
+  color: var(--at-ink-2);
+}
+
+/* ============================================================
+   8. /privacy、/terms：法律文档排版（正文可读性优先）
+   ============================================================ */
+
+.legal-page {
+  padding: clamp(40px, 6vw, 64px) 0 40px;
+}
+.legal-inner {
+  max-width: 720px;
+  padding-bottom: 0;
+}
+.legal-eyebrow {
+  margin: 0 0 14px;
+  font-family: var(--at-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--at-accent);
+}
+.legal-page h1 {
+  margin: 0 0 10px;
+  font-family: var(--at-sans);
+  font-size: clamp(30px, 4.2vw, 44px);
+  font-weight: 680;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--at-ink);
+}
+.legal-updated {
+  margin: 0 0 32px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--at-line);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+}
+.legal-page h2 {
+  margin: 34px 0 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--at-line);
+  font-family: var(--at-sans);
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--at-ink);
+}
+.legal-page p,
+.legal-page li {
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--at-ink-2);
+}
+.legal-page p {
+  margin: 0 0 14px;
+}
+.legal-page ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+.legal-page li {
+  margin-bottom: 0;
+}
+.legal-page li::marker {
+  color: var(--at-accent);
+}
+.legal-page strong {
+  font-weight: 650;
+  color: var(--at-ink);
+}
+.legal-page a {
+  color: var(--at-accent);
+  text-underline-offset: 3px;
+}
+.legal-page code {
+  padding: 1px 6px;
+  border: 1px solid var(--at-line);
+  border-radius: 5px;
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 12.5px;
+  color: var(--at-ink-2);
+}
+.legal-table {
+  width: 100%;
+  margin: 12px 0 18px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.legal-table th,
+.legal-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--at-line);
+  text-align: left;
+  color: var(--at-ink-2);
+  vertical-align: top;
+}
+.legal-table th {
+  font-family: var(--at-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--at-ink-3);
+  white-space: nowrap;
+}
+.legal-table tr:last-child td {
+  border-bottom: none;
+}
+.legal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: 1px solid var(--at-line);
+}
+.legal-actions .btn {
+  width: auto;
+  min-height: 40px;
+  border-radius: var(--at-r-pill);
+}
+
+/* ============================================================
+   9. 响应式
+   ============================================================ */
+
+/* 窄桌面：顶栏去掉装饰状态字，导航收紧 */
+@media (max-width: 1080px) {
+  .site-header-status {
+    display: none;
+  }
+  .site-nav a {
+    padding: 0 9px;
+  }
+}
+
+@media (max-width: 960px) {
+  .about-hero-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .about-preview {
+    transform: none;
+    max-width: 560px;
+  }
+  .about-sections .how-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .about-sections .trust-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .about-sections #neutrality .trust-card:nth-child(4) {
+    grid-column: span 2;
+  }
+  .site-footer-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .footer-cols {
+    display: grid;
+    grid-column: auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px 16px;
+  }
+}
+
+/* 手机端：顶栏 = 品牌 + 主题 + 主 CTA；不做打不开的汉堡 */
+@media (max-width: 860px) {
+  .site-header {
+    top: 8px;
+    padding: 0 8px;
+  }
+  .site-header-inner {
+    gap: 8px;
+    padding: 6px 8px 6px 10px;
+  }
+  .site-nav,
+  .site-header-mine {
+    display: none;
+  }
+  .site-header .brand-sub {
+    display: none;
+  }
+  .site-header .brand-name {
+    font-size: 14px;
+  }
+  .brand-mark {
+    width: 24px;
+    height: 24px;
+    font-size: 13px;
+  }
+  .site-header-actions {
+    gap: 4px;
+  }
+  .about-hero {
+    padding: 40px 0 32px;
+  }
+  .about-title {
+    font-size: clamp(32px, 9vw, 44px);
+  }
+  .about-sections .how-grid,
+  .about-sections .trust-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .about-sections .trust-grid {
+    gap: 1px;
+  }
+  .about-sections #neutrality .trust-card:nth-child(4) {
+    grid-column: span 1;
+  }
+  .about-sections .cap-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .about-sections .cap-item:nth-child(n) {
+    grid-column: span 1;
+  }
+  .about-sections .cap-item:nth-child(1),
+  .about-sections .cap-item:nth-child(11) {
+    grid-column: span 2;
+  }
+  .about-sections .stat {
+    padding: 18px 16px;
+  }
+  .about-sections .stat-num {
+    font-size: 30px;
+  }
+  .cities-grid,
+  .cities-variants,
+  .pricing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cities-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .site-footer-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding: 32px var(--at-gutter) 22px;
+  }
+  .footer-cols {
+    display: grid;
+    grid-column: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 16px;
+  }
+  .site-footer-bottom {
+    padding: 12px var(--at-gutter) 16px;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 520px) {
+  .about-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .about-actions .btn {
+    width: 100%;
+  }
+  .about-sections .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .about-sections .stat {
+    border-right: none;
+    border-bottom: 1px solid var(--at-line);
+  }
+  .about-sections .stat:last-child {
+    border-bottom: none;
+  }
+  .about-sections .cap-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .about-sections .cap-item:nth-child(n),
+  .about-sections .cap-item:nth-child(1),
+  .about-sections .cap-item:nth-child(11) {
+    grid-column: span 1;
+  }
+  .footer-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ============================================================
+   10. 打印 / 降级
+   ============================================================ */
+
+@media print {
+  /* 打印面例外：显式白底黑边（token 在 print 已回白，这里兜底卡片背景） */
+  .about-preview {
+    display: none !important;
+  }
+  .about-hero,
+  .about-sections .how-item,
+  .about-sections .trust-card,
+  .about-sections .cap-item,
+  .about-sections .faq details,
+  .cities-card,
+  .cities-variant,
+  .pricing-card {
+    border-color: rgba(0, 0, 0, 0.2) !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-preview {
+    transform: none;
+  }
+  .about-sections .how-item:hover,
+  .about-sections .cap-item:hover,
+  .cities-card:hover,
+  .cities-variant:hover,
+  .pricing-card:hover {
+    transform: none;
+  }
+}

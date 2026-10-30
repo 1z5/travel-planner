@@ -1,13 +1,18 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ============================================================
-// 营销站顶栏（只在 /about 使用，服务端组件，零客户端 JS）。
+// 营销站顶栏（只在 (marketing) 路由组使用，服务端组件 + 一个客户端主题开关）。
 //
-// 产品面与营销面已拆分：产品页用 AppShell（我的行程 / 新建），
-// 这里的导航只服务「了解产品」的访客，不再挂在分享页/行中页上。
+// ATLAS v6：与产品壳 .app-topbar 同族的「悬浮玻璃指令条」——
+// 圆角胶囊 + 1px 高光边 + 背后内容透出；导航条目是玻璃胶囊。
+// 右侧 = 仪器状态字（装饰）+ 主题开关 + 我的行程 + 主 CTA。
+//
+// 手机端刻意不做汉堡：没有可展开菜单的汉堡是一个打不开的死按钮。
+// ≤860px 直接收成「品牌章 + 主题开关 + 主 CTA」，导航靠页内区块与页脚可达。
 // ============================================================
 
-/** 品牌标记：方形纸片上的「行」字——像一枚印章，克制、可复用在 favicon/OG */
+/** 品牌标记：方形「印章」里的「行」字——可复用在 favicon/OG，产品壳也用同一个 */
 export function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
@@ -37,7 +42,12 @@ export function SiteHeader() {
         </nav>
 
         <div className="site-header-actions">
-          <Link href="/" className="btn btn-ghost btn-sm">
+          <span className="site-header-status at-mono" aria-hidden="true">
+            <span className="site-status-dot" />
+            FACT-FIRST
+          </span>
+          <ThemeToggle />
+          <Link href="/" className="btn btn-ghost btn-sm site-header-mine">
             我的行程
           </Link>
           <Link href="/new" className="btn btn-primary btn-sm">

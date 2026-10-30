@@ -33,8 +33,8 @@ export default function CitiesPage() {
         </header>
 
         <ul className="cities-grid">
-          {CITY_TEMPLATES.map((c) => (
-            <li key={c.slug} className="cities-card">
+          {CITY_TEMPLATES.map((c, i) => (
+            <li key={c.slug} className="cities-card" data-plate={String(i + 1).padStart(2, "0")}>
               <Link href={`/cities/${c.slug}`} className="cities-card-main">
                 <span className="cities-card-region">{c.region}</span>
                 <span className="cities-card-city">{c.city}</span>

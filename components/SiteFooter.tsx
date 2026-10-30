@@ -6,6 +6,9 @@ import Link from "next/link";
 // 企业级产品的页脚不是装饰：它承载「数据来源 / 隐私 / 测试口径」这些
 // 建立信任的信息。这里只写真实存在的内容（数据源、自动化测试规模、
 // 隐私边界），不编造公司信息、备案号或 SLA。
+//
+// ATLAS v6：页脚 = 仪器铭牌（品牌 + 一句说明书 + 等宽数据栏）
+// + 三列导航 + 底部件号条。文案与链接一字未改，只换表达层。
 // ============================================================
 
 export function SiteFooter() {
@@ -26,6 +29,13 @@ export function SiteFooter() {
             先核验真实世界（POI / 营业时间 / 通勤），再让模型排行程。每一份行程都标注核验状态，
             体检问题摊开给你，改不改由你决定。
           </p>
+          <div className="footer-plate at-mono" aria-hidden="true">
+            <span>GAODE · POI / HOURS / TRANSIT</span>
+            <span className="footer-plate-sep" />
+            <span>STEP-5 ENGINE</span>
+            <span className="footer-plate-sep" />
+            <span>TRIP-CHECK v0.1</span>
+          </div>
         </div>
 
         <nav className="footer-cols" aria-label="页脚导航">

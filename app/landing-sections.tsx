@@ -7,7 +7,6 @@ import {
   Share2,
   HelpCircle,
   ChevronDown,
-  Navigation,
   Map,
   Sparkles,
   Clock,
@@ -56,6 +55,8 @@ export function LandingSections() {
         </div>
       </section>
 
+      <hr className="at-rule" aria-hidden="true" />
+
       <section className="stats">
         <div className="stat">
           <span className="stat-num">20+</span>
@@ -70,6 +71,8 @@ export function LandingSections() {
           <span className="stat-label">分享链接保存</span>
         </div>
       </section>
+
+      <hr className="at-rule" aria-hidden="true" />
 
       {/* 数据可信：企业级产品的信任区。只写真实存在的事实——
           数据来源、核验方式、测试规模、隐私边界，不写客户 logo / 奖项。 */}
@@ -127,6 +130,8 @@ export function LandingSections() {
         </div>
       </section>
 
+      <hr className="at-rule" aria-hidden="true" />
+
       {/* 中立承诺（A6）：AI 旅行产品最大的信任缺口是「它到底在替谁说话」——
           竞价排名、佣金推荐会悄悄改变行程。这里把边界写成可检验的承诺，
           而不是一句「我们很可靠」。 */}
@@ -167,6 +172,8 @@ export function LandingSections() {
           </div>
         </div>
       </section>
+
+      <hr className="at-rule" aria-hidden="true" />
 
       <section className="how" id="cap">
         <div className="legend">能力</div>
@@ -252,6 +259,8 @@ export function LandingSections() {
           </div>
         </div>
       </section>
+
+      <hr className="at-rule" aria-hidden="true" />
 
       <section className="faq" id="faq">
         <div className="legend">常见问题</div>
