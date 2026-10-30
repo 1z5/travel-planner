@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "./SiteHeader";
+import { ThemeToggle } from "./ThemeToggle";
 
 // ============================================================
 // 产品壳（只在 (app) 路由组使用）。
@@ -7,15 +8,20 @@ import { BrandMark } from "./SiteHeader";
 // 和营销壳的区别：这里没有「怎么工作 / 产品能力 / 常见问题」的导航，也没有
 // 三栏信任页脚——用户进入产品后只关心「我的行程 / 当前这趟」。
 //
-// 2026-10 改版（用户反馈）：
-// - 顶栏移除「关于产品」——它不是产品动作，页脚已有合规/介绍入口；
-// - 顶栏移除「新建行程」按钮——它与页头、空态 CTA 三处重复，新建入口收敛到
-//   首页的「主行动卡」（做得更显眼、更有特色），顶栏只保留导航。
+// 2026-10 改版（ATLAS v6）：
+// - 顶栏从通栏纸带变成「悬浮玻璃指令条」（见 atlas-shell.css）：滚动时内容
+//   从玻璃下穿过，品牌章与主页入口保持可达；
+// - 顶部加 2px 滚动进度线（纯 CSS scroll-driven animation，无 JS）；
+// - 右侧加主题开关（跟随系统 / 浅色 / 深色），产品面与营销面共用品牌章；
+// - 顶栏仍不放「新建行程」按钮：新建入口收敛到首页主行动卡，避免三处重复。
 // ============================================================
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
+      {/* 滚动进度线：instrument 的「当前位置」读数 */}
+      <div className="at-progress" aria-hidden="true" />
+
       <header className="app-topbar">
         <div className="app-topbar-inner">
           <Link href="/" className="brand app-brand" aria-label="行程规划师 · 我的行程">
@@ -26,6 +32,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="app-nav" aria-label="产品导航">
             <Link href="/">我的行程</Link>
           </nav>
+
+          <div className="app-topbar-actions">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
       {children}

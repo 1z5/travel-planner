@@ -1,5 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+// ATLAS v6 覆盖层：顺序有意义——tokens 必须最先（后面全部引用它），
+// 分片按「基础 → 壳 → 页面」排；同一选择器后写者胜，所以分片永远在 base 之后。
+import "./styles/atlas-tokens.css";
+import "./styles/atlas-base.css";
+import "./styles/atlas-shell.css";
+import "./styles/atlas-home.css";
+import "./styles/atlas-workspace.css";
+import "./styles/atlas-evidence.css";
+import "./styles/atlas-marketing.css";
 import { MotionPref } from "@/components/MotionPref";
 import { PwaBootstrap } from "@/components/PwaBootstrap";
 
@@ -31,25 +40,36 @@ export const metadata: Metadata = {
 // 移动端的关键声明。缺了它，手机浏览器会按 980px 宽度渲染再整体缩放，
 // 下面 globals.css 里所有的 @media (max-width: 640px) 都不会触发。
 // viewportFit: "cover" 配合 CSS 的 env(safe-area-inset-*) 适配刘海屏。
+// themeColor 给两套（ATLAS v6 双主题）：浏览器 UI 跟随系统色；手动切换时
+// ThemeToggle 会同步改 <meta name="theme-color">。
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // 主题色：与 manifest.ts 的 theme_color 一致（PWA 标题栏/状态栏颜色）
-  themeColor: "#c2410c",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#edf1f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#05080f" },
+  ],
 };
+
+// 首帧前同步主题：localStorage 有手动选择就写 data-theme，否则留空跟随系统。
+// 必须内联在 <head>（阻塞渲染），否则深色用户会先看到一帧白屏再翻转。
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("at-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#05080f":"#edf1f7")}}catch(e){}})();`;
 
 // 根布局只提供 <html>/<body> 与动效降级开关，不再挂营销站点头尾。
 //
 // 产品面和营销面是两种壳（见 app/(app)/layout.tsx 与 app/(marketing)/layout.tsx）：
-// - 产品壳：紧凑顶栏（我的行程 / 新建）+ 页面内容，没有营销导航与页脚；
-// - 营销壳：SiteHeader + SiteFooter，只在 /about 使用。
-//
-// 之前的错误：把「企业级应用外壳」实现成了全站营销导航 + 页脚，于是分享页、
-// 行中页、结果页都像官网子页面——这是「像公司官网」的结构性原因。
+// - 产品壳：悬浮玻璃指令条（我的行程 / 主题）+ 页面内容；
+// - 营销壳：SiteHeader + SiteFooter，只在 /about 等营销页使用。
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
+    // data-scroll-behavior="smooth"：Next 16 要求显式声明，否则路由转场时
+    // 浏览器会把 html 上的 scroll-behavior: smooth 也带进转场（导致落点抖动），
+    // 控制台会告警 missing-data-scroll-behavior。
+    <html lang="zh-CN" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         <PwaBootstrap />
         <MotionPref>{children}</MotionPref>

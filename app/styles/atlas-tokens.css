@@ -1,0 +1,313 @@
+/* ============================================================
+   ATLAS v6 · Token 层（活地图 / Living Atlas）
+   ------------------------------------------------------------
+   为什么要单独一层：globals.css（v5.1 纸面杂志）已经高度 token 化
+   （179 个 var() 引用），只重定义 token 就能把 90% 的界面从「纸」换成
+   「仪器」。因此 v6 不删旧样式，而是：tokens 重定义 → 原子重绘 →
+   分片覆盖（atlas-home / workspace / evidence / marketing）。
+
+   主题机制：
+   - 默认跟随系统（prefers-color-scheme）；
+   - html[data-theme="light"|"dark"] 手动锁定（ThemeToggle 写入 localStorage）；
+   - 视觉回归脚本跑的是无 emulation 的 headless Chrome（默认浅色），
+     因此 Daylight 是验收基准，Nocturne 也必须人工过一遍对比度。
+
+   对比度（WCAG AA 实测，详见 docs/design/ATLAS-V6.md）：
+   Daylight：ink-3 5.98:1 / ink-4 4.50:1 / accent 白字 5.37:1
+   Nocturne：全部 ≥ 5:1
+   ============================================================ */
+
+:root {
+  /* ---------- Daylight（默认） ---------- */
+  --at-bg: #edf1f7;
+  --at-bg-deep: #e4eaf3;
+  --at-surface: rgba(255, 255, 255, 0.78);
+  --at-surface-2: rgba(248, 250, 253, 0.92);
+  --at-surface-solid: #ffffff;
+  --at-surface-raised: rgba(255, 255, 255, 0.92);
+
+  --at-ink: #0a1220;
+  --at-ink-2: #26344a;
+  --at-ink-3: #4c5c76;
+  --at-ink-4: #5a6b85;
+  --at-ink-strong: #05070d;
+
+  --at-line: rgba(10, 18, 32, 0.1);
+  --at-line-2: rgba(10, 18, 32, 0.2);
+  --at-line-soft: rgba(10, 18, 32, 0.055);
+
+  --at-accent: #c73310;
+  --at-accent-hover: #a82608;
+  --at-accent-vivid: #ff5e33;
+  --at-accent-soft: rgba(199, 51, 16, 0.08);
+  --at-accent-ring: rgba(199, 51, 16, 0.28);
+  --at-accent-glow: rgba(255, 94, 51, 0.35);
+  --at-on-accent: #fffdf7;
+  /* 主按钮渐变（两端与白字对比度均 ≥5:1） */
+  --at-primary-from: #d8421e;
+  --at-primary-to: #b42a0c;
+  --at-on-primary: #fffdf7;
+
+  --at-teal: #0a7a72;
+  --at-teal-vivid: #14b8a6;
+  --at-teal-soft: rgba(10, 122, 114, 0.09);
+  --at-violet: #5142c9;
+  --at-violet-vivid: #7c6cf0;
+  --at-violet-soft: rgba(81, 66, 201, 0.09);
+
+  --at-ok: #0b6b4f;
+  --at-ok-bg: rgba(11, 107, 79, 0.08);
+  --at-ok-line: rgba(11, 107, 79, 0.28);
+  --at-warn: #8a5300;
+  --at-warn-bg: rgba(180, 120, 10, 0.1);
+  --at-warn-line: rgba(180, 120, 10, 0.32);
+  --at-err: #a81f16;
+  --at-err-bg: rgba(168, 31, 22, 0.08);
+  --at-err-line: rgba(168, 31, 22, 0.28);
+
+  /* 材质光影 */
+  --at-glass-blur: blur(14px) saturate(150%);
+  --at-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --at-glass-edge-dark: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --at-shadow-sm: 0 1px 2px rgba(10, 18, 32, 0.06);
+  --at-shadow-md: 0 1px 2px rgba(10, 18, 32, 0.05), 0 12px 32px rgba(10, 18, 32, 0.09);
+  --at-shadow-lg: 0 2px 8px rgba(10, 18, 32, 0.06), 0 32px 80px rgba(10, 18, 32, 0.14);
+  --at-glow: 0 0 0 1px var(--at-accent-ring), 0 14px 44px -10px var(--at-accent-glow);
+
+  /* 底图适配：高德瓦片不能改样式（数据源条款），只能用 filter 让地图「归队」。
+     Daylight 只做极轻的去饱和（地图是工具，白天要清楚）；
+     Nocturne 强去饱和 + 压暗 + 微冷，让亮底图不刺眼。filter 只作用于
+     .realmap-img，路线/站点/标签由 SVG 覆盖层画、保持 token 原色。 */
+  --at-map-filter: saturate(0.95) contrast(1.02);
+
+  /* 形状 */
+  --at-r-sm: 8px;
+  --at-r-md: 14px;
+  --at-r-lg: 20px;
+  --at-r-xl: 28px;
+  --at-r-pill: 999px;
+
+  /* 排版 */
+  --at-sans:
+    "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Microsoft YaHei", sans-serif;
+  --at-mono: "SF Mono", "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --at-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --at-fs-hero: clamp(38px, 6.2vw, 84px);
+  --at-fs-display: clamp(30px, 4.4vw, 56px);
+  --at-fs-h1: clamp(26px, 3vw, 38px);
+  --at-fs-h2: clamp(21px, 2.2vw, 28px);
+  --at-fs-h3: 18px;
+  --at-fs-title: 16.5px;
+  --at-fs-body: 15.5px;
+  --at-fs-small: 13.5px;
+  --at-fs-caption: 12px;
+  --at-fs-mono: 11px;
+  --at-tracking-tight: -0.022em;
+  --at-tracking-mono: 0.1em;
+
+  /* 动效 */
+  --at-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --at-ease-spring: cubic-bezier(0.22, 1.35, 0.36, 1);
+  --at-dur-1: 160ms;
+  --at-dur-2: 280ms;
+  --at-dur-3: 480ms;
+
+  /* 布局 */
+  --at-maxw: 1120px;
+  --at-maxw-narrow: 860px;
+  --at-gutter: clamp(16px, 4vw, 32px);
+
+  /* 滚动进度（由 JS 或 scroll-driven animation 写入，用于顶部/侧边进度线） */
+  --at-scroll: 0;
+
+  /* ---------- 旧 token 重映射（v5.1 → v6） ---------- */
+  --bg: var(--at-bg);
+  --bg-2: var(--at-bg-deep);
+  --surface: var(--at-surface);
+  --surface-2: var(--at-surface-2);
+  --surface-solid: var(--at-surface-solid);
+  --ink: var(--at-ink);
+  --ink-2: var(--at-ink-2);
+  --ink-3: var(--at-ink-3);
+  --ink-4: var(--at-ink-4);
+  --ink-strong: var(--at-ink-strong);
+  --line: var(--at-line);
+  --line-strong: var(--at-line-2);
+  --accent: var(--at-accent);
+  --accent-hover: var(--at-accent-hover);
+  --accent-soft: var(--at-accent-soft);
+  --accent-ring: var(--at-accent-ring);
+  --ok-ink: var(--at-ok);
+  --ok-bg: var(--at-ok-bg);
+  --ok-line: var(--at-ok-line);
+  --warn-ink: var(--at-warn);
+  --warn-bg: var(--at-warn-bg);
+  --warn-line: var(--at-warn-line);
+  --err-ink: var(--at-err);
+  --err-bg: var(--at-err-bg);
+  --err-line: var(--at-err-line);
+  --font-sans: var(--at-sans);
+  --font-mono: var(--at-mono);
+  /* 衬线只在刊物面（分享页/报告/海报）显式使用；UI 面的 h1-h3 已在 base 层切回无衬线 */
+  --font-serif: var(--at-serif);
+  --fs-display: var(--at-fs-display);
+  --fs-h1: var(--at-fs-h1);
+  --fs-h2: var(--at-fs-h2);
+  --fs-h3: var(--at-fs-h3);
+  --fs-title: var(--at-fs-title);
+  --fs-body: var(--at-fs-body);
+  --fs-small: var(--at-fs-small);
+  --fs-caption: var(--at-fs-caption);
+  --r-sm: var(--at-r-sm);
+  --r-md: var(--at-r-md);
+  --r-lg: var(--at-r-lg);
+  --shadow-sm: var(--at-shadow-sm);
+  --shadow-md: var(--at-shadow-md);
+  --shadow-lg: var(--at-shadow-lg);
+  --glass-blur: var(--at-glass-blur);
+
+  color-scheme: light;
+}
+
+/* ---------- Nocturne：手动切换 ---------- */
+html[data-theme="dark"] {
+  --at-bg: #05080f;
+  --at-bg-deep: #0a111e;
+  --at-surface: rgba(20, 30, 50, 0.74);
+  --at-surface-2: rgba(26, 37, 58, 0.66);
+  --at-surface-solid: #0c1424;
+  --at-surface-raised: rgba(20, 30, 48, 0.9);
+
+  --at-ink: #edf2fc;
+  --at-ink-2: #c6d2e6;
+  --at-ink-3: #93a4bf;
+  --at-ink-4: #7e90ac;
+  --at-ink-strong: #f2f6ff;
+
+  --at-line: rgba(255, 255, 255, 0.1);
+  --at-line-2: rgba(255, 255, 255, 0.22);
+  --at-line-soft: rgba(255, 255, 255, 0.06);
+
+  --at-accent: #ff7c57;
+  --at-accent-hover: #ff9c7d;
+  --at-accent-vivid: #ff8f6b;
+  --at-accent-soft: rgba(255, 124, 87, 0.12);
+  --at-accent-ring: rgba(255, 124, 87, 0.32);
+  --at-accent-glow: rgba(255, 124, 87, 0.4);
+  --at-on-accent: #1a0d08;
+  --at-primary-from: #ff8a66;
+  --at-primary-to: #f96a42;
+  --at-on-primary: #1a0d08;
+
+  --at-teal: #45dcc6;
+  --at-teal-vivid: #5ff0db;
+  --at-teal-soft: rgba(69, 220, 198, 0.1);
+  --at-violet: #a48cff;
+  --at-violet-vivid: #bda9ff;
+  --at-violet-soft: rgba(164, 140, 255, 0.12);
+
+  --at-ok: #52d98f;
+  --at-ok-bg: rgba(82, 217, 143, 0.1);
+  --at-ok-line: rgba(82, 217, 143, 0.3);
+  --at-warn: #f0b24a;
+  --at-warn-bg: rgba(240, 178, 74, 0.1);
+  --at-warn-line: rgba(240, 178, 74, 0.3);
+  --at-err: #ff7b72;
+  --at-err-bg: rgba(255, 123, 114, 0.1);
+  --at-err-line: rgba(255, 123, 114, 0.3);
+
+  --at-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --at-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --at-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --at-shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.4), 0 32px 80px rgba(0, 0, 0, 0.6);
+  --at-map-filter: saturate(0.4) brightness(0.58) contrast(1.08) hue-rotate(-12deg);
+
+  color-scheme: dark;
+}
+
+/* ---------- Nocturne：跟随系统（未手动锁定时） ---------- */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) {
+    --at-bg: #05080f;
+    --at-bg-deep: #0a111e;
+    --at-surface: rgba(20, 30, 50, 0.74);
+    --at-surface-2: rgba(26, 37, 58, 0.66);
+    --at-surface-solid: #0c1424;
+    --at-surface-raised: rgba(20, 30, 48, 0.9);
+
+    --at-ink: #edf2fc;
+    --at-ink-2: #c6d2e6;
+    --at-ink-3: #93a4bf;
+    --at-ink-4: #7e90ac;
+    --at-ink-strong: #f2f6ff;
+
+    --at-line: rgba(255, 255, 255, 0.1);
+    --at-line-2: rgba(255, 255, 255, 0.22);
+    --at-line-soft: rgba(255, 255, 255, 0.06);
+
+    --at-accent: #ff7c57;
+    --at-accent-hover: #ff9c7d;
+    --at-accent-vivid: #ff8f6b;
+    --at-accent-soft: rgba(255, 124, 87, 0.12);
+    --at-accent-ring: rgba(255, 124, 87, 0.32);
+    --at-accent-glow: rgba(255, 124, 87, 0.4);
+    --at-on-accent: #1a0d08;
+    --at-primary-from: #ff8a66;
+    --at-primary-to: #f96a42;
+    --at-on-primary: #1a0d08;
+
+    --at-teal: #45dcc6;
+    --at-teal-vivid: #5ff0db;
+    --at-teal-soft: rgba(69, 220, 198, 0.1);
+    --at-violet: #a48cff;
+    --at-violet-vivid: #bda9ff;
+    --at-violet-soft: rgba(164, 140, 255, 0.12);
+
+    --at-ok: #52d98f;
+    --at-ok-bg: rgba(82, 217, 143, 0.1);
+    --at-ok-line: rgba(82, 217, 143, 0.3);
+    --at-warn: #f0b24a;
+    --at-warn-bg: rgba(240, 178, 74, 0.1);
+    --at-warn-line: rgba(240, 178, 74, 0.3);
+    --at-err: #ff7b72;
+    --at-err-bg: rgba(255, 123, 114, 0.1);
+    --at-err-line: rgba(255, 123, 114, 0.3);
+
+    --at-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    --at-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --at-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45);
+    --at-shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.4), 0 32px 80px rgba(0, 0, 0, 0.6);
+    --at-map-filter: saturate(0.4) brightness(0.58) contrast(1.08) hue-rotate(-12deg);
+
+    color-scheme: dark;
+  }
+}
+
+/* ---------- 打印：刊物面必须回到纸 ---------- */
+@media print {
+  :root,
+  html:not([data-theme]),
+  html[data-theme="dark"] {
+    --at-bg: #ffffff;
+    --at-bg-deep: #ffffff;
+    --at-surface: #ffffff;
+    --at-surface-2: #ffffff;
+    --at-surface-solid: #ffffff;
+    --at-ink: #111111;
+    --at-ink-2: #222222;
+    --at-ink-3: #444444;
+    --at-ink-4: #555555;
+    --at-line: rgba(0, 0, 0, 0.16);
+    --at-line-2: rgba(0, 0, 0, 0.3);
+    --at-accent: #8a2606;
+    --at-accent-vivid: #8a2606;
+    --at-primary-from: #8a2606;
+    --at-primary-to: #6f1d04;
+    --at-on-primary: #ffffff;
+    --at-shadow-sm: none;
+    --at-shadow-md: none;
+    --at-shadow-lg: none;
+    color-scheme: light;
+  }
+}

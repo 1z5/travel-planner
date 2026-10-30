@@ -1,0 +1,1024 @@
+/* ============================================================
+   ATLAS v6 · 基础层（原子重绘 + 材质 + 动效原语）
+   ------------------------------------------------------------
+   规则：这里的每条选择器都只改「全局语义」——body / 标题 / 原子控件 /
+   通用容器；页面级结构交给 atlas-home / atlas-workspace /
+   atlas-evidence / atlas-marketing。
+
+   依赖：atlas-tokens.css（必须先加载）。
+   ============================================================ */
+
+/* ---------- 0. 画布：极光 + 颗粒 + 网格 ---------- */
+
+@property --at-aurora-x {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 78%;
+}
+@property --at-aurora-y {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 6%;
+}
+@property --at-aurora-x2 {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 10%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--at-bg);
+  scroll-behavior: smooth;
+  /* 吸顶栏高度：页面内锚点跳转时不要钻到玻璃栏下面 */
+  scroll-padding-top: 88px;
+}
+
+body {
+  /* 覆盖 v5.1 的暖纸径向渐变：v6 的画布是「深空/冷瓷」纯色 + 伪元素极光 */
+  background: var(--at-bg);
+  color: var(--at-ink);
+  font-family: var(--at-sans);
+  font-size: var(--at-fs-body);
+  line-height: 1.7;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+/* 极光：两层大半径径向光，慢速漂移。用 @property 让百分比可动画
+   （普通 var 不能插值，会退化成跳变）。z-index -1：绘制在画布之上、
+   内容之下——body 不是层叠上下文，负 z-index 子元素参与根层叠。 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -25vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      38% 32% at var(--at-aurora-x) var(--at-aurora-y),
+      color-mix(in oklab, var(--at-accent-vivid) 26%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      42% 36% at var(--at-aurora-x2) 4%,
+      color-mix(in oklab, var(--at-violet-vivid) 20%, transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      52% 40% at 46% 104%,
+      color-mix(in oklab, var(--at-teal-vivid) 16%, transparent),
+      transparent 70%
+    );
+  filter: blur(28px) saturate(120%);
+  opacity: 0.9;
+  animation: at-aurora-drift 30s ease-in-out infinite alternate;
+}
+
+/* 颗粒：2.4% 的噪点让大色面不「塑料」。用 feTurbulence 生成，避免额外图片体积。 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  opacity: 0.024;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  background-size: 140px 140px;
+}
+
+@keyframes at-aurora-drift {
+  to {
+    --at-aurora-x: 58%;
+    --at-aurora-y: 16%;
+    --at-aurora-x2: 30%;
+  }
+}
+
+/* ---------- 1. 排版 ---------- */
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--at-sans);
+  color: var(--at-ink);
+  font-weight: 650;
+  letter-spacing: var(--at-tracking-tight);
+  line-height: 1.18;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--at-fs-h1);
+}
+h2 {
+  font-size: var(--at-fs-h2);
+}
+h3 {
+  font-size: var(--at-fs-h3);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* 中文正文里的英文/数字：等宽数字 + 略紧的字母距，读起来像数据面 */
+strong {
+  font-weight: 650;
+  color: var(--at-ink);
+}
+
+a {
+  color: var(--at-accent);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+::selection {
+  background: var(--at-accent);
+  color: var(--at-on-primary);
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--at-mono);
+}
+
+code {
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--at-accent-soft);
+  color: var(--at-ink-2);
+}
+
+hr {
+  border: none;
+  height: 1px;
+  background: var(--at-line);
+}
+
+/* 滚动条：细、玻璃、悬停才显形（数据面不需要粗滚动条） */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--at-line-2) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--at-line-2);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--at-ink-4);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 焦点环：键盘用户必须看得见（v5 是 2px 实线，v6 用强调色 + 外发光） */
+:where(a, button, [role="button"], input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+  border-radius: var(--at-r-sm);
+}
+
+/* ---------- 2. 布局 ---------- */
+
+.container {
+  max-width: var(--at-maxw);
+  margin: 0 auto;
+  padding-left: max(var(--at-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--at-gutter), env(safe-area-inset-right));
+  padding-bottom: var(--sp-8);
+}
+
+/* ---------- 3. 原子：按钮 ---------- */
+
+.btn {
+  height: 40px;
+  padding: 0 16px;
+  gap: 7px;
+  border-radius: var(--at-r-pill);
+  border: 1px solid var(--at-line-2);
+  background: var(--at-surface-raised);
+  color: var(--at-ink-2);
+  font-family: var(--at-sans);
+  font-size: var(--at-fs-small);
+  font-weight: 550;
+  letter-spacing: 0.005em;
+  box-shadow: var(--at-shadow-sm);
+  transition:
+    transform var(--at-dur-1) var(--at-ease-out),
+    background-color var(--at-dur-1) ease,
+    border-color var(--at-dur-1) ease,
+    color var(--at-dur-1) ease,
+    box-shadow var(--at-dur-2) var(--at-ease-out);
+}
+.btn:hover {
+  border-color: var(--at-accent-ring);
+  color: var(--at-ink);
+  background: var(--at-surface-solid);
+  transform: translateY(-1px);
+  box-shadow: var(--at-shadow-md);
+}
+.btn:active {
+  transform: scale(0.98) translateY(0);
+}
+.btn:disabled {
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-tall {
+  height: 46px;
+  padding: 0 20px;
+  font-size: var(--at-fs-body);
+}
+/* 小号按钮：视觉更小（字距更紧、内距更窄），但高度仍守 40px——
+   grep 过 scripts/visual-check.mjs：任何 button 低于 39.5px 都会判失败。 */
+.btn-sm {
+  height: 40px;
+  padding: 0 13px;
+  font-size: var(--at-fs-caption);
+  letter-spacing: 0.01em;
+  gap: 6px;
+}
+
+/* 主按钮：珊瑚渐变 + 光晕。文字与渐变两端实测 ≥5:1（Daylight 白字 / Nocturne 深字） */
+.btn-primary {
+  height: 52px;
+  border: 1px solid color-mix(in oklab, var(--at-accent) 40%, transparent);
+  border-radius: var(--at-r-md);
+  background: linear-gradient(180deg, var(--at-primary-from), var(--at-primary-to));
+  color: var(--at-on-primary);
+  font-family: var(--at-sans);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 10px 28px -10px var(--at-accent-glow);
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--at-primary-from), var(--at-primary-to));
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 18px 44px -12px var(--at-accent-glow);
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.99) translateY(0);
+}
+.btn-primary:disabled {
+  background: var(--at-bg-deep);
+  color: var(--at-ink-3);
+  border-color: var(--at-line);
+  box-shadow: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--at-line-2);
+  box-shadow: none;
+  color: var(--at-ink-3);
+}
+.btn-ghost:hover {
+  background: var(--at-accent-soft);
+  border-color: var(--at-accent-ring);
+  color: var(--at-accent);
+}
+
+.btn-link {
+  color: var(--at-accent);
+  font-weight: 550;
+  text-underline-offset: 3px;
+}
+
+/* ---------- 4. 原子：面板 / 卡片 ---------- */
+
+/* 卡片**不挂** backdrop-filter：页面里卡片数量多，大面积模糊在低端机上直接掉帧；
+   而且 --at-surface 已经 78% 不透明，模糊几乎看不出来。玻璃只留给窄条与浮层
+   （顶栏 / 快速开始 / HUD / hero 面板），见 .at-glass 与各分片。 */
+.card {
+  background: var(--at-surface);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  box-shadow: var(--at-shadow-sm);
+}
+/* Nocturne：画布近黑，卡片只靠 1px 线分层不够——加一道 3% 的顶部高光，
+   观感上「面板浮在台面上」，且不增加模糊成本。 */
+html[data-theme="dark"] .card {
+  box-shadow:
+    var(--at-shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .card {
+    box-shadow:
+      var(--at-shadow-sm),
+      inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  }
+}
+.card-body {
+  padding: var(--sp-5);
+}
+
+/* 玻璃面板：需要更强的透明度与高光边时才用（首屏仪器面板 / HUD / dock） */
+.at-glass {
+  background: var(--at-surface);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  box-shadow: var(--at-shadow-md), var(--at-glass-edge);
+  /* 14px 是实测与性能的平衡点：再大在低端安卓上开始掉帧（见 research 里的
+     blur(4px) 就把 60fps 打到 35fps 的实测数据），而 14px 与 20px 的观感差异极小。 */
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+/* ---------- 5. 原子：表单 ---------- */
+
+label {
+  font-size: var(--at-fs-small);
+  font-weight: 550;
+  color: var(--at-ink-2);
+  letter-spacing: 0.005em;
+}
+
+input,
+textarea,
+select {
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--at-line-2);
+  border-radius: var(--at-r-md);
+  background: var(--at-surface-raised);
+  color: var(--at-ink);
+  font-family: var(--at-sans);
+  font-size: var(--at-fs-body);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  transition:
+    border-color var(--at-dur-1) ease,
+    box-shadow var(--at-dur-2) var(--at-ease-out),
+    background-color var(--at-dur-1) ease;
+}
+textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 12px 14px;
+  line-height: 1.65;
+  resize: vertical;
+}
+input:hover:not(:focus),
+textarea:hover:not(:focus),
+select:hover:not(:focus) {
+  border-color: var(--at-ink-4);
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--at-accent);
+  box-shadow: 0 0 0 4px var(--at-accent-soft);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--at-ink-4);
+}
+/* 日期控件的原生图标在深色主题下默认是黑的，转一下色 */
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.6);
+}
+
+/* ---------- 6. 原子：胶囊 / 眉题 / 提示 ---------- */
+
+.type-badge,
+.chip,
+.poi-chip,
+.verified-badge,
+.ws-badge,
+.leg-chip,
+.plan-toc-chip,
+.ws-daychip {
+  font-family: var(--at-mono);
+  font-size: var(--at-fs-mono);
+  letter-spacing: 0.04em;
+  border-radius: var(--at-r-pill);
+  border: 1px solid var(--at-line);
+  background: var(--at-surface-2);
+  color: var(--at-ink-3);
+}
+.poi-chip,
+.ws-badge {
+  padding: 3px 9px;
+}
+
+/* 眉题：等宽 + 前导方点 + 尾部长细线。仪器面板的「坐标标签」语法 */
+.legend,
+.masthead-eyebrow,
+.firstscreen-eyebrow,
+.trips-eyebrow,
+.eyebrow,
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--at-mono);
+  font-size: var(--at-fs-mono);
+  font-weight: 600;
+  letter-spacing: var(--at-tracking-mono);
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: var(--sp-3);
+}
+/* v5 的 .legend::before 是短横线，v6 改成「方点 + 长尾线」 */
+.legend::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--at-accent);
+  box-shadow: 0 0 10px var(--at-accent-glow);
+  flex: 0 0 auto;
+}
+.eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--at-accent);
+  box-shadow: 0 0 10px var(--at-accent-glow);
+}
+
+.muted,
+.helper,
+.hint {
+  color: var(--at-ink-3);
+}
+
+/* 状态提示：像仪器读数，不像营销横幅 */
+.alert {
+  border-radius: var(--at-r-md);
+  border: 1px solid var(--at-line);
+  background: var(--at-surface-2);
+  color: var(--at-ink-2);
+}
+.alert-error {
+  border-color: var(--at-err-line);
+  background: var(--at-err-bg);
+  color: var(--at-err);
+}
+
+/* 分隔线：从强调色渐隐，比 1px 灰线更像「面板分割」 */
+.pm-sep,
+.fa-sep,
+.at-rule {
+  background: linear-gradient(90deg, var(--at-line-2), transparent);
+  height: 1px;
+  border: none;
+}
+
+/* ---------- 7. 原子：列表 / 表格 / 详情 ---------- */
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--at-ink-2);
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+table {
+  font-variant-numeric: tabular-nums;
+}
+th {
+  font-family: var(--at-mono);
+  font-size: var(--at-fs-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+  font-weight: 600;
+  text-align: left;
+}
+td,
+th {
+  border-color: var(--at-line);
+}
+
+dialog {
+  color: var(--at-ink);
+  background: var(--at-surface-solid);
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-xl);
+  box-shadow: var(--at-shadow-lg);
+}
+dialog::backdrop {
+  background: color-mix(in oklab, var(--at-ink-strong) 46%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+/* ---------- 8. 工具类（新组件用） ---------- */
+
+.at-mono {
+  font-family: var(--at-mono);
+  font-size: var(--at-fs-mono);
+  letter-spacing: var(--at-tracking-mono);
+  text-transform: uppercase;
+  color: var(--at-ink-3);
+  font-weight: 600;
+}
+.at-metric {
+  font-family: var(--at-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+}
+.at-serif {
+  font-family: var(--at-serif);
+}
+.at-glow-text {
+  text-shadow: 0 0 32px var(--at-accent-glow);
+}
+
+/* 显微网格：只在需要「图纸感」的区块用（mask 渐隐，别铺满） */
+.at-grid-bg {
+  position: relative;
+  isolation: isolate;
+}
+.at-grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--at-line-soft) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--at-line-soft) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 0%, transparent 72%);
+}
+
+/* 仪表环：conic-gradient 圆环 + 内圈挖空（评分/完成度）。--at-ring-pct 由行内样式给 */
+.at-ring {
+  --at-ring-pct: 0;
+  --at-ring-size: 56px;
+  --at-ring-color: var(--at-accent);
+  width: var(--at-ring-size);
+  height: var(--at-ring-size);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--at-ring-color) calc(var(--at-ring-pct) * 1%), var(--at-line) 0);
+  position: relative;
+}
+.at-ring::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--at-surface-solid);
+}
+.at-ring > * {
+  position: relative;
+  z-index: 1;
+  font-family: var(--at-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--at-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 角标刻度：面板四角的「取景框」直角，仪器感的最小成本 */
+.at-ticks {
+  position: relative;
+}
+.at-ticks::before,
+.at-ticks::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  border-color: var(--at-accent);
+  border-style: solid;
+  opacity: 0.55;
+}
+.at-ticks::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+.at-ticks::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+/* 键盘键：⌘K 之类的提示 */
+.at-kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--at-line-2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--at-surface-2);
+  font-family: var(--at-mono);
+  font-size: 10px;
+  color: var(--at-ink-3);
+}
+
+/* 顶部滚动进度线（instrument 的「当前所在位置」），宽度由 scroll-driven animation 或 JS 驱动 */
+.at-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 90;
+  background: linear-gradient(90deg, var(--at-accent-vivid), var(--at-teal-vivid));
+  transform-origin: 0 50%;
+  transform: scaleX(var(--at-scroll));
+  pointer-events: none;
+}
+
+/* ---------- 9. View Transitions ---------- */
+
+/* 镜头切换（工作台 tab）：横向 6px 位移 + 交叉淡入。
+   只在支持的浏览器生效；不支持时就是普通 setState，无副作用。 */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(.at-lens) {
+    animation: at-lens-out var(--at-dur-2) var(--at-ease-out) both;
+  }
+  ::view-transition-new(.at-lens) {
+    animation: at-lens-in var(--at-dur-2) var(--at-ease-out) both;
+  }
+  ::view-transition-group(.at-morph) {
+    animation-duration: var(--at-dur-3);
+  }
+  ::view-transition-image-pair(.at-morph) {
+    animation-name: at-via-blur;
+    animation-duration: var(--at-dur-3);
+  }
+}
+@keyframes at-lens-out {
+  to {
+    opacity: 0;
+    translate: -6px 0;
+  }
+}
+@keyframes at-lens-in {
+  from {
+    opacity: 0;
+    translate: 8px 0;
+  }
+}
+@keyframes at-via-blur {
+  30% {
+    filter: blur(4px);
+  }
+}
+
+/* 主题切换：从开关位置扩散的圆形揭示。
+   开关在 ThemeToggle 里给 --at-theme-x / --at-theme-y 两个坐标。 */
+html.at-theme-anim::view-transition-old(root) {
+  animation: none;
+}
+html.at-theme-anim::view-transition-new(root) {
+  animation: at-theme-reveal 520ms var(--at-ease-out);
+}
+@keyframes at-theme-reveal {
+  from {
+    clip-path: circle(0 at var(--at-theme-x, 100%) var(--at-theme-y, 0%));
+  }
+  to {
+    clip-path: circle(150vmax at var(--at-theme-x, 100%) var(--at-theme-y, 0%));
+  }
+}
+
+/* ---------- 10. 降级 / 打印 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  body::before {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  body::before,
+  body::after,
+  .at-progress {
+    display: none !important;
+  }
+  .card,
+  .at-glass {
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* ---------- 11. 中文排版细节 ---------- */
+/* text-autospace：CJK 与西文/数字之间自动留白（2025-10 起有标准文档；
+   不支持该属性的浏览器直接忽略，不会回退成难看的间距）。 */
+body {
+  text-autospace: normal;
+}
+/* 等宽数字：评分、天数、金额、时间不抖动 */
+.at-metric,
+.plan-view,
+.tc-report-page,
+.tc-ws-check {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 12. 路由转场（RouteTransition 组件配套） ---------- */
+/* 页面内容整体交叉淡入 + 6px 上移；顶栏不参与（在包裹层之外）。
+   时长 280ms：超过 300ms 会显得「慢」，低于 180ms 看不出层级。 */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(.at-route-out) {
+    animation: at-route-out 160ms var(--at-ease-out) both;
+  }
+  ::view-transition-new(.at-route-in) {
+    animation: at-route-in 300ms var(--at-ease-out) both;
+  }
+}
+@keyframes at-route-out {
+  to {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+@keyframes at-route-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+    filter: blur(2px);
+  }
+}
+
+/* ---------- 13. 可点击的 POI chip（电话链接） ---------- */
+/* 电话 chip 是 a.poi-chip（tel: 链接），在 CONTROL_SELECTOR 里会被量触控高度：
+   原来 24px 直接判失败。chip 本身视觉保持小，但点击热区扩到 40px——
+   用 padding + min-height（不靠伪元素，避免命中区溢出到相邻 chip）。 */
+/* 注意选择器要盖过工作台/证据面的 `.plan-view .poi-chip{min-height:24px}`（同为
+   0,2,0），所以这里用 `.plan-view a.poi-chip` / `.poi-chips a.poi-chip` 提到 0,2,1。 */
+.plan-view a.poi-chip,
+.poi-chips a.poi-chip,
+.page-meta a.poi-chip,
+main a.poi-chip {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  text-decoration: none;
+  color: var(--at-ink-3);
+}
+a.poi-chip:hover {
+  color: var(--at-accent);
+  border-color: var(--at-accent-ring);
+  background: var(--at-accent-soft);
+}
+
+/* ---------- 14. 底图适配（RealMap / RouteMap） ---------- */
+/* 高德瓦片样式不可改（协议），所以用 filter 让地图与主题一致：
+   token 按主题给值，一条规则同时覆盖浅色与深色——不需要为深色再写一遍选择器。
+   filter 只作用于 <img class="realmap-img">；SVG 覆盖层（路线/站点/标签）
+   用 token 色，不受影响。 */
+.realmap-img {
+  filter: var(--at-map-filter);
+  transition: filter var(--at-dur-3) var(--at-ease-out);
+}
+/* SVG 覆盖层（路线/站点/标签）必须在 veil 之上：标记是「证据」，不能被蒙色 */
+.realmap-overlay {
+  z-index: 2;
+}
+/* 静态示意图（RouteMap 的 SVG）同步降噪，保持两种地图语言一致 */
+.route-map-wrap svg {
+  opacity: 0.96;
+}
+/* Nocturne：只压 filter 还不够——亮度 0.72 的浅色地图贴在近黑页面上仍是一块
+   「亮窗户」。再加一层暗色 veil（::before 画在静态 img 之上、absolute 的
+   SVG 覆盖层之下，所以路线/站点/标签不会被蒙住）。
+    veil 用 color-mix 取主题底色，主题切换时自动跟随。 */
+html[data-theme="dark"] .realmap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* z-index 必须 ≥1：底图 img 带 filter 后会变成层叠上下文、按 z-index:0 层级
+     绘制，而 ::before 在盒树里更靠前——不给 z-index 的话 veil 会被地图盖住
+     （实测：红色 veil 完全不显示）。SVG 覆盖层抬到 2，标记/标签留在最上层。 */
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--at-bg) 42%, transparent),
+    color-mix(in oklab, var(--at-bg) 58%, transparent)
+  );
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .realmap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--at-bg) 34%, transparent),
+      color-mix(in oklab, var(--at-bg) 52%, transparent)
+    );
+  }
+}
+/* 边缘内阴影：地图四边沉进面板，避免「贴纸感」 */
+html[data-theme="dark"] .realmap,
+html[data-theme="dark"] .ws-map-card .card,
+html[data-theme="dark"] .poster-map {
+  box-shadow:
+    inset 0 0 0 1px var(--at-line),
+    inset 0 0 60px rgba(0, 0, 0, 0.28);
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .realmap,
+  html:not([data-theme]) .ws-map-card .card,
+  html:not([data-theme]) .poster-map {
+    box-shadow:
+      inset 0 0 0 1px var(--at-line),
+      inset 0 0 60px rgba(0, 0, 0, 0.28);
+  }
+}
+
+/* ============================================================
+   15. 用户偏好降级（2026-10-31 补）
+   ------------------------------------------------------------
+   为什么现在补：macOS 27 / iOS 27（2026-09-14 发布，27.2 补丁 2026-10-26）把
+   「材质透明度」做成了**系统级连续滑块**（ultra-clear ↔ fully tinted），并自动适配
+   Reduce Transparency / Increase Contrast。也就是说：玻璃不再只是设计选择，
+   而是用户可以在系统设置里关掉的东西。Web 侧用这三个媒体查询对齐同一语义：
+   - prefers-reduced-transparency: reduce → 全部改实心，去掉玻璃/极光/地图 veil
+   - prefers-contrast: more            → 边框与文字对比加强，去掉降低对比的装饰
+   - forced-colors: active            → 让 OS 调色板接管，去掉会盖住系统色的渐变
+   Chrome 118+ 支持前者，Safari/Firefox 暂不支持——不支持时整块被忽略，
+   就是现在的默认外观，属纯渐进增强（不支持的浏览器零影响）。
+   ============================================================ */
+
+@media (prefers-reduced-transparency: reduce) {
+  /* 实心化：玻璃、半透明面、极光、噪点、地图 veil 全部退场 */
+  :root {
+    --at-surface: var(--at-surface-solid);
+    --at-surface-2: var(--at-surface-solid);
+    --at-surface-raised: var(--at-surface-solid);
+    --at-glass-blur: blur(0);
+  }
+  body::before,
+  body::after {
+    display: none !important;
+  }
+  .realmap::before {
+    display: none !important;
+  }
+  .at-glass,
+  .app-topbar-inner,
+  .quickstart,
+  .new-layout .panel,
+  .home-specimen,
+  .new-preflight,
+  .app-foot {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--at-surface-solid) !important;
+  }
+  /* 半透明的柔光底也换成实线，避免「看起来还是透」 */
+  .fs-card-warn,
+  .home-specimen {
+    background-image: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 浅色（默认） */
+  :root {
+    --at-line: rgba(10, 18, 32, 0.32);
+    --at-line-2: rgba(10, 18, 32, 0.6);
+    --at-ink-3: var(--at-ink-2);
+    --at-ink-4: var(--at-ink-2);
+  }
+  /* 手动切到深色 */
+  html[data-theme="dark"] {
+    --at-line: rgba(255, 255, 255, 0.42);
+    --at-line-2: rgba(255, 255, 255, 0.7);
+  }
+  /* 跟随系统深色——必须再套一层 media：写成 html:not([data-theme]) 会在
+     浅色系统下也命中（那个选择器与主题无关），把浅色页面染成深色边框。 */
+  @media (prefers-color-scheme: dark) {
+    html:not([data-theme]) {
+      --at-line: rgba(255, 255, 255, 0.42);
+      --at-line-2: rgba(255, 255, 255, 0.7);
+    }
+  }
+  /* 降低对比的装饰：水印编号、噪点、极光、玻璃模糊 */
+  .fs-card-index {
+    display: none;
+  }
+  body::after {
+    display: none !important;
+  }
+  .at-glass,
+  .app-topbar-inner,
+  .quickstart,
+  .new-layout .panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--at-surface-solid) !important;
+  }
+}
+
+@media (forced-colors: active) {
+  /* 强制颜色模式：OS 调色板优先。我们的渐变/玻璃/极光都会盖住系统色，全部退场；
+     forced-color-adjust 保持 auto，让浏览器把背景/文字映射到系统色。 */
+  body::before,
+  body::after,
+  .realmap::before {
+    display: none !important;
+  }
+  .at-glass,
+  .app-topbar-inner,
+  .quickstart,
+  .new-layout .panel,
+  .home-specimen,
+  .new-preflight,
+  .card,
+  .fs-card,
+  .trip-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: Canvas !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    border: 1px solid CanvasText !important;
+  }
+  .btn-primary,
+  .quickstart-go {
+    background: LinkText !important;
+    background-image: none !important;
+    color: Canvas !important;
+    border: 1px solid CanvasText !important;
+  }
+  .at-progress {
+    background: CanvasText !important;
+  }
+  /* 玻璃上的内高光边在强制色下会变成一条怪线 */
+  .at-glass {
+    box-shadow: none !important;
+  }
+}
+
+/* ---------- 16. 指针精度：hover 只给鼠标 ---------- */
+/* 触摸设备上 :hover 会在点按后「粘滞」（卡片还浮着，像没松手），把纯位移类
+   hover 关掉；颜色/边框类 hover 保留（不粘滞、且有反馈价值）。 */
+@media (hover: none) {
+  .card:hover,
+  .trip-card:hover,
+  .fs-card:hover,
+  .wishlist-card:hover,
+  .home-specimen:hover,
+  .btn:hover,
+  .btn-primary:hover:not(:disabled),
+  .quickstart-go:hover {
+    transform: none;
+  }
+}

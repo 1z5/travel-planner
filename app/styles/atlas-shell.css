@@ -1,0 +1,262 @@
+/* ============================================================
+   ATLAS v6 · 产品壳（app shell）
+   ------------------------------------------------------------
+   结构不变（AppShell 仍渲染 .app-topbar / .app-nav / .app-foot），
+   变的是材质与尺度：
+   - 顶栏从「通栏纸带」变成「悬浮玻璃指令条」：圆角胶囊、离顶 10px、
+     滚动时内容从它下面穿过；
+   - 品牌章从 1px 方框改成珊瑚渐变实体块（可复用在营销壳）；
+   - 顶部加一条滚动进度线（CSS scroll-driven animation，无 JS）。
+   ============================================================ */
+
+/* ---------- 滚动进度线：纯 CSS scroll timeline ---------- */
+.at-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 90;
+  background: linear-gradient(
+    90deg,
+    var(--at-accent-vivid),
+    var(--at-violet-vivid) 55%,
+    var(--at-teal-vivid)
+  );
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+  opacity: 0.85;
+}
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .at-progress {
+      animation: at-progress-grow linear both;
+      animation-timeline: scroll(root block);
+    }
+  }
+}
+@keyframes at-progress-grow {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ---------- 顶栏：悬浮玻璃指令条 ---------- */
+.app-topbar {
+  position: sticky;
+  top: 10px;
+  z-index: 60;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: none;
+  padding: 0 12px;
+}
+.app-topbar-inner {
+  max-width: var(--at-maxw);
+  margin: 0 auto;
+  padding: 7px 10px 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-pill);
+  background: var(--at-surface);
+  box-shadow: var(--at-shadow-md), var(--at-glass-edge);
+  backdrop-filter: var(--at-glass-blur);
+  -webkit-backdrop-filter: var(--at-glass-blur);
+  transition:
+    box-shadow var(--at-dur-2) var(--at-ease-out),
+    border-color var(--at-dur-2) ease;
+}
+/* 滚动时（headless 截图里 JS 不可用的场景不影响）加一点深度 */
+.app-topbar:hover .app-topbar-inner {
+  border-color: var(--at-line-2);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--at-ink);
+  min-width: 0;
+}
+/* 品牌章：珊瑚渐变实体 + 内发光。两套壳共用（SiteHeader 也用它）。 */
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--at-accent-vivid) 88%, white),
+    var(--at-accent)
+  );
+  color: #fffdf7;
+  font-family: var(--at-serif);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 6px 16px -6px var(--at-accent-glow);
+  transition: transform var(--at-dur-2) var(--at-ease-spring);
+}
+.brand:hover .brand-mark {
+  transform: rotate(-6deg) scale(1.04);
+}
+.app-brand-name {
+  font-family: var(--at-sans);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: var(--at-tracking-tight);
+  white-space: nowrap;
+}
+.app-brand-sub {
+  display: none;
+}
+
+/* 导航：胶囊条目，hover 有玻璃底 */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.app-nav a {
+  color: var(--at-ink-3);
+  text-decoration: none;
+  font-size: var(--at-fs-small);
+  font-weight: 550;
+  padding: 6px 12px;
+  border-radius: var(--at-r-pill);
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  transition:
+    color var(--at-dur-1) ease,
+    background-color var(--at-dur-1) ease;
+}
+.app-nav a:hover {
+  color: var(--at-ink);
+  background: var(--at-accent-soft);
+}
+/* 当前页（aria-current 由 Next Link 不会自动加；组件里显式加也兼容） */
+.app-nav a[aria-current="page"] {
+  color: var(--at-accent);
+  background: var(--at-accent-soft);
+}
+
+/* 顶栏右侧动作区 */
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* 主题开关：月相/日相图标，玻璃圆钮 */
+.at-theme-toggle {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: var(--at-r-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--at-ink-3);
+  cursor: pointer;
+  transition:
+    color var(--at-dur-1) ease,
+    background-color var(--at-dur-1) ease,
+    border-color var(--at-dur-1) ease,
+    transform var(--at-dur-2) var(--at-ease-spring);
+}
+.at-theme-toggle:hover {
+  color: var(--at-accent);
+  background: var(--at-accent-soft);
+  border-color: var(--at-accent-ring);
+}
+.at-theme-toggle:active {
+  transform: scale(0.94) rotate(-10deg);
+}
+
+/* ---------- 页脚：一行仪器铭牌 ---------- */
+.app-foot {
+  border-top: 1px solid var(--at-line);
+  background: color-mix(in oklab, var(--at-bg) 70%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  margin-top: var(--sp-7);
+}
+.app-foot-inner {
+  max-width: var(--at-maxw);
+  margin: 0 auto;
+  padding: 18px var(--at-gutter);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  font-family: var(--at-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--at-ink-4);
+}
+.app-foot-inner a {
+  color: var(--at-ink-3);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding: 4px 0;
+  transition: color var(--at-dur-1) ease;
+}
+.app-foot-inner a:hover {
+  color: var(--at-accent);
+}
+.app-foot-inner > span:last-child {
+  margin-left: auto;
+  color: var(--at-ink-4);
+}
+
+@media (max-width: 640px) {
+  .app-topbar {
+    top: 8px;
+    padding: 0 8px;
+  }
+  .app-topbar-inner {
+    padding: 6px 8px 6px 10px;
+    gap: 10px;
+  }
+  .app-brand-name {
+    font-size: 14px;
+  }
+  .app-foot-inner > span:last-child {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* 主题图标的显隐完全交给 CSS：避免 SSR 首帧图标闪动 */
+.at-theme-toggle .at-theme-icon-moon {
+  display: none;
+}
+html[data-theme="dark"] .at-theme-toggle .at-theme-icon-sun {
+  display: none;
+}
+html[data-theme="dark"] .at-theme-toggle .at-theme-icon-moon {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .at-theme-toggle .at-theme-icon-sun {
+    display: none;
+  }
+  html:not([data-theme]) .at-theme-toggle .at-theme-icon-moon {
+    display: block;
+  }
+}
