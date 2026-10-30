@@ -143,6 +143,14 @@ export function LiveProgress({
 
   return (
     <div className="live-progress">
+      {/* 进度头：管线阶段名 + 当前是第几段（等宽读数，不转大圈） */}
+      <div className="live-stages-head">
+        <span className="live-stages-k">SURVEY · 测绘进度</span>
+        <span className="live-stages-v">
+          {String(Math.min(current + 1, nodes.length)).padStart(2, "0")} /{" "}
+          {String(nodes.length).padStart(2, "0")}
+        </span>
+      </div>
       {/* 管线阶段清单：到达打勾、当前动画、之后待办 */}
       <ol className="live-stages">
         {nodes.map((n, i) => {
@@ -153,6 +161,9 @@ export function LiveProgress({
               key={n.key}
               className={`live-stage${done ? " done" : ""}${active ? " active" : ""}`}
             >
+              <span className="live-stage-idx" aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
+              </span>
               <span className="live-stage-dot" aria-hidden="true">
                 {done ? (
                   <Check size={13} />
@@ -167,6 +178,11 @@ export function LiveProgress({
                 </span>
               )}
               {active && n.hint && <span className="live-stage-hint">{n.hint}</span>}
+              {/* 阶段进度线：done 满、active 流动、pending 空——用一条细线
+                  替代「一个大转圈」，和顶栏 HUD 的读数语言一致。 */}
+              <span className="live-stage-track" aria-hidden="true">
+                <span className="live-stage-fill" />
+              </span>
             </li>
           );
         })}
@@ -237,7 +253,7 @@ function FallbackProgress({
       ? Math.min(100, Math.round((days / submittedDays) * 100))
       : null;
   return (
-    <>
+    <div className="live-progress live-progress-fallback">
       <WaitProgress
         pct={pct}
         elapsed={elapsed}
@@ -246,6 +262,6 @@ function FallbackProgress({
       <p className="muted" role="status" style={{ marginTop: 8 }}>
         {FALLBACK_TIPS[tip]}
       </p>
-    </>
+    </div>
   );
 }

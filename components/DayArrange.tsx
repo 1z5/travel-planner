@@ -34,6 +34,10 @@ export function DayArrange({ shareId, day, onPlanChange, readOnly = false }: Pro
   const [revision, setRevision] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // 拖拽经过的位置：画一条「落点」指示线。为什么不在排序里实时插入：
+  // 服务端按最终 order 重算时间轴，中途插入会让列表跳来跳去；指示线足够
+  // 表达「松手会落到这里」，且不会在拖拽中触发一次保存。
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   // 换天或行程被其它路径改写（refine/克隆）时，顺序重置为新数据的下标序。
   // 不在这里清 notes/error——保存成功后父组件更新 plan 会触发本 effect，
@@ -152,25 +156,48 @@ export function DayArrange({ shareId, day, onPlanChange, readOnly = false }: Pro
         </div>
       </div>
 
+      {/* 清单刻度头：把「这是可操作的清单」和「共几站」先说清，再进逐行 */}
+      <div className="arrange-list-head" aria-hidden="true">
+        <span className="arrange-list-k">MANIFEST · 当日顺序</span>
+        <span className="arrange-list-v">{order.length} 站</span>
+      </div>
+
       <ol className="arrange-list">
         {order.map((spotIdx, pos) => {
           const spot = day.spots[spotIdx];
           if (!spot) return null;
+          const isDragging = dragFrom === pos;
+          const isDropTarget = dragFrom !== null && dragOver === pos && dragFrom !== pos;
           return (
             <li
               key={`${spotIdx}-${spot.name}`}
-              className={`arrange-item${dragFrom === pos ? " arrange-dragging" : ""}`}
+              className={`arrange-item${isDragging ? " arrange-dragging" : ""}${
+                isDropTarget ? " arrange-droptarget" : ""
+              }`}
               draggable={!readOnly}
               onDragStart={(e) => {
                 if (readOnly) return;
                 e.dataTransfer.setData("text/plain", String(pos));
+                e.dataTransfer.effectAllowed = "move";
                 setDragFrom(pos);
               }}
-              onDragOver={(e) => e.preventDefault()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (readOnly) return;
+                if (dragOver !== pos) setDragOver(pos);
+              }}
+              onDragLeave={() => {
+                if (dragOver === pos) setDragOver(null);
+              }}
+              onDragEnd={() => {
+                setDragFrom(null);
+                setDragOver(null);
+              }}
               onDrop={(e) => {
                 e.preventDefault();
                 const from = Number(e.dataTransfer.getData("text/plain"));
                 setDragFrom(null);
+                setDragOver(null);
                 move(from, pos);
               }}
             >

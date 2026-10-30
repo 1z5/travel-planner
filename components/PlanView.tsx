@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import {
   Landmark,
   Utensils,
@@ -101,6 +101,19 @@ const TYPE_ICON: Record<string, typeof Landmark> = {
 function fmtDate(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${Number(m)}月${Number(d)}日`;
+}
+
+/**
+ * 第 n 天的月-日（由行程首日推算）。为什么前端算而不是读字段：Plan 只有
+ * startDate，分天没有各自日期；拿不到首日就返回 null，不编一个假日期。
+ * 用于时间轴仪器化的「日期刻度」与左栏日期读数。
+ */
+function dayDate(startDate: string | undefined, dayNo: number): string | null {
+  if (!startDate) return null;
+  const t = Date.parse(`${startDate}T00:00:00`);
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t + (dayNo - 1) * 86_400_000);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 /**
@@ -557,6 +570,10 @@ export function PlanView({
   // 组件只负责画。改完行程 viewPlan 变化时自动重算。
   const budgetSummary = useMemo(() => summarizeBudget(viewPlan), [viewPlan]);
 
+  // 左栏日期导轨的「当日花费」刻度：用全旅程最高一天做分母，纯展示比例，
+  // 不参与任何计算（数据本身仍来自 plan.dailyCostCny）。
+  const maxDailyCost = Math.max(1, ...viewPlan.days.map((d) => d.dailyCostCny));
+
   // 「行中」：今天是行程第几天。只在客户端挂载后算——SSR 用服务端的「今天」
   // 会和客户端时区有偏差，避免 hydration 不匹配。首屏渲染 unknown（无高亮），
   // 挂载后补上，对「旅行途中打开」的场景无感。
@@ -759,6 +776,32 @@ export function PlanView({
                 一句话改
               </button>
             </div>
+          )}
+        </div>
+
+        {/* 当天仪表读数：站数 / 通勤 / 人均 / 日期刻度。
+            为什么单独一行：时间轴仪器要「先读量级再读细节」——这排等宽数字
+            就是当天的度盘，往下才是逐站刻度。数据全部来自 plan，不新增口径。 */}
+        <div className="day-stats">
+          <span className="day-stat">
+            <span className="day-stat-k">STOPS</span>
+            <span className="day-stat-v">{day.spots.length}</span>
+          </span>
+          <span className="day-stat">
+            <span className="day-stat-k">TRANSIT</span>
+            <span className="day-stat-v">
+              {day.transitKnown === false ? "未知" : `${Math.round(day.transitMin / 6) / 10}h`}
+            </span>
+          </span>
+          <span className="day-stat">
+            <span className="day-stat-k">COST</span>
+            <span className="day-stat-v">¥{day.dailyCostCny.toLocaleString()}</span>
+          </span>
+          {dayDate(viewPlan.startDate, day.day) && (
+            <span className="day-stat day-stat-date">
+              <span className="day-stat-k">DATE</span>
+              <span className="day-stat-v">{dayDate(viewPlan.startDate, day.day)}</span>
+            </span>
           )}
         </div>
 
@@ -1084,6 +1127,14 @@ export function PlanView({
         )}
 
         <div className="card-body">
+          {/* 概要刻度条：仪器读数的「铭牌行」（天数 × 点位数），下面是结论与证据 */}
+          <div className="plan-overview-strip">
+            <span className="plan-overview-eyebrow">TRIP BRIEF · 行程概要</span>
+            <span className="plan-overview-meta">
+              {viewPlan.days.length} DAYS · {viewPlan.days.reduce((n, d) => n + d.spots.length, 0)}{" "}
+              STOPS
+            </span>
+          </div>
           <div className="plan-head">
             <span
               className={`verified-badge ${verification === "ok" ? "live" : verification === "partial" ? "live warn" : "mock"}`}
@@ -1531,21 +1582,47 @@ export function PlanView({
       {layout === "browser" ? (
         <div className="plan-browser" id="plan-days">
           <nav className="day-rail" aria-label="行程天数">
-            {viewPlan.days.map((d) => (
-              <button
-                key={d.day}
-                type="button"
-                className={`day-rail-item${d.day === activeDayNo ? " day-rail-item-on" : ""}`}
-                aria-current={d.day === activeDayNo ? "true" : undefined}
-                onClick={() => handleDayChange(d.day)}
-              >
-                <span className="day-rail-num">DAY {d.day}</span>
-                <span className="day-rail-theme">{d.theme}</span>
-                <span className="day-rail-meta">
-                  {d.spots.length} 站 · 人均 ¥{d.dailyCostCny.toLocaleString()}
-                </span>
-              </button>
-            ))}
+            {/* 左栏刻度头：天数总数是「这一天在全旅程的哪个位置」的分母 */}
+            <div className="day-rail-head" aria-hidden="true">
+              <span className="day-rail-head-k">ITINERARY</span>
+              <span className="day-rail-head-v">{viewPlan.days.length} DAYS</span>
+            </div>
+            {viewPlan.days.map((d) => {
+              const dd = dayDate(viewPlan.startDate, d.day);
+              const transitH = Math.round(d.transitMin / 6) / 10;
+              return (
+                <button
+                  key={d.day}
+                  type="button"
+                  className={`day-rail-item${d.day === activeDayNo ? " day-rail-item-on" : ""}`}
+                  aria-current={d.day === activeDayNo ? "true" : undefined}
+                  onClick={() => handleDayChange(d.day)}
+                >
+                  <span className="day-rail-top">
+                    <span className="day-rail-num">DAY {String(d.day).padStart(2, "0")}</span>
+                    {dd && <span className="day-rail-date">{dd}</span>}
+                  </span>
+                  <span className="day-rail-theme">{d.theme}</span>
+                  <span className="day-rail-meta">
+                    {d.spots.length} 站 · 人均 ¥{d.dailyCostCny.toLocaleString()}
+                  </span>
+                  <span className="day-rail-transit">
+                    <TrainFront size={11} aria-hidden="true" />
+                    {d.transitKnown === false ? "通勤未知" : `通勤 ${transitH}h`}
+                  </span>
+                  <span className="day-rail-gauge" aria-hidden="true">
+                    <span
+                      className="day-rail-gauge-fill"
+                      style={
+                        {
+                          "--rail-fill": `${Math.round((d.dailyCostCny / maxDailyCost) * 100)}%`,
+                        } as CSSProperties
+                      }
+                    />
+                  </span>
+                </button>
+              );
+            })}
           </nav>
           <div className="day-panel" role="region" aria-label={`第 ${activeDayNo} 天详情`}>
             {renderDayCard(
