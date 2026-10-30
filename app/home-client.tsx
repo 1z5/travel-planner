@@ -830,6 +830,18 @@ export function HomeClient() {
           <p className="new-sub">
             先核验真实世界，再排行程。生成约 2-4 分钟，期间可以离开页面，结果会留在这份行程里。
           </p>
+          {/* 三步管线读数（纯静态说明，不改变任何流程） */}
+          <ol className="new-head-meta" aria-label="生成管线">
+            <li>
+              <span>01</span>约束
+            </li>
+            <li>
+              <span>02</span>核验
+            </li>
+            <li>
+              <span>03</span>体检
+            </li>
+          </ol>
         </div>
       </header>
 
@@ -857,610 +869,476 @@ export function HomeClient() {
             </button>
           </div>
         )}
-        <motion.form
-          className={`panel${displayPlan && !formOpen ? " panel-hidden" : ""}`}
-          onSubmit={onSubmit}
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <div className="field-group new-core">
-            <div className="legend">行程信息</div>
+        {/* ATLAS v6：表单 + 右侧「生成前预检」仪器栏。
+            预检栏只在桌面出现（手机端表单本身就短，多一栏只会挤走 CTA）；
+            它是把表单里已填的条件回读成一份「本次会核验什么」的清单，
+            数据全部来自表单状态，不新增任何事实。 */}
+        <div className={`new-layout${displayPlan && !formOpen ? " is-folded" : ""}`}>
+          <motion.form
+            className={`panel${displayPlan && !formOpen ? " panel-hidden" : ""}`}
+            onSubmit={onSubmit}
+            initial={{ opacity: 0, y: 32 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <div className="field-group new-core">
+              <div className="legend">行程信息</div>
 
-            {/* 攻略导入：默认折叠，不打扰想从零填的用户；展开后粘贴原文 →
+              {/* 攻略导入：默认折叠，不打扰想从零填的用户；展开后粘贴原文 →
                 提取条件 → 只回填空字段。放在城市输入之前，因为「Start Anywhere」
                 的入口就是「我手里已经有一段攻略」。 */}
-            <details className="import-guide" ref={guideRef}>
-              <summary>
-                <span className="import-guide-title">从攻略/聊天记录导入</span>
-                <span className="import-guide-desc">
-                  粘贴游记/群聊/笔记原文，我们只提取条件，不自动生成行程；生成仍由你确认。不会自动打开其中的链接。
-                </span>
-              </summary>
-              <div className="import-guide-body">
-                <label className="import-guide-label" htmlFor="guide-text">
-                  攻略原文
-                </label>
-                <textarea
-                  id="guide-text"
-                  className="import-guide-input"
-                  rows={4}
-                  maxLength={4000}
-                  placeholder="例：五一带父母去成都玩三天，预算人均 2500，一定要去武侯祠…"
-                  value={guideText}
-                  onChange={(e) => setGuideText(e.target.value)}
-                />
-                <div className="import-guide-actions">
-                  {/* type="button"：在 form 里，默认类型会直接触发生成 */}
-                  <button
-                    type="button"
-                    className="btn import-guide-btn"
-                    onClick={extractGuide}
-                    disabled={guideStatus === "loading" || guideText.trim().length < 20}
-                  >
-                    {guideStatus === "loading" ? "提取中…" : "提取条件"}
-                  </button>
-                  <span className="helper" style={{ margin: 0 }}>
-                    至少 20 字，最多 4000 字；已填过的字段不会被覆盖
+              <details className="import-guide" ref={guideRef}>
+                <summary>
+                  <span className="import-guide-title">从攻略/聊天记录导入</span>
+                  <span className="import-guide-desc">
+                    粘贴游记/群聊/笔记原文，我们只提取条件，不自动生成行程；生成仍由你确认。不会自动打开其中的链接。
                   </span>
-                </div>
-                {guideStatus === "error" && (
-                  <p className="import-guide-error" role="alert">
-                    {guideError}（可以修改后重试）
-                  </p>
-                )}
-                {guideStatus === "done" && guideSummary && (
-                  <p className="import-guide-summary" role="status">
-                    {guideSummary}
-                  </p>
-                )}
-              </div>
-            </details>
-
-            <div className="row row-form">
-              <div>
-                <label htmlFor="city">目的地城市</label>
-                <AddressInput
-                  id="city"
-                  label="目的地城市"
-                  scope="city"
-                  value={city}
-                  onChange={setCity}
-                  placeholder="如：成都"
-                  maxLength={20}
-                />
-                {/* 实时定位：一键把当前位置设为起点。按钮用 type="button"——
-                放在 form 里若误用默认类型会触发提交 */}
-                <div className="locate-row">
-                  <button
-                    type="button"
-                    className="btn btn-locate"
-                    onClick={locateMe}
-                    disabled={locating}
-                    aria-busy={locating}
-                  >
-                    <MapPin size={14} />
-                    {locating ? "定位中…" : "用我当前的位置"}
-                  </button>
-                  {locatedCity && (
-                    <span className="helper" style={{ margin: 0 }}>
-                      已定位到 {locatedCity}
-                    </span>
-                  )}
-                </div>
-                {locateError && (
-                  <p className="helper" style={{ margin: 0, color: "var(--err-ink)" }}>
-                    {locateError}
-                  </p>
-                )}
-                <p className="helper">目前支持国内城市，1-7 天</p>
-              </div>
-              <div>
-                <label htmlFor="budget">人均预算（元，不含大交通）</label>
-                <input
-                  id="budget"
-                  type="number"
-                  value={budget}
-                  min={0}
-                  step={50}
-                  placeholder="如：1500；穷游/免费为主可填 0"
-                  onChange={(e) => setBudget(e.target.value)}
-                  required
-                />
-                {/* 快捷档：把「我大概这个量级」变成一次点击；穷游 0 放在第一档，
-                    因为它正是被 min(500) 挡掉的那部分用户 */}
-                <div className="chips" style={{ marginTop: 8 }}>
-                  {BUDGET_PRESETS.map((v) => (
-                    <span
-                      key={v}
-                      className={`chip ${budget === String(v) ? "on" : ""}`}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={budget === String(v)}
-                      onClick={() => setBudget(String(v))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setBudget(String(v));
-                        }
-                      }}
+                </summary>
+                <div className="import-guide-body">
+                  <label className="import-guide-label" htmlFor="guide-text">
+                    攻略原文
+                  </label>
+                  <textarea
+                    id="guide-text"
+                    className="import-guide-input"
+                    rows={4}
+                    maxLength={4000}
+                    placeholder="例：五一带父母去成都玩三天，预算人均 2500，一定要去武侯祠…"
+                    value={guideText}
+                    onChange={(e) => setGuideText(e.target.value)}
+                  />
+                  <div className="import-guide-actions">
+                    {/* type="button"：在 form 里，默认类型会直接触发生成 */}
+                    <button
+                      type="button"
+                      className="btn import-guide-btn"
+                      onClick={extractGuide}
+                      disabled={guideStatus === "loading" || guideText.trim().length < 20}
                     >
-                      {v === 0 ? "穷游 0" : v.toLocaleString("zh-CN")}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="row">
-              <div>
-                <label htmlFor="startAt">起始时间</label>
-                <input
-                  id="startAt"
-                  type="datetime-local"
-                  value={startAt}
-                  onChange={(e) => {
-                    datesTouchedRef.current = true; // 用户定过的日期不被攻略覆盖
-                    setStartAt(e.target.value);
-                  }}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="endAt">结束时间</label>
-                <input
-                  id="endAt"
-                  type="datetime-local"
-                  value={endAt}
-                  onChange={(e) => {
-                    datesTouchedRef.current = true;
-                    setEndAt(e.target.value);
-                  }}
-                  required
-                />
-              </div>
-            </div>
-            {derivedDays !== null && (
-              <p className="muted" style={{ marginTop: 4 }}>
-                共 {derivedDays} 天{derivedDays > 7 ? "（超过 7 天的部分暂不支持）" : ""}
-                {derivedDays === 1 ? "（当天往返）" : ""}
-              </p>
-            )}
-          </div>
-
-          {/* 首屏动作栏：三个必填字段之后立刻给主 CTA——旧版把按钮放在 9+ 个
-              字段之后，首屏视口里没有任何可点的推进动作。代价/产出说明保留。 */}
-          <div className="form-actions new-core-actions">
-            <div className="form-actions-meta">
-              <span>预计 2–4 分钟</span>
-              <span className="fa-sep" aria-hidden="true" />
-              <span>消耗 1 次免费额度</span>
-              <span className="fa-sep" aria-hidden="true" />
-              <span>结果永久保存 · 可分享</span>
-            </div>
-            <button
-              className="btn-primary"
-              disabled={loading || !city.trim() || !budgetOk || !citiesOk}
-            >
-              {loading
-                ? "生成中…"
-                : !city.trim()
-                  ? "请先填写目的地城市"
-                  : !budgetOk
-                    ? "请填写人均预算（穷游可填 0）"
-                    : !citiesOk
-                      ? derivedDays === null
-                        ? "请先选择出行日期"
-                        : "请把各城市天数配成总天数"
-                      : "生成行程"}
-            </button>
-            {loading && (
-              <>
-                <LiveProgress
-                  stage={stage}
-                  plan={plan}
-                  submittedDays={submittedDays}
-                  elapsed={fmtElapsed(elapsed)}
-                />
-                {plan?.draft && (
-                  <p className="draft-hint" role="status">
-                    已显示快速预览（结构就绪），精确行程生成中——通常 2-4 分钟
-                  </p>
-                )}
-              </>
-            )}
-            {remaining !== null && (
-              <p className="muted" role="status">
-                今日剩余免费次数：{remaining}
-              </p>
-            )}
-            <p className="form-actions-note">
-              推理模型做约束规划通常 2–4
-              分钟（跨境更久），生成过程中可以离开页面；进度与结果会保留。 等不及也可以
-              <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
-                先看一份真实生成的示例（苏州 3 天）
-              </button>
-              。
-            </p>
-          </div>
-
-          {/* 其余选项折叠：默认值都已合理（适中节奏/驾车/单城市），
-              首屏只问「去哪、什么时候、多少钱」。 */}
-          <details className="more-options">
-            <summary>
-              更多选项
-              <span className="more-options-hint">规划范围 · 节奏 · 交通 · 约束 · 偏好</span>
-            </summary>
-            <div className="field-group">
-              <div className="legend">规划范围</div>
-              <label id="scope-label" className="sr-only">
-                规划范围
-              </label>
-              <div className="segmented" role="group" aria-labelledby="scope-label">
-                {(
-                  [
-                    ["city", "单城市", "如：成都、京都"],
-                    ["region", "区域环线", "如：川西环线、关西"],
-                    ["multi", "跨城/多城市", "如：深圳 2 天 + 香港 2 天"],
-                  ] as const
-                ).map(([value, label, desc]) => (
-                  <button
-                    type="button"
-                    key={value}
-                    className={scope === value ? "on" : ""}
-                    aria-pressed={scope === value}
-                    onClick={() => setScope(value)}
-                  >
-                    {label}
-                    <small>{desc}</small>
-                  </button>
-                ))}
-              </div>
-              <p className="helper">
-                {scope === "city"
-                  ? "目前支持国内城市，1-7 天"
-                  : scope === "region"
-                    ? "区域环线跨多个城市/景区，住宿随线路迁移，支持 1-10 天"
-                    : "按天串段游览多座城市；城际交通以你提供的班次时间为准（我们不估算跨境通勤）"}
-              </p>
-
-              {/* 跨城模式：城市行编辑器。第一座城市复用上面的目的地输入（保留定位
-                填充），后面几座在这里追加；每天归属哪座城市由天数决定。 */}
-              {scope === "multi" && (
-                <div className="multi-cities" role="group" aria-label="跨城城市与天数">
-                  <div className="multi-row">
-                    <span className="multi-city">{city || "第一座城市（填在上面）"}</span>
-                    <span className="multi-days">
-                      <button
-                        type="button"
-                        aria-label="减少第一座城市天数"
-                        disabled={multiCities[0].days <= 1}
-                        onClick={() =>
-                          setExtraCities((cs) => [
-                            { ...cs[0], days: Math.max(1, cs[0].days - 1) },
-                            ...cs.slice(1),
-                          ])
-                        }
-                      >
-                        −
-                      </button>
-                      <b>{multiCities[0].days} 天</b>
-                      <button
-                        type="button"
-                        aria-label="增加第一座城市天数"
-                        disabled={multiCities[0].days >= 7}
-                        onClick={() =>
-                          setExtraCities((cs) => [
-                            { ...cs[0], days: Math.min(7, cs[0].days + 1) },
-                            ...cs.slice(1),
-                          ])
-                        }
-                      >
-                        ＋
-                      </button>
+                      {guideStatus === "loading" ? "提取中…" : "提取条件"}
+                    </button>
+                    <span className="helper" style={{ margin: 0 }}>
+                      至少 20 字，最多 4000 字；已填过的字段不会被覆盖
                     </span>
                   </div>
-                  {extraCities.map((c, i) => (
-                    <div className="multi-row" key={i}>
-                      <input
-                        aria-label={`第 ${i + 2} 座城市`}
-                        placeholder="如：香港"
-                        value={c.city}
-                        maxLength={20}
-                        onChange={(e) =>
-                          setExtraCities((cs) =>
-                            cs.map((x, j) => (j === i ? { ...x, city: e.target.value } : x)),
-                          )
-                        }
-                      />
+                  {guideStatus === "error" && (
+                    <p className="import-guide-error" role="alert">
+                      {guideError}（可以修改后重试）
+                    </p>
+                  )}
+                  {guideStatus === "done" && guideSummary && (
+                    <p className="import-guide-summary" role="status">
+                      {guideSummary}
+                    </p>
+                  )}
+                </div>
+              </details>
+
+              <div className="row row-form">
+                <div>
+                  <label htmlFor="city">目的地城市</label>
+                  <AddressInput
+                    id="city"
+                    label="目的地城市"
+                    scope="city"
+                    value={city}
+                    onChange={setCity}
+                    placeholder="如：成都"
+                    maxLength={20}
+                  />
+                  {/* 实时定位：一键把当前位置设为起点。按钮用 type="button"——
+                放在 form 里若误用默认类型会触发提交 */}
+                  <div className="locate-row">
+                    <button
+                      type="button"
+                      className="btn btn-locate"
+                      onClick={locateMe}
+                      disabled={locating}
+                      aria-busy={locating}
+                    >
+                      <MapPin size={14} />
+                      {locating ? "定位中…" : "用我当前的位置"}
+                    </button>
+                    {locatedCity && (
+                      <span className="helper" style={{ margin: 0 }}>
+                        已定位到 {locatedCity}
+                      </span>
+                    )}
+                  </div>
+                  {locateError && (
+                    <p className="helper" style={{ margin: 0, color: "var(--err-ink)" }}>
+                      {locateError}
+                    </p>
+                  )}
+                  <p className="helper">目前支持国内城市，1-7 天</p>
+                </div>
+                <div>
+                  <label htmlFor="budget">人均预算（元，不含大交通）</label>
+                  <input
+                    id="budget"
+                    type="number"
+                    value={budget}
+                    min={0}
+                    step={50}
+                    placeholder="如：1500；穷游/免费为主可填 0"
+                    onChange={(e) => setBudget(e.target.value)}
+                    required
+                  />
+                  {/* 快捷档：把「我大概这个量级」变成一次点击；穷游 0 放在第一档，
+                    因为它正是被 min(500) 挡掉的那部分用户 */}
+                  <div className="chips" style={{ marginTop: 8 }}>
+                    {BUDGET_PRESETS.map((v) => (
+                      <span
+                        key={v}
+                        className={`chip ${budget === String(v) ? "on" : ""}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={budget === String(v)}
+                        onClick={() => setBudget(String(v))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setBudget(String(v));
+                          }
+                        }}
+                      >
+                        {v === 0 ? "穷游 0" : v.toLocaleString("zh-CN")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div>
+                  <label htmlFor="startAt">起始时间</label>
+                  <input
+                    id="startAt"
+                    type="datetime-local"
+                    value={startAt}
+                    onChange={(e) => {
+                      datesTouchedRef.current = true; // 用户定过的日期不被攻略覆盖
+                      setStartAt(e.target.value);
+                    }}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="endAt">结束时间</label>
+                  <input
+                    id="endAt"
+                    type="datetime-local"
+                    value={endAt}
+                    onChange={(e) => {
+                      datesTouchedRef.current = true;
+                      setEndAt(e.target.value);
+                    }}
+                    required
+                  />
+                </div>
+              </div>
+              {derivedDays !== null && (
+                <p className="muted" style={{ marginTop: 4 }}>
+                  共 {derivedDays} 天{derivedDays > 7 ? "（超过 7 天的部分暂不支持）" : ""}
+                  {derivedDays === 1 ? "（当天往返）" : ""}
+                </p>
+              )}
+            </div>
+
+            {/* 首屏动作栏：三个必填字段之后立刻给主 CTA——旧版把按钮放在 9+ 个
+              字段之后，首屏视口里没有任何可点的推进动作。代价/产出说明保留。 */}
+            <div className="form-actions new-core-actions">
+              <div className="form-actions-meta">
+                <span>预计 2–4 分钟</span>
+                <span className="fa-sep" aria-hidden="true" />
+                <span>消耗 1 次免费额度</span>
+                <span className="fa-sep" aria-hidden="true" />
+                <span>结果永久保存 · 可分享</span>
+              </div>
+              <button
+                className="btn-primary"
+                disabled={loading || !city.trim() || !budgetOk || !citiesOk}
+              >
+                {loading
+                  ? "生成中…"
+                  : !city.trim()
+                    ? "请先填写目的地城市"
+                    : !budgetOk
+                      ? "请填写人均预算（穷游可填 0）"
+                      : !citiesOk
+                        ? derivedDays === null
+                          ? "请先选择出行日期"
+                          : "请把各城市天数配成总天数"
+                        : "生成行程"}
+              </button>
+              {loading && (
+                <>
+                  <LiveProgress
+                    stage={stage}
+                    plan={plan}
+                    submittedDays={submittedDays}
+                    elapsed={fmtElapsed(elapsed)}
+                  />
+                  {plan?.draft && (
+                    <p className="draft-hint" role="status">
+                      已显示快速预览（结构就绪），精确行程生成中——通常 2-4 分钟
+                    </p>
+                  )}
+                </>
+              )}
+              {remaining !== null && (
+                <p className="muted" role="status">
+                  今日剩余免费次数：{remaining}
+                </p>
+              )}
+              <p className="form-actions-note">
+                推理模型做约束规划通常 2–4
+                分钟（跨境更久），生成过程中可以离开页面；进度与结果会保留。 等不及也可以
+                <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
+                  先看一份真实生成的示例（苏州 3 天）
+                </button>
+                。
+              </p>
+            </div>
+
+            {/* 其余选项折叠：默认值都已合理（适中节奏/驾车/单城市），
+              首屏只问「去哪、什么时候、多少钱」。 */}
+            <details className="more-options">
+              <summary>
+                更多选项
+                <span className="more-options-hint">规划范围 · 节奏 · 交通 · 约束 · 偏好</span>
+              </summary>
+              <div className="field-group">
+                <div className="legend">规划范围</div>
+                <label id="scope-label" className="sr-only">
+                  规划范围
+                </label>
+                <div className="segmented" role="group" aria-labelledby="scope-label">
+                  {(
+                    [
+                      ["city", "单城市", "如：成都、京都"],
+                      ["region", "区域环线", "如：川西环线、关西"],
+                      ["multi", "跨城/多城市", "如：深圳 2 天 + 香港 2 天"],
+                    ] as const
+                  ).map(([value, label, desc]) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={scope === value ? "on" : ""}
+                      aria-pressed={scope === value}
+                      onClick={() => setScope(value)}
+                    >
+                      {label}
+                      <small>{desc}</small>
+                    </button>
+                  ))}
+                </div>
+                <p className="helper">
+                  {scope === "city"
+                    ? "目前支持国内城市，1-7 天"
+                    : scope === "region"
+                      ? "区域环线跨多个城市/景区，住宿随线路迁移，支持 1-10 天"
+                      : "按天串段游览多座城市；城际交通以你提供的班次时间为准（我们不估算跨境通勤）"}
+                </p>
+
+                {/* 跨城模式：城市行编辑器。第一座城市复用上面的目的地输入（保留定位
+                填充），后面几座在这里追加；每天归属哪座城市由天数决定。 */}
+                {scope === "multi" && (
+                  <div className="multi-cities" role="group" aria-label="跨城城市与天数">
+                    <div className="multi-row">
+                      <span className="multi-city">{city || "第一座城市（填在上面）"}</span>
                       <span className="multi-days">
                         <button
                           type="button"
-                          aria-label={`减少第 ${i + 2} 座城市天数`}
-                          disabled={c.days <= 1}
+                          aria-label="减少第一座城市天数"
+                          disabled={multiCities[0].days <= 1}
                           onClick={() =>
-                            setExtraCities((cs) =>
-                              cs.map((x, j) => (j === i ? { ...x, days: x.days - 1 } : x)),
-                            )
+                            setExtraCities((cs) => [
+                              { ...cs[0], days: Math.max(1, cs[0].days - 1) },
+                              ...cs.slice(1),
+                            ])
                           }
                         >
                           −
                         </button>
-                        <b>{c.days} 天</b>
+                        <b>{multiCities[0].days} 天</b>
                         <button
                           type="button"
-                          aria-label={`增加第 ${i + 2} 座城市天数`}
-                          disabled={c.days >= 7}
+                          aria-label="增加第一座城市天数"
+                          disabled={multiCities[0].days >= 7}
                           onClick={() =>
-                            setExtraCities((cs) =>
-                              cs.map((x, j) => (j === i ? { ...x, days: x.days + 1 } : x)),
-                            )
+                            setExtraCities((cs) => [
+                              { ...cs[0], days: Math.min(7, cs[0].days + 1) },
+                              ...cs.slice(1),
+                            ])
                           }
                         >
                           ＋
                         </button>
                       </span>
+                    </div>
+                    {extraCities.map((c, i) => (
+                      <div className="multi-row" key={i}>
+                        <input
+                          aria-label={`第 ${i + 2} 座城市`}
+                          placeholder="如：香港"
+                          value={c.city}
+                          maxLength={20}
+                          onChange={(e) =>
+                            setExtraCities((cs) =>
+                              cs.map((x, j) => (j === i ? { ...x, city: e.target.value } : x)),
+                            )
+                          }
+                        />
+                        <span className="multi-days">
+                          <button
+                            type="button"
+                            aria-label={`减少第 ${i + 2} 座城市天数`}
+                            disabled={c.days <= 1}
+                            onClick={() =>
+                              setExtraCities((cs) =>
+                                cs.map((x, j) => (j === i ? { ...x, days: x.days - 1 } : x)),
+                              )
+                            }
+                          >
+                            −
+                          </button>
+                          <b>{c.days} 天</b>
+                          <button
+                            type="button"
+                            aria-label={`增加第 ${i + 2} 座城市天数`}
+                            disabled={c.days >= 7}
+                            onClick={() =>
+                              setExtraCities((cs) =>
+                                cs.map((x, j) => (j === i ? { ...x, days: x.days + 1 } : x)),
+                              )
+                            }
+                          >
+                            ＋
+                          </button>
+                        </span>
+                        <button
+                          type="button"
+                          className="multi-remove"
+                          aria-label={`移除第 ${i + 2} 座城市`}
+                          onClick={() => setExtraCities((cs) => cs.filter((_, j) => j !== i))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <div className="multi-foot">
                       <button
                         type="button"
-                        className="multi-remove"
-                        aria-label={`移除第 ${i + 2} 座城市`}
-                        onClick={() => setExtraCities((cs) => cs.filter((_, j) => j !== i))}
+                        className="btn-link"
+                        disabled={multiCities.length >= 4}
+                        onClick={() => setExtraCities((cs) => [...cs, { city: "", days: 2 }])}
                       >
-                        ×
+                        ＋ 再加一座城市（最多 4 座）
                       </button>
+                      <span className="multi-sum">
+                        已分配 {multiCities.reduce((s, c) => s + c.days, 0)} 天 / 行程{" "}
+                        {derivedDays ?? "?"} 天
+                        {derivedDays !== null &&
+                        multiCities.reduce((s, c) => s + c.days, 0) !== derivedDays
+                          ? "（不相等，请调整）"
+                          : ""}
+                      </span>
                     </div>
-                  ))}
-                  <div className="multi-foot">
-                    <button
-                      type="button"
-                      className="btn-link"
-                      disabled={multiCities.length >= 4}
-                      onClick={() => setExtraCities((cs) => [...cs, { city: "", days: 2 }])}
-                    >
-                      ＋ 再加一座城市（最多 4 座）
-                    </button>
-                    <span className="multi-sum">
-                      已分配 {multiCities.reduce((s, c) => s + c.days, 0)} 天 / 行程{" "}
-                      {derivedDays ?? "?"} 天
-                      {derivedDays !== null &&
-                      multiCities.reduce((s, c) => s + c.days, 0) !== derivedDays
-                        ? "（不相等，请调整）"
-                        : ""}
-                    </span>
-                  </div>
-                  {/* 跨境段的口径先说清：我们不编造高德没有的跨境通勤数据 */}
-                  <p className="helper">
-                    跨境段（如深港）需要过关/高铁时间：请在「重点活动」里按班次添加，
-                    我们只排你到达之后的本地行程，不估算口岸排队。
-                  </p>
-                </div>
-              )}
-
-              <label id="pace-label">行程节奏</label>
-              <div className="segmented" role="group" aria-labelledby="pace-label">
-                {(
-                  [
-                    ["relaxed", "轻松", "每天 1-3 个主景点"],
-                    ["balanced", "适中", "每天 2-4 个"],
-                    ["packed", "紧凑", "每天 3-5 个"],
-                  ] as const
-                ).map(([value, label, desc]) => (
-                  <button
-                    type="button"
-                    key={value}
-                    className={pace === value ? "on" : ""}
-                    aria-pressed={pace === value}
-                    onClick={() => setPace(value)}
-                  >
-                    {label}
-                    <small>{desc}</small>
-                  </button>
-                ))}
-              </div>
-
-              <label id="transport-label">交通方式</label>
-              <div className="segmented" role="group" aria-labelledby="transport-label">
-                {(
-                  [
-                    ["auto", "智能组合", "按距离自动选步行/骑行/驾车"],
-                    ["walking", "步行", "景点间步行串连"],
-                    ["bicycling", "骑行", "适合近距离散布"],
-                    ["driving", "驾车", "跨区/远距最省时"],
-                  ] as const
-                ).map(([value, label, desc]) => (
-                  <button
-                    type="button"
-                    key={value}
-                    className={transportMode === value ? "on" : ""}
-                    aria-pressed={transportMode === value}
-                    onClick={() => setTransportMode(value)}
-                  >
-                    {label}
-                    <small>{desc}</small>
-                  </button>
-                ))}
-              </div>
-              <p className="helper">
-                按所选方式把每天各景点串成可跟着走的路线（含距离、时长与分步指引）。
-              </p>
-            </div>
-
-            <div className="field-group">
-              <div className="legend">
-                你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span>
-              </div>
-              <label htmlFor="hotel">
-                我的住所
-                <span className="optional-tag">选填 · 行程每天从这儿出发；住在别的城市也能用</span>
-              </label>
-              <AddressInput
-                id="hotel"
-                label="我的住所"
-                scope="poi"
-                city={poiCity}
-                value={hotel}
-                onChange={setHotel}
-                placeholder="如：全季酒店(春熙路店)"
-                maxLength={40}
-              />
-
-              <label htmlFor="must-visit-input">
-                期望必游地<span className="optional-tag">最多 5 个，必须全部安排</span>
-              </label>
-              <div className="chips">
-                {mustVisit.map((m) => (
-                  <span key={m} className="chip on">
-                    {m}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`删除必游地 ${m}`}
-                      onClick={() => setMustVisit((cur) => cur.filter((x) => x !== m))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setMustVisit((cur) => cur.filter((x) => x !== m));
-                        }
-                      }}
-                      className="chip-remove"
-                    >
-                      ×
-                    </span>
-                  </span>
-                ))}
-              </div>
-              <div className="row" style={{ marginTop: 6 }}>
-                <AddressInput
-                  id="must-visit-input"
-                  label="期望必游地"
-                  scope="poi"
-                  city={poiCity}
-                  value={mvInput}
-                  onChange={setMvInput}
-                  placeholder="输入地名后点添加，或回车"
-                  maxLength={20}
-                  onSubmit={addMustVisit}
-                  onPicked={(name) => addMustVisit(name)}
-                />
-                <button
-                  type="button"
-                  onClick={() => addMustVisit()}
-                  style={{ flex: "0 0 auto" }}
-                  className="btn btn-tall"
-                >
-                  添加
-                </button>
-              </div>
-              {mustVisit.length >= 5 && (
-                <p className="muted" style={{ marginTop: 4 }}>
-                  最多 5 个必游地
-                </p>
-              )}
-
-              {/* 推荐必游地：点选即入库。没有推荐（MOCK/上游异常/已满）时整块
-                  不渲染——不拿空区块占地方，也不用假数据充数。 */}
-              {scope !== "region" &&
-                mustVisit.length < 5 &&
-                (recLoading || recSights.length > 0) && (
-                  <div className="mv-recommend" role="group" aria-label="推荐必游地">
-                    <span className="mv-recommend-label">热门必游</span>
-                    {recLoading && recSights.length === 0 && (
-                      <span className="mv-recommend-loading">加载中…</span>
-                    )}
-                    {recSights
-                      .filter((s) => !mustVisit.includes(s.name))
-                      .slice(0, 6)
-                      .map((s) => (
-                        <button
-                          key={s.name}
-                          type="button"
-                          className="mv-chip"
-                          onClick={() => addMustVisit(s.name)}
-                          title={`${s.area}${s.rating ? ` · 高德评分 ${s.rating}` : ""}`}
-                        >
-                          <span className="mv-chip-plus" aria-hidden="true">
-                            ＋
-                          </span>
-                          {s.name}
-                          {s.rating ? <span className="mv-chip-rating">{s.rating}</span> : null}
-                        </button>
-                      ))}
+                    {/* 跨境段的口径先说清：我们不编造高德没有的跨境通勤数据 */}
+                    <p className="helper">
+                      跨境段（如深港）需要过关/高铁时间：请在「重点活动」里按班次添加，
+                      我们只排你到达之后的本地行程，不估算口岸排队。
+                    </p>
                   </div>
                 )}
 
-              <label htmlFor="event-name">
-                重点活动
-                <span className="optional-tag">选填 · 演唱会/赛事/展览，AI 围着它编排当天动线</span>
-              </label>
-              <div className="event-row">
+                <label id="pace-label">行程节奏</label>
+                <div className="segmented" role="group" aria-labelledby="pace-label">
+                  {(
+                    [
+                      ["relaxed", "轻松", "每天 1-3 个主景点"],
+                      ["balanced", "适中", "每天 2-4 个"],
+                      ["packed", "紧凑", "每天 3-5 个"],
+                    ] as const
+                  ).map(([value, label, desc]) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={pace === value ? "on" : ""}
+                      aria-pressed={pace === value}
+                      onClick={() => setPace(value)}
+                    >
+                      {label}
+                      <small>{desc}</small>
+                    </button>
+                  ))}
+                </div>
+
+                <label id="transport-label">交通方式</label>
+                <div className="segmented" role="group" aria-labelledby="transport-label">
+                  {(
+                    [
+                      ["auto", "智能组合", "按距离自动选步行/骑行/驾车"],
+                      ["walking", "步行", "景点间步行串连"],
+                      ["bicycling", "骑行", "适合近距离散布"],
+                      ["driving", "驾车", "跨区/远距最省时"],
+                    ] as const
+                  ).map(([value, label, desc]) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={transportMode === value ? "on" : ""}
+                      aria-pressed={transportMode === value}
+                      onClick={() => setTransportMode(value)}
+                    >
+                      {label}
+                      <small>{desc}</small>
+                    </button>
+                  ))}
+                </div>
+                <p className="helper">
+                  按所选方式把每天各景点串成可跟着走的路线（含距离、时长与分步指引）。
+                </p>
+              </div>
+
+              <div className="field-group">
+                <div className="legend">
+                  你的约束<span className="optional-tag">选填 · 让行程围着你的安排转</span>
+                </div>
+                <label htmlFor="hotel">
+                  我的住所
+                  <span className="optional-tag">
+                    选填 · 行程每天从这儿出发；住在别的城市也能用
+                  </span>
+                </label>
                 <AddressInput
-                  id="event-name"
-                  label="重点活动名称"
+                  id="hotel"
+                  label="我的住所"
                   scope="poi"
                   city={poiCity}
-                  value={evName}
-                  onChange={setEvName}
-                  placeholder="如：周杰伦演唱会（名称需真实存在）"
-                  maxLength={30}
+                  value={hotel}
+                  onChange={setHotel}
+                  placeholder="如：全季酒店(春熙路店)"
+                  maxLength={40}
                 />
-                <input
-                  id="event-date"
-                  type="date"
-                  aria-label="活动日期（可选）"
-                  value={evDate}
-                  onChange={(e) => setEvDate(e.target.value)}
-                />
-                <input
-                  id="event-time"
-                  type="time"
-                  aria-label="活动开始时间（可选）"
-                  value={evTime}
-                  onChange={(e) => setEvTime(e.target.value)}
-                />
-              </div>
-              <button
-                type="button"
-                className="btn event-add"
-                disabled={!evName.trim() || events.length >= 3}
-                onClick={() => {
-                  const name = evName.trim();
-                  if (!name || events.length >= 3) return;
-                  if (events.some((e) => e.name === name)) return; // 去重
-                  setEvents((cur) => [
-                    ...cur,
-                    {
-                      name,
-                      date: evDate || undefined,
-                      time: evTime || undefined,
-                    },
-                  ]);
-                  setEvName("");
-                  setEvDate("");
-                  setEvTime("");
-                }}
-              >
-                添加活动
-              </button>
-              {events.length > 0 && (
-                <div className="chips" style={{ marginTop: 8 }}>
-                  {events.map((ev, i) => (
-                    <span key={`${ev.name}-${i}`} className="chip on">
-                      {ev.name}
-                      {ev.date && (
-                        <small className="event-chip-meta">
-                          {ev.date}
-                          {ev.time ? ` ${ev.time}` : ""}
-                        </small>
-                      )}
+
+                <label htmlFor="must-visit-input">
+                  期望必游地<span className="optional-tag">最多 5 个，必须全部安排</span>
+                </label>
+                <div className="chips">
+                  {mustVisit.map((m) => (
+                    <span key={m} className="chip on">
+                      {m}
                       <span
                         role="button"
                         tabIndex={0}
-                        aria-label={`删除活动 ${ev.name}`}
-                        onClick={() => setEvents((cur) => cur.filter((_, j) => j !== i))}
+                        aria-label={`删除必游地 ${m}`}
+                        onClick={() => setMustVisit((cur) => cur.filter((x) => x !== m))}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            setEvents((cur) => cur.filter((_, j) => j !== i));
+                            setMustVisit((cur) => cur.filter((x) => x !== m));
                           }
                         }}
                         className="chip-remove"
@@ -1470,117 +1348,300 @@ export function HomeClient() {
                     </span>
                   ))}
                 </div>
-              )}
-              {events.length >= 3 && (
-                <p className="muted" style={{ marginTop: 4 }}>
-                  最多 3 个重点活动
-                </p>
-              )}
-              <p className="helper">
-                名称会用高德验真（不存在会告警）；给了开始时间就会围绕它倒推动线，并预留提前到场
-              </p>
-            </div>
-
-            <div className="field-group">
-              <div className="legend">出行偏好</div>
-              <div className="chips">
-                {PREF_OPTIONS.map((p) => (
-                  <span
-                    key={p}
-                    className={`chip ${prefs.includes(p) ? "on" : ""}`}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={prefs.includes(p)}
-                    onClick={() => togglePref(p)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        togglePref(p);
-                      }
-                    }}
+                <div className="row" style={{ marginTop: 6 }}>
+                  <AddressInput
+                    id="must-visit-input"
+                    label="期望必游地"
+                    scope="poi"
+                    city={poiCity}
+                    value={mvInput}
+                    onChange={setMvInput}
+                    placeholder="输入地名后点添加，或回车"
+                    maxLength={20}
+                    onSubmit={addMustVisit}
+                    onPicked={(name) => addMustVisit(name)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addMustVisit()}
+                    style={{ flex: "0 0 auto" }}
+                    className="btn btn-tall"
                   >
-                    {p}
-                  </span>
-                ))}
-              </div>
-            </div>
+                    添加
+                  </button>
+                </div>
+                {mustVisit.length >= 5 && (
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    最多 5 个必游地
+                  </p>
+                )}
 
-            {/* 登录区：可选增强，未登录 3 次/天，登录后 10 次/天 */}
-            <div className="login-panel">
-              {me?.loggedIn ? (
-                <div className="login-logged">
-                  <span className="muted">
-                    已登录：
-                    {me.phone?.startsWith("wx:")
-                      ? "微信用户"
-                      : me.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
-                    {me.remaining !== null && ` · 今日剩余 ${me.remaining} 次`}
+                {/* 推荐必游地：点选即入库。没有推荐（MOCK/上游异常/已满）时整块
+                  不渲染——不拿空区块占地方，也不用假数据充数。 */}
+                {scope !== "region" &&
+                  mustVisit.length < 5 &&
+                  (recLoading || recSights.length > 0) && (
+                    <div className="mv-recommend" role="group" aria-label="推荐必游地">
+                      <span className="mv-recommend-label">热门必游</span>
+                      {recLoading && recSights.length === 0 && (
+                        <span className="mv-recommend-loading">加载中…</span>
+                      )}
+                      {recSights
+                        .filter((s) => !mustVisit.includes(s.name))
+                        .slice(0, 6)
+                        .map((s) => (
+                          <button
+                            key={s.name}
+                            type="button"
+                            className="mv-chip"
+                            onClick={() => addMustVisit(s.name)}
+                            title={`${s.area}${s.rating ? ` · 高德评分 ${s.rating}` : ""}`}
+                          >
+                            <span className="mv-chip-plus" aria-hidden="true">
+                              ＋
+                            </span>
+                            {s.name}
+                            {s.rating ? <span className="mv-chip-rating">{s.rating}</span> : null}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+
+                <label htmlFor="event-name">
+                  重点活动
+                  <span className="optional-tag">
+                    选填 · 演唱会/赛事/展览，AI 围着它编排当天动线
                   </span>
-                  <button type="button" onClick={logout} className="login-logout">
-                    退出登录
-                  </button>
+                </label>
+                <div className="event-row">
+                  <AddressInput
+                    id="event-name"
+                    label="重点活动名称"
+                    scope="poi"
+                    city={poiCity}
+                    value={evName}
+                    onChange={setEvName}
+                    placeholder="如：周杰伦演唱会（名称需真实存在）"
+                    maxLength={30}
+                  />
+                  <input
+                    id="event-date"
+                    type="date"
+                    aria-label="活动日期（可选）"
+                    value={evDate}
+                    onChange={(e) => setEvDate(e.target.value)}
+                  />
+                  <input
+                    id="event-time"
+                    type="time"
+                    aria-label="活动开始时间（可选）"
+                    value={evTime}
+                    onChange={(e) => setEvTime(e.target.value)}
+                  />
                 </div>
-              ) : loginOpen ? (
-                <div className="login-form">
-                  <div className="login-row">
-                    <input
-                      type="text"
-                      placeholder="手机号"
-                      aria-label="手机号"
-                      value={phone}
-                      maxLength={11}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                    />
-                    <button
-                      type="button"
-                      onClick={sendCode}
-                      disabled={cooldown > 0 || phone.length !== 11}
-                      className="btn"
+                <button
+                  type="button"
+                  className="btn event-add"
+                  disabled={!evName.trim() || events.length >= 3}
+                  onClick={() => {
+                    const name = evName.trim();
+                    if (!name || events.length >= 3) return;
+                    if (events.some((e) => e.name === name)) return; // 去重
+                    setEvents((cur) => [
+                      ...cur,
+                      {
+                        name,
+                        date: evDate || undefined,
+                        time: evTime || undefined,
+                      },
+                    ]);
+                    setEvName("");
+                    setEvDate("");
+                    setEvTime("");
+                  }}
+                >
+                  添加活动
+                </button>
+                {events.length > 0 && (
+                  <div className="chips" style={{ marginTop: 8 }}>
+                    {events.map((ev, i) => (
+                      <span key={`${ev.name}-${i}`} className="chip on">
+                        {ev.name}
+                        {ev.date && (
+                          <small className="event-chip-meta">
+                            {ev.date}
+                            {ev.time ? ` ${ev.time}` : ""}
+                          </small>
+                        )}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`删除活动 ${ev.name}`}
+                          onClick={() => setEvents((cur) => cur.filter((_, j) => j !== i))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setEvents((cur) => cur.filter((_, j) => j !== i));
+                            }
+                          }}
+                          className="chip-remove"
+                        >
+                          ×
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {events.length >= 3 && (
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    最多 3 个重点活动
+                  </p>
+                )}
+                <p className="helper">
+                  名称会用高德验真（不存在会告警）；给了开始时间就会围绕它倒推动线，并预留提前到场
+                </p>
+              </div>
+
+              <div className="field-group">
+                <div className="legend">出行偏好</div>
+                <div className="chips">
+                  {PREF_OPTIONS.map((p) => (
+                    <span
+                      key={p}
+                      className={`chip ${prefs.includes(p) ? "on" : ""}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={prefs.includes(p)}
+                      onClick={() => togglePref(p)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          togglePref(p);
+                        }
+                      }}
                     >
-                      {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* 登录区：可选增强，未登录 3 次/天，登录后 10 次/天 */}
+              <div className="login-panel">
+                {me?.loggedIn ? (
+                  <div className="login-logged">
+                    <span className="muted">
+                      已登录：
+                      {me.phone?.startsWith("wx:")
+                        ? "微信用户"
+                        : me.phone?.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")}
+                      {me.remaining !== null && ` · 今日剩余 ${me.remaining} 次`}
+                    </span>
+                    <button type="button" onClick={logout} className="login-logout">
+                      退出登录
                     </button>
                   </div>
-                  <div className="login-row">
-                    <input
-                      type="text"
-                      placeholder="验证码"
-                      aria-label="验证码"
-                      value={code}
-                      maxLength={6}
-                      onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                    />
-                    <button
-                      type="button"
-                      onClick={login}
-                      disabled={phone.length !== 11 || code.length < 4}
-                      className="btn"
-                    >
-                      登录
-                    </button>
+                ) : loginOpen ? (
+                  <div className="login-form">
+                    <div className="login-row">
+                      <input
+                        type="text"
+                        placeholder="手机号"
+                        aria-label="手机号"
+                        value={phone}
+                        maxLength={11}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                      />
+                      <button
+                        type="button"
+                        onClick={sendCode}
+                        disabled={cooldown > 0 || phone.length !== 11}
+                        className="btn"
+                      >
+                        {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+                      </button>
+                    </div>
+                    <div className="login-row">
+                      <input
+                        type="text"
+                        placeholder="验证码"
+                        aria-label="验证码"
+                        value={code}
+                        maxLength={6}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                      />
+                      <button
+                        type="button"
+                        onClick={login}
+                        disabled={phone.length !== 11 || code.length < 4}
+                        className="btn"
+                      >
+                        登录
+                      </button>
+                    </div>
+                    {me?.provider === "none" && (
+                      <p className="muted">开发模式（未接短信服务），验证码固定为 123456</p>
+                    )}
                   </div>
-                  {me?.provider === "none" && (
-                    <p className="muted">开发模式（未接短信服务），验证码固定为 123456</p>
-                  )}
-                </div>
-              ) : (
-                <div className="login-links">
-                  <button type="button" onClick={() => setLoginOpen(true)} className="btn-link">
-                    手机号登录：未登录每天 3 次，登录后 10 次 →
-                  </button>
-                  {me?.provider === "wechat" && (
-                    <a
-                      href="/api/auth/wechat/login?redirect=/"
-                      className="btn-link btn-link-wechat"
-                    >
-                      微信一键登录 →
-                    </a>
-                  )}
-                </div>
-              )}
-              {authError && <p className="error login-error">{authError}</p>}
+                ) : (
+                  <div className="login-links">
+                    <button type="button" onClick={() => setLoginOpen(true)} className="btn-link">
+                      手机号登录：未登录每天 3 次，登录后 10 次 →
+                    </button>
+                    {me?.provider === "wechat" && (
+                      <a
+                        href="/api/auth/wechat/login?redirect=/"
+                        className="btn-link btn-link-wechat"
+                      >
+                        微信一键登录 →
+                      </a>
+                    )}
+                  </div>
+                )}
+                {authError && <p className="error login-error">{authError}</p>}
+              </div>
+            </details>
+          </motion.form>
+
+          <aside className="new-preflight" aria-label="生成前预检">
+            <div className="new-preflight-head">
+              <span className="new-preflight-kicker">PRE-FLIGHT · 生成前预检</span>
+              <span
+                className={`new-preflight-dot${city.trim() ? " is-on" : ""}`}
+                aria-hidden="true"
+              />
             </div>
-          </details>
-        </motion.form>
+            <dl className="new-preflight-rows">
+              <div>
+                <dt>目的地</dt>
+                <dd>{city.trim() || "—"}</dd>
+              </div>
+              <div>
+                <dt>天数</dt>
+                <dd>{derivedDays === null ? "—" : `${derivedDays} 天`}</dd>
+              </div>
+              <div>
+                <dt>人均预算</dt>
+                <dd>{budget.trim() ? `¥${budget.trim()}` : "—"}</dd>
+              </div>
+              <div>
+                <dt>范围</dt>
+                <dd>
+                  {scope === "multi" ? "跨城 / 多城市" : scope === "region" ? "区域环线" : "单城市"}
+                </dd>
+              </div>
+            </dl>
+            <ul className="new-preflight-list" aria-label="本次会做什么">
+              <li>POI 与营业时间逐点过高德</li>
+              <li>通勤按真实路况计算</li>
+              <li>排完自动体检（可执行性 A–D）</li>
+              <li>问题可一键修复，改完自动复检</li>
+            </ul>
+            <p className="new-preflight-note">
+              拿不到事实的项会标注「未检索到」，不会用默认值填成看起来完整。
+            </p>
+          </aside>
+        </div>
 
         {error && (
           <div className="alert alert-error" role="alert">
