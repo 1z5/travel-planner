@@ -52,9 +52,15 @@ lib/
   amap.ts        POI 验真 + 通勤（三态 hit/miss/error）
   store/         存储抽象：Job / Plan / Quota / Code（memory / postgres）
 components/      工作台、PlanView、行中视图、体检报告、分享动作等
-docs/            标准、ADR、路线、审计；索引见 docs/README.md
+app/styles/      前端设计系统 ATLAS v6（token/原子/分片覆盖层；v5.1 的 globals.css 保留未动）
+docs/            标准、ADR、路线、设计语言；索引见 docs/README.md
 scripts/         验收：gate / e2e / smoke-deployed / visual-check / demo / preflight
 ```
+
+**前端设计系统（ATLAS v6「活地图」）**：双主题（Daylight 冷瓷 / Nocturne 深空，跟随系统 +
+手动切换）、`--at-*` token 契约、玻璃 + 极光 + 噪点材质、React 19.3 `<ViewTransition>`
+路由与镜头转场、CSS scroll-driven 进度线——全部渐进增强、零新增依赖。
+规则与取舍见 [docs/design/ATLAS-V6.md](docs/design/ATLAS-V6.md)（含趋势依据与关键来源链接）。
 
 ## 快速开始
 

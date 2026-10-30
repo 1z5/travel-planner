@@ -1,3 +1,87 @@
+## 2026-10-31 前端打磨：地图暗色适配、sticky 重校准、玻璃纪律与偏好降级
+
+ATLAS v6 落地后的第一轮精修。三个来源：①自己逐页巡检（浅/深 × 桌面/手机）；
+②`glass-check` 的联网核查（macOS/iOS 27 已发布，材质透明度变成系统级滑块）；
+③`npm run gate:visual` 抓到的回归。
+
+**地图（最大视觉断裂）**：Nocturne 下高德底图仍是白天样式，在近黑页面上像一块发光的窗户。
+瓦片样式不可改（数据源条款），改用 `filter` + 暗色 veil：实测平均亮度 **0.75 → 0.27**，
+标记/标签通过 z-index 留在最上层。踩到一个真坑：**底图 img 带 filter 后会变成层叠上下文、
+按 z-index:0 层级绘制，会把 `z-index:0` 的 veil 伪元素盖住**——veil 必须显式 `z-index:1`、
+SVG 覆盖层抬到 2（代码里写了原因注释）。
+
+**sticky 偏移回归（新壳打偏旧校准）**：v6 顶栏从 52px 实心栏变成悬浮药丸（top 10 + 高 56 → 底 66），
+而 globals 里 TOC 的 `top:52px` / `--plan-anchor-offset:113px` 还是按旧栏高的——TOC 被药丸压住一截、
+锚点跳转钻到 TOC 后面。重新校准：刊物布局 TOC 74px / 锚点 136px；工作台镜头条 74px、
+TOC 与日期导轨 136px、锚点 198px（实测点击 Day 2 后标题落在 TOC 下方 12px）。手机端单独一档（56/64）。
+
+**镜头条不再随滚动消失**：`<nav class="ws-tabs">` 原本在 `<header class="ws-header">` 里，而 sticky 的
+生效范围是包含块——滚出 HUD 后镜头条跟着没了，切镜头得先滚回顶部。把 nav 提成 header 的兄弟节点，
+包含块变成整个 `.trip-workspace`，现在镜头条一直吸在顶栏下方。
+
+**HUD 去重**：同一个「可执行性 41 / D」在 HUD 里出现了三次（评分环 + compact 徽章 + 体检镜头），
+徽章还把 HUD 撑高 60px。删掉 compact 徽章，换成一行可点的「4 处会影响行程 · 去体检修复」
+（点它直接切到体检镜头，已验证）。
+
+**玻璃纪律 + 用户偏好降级（glass-check 的结论）**：
+
+- `.card` 去掉 `backdrop-filter`（页面里卡片数量多，低端机掉帧；78% 不透明度下模糊也看不出来），
+  玻璃只留顶栏/快速开始/HUD/hero 面板这类窄条，blur 统一 ≤14px；
+- 新增 `prefers-reduced-transparency` / `prefers-contrast: more` / `forced-colors: active` 三个降级块：
+  透明度滑块关掉时全部实心化（连极光、噪点、地图 veil 一起退场）；高对比度下边框与文字加强、
+  水印编号隐藏；强制色下让 OS 调色板接管（渐变/玻璃/阴影全清）。三者都不支持的浏览器直接忽略。
+  修了一个真 bug：深色覆盖原来写在 `html:not([data-theme])` 上，**浅色系统下也会命中**，
+  把浅色页面的边框染成白色——必须再套一层 `prefers-color-scheme: dark`。
+- `@media (hover: none)` 关掉纯位移类 hover（触摸设备点完卡片还浮着，像没松手）。
+
+**其他**：浅色 hero 极光 12%→16%；Nocturne 下面板加 3% 顶部高光 + surface 不透明度 0.66→0.74
+（近黑画布上分层更清楚）；手机首页去掉 `.trips-home` 与 `.container` 叠加的 128px 死白。
+
+**验证**：`npm run gate` 全绿（1202 单测 / 776 e2e）、`npm run gate:visual` **0 失败 0 警告**；
+四个偏好组合（浅/深 × 普通/高对比）与 forced-colors、reduced-motion 都用 CDP 实测过 token 落地。
+产物：[research/2026-10-31-glass-check/GLASS-UPDATE.md](research/2026-10-31-glass-check/GLASS-UPDATE.md)（本地目录）。
+
+## 2026-10-29 前端「ATLAS v6」革命：从纸面杂志到行程仪器（设计系统重做）
+
+用户要求「看 2026 前端最新技术与当红 UI，对项目前端做革命性进化」。调研（58 个来源链接，底稿在本地 `research/`，按仓库惯例不入库）与实施记录：
+[docs/design/ATLAS-V6.md](docs/design/ATLAS-V6.md)。
+
+**设计语言换代（v5.1「纸上行程」→ v6「活地图 ATLAS」）**：行程不是一篇文章，是一台能读的仪器。
+产品界面（首页/工作台/体检）= 仪器；分享页/报告页 = 旅行刊物（衬线、可打印）。两者共用一套 token。
+
+- **双主题**：Daylight（冷瓷白 #edf1f7 + 珊瑚 #c73310 + 潟湖青）与 Nocturne（深空墨 + 极光）；
+  默认跟随系统，顶栏/营销壳手动切换（`ThemeToggle`，三态 auto/light/dark，localStorage 持久化，
+  首帧内联脚本防闪白）。切换用 View Transitions 做圆形揭示。
+- **材质**：极光背景（`@property` 动画的百分比自定义属性）+ 2.4% 噪点颗粒 + 显微网格；
+  玻璃只用于「单层浮层」（顶栏指令条 / hero 面板 / sticky 栏）——调研明确全站 Liquid Glass
+  可读性与低端机掉帧双输，正文列表不用 backdrop-filter。
+- **token 契约**：`app/styles/atlas-tokens.css` 重定义全部旧 token（v5 的 var() 引用率 90%+，
+  所以一层 token 就完成全局换肤），新增 `--at-*` 系列；对比度实测 Daylight ink-3 5.98:1、
+  accent 白字 5.37:1、Nocturne 全部 ≥5:1。
+- **用上的 2026 原生能力**（全部渐进增强、零新增依赖）：React 19.3 `<ViewTransition>`
+  （Next 16.4 零配置）做路由转场与镜头切换；CSS scroll-driven animation 做顶部进度线；
+  `@property` + `color-mix(in oklab)` + `text-autospace` + `text-wrap: balance/pretty` +
+  `:focus-visible` 环形焦点；`data-scroll-behavior`（Next 16 新要求）。
+- **分片实施**：`app/styles/atlas-{tokens,base,shell,home,workspace,evidence,marketing}.css`
+  共 7 层（按 import 顺序后写者胜），`app/globals.css` 一行未动——旧的 10150 行样式全部保留，
+  v6 是覆盖层，可回滚、可灰度。
+- **首页**：主张 + 「样本仪器面板」（真实示例数据，明确标注 MOCK 未验真）+ 真的能用的快速开始
+  （城市+天数 → /new 深链预填，原生 GET 表单，无 JS 也能跳）；我的行程 = 仪器行卡（序号/天数/
+  倒计时读数）；精选示例 = bento + 三步管线。
+- **新建页**：表单 + 右侧 sticky「生成前预检」仪器栏（回读表单状态，不新增事实）；禁用态主按钮
+  改虚线 ghost。
+- **工作台**：玻璃 HUD（评分环 + 等宽行程 ID + 验真状态）+ 滑动分段控件的五镜头 + 时间轴仪器化的
+  行程正文；**证据面**：分享页 = 刊物封面（大衬线城市名 + 等宽 meta），体检报告 = 可复算凭据
+  （票根撕口 + 评分环 + 规则证据表），/verify = 仪器操作台（mono 版本条 + JSON 编辑器 + 字节计数）；
+  **营销面**：/about hero + 产品预览玻璃面板 + 编号 bento，/cities = 地图册页（PLATE 编号），
+  /pricing /privacy /terms 排版升级。
+- **品牌**：图标从「蓝底地图 emoji」换成珊瑚渐变 + 衬线「行」章（favicon / PWA / apple-touch-icon
+  三处同源，`scripts/gen-pwa-icons.mjs` 一处改），manifest 主题色随品牌更新。
+
+**验证**：`npm run typecheck` / `npm run lint`（0 error，无新增 warning）/
+`npm run test:unit` 1202 通过 / `npm test` 776 e2e 断言通过 / `npm run gate:visual`
+15 页 × 桌面/手机 × 浅深主题全绿（对比度 / 溢出 / 触控 40px / 控制台）。
+
 ## 2026-10-28 仓库公开叙事与结构规整（docs）
 
 面向公开仓库做一轮体检与收敛，目标是让「人 + 后续 AI」打开仓库就能得到一致、可复现的项目事实：

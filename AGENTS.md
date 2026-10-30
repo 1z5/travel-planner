@@ -76,6 +76,13 @@ components/
 
 ## 开工前先看这里（当前状态）
 
+- **前端设计系统（2026-10-29，ATLAS v6「活地图」）**：**改任何 UI 之前先读
+  [docs/design/ATLAS-V6.md](docs/design/ATLAS-V6.md)**。v5.1「纸面杂志」已升级为
+  v6「行程仪器」：双主题（Daylight/Nocturne，跟随系统 + `ThemeToggle` 切换）、
+  `--at-*` token 契约、玻璃/极光/噪点材质、React 19.3 `<ViewTransition>` 路由与镜头转场。
+  实现方式是**覆盖层**：`app/styles/atlas-{tokens,base,shell,home,workspace,evidence,marketing}.css`
+  按 import 顺序后写者胜；**`app/globals.css` 一行未动**，不要往里加东西。
+  趋势依据与「不要做」清单：同文档 §0 与 §6（完整调研底稿在本地 `research/`，按仓库惯例不入库）。
 - **当前阶段（2026-10-28，v9）**：从「To C 产品感」进入**「行程可执行性核验层」**——卖可复算的证据，
   而不是再做一个行程生成器：Trip Check 开放标准 v0.1（两轴报告 / 17 规则 / 可复算凭据）+
   确定性修复（前后凭据链）+ `/api/verify` + MCP `/api/mcp` + 工作台第五镜头「体检」+

@@ -3,7 +3,13 @@
 > 这是仓库文档的**唯一入口**。AI 代理开工前先读本页 + [AGENTS.md](../AGENTS.md)；
 > 状态和数字以 `npm run gate` / `/api/health` / 最新提交为准，文档只做导航与解释。
 
-## 当前状态（2026-10-28）
+## 当前状态（2026-10-29）
+
+- **前端设计系统**：ATLAS v6「活地图」已落地（双主题 + 玻璃/极光材质 + View Transitions + 分片 CSS 覆盖层）；
+  规则见 [design/ATLAS-V6.md](design/ATLAS-V6.md)。`app/globals.css`（v5.1 纸面杂志）保留未动，
+  v6 是 `app/styles/atlas-*.css` 覆盖层——改 UI 只改分片，不要动 globals.css。
+
+## 历史状态（2026-10-28）
 
 - **阶段**：v9「行程可执行性核验层」（Trip Check 开放标准 v0.1 + 两轴报告 + 可复算凭据 +
   确定性修复 + 工作台/分享页/行中接入 + 可分享报告工件 + 安全加固）。
@@ -24,20 +30,22 @@
 
 ## 文档地图
 
-| 文档                                                              | 作用                        | 什么时候读              |
-| ----------------------------------------------------------------- | --------------------------- | ----------------------- |
-| [../README.md](../README.md) / [../README.en.md](../README.en.md) | 对外产品说明                | 第一次接触项目          |
-| [../AGENTS.md](../AGENTS.md)                                      | AI/协作开发规范与验收门     | 每次开工前              |
-| [PRODUCT-REVOLUTION-2026-10.md](PRODUCT-REVOLUTION-2026-10.md)    | 当前策略、证据、路线        | 决定做什么之前          |
-| [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)                  | 核验层开放标准              | 改引擎/规则/凭据/API 前 |
-| [../NEXT_STEPS.md](../NEXT_STEPS.md)                              | 上线行动清单 + 已拍板决策   | 规划下一轮              |
-| [adr/](adr/)                                                      | 架构决策与替代方案          | 改架构/存储/接口前      |
-| [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md)      | 安全审计与修复状态          | 改公开端点/鉴权/限流前  |
-| [../API.md](../API.md)                                            | 接口契约（含错误码）        | 改路由/客户端前         |
-| [../CHANGELOG.md](../CHANGELOG.md)                                | 逐轮变更与踩坑记录          | 排查「为什么这样写」    |
-| [../DEMO.md](../DEMO.md) / [../DEPLOY.md](../DEPLOY.md)           | 演示部署 / 正式部署         | 部署前                  |
-| [../mcp/README.md](../mcp/README.md)                              | MCP 服务说明                | 接 MCP 前               |
-| [archive/](archive/)                                              | **已归档**的历史路线/北极星 | 仅追溯，不作为排期依据  |
+| 文档                                                              | 作用                                    | 什么时候读              |
+| ----------------------------------------------------------------- | --------------------------------------- | ----------------------- |
+| [../README.md](../README.md) / [../README.en.md](../README.en.md) | 对外产品说明                            | 第一次接触项目          |
+| [../AGENTS.md](../AGENTS.md)                                      | AI/协作开发规范与验收门                 | 每次开工前              |
+| [PRODUCT-REVOLUTION-2026-10.md](PRODUCT-REVOLUTION-2026-10.md)    | 当前策略、证据、路线                    | 决定做什么之前          |
+| [design/ATLAS-V6.md](design/ATLAS-V6.md)                          | 前端设计系统（token/材质/动效/分片）    | 改任何 UI 之前          |
+| [design/ATLAS-V6.md](design/ATLAS-V6.md) §0                       | 设计方向怎么定的（趋势依据 + 来源链接） | 决定设计方向前          |
+| [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)                  | 核验层开放标准                          | 改引擎/规则/凭据/API 前 |
+| [../NEXT_STEPS.md](../NEXT_STEPS.md)                              | 上线行动清单 + 已拍板决策               | 规划下一轮              |
+| [adr/](adr/)                                                      | 架构决策与替代方案                      | 改架构/存储/接口前      |
+| [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md)      | 安全审计与修复状态                      | 改公开端点/鉴权/限流前  |
+| [../API.md](../API.md)                                            | 接口契约（含错误码）                    | 改路由/客户端前         |
+| [../CHANGELOG.md](../CHANGELOG.md)                                | 逐轮变更与踩坑记录                      | 排查「为什么这样写」    |
+| [../DEMO.md](../DEMO.md) / [../DEPLOY.md](../DEPLOY.md)           | 演示部署 / 正式部署                     | 部署前                  |
+| [../mcp/README.md](../mcp/README.md)                              | MCP 服务说明                            | 接 MCP 前               |
+| [archive/](archive/)                                              | **已归档**的历史路线/北极星             | 仅追溯，不作为排期依据  |
 
 ## 维护约定
 
