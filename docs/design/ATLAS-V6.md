@@ -164,15 +164,15 @@ Nocturne 全部 ≥ 5:1。**新增文字颜色必须实测 ≥4.5:1（大字号 
 
 ## 6. 实施状态（2026-10-29，全部落地）
 
-| 层        | 文件                             | 行数  | 状态                                         |
-| --------- | -------------------------------- | ----- | -------------------------------------------- |
-| token     | `app/styles/atlas-tokens.css`    | ~300  | 双主题 + 旧 token 重映射 + 打印回白          |
-| 基础      | `app/styles/atlas-base.css`      | ~800  | 极光/噪点/排版/原子/表单/ViewTransition/降级 |
-| 产品壳    | `app/styles/atlas-shell.css`     | ~270  | 悬浮玻璃指令条 + 品牌章 + 滚动进度线         |
-| 首页/新建 | `app/styles/atlas-home.css`      | ~1550 | hero + 快速开始 + 样本面板 + bento + 预检栏  |
-| 工作台    | `app/styles/atlas-workspace.css` | ~2470 | HUD + 五镜头分段控件 + 时间轴仪器化          |
-| 证据面    | `app/styles/atlas-evidence.css`  | ~4250 | 刊物封面 + 票根凭据 + 体检读数 + 行中        |
-| 营销面    | `app/styles/atlas-marketing.css` | ~1630 | 营销壳 + about hero + 地图册页 + 法务排版    |
+| 层        | 文件                             | 行数  | 状态                                                       |
+| --------- | -------------------------------- | ----- | ---------------------------------------------------------- |
+| token     | `app/styles/atlas-tokens.css`    | ~300  | 双主题 + 旧 token 重映射 + 打印回白                        |
+| 基础      | `app/styles/atlas-base.css`      | ~800  | 极光/噪点/排版/原子/表单/ViewTransition/降级               |
+| 产品壳    | `app/styles/atlas-shell.css`     | ~270  | 悬浮玻璃指令条 + 品牌章 + 滚动进度线                       |
+| 首页/新建 | `app/styles/atlas-home.css`      | ~1630 | hero + 快速开始 + 样本面板 + bento + 预检栏 + 档案分段控件 |
+| 工作台    | `app/styles/atlas-workspace.css` | ~2560 | HUD + 五镜头分段控件 + 时间轴仪器化 + 出发前提醒双栏       |
+| 证据面    | `app/styles/atlas-evidence.css`  | ~4250 | 刊物封面 + 票根凭据 + 体检读数 + 行中                      |
+| 营销面    | `app/styles/atlas-marketing.css` | ~1630 | 营销壳 + about hero + 地图册页 + 法务排版                  |
 
 新增组件：`components/ThemeToggle.tsx`（三态主题 + 圆形 View Transition 揭示）、
 `components/RouteTransition.tsx`（React 19.3 `<ViewTransition>` 路由转场，
@@ -194,6 +194,31 @@ Nocturne 全部 ≥ 5:1。**新增文字颜色必须实测 ≥4.5:1（大字号 
    `localStorage['at-theme']`。首帧内联脚本防闪白。headless 视觉门默认浅色，深色靠人工抽检。
 6. **地图不改色**：高德底图条款不允许改瓦片样式，Nocturne 下地图仍是浅色——这是数据源
    约束，不是漏做。
+
+## 8. 第三轮打磨（2026-11-02）
+
+用户截图指出三处未完成细节（档案分段控件 / 预算占位符 / 出发前提醒卡）。全部在既有
+组件与覆盖层内修复，无新组件、无新依赖；`app/globals.css` 一行未动。
+
+| 问题                                                            | 修法                                                                                                                       |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 作息两档不填满一行（auto-fit 空轨先撑后折叠，右侧留空）         | 等宽隐式列：`grid-auto-flow: column` + `grid-auto-columns: minmax(0,1fr)` + `grid-template-columns: none`；≤420px 整行堆叠 |
+| 描述断行出孤字（「每天 2-4 个主景 / 点」）                      | `text-wrap: balance`                                                                                                       |
+| 选中态只有淡色底，Nocturne 下几乎不可判                         | 珊瑚边 + 软底 + 伪元素勾选标记（不动组件结构）                                                                             |
+| 预算占位符在 ~217px 栏宽里被裁半句（number input 不滚动占位符） | 占位符只放短示例，口径说明改 helper 行                                                                                     |
+| 出发前提醒卡无内边距（内容贴边框）                              | 补 `20px 22px 18px`，与 day 卡一致                                                                                         |
+| 提醒单行 40-50 字，超出中文易读区间                             | ≥860px 双栏（每行 ~35 字）；横线只留单栏                                                                                   |
+| 标题行内样式 + 无信息层级                                       | 样式收进 `.plan-tips-*`；加等宽条数读数「N 条」                                                                            |
+
+**新增硬规则**：
+
+1. 「选项数不固定」的分段控件不要用 `repeat(auto-fit, minmax(96px, 1fr))`：选项少于一整行时
+   空轨先撑后折叠，剩余项之间会出现视觉空档。等分用 `grid-auto-flow: column` +
+   `grid-auto-columns: minmax(0, 1fr)`（记得关掉继承来的显式轨道）。
+2. 双栏 grid 里不要给所有项加 `border-top`：第一行第二列会被画出一条多余横线。
+   分隔线按栏数放进对应的媒体查询。
+3. `type="number"` 输入框的占位符超出栏宽时会被裁切且不能滚动——长口径说明放 helper 行，
+   占位符只放短示例值。
 
 ## 7. 第二轮打磨（2026-10-31）
 

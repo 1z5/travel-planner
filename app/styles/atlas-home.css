@@ -1425,11 +1425,83 @@
   min-width: 40px;
   min-height: 40px;
 }
+/* 档案分段控件（体力/作息）。
+   为什么不用 auto-fit 等分列：选项少于一行时（作息只有两档）空轨会先
+   撑出第三轨再折叠，两档缩成窄块、右边留一条空——看着像没做完。
+   等宽隐式列让 2 档 / 3 档都铺满一行。
+   选中态 = 珊瑚边 + 软底 + 右上角勾：只有淡色底在 Nocturne 下几乎
+   看不出来，「选没选中」要一眼可判。 */
 .profile-seg {
+  display: grid;
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.profile-seg button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 62px;
+  padding: 10px 12px;
+  background: var(--at-surface-raised);
   border: 1px solid var(--at-line);
-  border-radius: var(--at-r-pill);
-  background: var(--at-surface-2);
-  padding: 3px;
+  border-radius: var(--at-r-md);
+  box-shadow: var(--at-shadow-sm);
+  color: var(--at-ink-2);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--at-dur-1) ease,
+    background-color var(--at-dur-1) ease,
+    box-shadow var(--at-dur-1) ease;
+}
+.profile-seg button:hover {
+  border-color: var(--at-ink-4);
+}
+.profile-seg button.on {
+  background: var(--at-accent-soft);
+  border-color: var(--at-accent);
+  color: var(--at-ink);
+}
+/* 勾选标记用伪元素：不动组件结构（测试按 aria-pressed 断言） */
+.profile-seg button.on::after {
+  content: "✓";
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--at-accent);
+}
+.profile-seg button strong {
+  font-size: var(--at-fs-small);
+  color: inherit;
+}
+/* 描述行：balance 让两行长度接近，避免「每天 2-4 个主景 / 点」这种
+   单字孤行（中文按字断行，不干预就会断出孤儿） */
+.profile-seg button small {
+  font-size: var(--at-fs-caption);
+  line-height: 1.5;
+  color: var(--at-ink-3);
+  text-wrap: balance;
+}
+.profile-seg button.on small {
+  color: var(--at-ink-2);
+}
+/* 窄屏（手机底部抽屉）：三栏各 ~110px 必然三行孤字，改回整行堆叠 */
+@media (max-width: 420px) {
+  .profile-seg {
+    grid-auto-flow: row;
+  }
+  .profile-seg button {
+    min-height: 0;
+  }
 }
 
 /* ---------- 10. 响应式 ---------- */

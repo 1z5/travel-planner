@@ -599,6 +599,80 @@
   -webkit-backdrop-filter: none;
 }
 
+/* 出发前提醒：.card 基类没有内边距，这一卡此前内容整块贴住卡片边框
+   （标题图标与左边框只差 1px）。补上与 day 卡一致的呼吸。 */
+.plan-view #plan-tips {
+  padding: 20px 22px 18px;
+}
+.plan-tips-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--at-fs-body);
+  font-weight: 700;
+  color: var(--at-ink);
+}
+.plan-tips-head svg {
+  color: var(--at-accent);
+  flex-shrink: 0;
+}
+/* 条数读数：等宽 + 右对齐，和 HUD 的仪器读数同一语言 */
+.plan-tips-count {
+  margin-left: auto;
+  font-family: var(--at-mono);
+  font-size: var(--at-fs-caption);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--at-ink-3);
+}
+/* 双栏（宽屏）：单栏时每行 40-50 字，超出中文易读区间；双栏后每行
+   ~35 字，卡片也不再是一条拉到底的宽布。栏间不加竖线——灯泡图标
+   已经是行标记，双线反而吵。
+   横线只留在单栏：双栏第一行第二列会被 border-top 画出一条多余横线，
+   所以 li 默认无边框，单栏媒体查询里再加。 */
+.plan-view .tips {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plan-view .tips li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: start;
+  padding: 10px 0;
+  font-size: var(--at-fs-small);
+  line-height: 1.7;
+  color: var(--at-ink-2);
+}
+.plan-view .tips li svg {
+  color: var(--at-accent);
+  margin-top: 5px; /* 对齐首行文字视觉中线，不是行框顶 */
+}
+.plan-view .tips li span {
+  min-width: 0;
+  text-wrap: pretty;
+}
+@media (min-width: 860px) {
+  .plan-view .tips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 36px;
+    row-gap: 6px;
+  }
+}
+@media (max-width: 859px) {
+  .plan-view .tips li {
+    border-top: 1px solid var(--at-line);
+  }
+  .plan-view .tips li:first-child {
+    border-top: none;
+  }
+}
+
 .plan-overview-strip {
   display: flex;
   align-items: baseline;

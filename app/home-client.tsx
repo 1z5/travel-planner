@@ -980,10 +980,16 @@ export function HomeClient() {
                     value={budget}
                     min={0}
                     step={50}
-                    placeholder="如：1500；穷游/免费为主可填 0"
+                    placeholder="如：1500"
                     onChange={(e) => setBudget(e.target.value)}
                     required
                   />
+                  {/* 口径说明不放占位符：这一栏只有 ~217px 宽，「如：1500；
+                      穷游/免费为主可填 0」会被输入框裁掉半句（number input
+                      不滚动占位符）。示例值留给占位符，口径放这里 */}
+                  <p className="helper" style={{ margin: "6px 0 0" }}>
+                    穷游/免费为主可填 0
+                  </p>
                   {/* 快捷档：把「我大概这个量级」变成一次点击；穷游 0 放在第一档，
                     因为它正是被 min(500) 挡掉的那部分用户 */}
                   <div className="chips" style={{ marginTop: 8 }}>

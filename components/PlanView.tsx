@@ -1638,23 +1638,18 @@ export function PlanView({
       {/* ===== 出行提示 ===== */}
       {viewPlan.tips.length > 0 && (
         <div className="card" id="plan-tips">
-          <h2
-            style={{
-              fontSize: 17,
-              margin: "0 0 4px",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <Lightbulb size={16} />
+          {/* 样式收在 atlas-workspace.css 的 .plan-tips-* / .tips：行内样式
+              没法响应主题与媒体查询，视觉回归也覆盖不到 */}
+          <h2 className="plan-tips-head">
+            <Lightbulb size={16} aria-hidden="true" />
             出发前提醒
+            <span className="plan-tips-count">{viewPlan.tips.length} 条</span>
           </h2>
           <ul className="tips">
             {viewPlan.tips.map((t, i) => (
               <li key={i}>
-                <Lightbulb size={14} />
-                {t}
+                <Lightbulb size={13} aria-hidden="true" />
+                <span>{t}</span>
               </li>
             ))}
           </ul>
