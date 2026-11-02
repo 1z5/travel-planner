@@ -1091,10 +1091,42 @@
   margin-left: 8px;
   font-size: var(--at-fs-caption);
 }
+/* 主 CTA 吸底：必游地进主表单后，行动栏在桌面 860px 视口里被推到折叠线
+   下方（实测 CTA 顶边 ~1090px，基线性问题——加必游地块后恶化）。长表单
+   的标准解法是把主动作钉在视口底部：滚到哪都能一键生成，不用先滚回去。
+   用 sticky 而不是 fixed：表单整体可见时它停在表单末尾不挡内容，只有
+   表单比视口高时才吸附；包含块是 form，滚过表单后自然让位。
+   玻璃只用于这条窄 bar（blur ≤14px 的纪律见 ATLAS-V6 §7）。 */
 .new-layout .form-actions {
-  margin-top: 4px;
-  padding: 18px 0 0;
-  border-top: 1px solid var(--at-line);
+  position: sticky;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 20;
+  margin-top: 8px;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--at-line);
+  border-radius: var(--at-r-lg);
+  background: color-mix(in oklab, var(--at-surface-solid) 90%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow: var(--at-shadow-md);
+}
+/* 生成中：进度是焦点，解除吸附（避免吸底栏被 LiveProgress 撑太高） */
+.new-layout .form-actions.is-loading {
+  position: static;
+  box-shadow: none;
+}
+/* POI 下拉建议要盖过吸底 CTA 栏：两者默认 z-index 都是 20，后绘制的栏会
+   压住下拉——用户点不到建议项。表单内的下拉抬到 30。 */
+.new-layout .addr-list {
+  z-index: 30;
+}
+/* 档案 FAB 让位（仅手机）：吸底栏在手机上是通栏的，FAB 默认右下角会压在
+   栏子上面；抬到栏顶上方。桌面端 FAB 在预检侧栏区、与表单列不相交，
+   保持默认位置不动。 */
+@media (max-width: 640px) {
+  main:has(.new-core-actions) .profile-fab-wrap {
+    bottom: calc(224px + env(safe-area-inset-bottom));
+  }
 }
 .form-actions-meta {
   display: flex;

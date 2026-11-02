@@ -66,6 +66,10 @@ function localDateTimeAt(d: Date, hour: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`;
 }
 
+/** 出行偏好默认值：预选两项最常见偏好（生成时进 prompt）。更多选项摘要的
+    「偏好」计数要与这个默认值比较——否则没动过的表单也显示已选。 */
+const DEFAULT_PREFS = ["美食", "历史文化"];
+
 /** 预算快捷档（元）。0 = 穷游，是合法输入而非异常值 */
 const BUDGET_PRESETS = [0, 1000, 3000, 8000];
 
@@ -106,7 +110,7 @@ export function HomeClient() {
   // 预算不预填：原来的 3000 是「替用户做决定」，也让人以为这是默认值/最低消费。
   // 空着 + 占位符给口径，提交前拦截（与城市同一套路），并提供快捷档（含穷游 0）。
   const [budget, setBudget] = useState("");
-  const [prefs, setPrefs] = useState<string[]>(["美食", "历史文化"]);
+  const [prefs, setPrefs] = useState<string[]>(DEFAULT_PREFS);
   // ---- 攻略导入（产品线 B「内容起手」）----
   // 用户带着已有内容来（游记/群聊/笔记原文），我们只把原文整理成「行程条件」
   // 回填表单。三条边界写在这里，因为它们最容易被「顺手优化」破坏：
@@ -827,9 +831,10 @@ export function HomeClient() {
           </Link>
           <p className="new-eyebrow">NEW TRIP · 新建行程</p>
           <h1 className="new-title">这次想去哪？</h1>
-          <p className="new-sub">
-            先核验真实世界，再排行程。生成约 2-4 分钟，期间可以离开页面，结果会留在这份行程里。
-          </p>
+          {/* 只说价值主张。等待时长/可离开是「生成那一刻」才相关的信息，
+              贴在首屏等于没人看的长命说明——移到生成态（LiveProgress 与
+              加载提示各说一次，恰好是用得上的时刻）。 */}
+          <p className="new-sub">先核验真实世界，再排行程。</p>
           {/* 三步管线读数（纯静态说明，不改变任何流程） */}
           <ol className="new-head-meta" aria-label="生成管线">
             <li>
@@ -890,9 +895,9 @@ export function HomeClient() {
               <details className="import-guide" ref={guideRef}>
                 <summary>
                   <span className="import-guide-title">从攻略/聊天记录导入</span>
-                  <span className="import-guide-desc">
-                    粘贴游记/群聊/笔记原文，我们只提取条件，不自动生成行程；生成仍由你确认。不会自动打开其中的链接。
-                  </span>
+                  {/* 摘要只留「是什么、能得到什么」；安全承诺（不开链接、要确认）
+                      放进展开区——用户点开的那一刻才是关心细节的时刻 */}
+                  <span className="import-guide-desc">粘贴原文，提取成表单条件</span>
                 </summary>
                 <div className="import-guide-body">
                   <label className="import-guide-label" htmlFor="guide-text">
@@ -918,7 +923,7 @@ export function HomeClient() {
                       {guideStatus === "loading" ? "提取中…" : "提取条件"}
                     </button>
                     <span className="helper" style={{ margin: 0 }}>
-                      至少 20 字，最多 4000 字；已填过的字段不会被覆盖
+                      至少 20 字 · 只填空字段 · 不自动打开链接，生成仍由你确认
                     </span>
                   </div>
                   {guideStatus === "error" && (
@@ -1049,11 +1054,100 @@ export function HomeClient() {
                   {derivedDays === 1 ? "（当天往返）" : ""}
                 </p>
               )}
+              {/* 期望必游地：产品差异点，从「更多选项」折叠里提到主表单常驻。
+                  真实教训（香港穷游 + 兰桂坊）：用户不知道能钉必游点 → 全程绕路。
+                  热门必游 chips 来自高德真实 POI，一键即加——「行程围着我转」
+                  的最短路径，比任何说明文字都直观。 */}
+              <div className="field-group">
+                <label htmlFor="must-visit-input">
+                  期望必游地<span className="optional-tag">选填 · 最多 5 个，必须全部安排</span>
+                </label>
+                <div className="chips">
+                  {mustVisit.map((m) => (
+                    <span key={m} className="chip on">
+                      {m}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`删除必游地 ${m}`}
+                        onClick={() => setMustVisit((cur) => cur.filter((x) => x !== m))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setMustVisit((cur) => cur.filter((x) => x !== m));
+                          }
+                        }}
+                        className="chip-remove"
+                      >
+                        ×
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                <div className="row" style={{ marginTop: 6 }}>
+                  <AddressInput
+                    id="must-visit-input"
+                    label="期望必游地"
+                    scope="poi"
+                    city={poiCity}
+                    value={mvInput}
+                    onChange={setMvInput}
+                    placeholder="输入地名后点添加，或回车"
+                    maxLength={20}
+                    onSubmit={addMustVisit}
+                    onPicked={(name) => addMustVisit(name)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addMustVisit()}
+                    style={{ flex: "0 0 auto" }}
+                    className="btn btn-tall"
+                  >
+                    添加
+                  </button>
+                </div>
+                {mustVisit.length >= 5 && (
+                  <p className="muted" style={{ marginTop: 4 }}>
+                    最多 5 个必游地
+                  </p>
+                )}
+
+                {/* 推荐必游地：点选即入库。没有推荐（MOCK/上游异常/已满）时整块
+                    不渲染——不拿空区块占地方，也不用假数据充数。 */}
+                {scope !== "region" &&
+                  mustVisit.length < 5 &&
+                  (recLoading || recSights.length > 0) && (
+                    <div className="mv-recommend" role="group" aria-label="推荐必游地">
+                      <span className="mv-recommend-label">热门必游</span>
+                      {recLoading && recSights.length === 0 && (
+                        <span className="mv-recommend-loading">加载中…</span>
+                      )}
+                      {recSights
+                        .filter((s) => !mustVisit.includes(s.name))
+                        .slice(0, 6)
+                        .map((s) => (
+                          <button
+                            key={s.name}
+                            type="button"
+                            className="mv-chip"
+                            onClick={() => addMustVisit(s.name)}
+                            title={`${s.area}${s.rating ? ` · 高德评分 ${s.rating}` : ""}`}
+                          >
+                            <span className="mv-chip-plus" aria-hidden="true">
+                              ＋
+                            </span>
+                            {s.name}
+                            {s.rating ? <span className="mv-chip-rating">{s.rating}</span> : null}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+              </div>
             </div>
 
             {/* 首屏动作栏：三个必填字段之后立刻给主 CTA——旧版把按钮放在 9+ 个
               字段之后，首屏视口里没有任何可点的推进动作。代价/产出说明保留。 */}
-            <div className="form-actions new-core-actions">
+            <div className={`form-actions new-core-actions${loading ? " is-loading" : ""}`}>
               <div className="form-actions-meta">
                 <span>预计 2–4 分钟</span>
                 <span className="fa-sep" aria-hidden="true" />
@@ -1085,9 +1179,12 @@ export function HomeClient() {
                     submittedDays={submittedDays}
                     elapsed={fmtElapsed(elapsed)}
                   />
+                  <p className="muted" role="status">
+                    约 2–4 分钟 · 可以离开页面，进度与结果会保留
+                  </p>
                   {plan?.draft && (
                     <p className="draft-hint" role="status">
-                      已显示快速预览（结构就绪），精确行程生成中——通常 2-4 分钟
+                      已显示快速预览（结构就绪），精确行程生成中
                     </p>
                   )}
                 </>
@@ -1098,8 +1195,7 @@ export function HomeClient() {
                 </p>
               )}
               <p className="form-actions-note">
-                推理模型做约束规划通常 2–4
-                分钟（跨境更久），生成过程中可以离开页面；进度与结果会保留。 等不及也可以
+                等不及也可以
                 <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
                   先看一份真实生成的示例（苏州 3 天）
                 </button>
@@ -1108,11 +1204,23 @@ export function HomeClient() {
             </div>
 
             {/* 其余选项折叠：默认值都已合理（适中节奏/驾车/单城市），
-              首屏只问「去哪、什么时候、多少钱」。 */}
+              首屏只问「去哪、什么时候、多少钱、必去哪些点」。
+               摘要 = 里面有什么 + 已选几项：折叠不等于不存在，不展开也要看得见当前状态。 */}
             <details className="more-options">
               <summary>
                 更多选项
-                <span className="more-options-hint">规划范围 · 节奏 · 交通 · 约束 · 偏好</span>
+                <span className="more-options-hint">
+                  {[
+                    scope !== "city" && "范围",
+                    pace !== "balanced" && "节奏",
+                    transportMode !== "auto" && "交通",
+                    hotel.trim() && "住所",
+                    events.length > 0 && "重点活动",
+                    prefs.join() !== DEFAULT_PREFS.join() && "偏好",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "住所 · 节奏 · 交通 · 范围 · 重点活动 · 偏好"}
+                </span>
               </summary>
               <div className="field-group">
                 <div className="legend">规划范围</div>
@@ -1253,8 +1361,7 @@ export function HomeClient() {
                     </div>
                     {/* 跨境段的口径先说清：我们不编造高德没有的跨境通勤数据 */}
                     <p className="helper">
-                      跨境段（如深港）需要过关/高铁时间：请在「重点活动」里按班次添加，
-                      我们只排你到达之后的本地行程，不估算口岸排队。
+                      跨境段时间请在「重点活动」里按班次添加；我们只排到达后的本地行程。
                     </p>
                   </div>
                 )}
@@ -1303,9 +1410,6 @@ export function HomeClient() {
                     </button>
                   ))}
                 </div>
-                <p className="helper">
-                  按所选方式把每天各景点串成可跟着走的路线（含距离、时长与分步指引）。
-                </p>
               </div>
 
               <div className="field-group">
@@ -1314,9 +1418,7 @@ export function HomeClient() {
                 </div>
                 <label htmlFor="hotel">
                   我的住所
-                  <span className="optional-tag">
-                    选填 · 行程每天从这儿出发；住在别的城市也能用
-                  </span>
+                  <span className="optional-tag">选填 · 每天从这儿出发</span>
                 </label>
                 <AddressInput
                   id="hotel"
@@ -1328,90 +1430,6 @@ export function HomeClient() {
                   placeholder="如：全季酒店(春熙路店)"
                   maxLength={40}
                 />
-
-                <label htmlFor="must-visit-input">
-                  期望必游地<span className="optional-tag">最多 5 个，必须全部安排</span>
-                </label>
-                <div className="chips">
-                  {mustVisit.map((m) => (
-                    <span key={m} className="chip on">
-                      {m}
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`删除必游地 ${m}`}
-                        onClick={() => setMustVisit((cur) => cur.filter((x) => x !== m))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setMustVisit((cur) => cur.filter((x) => x !== m));
-                          }
-                        }}
-                        className="chip-remove"
-                      >
-                        ×
-                      </span>
-                    </span>
-                  ))}
-                </div>
-                <div className="row" style={{ marginTop: 6 }}>
-                  <AddressInput
-                    id="must-visit-input"
-                    label="期望必游地"
-                    scope="poi"
-                    city={poiCity}
-                    value={mvInput}
-                    onChange={setMvInput}
-                    placeholder="输入地名后点添加，或回车"
-                    maxLength={20}
-                    onSubmit={addMustVisit}
-                    onPicked={(name) => addMustVisit(name)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addMustVisit()}
-                    style={{ flex: "0 0 auto" }}
-                    className="btn btn-tall"
-                  >
-                    添加
-                  </button>
-                </div>
-                {mustVisit.length >= 5 && (
-                  <p className="muted" style={{ marginTop: 4 }}>
-                    最多 5 个必游地
-                  </p>
-                )}
-
-                {/* 推荐必游地：点选即入库。没有推荐（MOCK/上游异常/已满）时整块
-                  不渲染——不拿空区块占地方，也不用假数据充数。 */}
-                {scope !== "region" &&
-                  mustVisit.length < 5 &&
-                  (recLoading || recSights.length > 0) && (
-                    <div className="mv-recommend" role="group" aria-label="推荐必游地">
-                      <span className="mv-recommend-label">热门必游</span>
-                      {recLoading && recSights.length === 0 && (
-                        <span className="mv-recommend-loading">加载中…</span>
-                      )}
-                      {recSights
-                        .filter((s) => !mustVisit.includes(s.name))
-                        .slice(0, 6)
-                        .map((s) => (
-                          <button
-                            key={s.name}
-                            type="button"
-                            className="mv-chip"
-                            onClick={() => addMustVisit(s.name)}
-                            title={`${s.area}${s.rating ? ` · 高德评分 ${s.rating}` : ""}`}
-                          >
-                            <span className="mv-chip-plus" aria-hidden="true">
-                              ＋
-                            </span>
-                            {s.name}
-                            {s.rating ? <span className="mv-chip-rating">{s.rating}</span> : null}
-                          </button>
-                        ))}
-                    </div>
-                  )}
 
                 <label htmlFor="event-name">
                   重点活动
@@ -1503,9 +1521,7 @@ export function HomeClient() {
                     最多 3 个重点活动
                   </p>
                 )}
-                <p className="helper">
-                  名称会用高德验真（不存在会告警）；给了开始时间就会围绕它倒推动线，并预留提前到场
-                </p>
+                <p className="helper">围绕活动倒推动线，预留提前到场时间</p>
               </div>
 
               <div className="field-group">
