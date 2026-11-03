@@ -126,6 +126,10 @@ export function HomeClient() {
   // 展开状态用 ref 直接操作 DOM 而不是受控 open 属性：浏览器原生 toggle 会改
   // details.open，受控属性在 React 重渲染时可能把它改回去，两边互相覆盖。
   const guideRef = useRef<HTMLDetailsElement>(null);
+  // 吸底 CTA 在生成瞬间解除吸附（LiveProgress 太高，钉底会占掉半屏）。
+  // 解除后它回到表单末尾——用户若在页顶点击，进度可能落在折叠线以下，
+  // 看起来像「点了没反应」。生成开始即滚到进度区。
+  const actionsRef = useRef<HTMLDivElement>(null);
   // 「用户是否手动改过」的标记。表单默认值（明天 10:00 起、共 5 个日历日、
   // 美食+历史文化）不是用户填的，导入可以覆盖；一旦用户动过，就再不动它。
   const datesTouchedRef = useRef(false);
@@ -537,6 +541,12 @@ export function HomeClient() {
     // 折叠着等于没反馈：提取完成后展开，让用户立刻看到摘要与回填结果
     if (guideRef.current) guideRef.current.open = true;
   }
+
+  // 生成开始：确保进度区可见（吸底栏在 loading 时解除吸附回到表单末尾）
+  useEffect(() => {
+    // jsdom 没实现 scrollIntoView（组件测试会炸）；浏览器里一定有
+    if (loading) actionsRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [loading]);
 
   // 必游地推荐：城市变化后防抖 500ms 拉取（用户还在打字时不打高德）。
   // 区域模式不拉——「川西环线」不是城市名，查不到有意义的结果。
@@ -1145,67 +1155,8 @@ export function HomeClient() {
               </div>
             </div>
 
-            {/* 首屏动作栏：三个必填字段之后立刻给主 CTA——旧版把按钮放在 9+ 个
-              字段之后，首屏视口里没有任何可点的推进动作。代价/产出说明保留。 */}
-            <div className={`form-actions new-core-actions${loading ? " is-loading" : ""}`}>
-              <div className="form-actions-meta">
-                <span>预计 2–4 分钟</span>
-                <span className="fa-sep" aria-hidden="true" />
-                <span>消耗 1 次免费额度</span>
-                <span className="fa-sep" aria-hidden="true" />
-                <span>结果永久保存 · 可分享</span>
-              </div>
-              <button
-                className="btn-primary"
-                disabled={loading || !city.trim() || !budgetOk || !citiesOk}
-              >
-                {loading
-                  ? "生成中…"
-                  : !city.trim()
-                    ? "请先填写目的地城市"
-                    : !budgetOk
-                      ? "请填写人均预算（穷游可填 0）"
-                      : !citiesOk
-                        ? derivedDays === null
-                          ? "请先选择出行日期"
-                          : "请把各城市天数配成总天数"
-                        : "生成行程"}
-              </button>
-              {loading && (
-                <>
-                  <LiveProgress
-                    stage={stage}
-                    plan={plan}
-                    submittedDays={submittedDays}
-                    elapsed={fmtElapsed(elapsed)}
-                  />
-                  <p className="muted" role="status">
-                    约 2–4 分钟 · 可以离开页面，进度与结果会保留
-                  </p>
-                  {plan?.draft && (
-                    <p className="draft-hint" role="status">
-                      已显示快速预览（结构就绪），精确行程生成中
-                    </p>
-                  )}
-                </>
-              )}
-              {remaining !== null && (
-                <p className="muted" role="status">
-                  今日剩余免费次数：{remaining}
-                </p>
-              )}
-              <p className="form-actions-note">
-                等不及也可以
-                <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
-                  先看一份真实生成的示例（苏州 3 天）
-                </button>
-                。
-              </p>
-            </div>
-
-            {/* 其余选项折叠：默认值都已合理（适中节奏/驾车/单城市），
-              首屏只问「去哪、什么时候、多少钱、必去哪些点」。
-               摘要 = 里面有什么 + 已选几项：折叠不等于不存在，不展开也要看得见当前状态。 */}
+            {/* 进阶选项集中在提交之前（默认值都已合理：适中节奏/驾车/单城市）。
+              摘要 = 里面有什么 + 已选几项：折叠不等于不存在，不展开也要看得见状态。 */}
             <details className="more-options">
               <summary>
                 更多选项
@@ -1623,6 +1574,68 @@ export function HomeClient() {
                 {authError && <p className="error login-error">{authError}</p>}
               </div>
             </details>
+
+            {/* 主动作在「选项之后」：表单秩序 = 字段 → 进阶选项 → 提交。
+              曾经放在折叠区之前（怕 CTA 沉到折叠线以下），代价是「更多选项」被
+              当成提交后的附注、用户根本不点。现在 CTA 吸底解决可达性，秩序回归正常。 */}
+            <div
+              ref={actionsRef}
+              className={`form-actions new-core-actions${loading ? " is-loading" : ""}`}
+            >
+              <div className="form-actions-meta">
+                <span>预计 2–4 分钟</span>
+                <span className="fa-sep" aria-hidden="true" />
+                <span>消耗 1 次免费额度</span>
+                <span className="fa-sep" aria-hidden="true" />
+                <span>结果永久保存 · 可分享</span>
+              </div>
+              <button
+                className="btn-primary"
+                disabled={loading || !city.trim() || !budgetOk || !citiesOk}
+              >
+                {loading
+                  ? "生成中…"
+                  : !city.trim()
+                    ? "请先填写目的地城市"
+                    : !budgetOk
+                      ? "请填写人均预算（穷游可填 0）"
+                      : !citiesOk
+                        ? derivedDays === null
+                          ? "请先选择出行日期"
+                          : "请把各城市天数配成总天数"
+                        : "生成行程"}
+              </button>
+              {loading && (
+                <>
+                  <LiveProgress
+                    stage={stage}
+                    plan={plan}
+                    submittedDays={submittedDays}
+                    elapsed={fmtElapsed(elapsed)}
+                  />
+                  <p className="muted" role="status">
+                    约 2–4 分钟 · 可以离开页面，进度与结果会保留
+                  </p>
+                  {plan?.draft && (
+                    <p className="draft-hint" role="status">
+                      已显示快速预览（结构就绪），精确行程生成中
+                    </p>
+                  )}
+                </>
+              )}
+              {remaining !== null && (
+                <p className="muted" role="status">
+                  今日剩余免费次数：{remaining}
+                </p>
+              )}
+              <p className="form-actions-note">
+                等不及也可以
+                <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
+                  先看一份真实生成的示例（苏州 3 天）
+                </button>
+                。
+              </p>
+            </div>
           </motion.form>
 
           <aside className="new-preflight" aria-label="生成前预检">

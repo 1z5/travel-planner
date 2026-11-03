@@ -1533,7 +1533,9 @@ main.at-share-page [class*="demo-note"] {
   font-weight: 600;
   letter-spacing: 0.03em;
   line-height: 1.65;
-  color: var(--at-accent);
+  /* accent 当文字压 accent-soft 底，Daylight 实测 4.22:1（AA 不足）。
+     按文字方向混 14% ink：浅色主题加深、Nocturne 提亮，两边都提对比。 */
+  color: color-mix(in oklab, var(--at-accent) 86%, var(--at-ink));
   overflow-wrap: anywhere;
 }
 .tc-report-page-lede {

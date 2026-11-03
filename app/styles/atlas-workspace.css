@@ -1373,7 +1373,10 @@
   color: var(--at-ink-3);
 }
 .plan-view .type-sight {
-  color: var(--at-teal);
+  /* 强调色当文字压在自己的软底上，Daylight 实测 4.48:1（AA 差 0.02）。
+     按文字方向混 10% ink：浅色主题里 ink 是近黑（加深），Nocturne 里
+     ink 是浅色（提亮），两个方向都提高对比。 */
+  color: color-mix(in oklab, var(--at-teal) 90%, var(--at-ink));
   background: var(--at-teal-soft);
   border-color: color-mix(in oklab, var(--at-teal) 28%, transparent);
 }
@@ -1392,7 +1395,9 @@
   background: var(--at-surface-2);
 }
 .plan-view .type-shopping {
-  color: var(--at-accent);
+  /* 同 type-sight：accent 文字压 accent-soft 底，Daylight 不足 AA，
+     按文字方向混 14% ink 加深（Nocturne 下反向提亮）。 */
+  color: color-mix(in oklab, var(--at-accent) 86%, var(--at-ink));
   background: var(--at-accent-soft);
   border-color: var(--at-accent-ring);
 }
