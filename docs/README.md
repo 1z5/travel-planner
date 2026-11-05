@@ -24,9 +24,10 @@
 3. [PRODUCT-REVOLUTION-2026-10.md](PRODUCT-REVOLUTION-2026-10.md) — 当前阶段策略与路线
 4. [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md) — 开放标准 v0.1（文档格式/规则/凭据/三态/版本）
 5. [../NEXT_STEPS.md](../NEXT_STEPS.md) — 上线剩余项与已拍板决策
-6. [adr/](adr/) — 架构决策记录（001–016，改架构前先查历史决策）
-7. [../SECURITY.md](../SECURITY.md) + [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) — 安全基线
-8. [../API.md](../API.md) — HTTP 接口契约；[../CHANGELOG.md](../CHANGELOG.md) — 演进历史（按时间倒序）
+6. [PHASE0-ACQUISITION-PLAYBOOK.md](PHASE0-ACQUISITION-PLAYBOOK.md) — 获客测试手册（Phase 0 的止损闸门）
+7. [adr/](adr/) — 架构决策记录（001–016，改架构前先查历史决策）
+8. [../SECURITY.md](../SECURITY.md) + [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) — 安全基线
+9. [../API.md](../API.md) — HTTP 接口契约；[../CHANGELOG.md](../CHANGELOG.md) — 演进历史（按时间倒序）
 
 ## 文档地图
 
@@ -39,6 +40,7 @@
 | [design/ATLAS-V6.md](design/ATLAS-V6.md) §0                       | 设计方向怎么定的（趋势依据 + 来源链接） | 决定设计方向前          |
 | [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)                  | 核验层开放标准                          | 改引擎/规则/凭据/API 前 |
 | [../NEXT_STEPS.md](../NEXT_STEPS.md)                              | 上线行动清单 + 已拍板决策               | 规划下一轮              |
+| [PHASE0-ACQUISITION-PLAYBOOK.md](PHASE0-ACQUISITION-PLAYBOOK.md)  | Phase 0 获客测试：文案/SOP/记录/止损    | 开始获客测试前          |
 | [adr/](adr/)                                                      | 架构决策与替代方案                      | 改架构/存储/接口前      |
 | [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md)      | 安全审计与修复状态                      | 改公开端点/鉴权/限流前  |
 | [../API.md](../API.md)                                            | 接口契约（含错误码）                    | 改路由/客户端前         |
