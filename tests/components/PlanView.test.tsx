@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { PlanView } from "@/components/PlanView";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { localTodayIso } from "@/lib/trip-day";
@@ -154,6 +155,27 @@ describe("PlanView", () => {
       "href",
       "/api/plan/ics?id=job_test123",
     );
+  });
+
+  it("订阅日历是按钮而非链接：webcal:// 只能点击时拼（SSR 没有 location）", () => {
+    render(<PlanView plan={SAMPLE_PLAN} shareId="job_test123" />);
+    const btn = screen.getByText("订阅日历").closest("button");
+    expect(btn).not.toBeNull();
+    // 渲染期不能出现绝对地址：分享页是服务端渲染，读 location 会直接抛
+    expect(btn).not.toHaveAttribute("href");
+    expect(btn).toHaveAttribute("title", expect.stringContaining("手机上"));
+  });
+
+  it("SSR 输出里不出现 webcal://（回归：曾把 webcal:// 写进 href，整棵子树挂掉）", () => {
+    // 线上症状：分享页 200 但海报块/行程管家/报告链接全部消失——真服务端渲染时
+    // location 未定义 → ReferenceError，React 丢掉整棵 PlanView 子树。
+    // e2e 抓到 16 个失败才定位到，这里用 renderToString 把它钉成单元测试。
+    // 注意：vitest 是 jsdom 环境、location 恰好存在，所以这里不会抛，靠的是
+    // 「SSR 产物里不允许出现 webcal://」这条不变量；真 Node 渲染时同一处会直接抛。
+    const html = renderToString(<PlanView plan={SAMPLE_PLAN} shareId="job_test123" />);
+    expect(html).toContain("订阅日历");
+    expect(html).toContain("下载日历（.ics）");
+    expect(html).not.toContain("webcal://");
   });
 
   it("复制 Markdown 调用剪贴板", async () => {

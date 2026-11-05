@@ -221,4 +221,68 @@ describe("buildIcs", () => {
     expect(ics).toContain("X-WR-CALNAME:苏州 2 天行程");
     expect(ics).toContain("X-WR-TIMEZONE:Asia/Shanghai");
   });
+
+  it("带订阅刷新间隔提示（X-PUBLISHED-TTL），否则客户端可能几天才拉一次", () => {
+    // 订阅型日历（webcal）靠这个字段决定刷新频率；缺省客户端按自己的默认值，
+    // 用户改了行程后日历迟迟不更新，行中重排就断了
+    expect(buildIcs(plan())).toContain("X-PUBLISHED-TTL:PT1H");
+  });
+
+  it("每个有时刻的点位都带到点提醒（提前 15 分钟）", () => {
+    const ics = buildIcs(plan());
+    expect((ics.match(/BEGIN:VALARM/g) ?? []).length).toBe(2);
+    expect((ics.match(/END:VALARM/g) ?? []).length).toBe(2);
+    // RFC 5545：TRIGGER 负时长 = 事件开始前；ACTION:DISPLAY 才会在系统通知里响
+    expect((ics.match(/TRIGGER:-PT15M/g) ?? []).length).toBe(2);
+    expect((ics.match(/ACTION:DISPLAY/g) ?? []).length).toBe(2);
+    // DESCRIPTION 是 VALARM 的必填属性，也是部分客户端唯一的展示文本
+    expect(ics).toContain("DESCRIPTION:行程提醒：拙政园");
+  });
+
+  it("全天事件（VALUE=DATE）不加提醒：TRIGGER 会落在午夜，响了没有意义", () => {
+    const ics = buildIcs(
+      plan({
+        days: [
+          {
+            day: 1,
+            theme: "待定",
+            spots: [spot({ time: "上午" })],
+            transitMin: 0,
+            dailyCostCny: 0,
+          },
+        ],
+      }),
+    );
+    expect(ics).toContain("DTSTART;VALUE=DATE:20261010");
+    expect(ics).not.toContain("BEGIN:VALARM");
+  });
+
+  it("VALARM 必须完整包在 VEVENT 内部（RFC 5545 顺序，位置错了整份被拒收）", () => {
+    const lines = icsLines(buildIcs(plan()));
+    const eventStart = lines.indexOf("BEGIN:VEVENT");
+    const alarmStart = lines.indexOf("BEGIN:VALARM");
+    const alarmEnd = lines.indexOf("END:VALARM");
+    const eventEnd = lines.indexOf("END:VEVENT");
+    expect(alarmStart).toBeGreaterThan(eventStart);
+    expect(alarmEnd).toBeGreaterThan(alarmStart);
+    expect(eventEnd).toBeGreaterThan(alarmEnd);
+  });
+
+  it("提醒文案跟着点位名走（不同点位不同文本）", () => {
+    const ics = buildIcs(
+      plan({
+        days: [
+          {
+            day: 1,
+            theme: "多站",
+            spots: [spot({ name: "平江路" }), spot({ name: "观前街", time: "14:00-17:00" })],
+            transitMin: 0,
+            dailyCostCny: 0,
+          },
+        ],
+      }),
+    );
+    expect(ics).toContain("DESCRIPTION:行程提醒：平江路");
+    expect(ics).toContain("DESCRIPTION:行程提醒：观前街");
+  });
 });

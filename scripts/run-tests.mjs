@@ -803,6 +803,34 @@ async function phaseA(api) {
   );
   check(".ics 次日偏移正确（20261011）", ics.includes("DTSTART:20261011T"));
   check(".ics 含转义与中文 SUMMARY", ics.includes("SUMMARY:") && /SUMMARY:[^\r]*景/.test(ics));
+  // 行中值班：日历是「不需要推送资质」的通知通道。订阅模式必须是 inline——
+  // attachment 会被日历客户端当成一次性快照下载，改了行程不会同步；
+  // 默认模式保持 attachment 不变，否则桌面用户的「下载导入」路径会退化。
+  const subRes = await fetch(`${api.baseUrl}/api/plan/ics?id=${r11.body.jobId}&mode=subscribe`);
+  const subIcs = await subRes.text();
+  const subDisp = subRes.headers.get("content-disposition") ?? "";
+  check(
+    ".ics 订阅模式 inline（attachment 会被当一次性下载，行程改了不同步）",
+    /inline/.test(subDisp),
+    subDisp,
+  );
+  check(
+    ".ics 默认模式仍是 attachment（下载导入路径不变）",
+    /attachment/.test(icsRes.headers.get("content-disposition") ?? ""),
+  );
+  check(
+    ".ics 带 X-PUBLISHED-TTL（订阅客户端据此决定刷新频率）",
+    subIcs.includes("X-PUBLISHED-TTL:PT1H"),
+  );
+  // 不变量：有 DTSTART 时刻的点位才该有提醒（全天事件的 TRIGGER 会落在午夜）
+  const alarms = (subIcs.match(/BEGIN:VALARM/g) ?? []).length;
+  const timed = (subIcs.match(/DTSTART:\d+T\d+/g) ?? []).length;
+  check(
+    ".ics 每个有时刻的点位一条 VALARM",
+    alarms === timed && timed > 0,
+    `alarm ${alarms} / timed ${timed}`,
+  );
+  check(".ics 提醒为开始前 15 分钟", (subIcs.match(/TRIGGER:-PT15M/g) ?? []).length === timed);
   const icsBad = await fetch(`${api.baseUrl}/api/plan/ics?id=job_nonexistent`);
   check(".ics 无效 id → 404", icsBad.status === 404, `got ${icsBad.status}`);
 

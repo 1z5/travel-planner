@@ -15,6 +15,28 @@ const TYPE_LABEL: Record<string, string> = {
   activity: "体验",
 };
 
+/** 到点提醒的提前量：每个有时刻的点位提前 15 分钟。
+ *
+ * 为什么是固定常量而不是按通勤时间算：
+ *   1. `day.transitMin` 是**当日合计**、不是「上一站 → 这一站」的路程，
+ *      拿它当单点提前量会系统性地偏大；
+ *   2. 按点位算真实通勤要对每个点位各调一次路径规划（贵 + 慢），而提醒
+ *      提前量的边际收益远低于这个成本；
+ *   3. 固定值可预测——用户知道「日历会提前 15 分钟响」，比一个算错的通勤
+ *      更诚实。
+ * 全天事件（`VALUE=DATE`，时间解析不出来）不加提醒：DTSTART 只有日期、
+ * 没有时刻，TRIGGER 会相对午夜触发，对用户没有意义（见下方 VEVENT 分支）。
+ */
+const REMIND_LEAD = "-PT15M";
+
+/** 订阅型日历客户端的刷新间隔提示（RFC 5543 X-PUBLISHED-TTL）。
+ *
+ * 为什么取 1 小时而不是 15 分钟：行程变更主要由用户自己触发（改完打开
+ * 行中模式立即生效），日历只需要在变更后一小时内跟上就够；刷得太勤只会
+ * 把配额耗在轮询上——该接口按 IP 限流 60 次/小时，1 小时 + 多设备订阅
+ * 也远低于这个上限。 */
+const PUBLISHED_TTL = "PT1H";
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -104,6 +126,9 @@ export function buildIcs(plan: Plan): string {
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${esc(`${plan.city} ${plan.days.length} 天行程`)}`,
     `X-WR-TIMEZONE:Asia/Shanghai`,
+    // 订阅型日历（webcal）靠这个字段决定多久拉一次新版本；缺省客户端可能
+    // 按自己的默认值（几天一次）刷新，改过的行程迟迟不更新
+    `X-PUBLISHED-TTL:${PUBLISHED_TTL}`,
   ];
 
   plan.days.forEach((day, dayIdx) => {
@@ -133,6 +158,17 @@ export function buildIcs(plan: Plan): string {
       lines.push(fold(`SUMMARY:${esc(summary)}`));
       if (spot.area) lines.push(fold(`LOCATION:${esc(spot.area)}`));
       lines.push(fold(`DESCRIPTION:${esc(desc)}`));
+      // 到点提醒（RFC 5545 VALARM）：这是「行中值班」最便宜的一环——系统日历
+      // 替我们推送，不需要任何推送资质，也不会被用户当垃圾通知划掉。
+      // 只给有时刻的事件加：全天事件的 TRIGGER 会落在午夜，响起来毫无意义。
+      if (range) {
+        lines.push("BEGIN:VALARM");
+        lines.push(`TRIGGER:${REMIND_LEAD}`);
+        lines.push("ACTION:DISPLAY");
+        // DESCRIPTION 是 RFC 5545 的必填属性，也是部分客户端唯一的展示文本
+        lines.push(fold(`DESCRIPTION:${esc(`行程提醒：${spot.name}`)}`));
+        lines.push("END:VALARM");
+      }
       lines.push("END:VEVENT");
     });
   });

@@ -1271,6 +1271,26 @@ export function PlanView({
                   <CalendarDays size={14} />
                   下载日历（.ics）
                 </a>
+                {/* 订阅 vs 下载：订阅是「行中值班」唯一能落到系统日历的形态——
+                    日历客户端按 X-PUBLISHED-TTL 周期回拉同一 URL，你改了行程、
+                    或行中重排之后，手机日历自己会更新，不用再导一次。
+                    为什么是 button + 点击时才拼 URL，而不是 <a href="webcal://…">：
+                    分享页是 SSR，渲染期读 location 会在服务端直接抛
+                    ReferenceError，整棵 PlanView 子树挂掉（海报/管家/报告链接
+                    一起消失）——这个坑 e2e 抓到过，别再踩。webcal:// 只能是
+                    绝对地址，所以留到点击时再拼；桌面上点了没反应是预期的
+                    （title 与 helper 都写了「建议在手机上打开」）。 */}
+                <button
+                  type="button"
+                  className="btn"
+                  title="订阅后日历会自动更新；建议在手机上打开"
+                  onClick={() => {
+                    window.location.href = `webcal://${location.host}/api/plan/ics?id=${shareId}&mode=subscribe`;
+                  }}
+                >
+                  <RefreshCw size={14} />
+                  订阅日历
+                </button>
                 <a className="btn btn-today" href={`/t/${shareId}`}>
                   <Footprints size={14} />
                   行中模式
@@ -1285,6 +1305,9 @@ export function PlanView({
           {shareId && (
             <p className="helper plan-share-hint">
               分享链接长期有效（不会随生成任务过期）——对方打开看到的就是当前这一版，你后续的修改会同步进去。
+              <br />
+              「下载日历」是导入一份快照；「订阅日历」会让手机日历跟着行程更新，并在每个点位开始前
+              15 分钟提醒你（建议在手机上打开）。
             </p>
           )}
         </div>
