@@ -14,3 +14,9 @@ package-lock.json
 # 演示行程 fixture 由 scripts/demo-gen.mjs 生成（JSON.stringify 格式），
 # 不参与格式检查：手动跑 prettier 会重排长行，产生无意义的 diff。
 demo/fixtures/*.json
+# tsconfig.json 由 Next.js 拥有：每次 `next dev`/`next build`（含 e2e 的各
+# distDir 服务器）都会用 comment-json 重写它，把数组展开成多行，并往 include
+# 追加该次构建的 types 目录。Prettier 之前把它收成单行（commit 3cd91ac），
+# 于是「跑一次 e2e → 文件被 Next 改脏 → 下一轮 gate 的 format:check 失败」
+# 反复发生。这里交给 Next 管，格式以它的输出为准。
+tsconfig.json
