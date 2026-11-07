@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import { DEMO_FIXTURES } from "@/demo/fixtures";
 import { getStore } from "./store";
 import type { Plan, PlanInput } from "./types";
 import type { PlanRecord } from "./store/types";
@@ -142,8 +143,31 @@ export function jobLinkFallbackEnabled(
 }
 
 /**
- * 统一读行程入口（分享页 / OG / .ics 都用它）：
- * 先查 PlanStore（新链接），再按开关决定是否兜底查 Job（旧链接向后兼容）。
+ * 演示成品的静态只读兜底：按稳定 share token 返回仓库里真实生成的行程。
+ *
+ * 为什么要有这一层：DEMO_SEED=1 会在启动时把 fixture 灌进 store，但「发给朋友
+ * 一个链接、第二天还能打开」不该依赖启动注入是否成功——本地 `npm run dev`
+ * 默认不设 DEMO_SEED、演示站重启后现场生成的行程会清空、生产还可能关掉
+ * JOB_LINK_FALLBACK。fixture 是随构建产物一起走的静态工件，让它自己可读，
+ * 示例链接才真的不会失效。
+ *
+ * 为什么必须带 demo: true：这些 token 是公开的（DEMO.md 直接给出），写端点靠
+ * demoWriteBlockedMessage 判定只读。兜底路径也得给同一标记，否则等于绕过
+ * 安全边界（本项目「分享 token 即写能力」）。
+ *
+ * 只认精确匹配 fixture 的 shareId，普通链接不受影响。
+ */
+export function demoFixturePlan(id: string): Plan | null {
+  const fixture = DEMO_FIXTURES.find((f) => f.shareId === id);
+  return fixture ? { ...fixture.plan, demo: true } : null;
+}
+
+/**
+ * 统一读行程入口（分享页 / OG / .ics / 工作台都用它）：
+ * 先查 PlanStore（新链接），再查静态演示工件，最后按开关决定是否兜底查 Job。
+ *
+ * 为什么演示工件排在 Job 兜底之前：它不依赖任何环境变量，包括生产关掉的
+ * JOB_LINK_FALLBACK；且这些 token 是固定的公开工件，不会与 jobId 冲突。
  *
  * 为什么保留 Job 兜底：升级前已经发出去的 /p/<jobId> 链接、以及现有 e2e
  * 都直接拿 jobId 访问分享页。只要任务还在 2 小时 TTL 内就照常可读；
@@ -154,6 +178,10 @@ export async function resolvePlan(id: string): Promise<Plan | null> {
   const store = getStore();
   const record = await store.plans.get(id);
   if (record) return record.plan;
+
+  // 静态演示成品：store 未命中时也要能秒开（重启 / 未设 DEMO_SEED / 关掉旧链接兜底）
+  const fixture = demoFixturePlan(id);
+  if (fixture) return fixture;
 
   // 旧 job 链接只读兜底：开关关闭时直接返回 null，PlanStore 成为唯一读入口
   if (!jobLinkFallbackEnabled()) return null;

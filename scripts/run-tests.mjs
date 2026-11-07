@@ -2838,6 +2838,49 @@ async function phaseP(api) {
   check("PG：跨天重置后剩余 = limit-1", j4.remaining === 1, `got ${j4.remaining}`);
 }
 
+// ---------------- 阶段 S：展示动线（无 DEMO_SEED） ----------------
+//
+// 为什么单独一个阶段：首页/营销页的「看示例」现在直接指向静态 fixture 的分享页，
+// 这条路径必须在「没有启动注入」的普通服务器上也能秒开——否则本地 npm run dev、
+// 演示站忘配 DEMO_SEED、或重启后注入失败时，按钮点了就是死路。用 mock 服务器
+// （不设 DEMO_SEED）验证，与阶段 F 的种子链路互补。
+async function phaseShowcase(base) {
+  console.log("\n== 展示动线（无 DEMO_SEED，成品链接仍秒开） ==");
+  const SHOWCASE = "share_Z5oYam8ahjqb";
+
+  const home = await fetch(`${base}/`);
+  const homeHtml = await home.text();
+  check(
+    "展示：首页「看示例」指向真实成品而非 MOCK 预览",
+    homeHtml.includes("看一份验真过的成品") && homeHtml.includes(`/p/${SHOWCASE}`),
+    `got ${home.status}`,
+  );
+
+  const about = await fetch(`${base}/about`);
+  const aboutHtml = await about.text();
+  check(
+    "展示：营销页第一 CTA 可秒开真实行程",
+    aboutHtml.includes("先看一份真实行程（秒开）") && aboutHtml.includes(`/p/${SHOWCASE}`),
+    `got ${about.status}`,
+  );
+
+  const page = await fetch(`${base}/p/${SHOWCASE}`);
+  const pageHtml = await page.text();
+  check(
+    "展示：无种子时成品分享页 200，且渲染验真行程与体检凭据",
+    page.status === 200 && pageHtml.includes("苏州") && pageHtml.includes("Trip Check"),
+    `got ${page.status}`,
+  );
+
+  const missing = await fetch(`${base}/p/share_definitely_missing_zz`);
+  const missingHtml = await missing.text();
+  check(
+    "展示：失效链接给得出示例行程兜底入口",
+    missingHtml.includes("这个分享链接打不开") && missingHtml.includes("先看一份示例行程"),
+    `got ${missing.status}`,
+  );
+}
+
 // ---------------- 阶段 F：演示行程只读（安全审计 R4） ----------------
 //
 // 为什么单起一台服务器：DEMO_SEED 只在进程启动时把 demo/fixtures 灌进存储；
@@ -3093,6 +3136,9 @@ async function main() {
   }
 
   try {
+    // 放在最前面：此时 mock 服务器还没生成任何行程，store 一定未命中，
+    // 才能真正验证「静态 fixture 兜底」而不是被注入的 seed 掩盖过去。
+    await phaseShowcase(APP("mock"));
     await phaseA(makeApi(APP("mock")));
     await runSlices(makeApi(APP("mock")), "mock");
     await phaseB(makeApi(APP("real")));

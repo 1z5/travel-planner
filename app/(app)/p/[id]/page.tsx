@@ -9,6 +9,7 @@ import { TripAlert } from "@/components/TripAlert";
 import { WishlistButton } from "@/components/WishlistButton";
 import { DemoReadOnlyNote } from "@/components/DemoReadOnlyNote";
 import { stampPlan } from "@/lib/verify/stamp";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,11 +83,17 @@ export default async function SharePage({
           <div className="fault-eyebrow">SHARE LINK · 链接已失效</div>
           <h1 className="fault-title">这个分享链接打不开</h1>
           <p className="fault-desc">
-            这份行程不存在，或已被创建者删除。可能是链接地址有误——请让分享者重新发一次链接。
-            已生成的行程本身是持久保存的，不会因为时间过期。
+            这份行程不存在，或已被创建者删除。若链接来自演示站，服务重启后现场生成的行程会清空，
+            请让分享者重新发一次链接；也可能只是链接地址有误。
           </p>
           <div className="fault-actions">
-            <Link href="/new" className="btn btn-primary btn-sm">
+            {/* 坏链接不该是死胡同：给一个秒开的真实成品，对方至少还能看到产品是什么。
+                原来那句「已生成的行程持久保存、不会因为时间过期」在 memory 演示站
+                是错的，重启就会丢，必须删掉。 */}
+            <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn btn-primary btn-sm">
+              先看一份示例行程
+            </Link>
+            <Link href="/new" className="btn btn-sm">
               新建一份行程
             </Link>
             <Link href="/about#faq" className="btn btn-sm">
@@ -158,6 +165,22 @@ export default async function SharePage({
       <section className="card" aria-label="行程体检凭据">
         <div className="card-body">
           <p className="muted">Trip Check · 行程体检凭据（开放标准 v0.1）</p>
+          {/* 「开放标准 v0.1 / 两轴结论」对外人是黑话：先用一句白话说清凭什么可信。
+              未接高德时如实说明体检只覆盖结构问题，不冒充事实核验。 */}
+          <p>
+            {plan.verification === "ok" ? (
+              <>
+                这不是一段 AI 写好的文字：
+                <strong>每个地点、营业时间与通勤都先按真实数据核过</strong>
+                ，体检把会出问题的地方摊开，结论可以用同一份行程独立复算。
+              </>
+            ) : (
+              <>
+                这份行程<strong>未接入真实 POI 数据</strong>
+                ，下面的体检只覆盖时间安排、节奏与预算等结构问题。
+              </>
+            )}
+          </p>
           <p>
             结构自洽性 <strong>{stamp.report.verdict.consistency.grade}</strong>（
             {stamp.report.verdict.consistency.score} 分） · 事实核验{" "}

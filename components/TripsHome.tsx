@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
 import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
 import {
   loadRecentTrips,
@@ -35,10 +36,12 @@ import { localTodayIso } from "@/lib/trip-day";
 // 3. 我的行程 / 精选示例 / 想去清单全部改成仪器语言：等宽编号、状态胶囊、
 //    倒计时读数、bento 网格。
 //
-// 测试契约（tests/components/TripsHome.test.tsx）必须继续满足：
+// 展示契约（tests/components/TripsHome.test.tsx）必须继续满足：
 // - 新用户首屏有「先核验真实世界，再排行程」这段**完整文本**（一个文本节点）；
-// - 只有一个 role=link 且名为「开始规划」（href=/new）、一个「看一份真实示例」；
-// - 「MOCK 高德 · POI 未验真」「真实生成的示例」「示例条件」各只出现一次（getByText）；
+// - 只有一个 role=link 且名为「开始规划」（href=/new）；
+// - 「看示例」直接指向真实验真的成品分享页（秒开、不用等生成、不用登录）；
+//   右侧 specimen 只作结构预览并如实标注未验真，两者不许混用——把 MOCK
+//   数据叫「真实生成的示例」会把演示对象直接劝退；
 // - 回归用户的 hero 不再出现示例面板（否则「苏州」会与最近行程列表同名）。
 // ============================================================
 
@@ -151,8 +154,10 @@ export function TripsHome() {
                 <Plus size={16} aria-hidden="true" />
                 开始规划
               </Link>
-              <Link href="/new?sample=1" className="btn btn-ghost">
-                看一份真实示例
+              {/* 为什么指向 /p 而不是 /new?sample=1：sample 是 MOCK 结构预览，
+                  点开先自曝「未验真」；展示要的是 30 秒内看到真东西。 */}
+              <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn btn-ghost">
+                看一份验真过的成品 · 秒开
               </Link>
             </div>
 
@@ -178,9 +183,9 @@ export function TripsHome() {
           {/* 右侧仪器面板：只在「空房间」出现——用真实示例数据说明输出长什么样。
               它是证据样本，不是营销插画：明确标注 MOCK 未验真。 */}
           {isNewUser && (
-            <aside className="home-specimen" aria-label="真实生成的示例行程">
+            <aside className="home-specimen" aria-label="行程结构预览（未验真）">
               <div className="specimen-head">
-                <span className="specimen-tag">SPECIMEN · 示例样本</span>
+                <span className="specimen-tag">SPECIMEN · 结构预览</span>
                 <span className="specimen-status">示例数据 · 未验真</span>
               </div>
 
@@ -299,27 +304,26 @@ export function TripsHome() {
               </article>
             ))}
 
-            {/* 真实生成的示例：同一份数据里既有完整行程、也有被体检拦下的问题。
-                SAMPLE_PLAN 是 MOCK 数据（verified:false），必须如实标注「未验真」。 */}
+            {/* 真实验真的成品：不用等生成、不用登录，点开就有验真、体检凭据和真实地图。
+                为什么替换掉原来的 MOCK 卡：SAMPLE_PLAN 已由右侧 specimen 承担「结构预览」，
+                再拿它当「真实生成的示例」既重复又不诚实。卡片只做定性描述，
+                具体评分/预警数由分享页按当前 fixture 自己算，避免文案与数据漂移。 */}
             <article className="fs-card fs-card-warn">
               <div className="fs-card-head">
-                <span className="fs-card-tag">真实生成的示例</span>
-                <span className="fs-card-note">MOCK 高德 · POI 未验真</span>
+                <span className="fs-card-tag">真实验真的成品</span>
+                <span className="fs-card-note">高德验真 · 含体检凭据 · 秒开</span>
               </div>
               <span className="fs-card-index" aria-hidden="true">
                 04
               </span>
-              <h3 className="fs-card-title">
-                {SAMPLE_PLAN.city} · {SAMPLE_PLAN.days.length} 天
-              </h3>
+              <h3 className="fs-card-title">苏州 · 3 天</h3>
               <ul className="fs-warn-list">
-                {SAMPLE_PLAN.warnings.slice(0, 2).map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
+                <li>每个地点、营业时间与通勤都来自真实检索</li>
+                <li>体检把接不上的时间、闭馆风险直接摊开</li>
               </ul>
-              <p className="fs-card-body">体检把问题标出来：能修的一键修，修不了的明说修不了。</p>
-              <Link href="/new?sample=1" className="fs-card-link">
-                打开完整示例 <ArrowRight size={13} aria-hidden="true" />
+              <p className="fs-card-body">不用等生成，点开就是一份能核对、能复算的行程。</p>
+              <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="fs-card-link">
+                打开完整行程 <ArrowRight size={13} aria-hidden="true" />
               </Link>
             </article>
           </div>

@@ -291,6 +291,11 @@ export function PlanView({
 
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  // 日历订阅的可见反馈：桌面浏览器没有 webcal 协议处理器，静默跳转会被当成按钮坏了
+  const [subscribeNote, setSubscribeNote] = useState<{
+    copied: boolean;
+    mobile: boolean;
+  } | null>(null);
 
   // ---- 行程修改（本轮产品跃迁：一次性生成 → 可共编）----
   // busy 键形如 "swap:2:1" / "day:2"：只禁用编辑入口，不阻塞滚动/其它只读交互。
@@ -1277,15 +1282,26 @@ export function PlanView({
                     为什么是 button + 点击时才拼 URL，而不是 <a href="webcal://…">：
                     分享页是 SSR，渲染期读 location 会在服务端直接抛
                     ReferenceError，整棵 PlanView 子树挂掉（海报/管家/报告链接
-                    一起消失）——这个坑 e2e 抓到过，别再踩。webcal:// 只能是
-                    绝对地址，所以留到点击时再拼；桌面上点了没反应是预期的
-                    （title 与 helper 都写了「建议在手机上打开」）。 */}
+                    一起消失）——这个坑 e2e 抓到过，别再踩。
+                    为什么还要复制 https 地址 + 给可见提示：桌面浏览器没有
+                    webcal 协议处理器，光跳协议等于点了没反应，朋友会当成按钮坏了。
+                    现在桌面明确告知并留一条能用的订阅地址，移动端仍尝试唤起日历。 */}
                 <button
                   type="button"
                   className="btn"
                   title="订阅后日历会自动更新；建议在手机上打开"
-                  onClick={() => {
-                    window.location.href = `webcal://${location.host}/api/plan/ics?id=${shareId}&mode=subscribe`;
+                  onClick={async () => {
+                    const path = `/api/plan/ics?id=${shareId}&mode=subscribe`;
+                    const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+                    let copied = false;
+                    try {
+                      await navigator.clipboard.writeText(`${location.origin}${path}`);
+                      copied = true;
+                    } catch {
+                      // 非安全上下文 / 无剪贴板权限：不假装成功，提示改用 .ics 快照
+                    }
+                    setSubscribeNote({ copied, mobile });
+                    if (mobile) window.location.href = `webcal://${location.host}${path}`;
                   }}
                 >
                   <RefreshCw size={14} />
@@ -1302,6 +1318,16 @@ export function PlanView({
               打印 / 存 PDF
             </button>
           </div>
+          {subscribeNote && (
+            <p className="helper" role="status">
+              {subscribeNote.copied
+                ? "订阅地址已复制到剪贴板。"
+                : "浏览器不允许自动复制订阅地址，可改用「下载日历（.ics）」导入一份快照。"}
+              {subscribeNote.mobile
+                ? "已尝试唤起系统日历；若没反应，在日历 App 里选「添加订阅日历」并粘贴地址。"
+                : "桌面浏览器通常不会响应日历订阅，建议在手机上打开这一页，或把复制好的地址粘贴到日历 App 的「订阅日历」。"}
+            </p>
+          )}
           {shareId && (
             <p className="helper plan-share-hint">
               分享链接长期有效（不会随生成任务过期）——对方打开看到的就是当前这一版，你后续的修改会同步进去。

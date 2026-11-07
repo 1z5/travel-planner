@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripsHome } from "@/components/TripsHome";
+import { DEMO_SHOWCASE_SHARE_ID } from "@/lib/demo-links";
 
 // 产品入口从营销首页改成「我的行程」后，列表/空态/删除都由这个组件承担。
 const STORAGE_KEY = "tp.recent-trips.v1";
@@ -17,15 +18,20 @@ describe("我的行程", () => {
     await waitFor(() => expect(screen.getByText("先核验真实世界，再排行程")).toBeInTheDocument());
     // 引导明确：主 CTA 指向新建（页面内唯一的新建入口，顶栏不再重复）
     expect(screen.getByRole("link", { name: /开始规划/ })).toHaveAttribute("href", "/new");
-    expect(screen.getByRole("link", { name: /看一份真实示例/ })).toHaveAttribute(
+    // 「看示例」必须秒开真实验真的成品，不能再指向 MOCK 的 sample 预览
+    expect(screen.getByRole("link", { name: /验真过的成品/ })).toHaveAttribute(
       "href",
-      "/new?sample=1",
+      `/p/${DEMO_SHOWCASE_SHARE_ID}`,
     );
-    // 记忆点必须可溯源：示例卡用真实 fixture，且如实标注「POI 未验真」
-    // （SAMPLE_PLAN 是 MOCK 数据，冒充已核验就是造假）
-    expect(screen.getByText("MOCK 高德 · POI 未验真")).toBeInTheDocument();
-    expect(screen.getByText("真实生成的示例")).toBeInTheDocument();
-    expect(screen.getAllByText(/第 [12] 天/).length).toBeGreaterThan(0);
+    // specimen 只是结构预览，必须如实标注未验真，不冒充真实行程
+    expect(screen.getByText("示例数据 · 未验真")).toBeInTheDocument();
+    expect(screen.getByText("真实验真的成品")).toBeInTheDocument();
+    // 记忆点必须可溯源：示例卡说清核验来源，且链接落在真实成品上
+    expect(screen.getByText("高德验真 · 含体检凭据 · 秒开")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /打开完整行程/ })).toHaveAttribute(
+      "href",
+      `/p/${DEMO_SHOWCASE_SHARE_ID}`,
+    );
     // 精选示例承接「不知道去哪」：示例条件必须显式标注，且入口是 /new 深链
     expect(screen.getAllByText("示例条件").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /按城市看模板/ })).toHaveAttribute("href", "/cities");

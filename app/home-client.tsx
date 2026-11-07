@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Plan, PlanEvent } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
 import { AlertTriangle, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatCny } from "@/lib/budget";
@@ -1630,8 +1631,12 @@ export function HomeClient() {
               )}
               <p className="form-actions-note">
                 等不及也可以
+                <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn-link">
+                  秒开一份真实验真的成品（苏州 3 天，不用等生成）
+                </Link>
+                ；只想看结构，
                 <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
-                  先看一份真实生成的示例（苏州 3 天）
+                  打开结构预览
                 </button>
                 。
               </p>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LandingSections } from "@/app/landing-sections";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
 
 // 营销页：只服务「第一次了解产品」的访客。
 // 产品入口是 /（我的行程），这里不承担工具职责。
@@ -34,7 +35,12 @@ export default function AboutPage() {
               再让模型在已核验的清单上排行程。体检是兜底，不是质检员。
             </p>
             <div className="about-actions">
-              <Link href="/new" className="btn btn-primary">
+              {/* 陌生人第一次来，先看证据再决定要不要花 3 分钟生成：
+                  这里给的是真实高德 + 真实模型生成的成品，秒开、免登录。 */}
+              <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn btn-primary">
+                先看一份真实行程（秒开）
+              </Link>
+              <Link href="/new" className="btn btn-ghost">
                 新建一份行程
               </Link>
               <Link href="/" className="btn btn-ghost">

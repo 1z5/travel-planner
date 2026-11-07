@@ -6,6 +6,7 @@ import { consume, peek } from "@/lib/ratelimit";
 import type { JobRecord } from "@/lib/store/types";
 import {
   commitPlan,
+  demoFixturePlan,
   getPlanForEdit,
   getSharedPlan,
   jobLinkFallbackEnabled,
@@ -13,6 +14,7 @@ import {
   replacePlan,
   resolvePlan,
 } from "@/lib/plan-repo";
+import { DEMO_FIXTURES } from "@/demo/fixtures";
 import type { Plan, PlanInput } from "@/lib/types";
 
 // ============================================================
@@ -385,5 +387,31 @@ describe("interruptJob：僵尸任务置 error + 退还配额", () => {
     await Promise.all([interruptJob(record), interruptJob(record)]);
 
     expect(await peek(key, 3)).toBe(3); // 只退一次（退两次会变成 4）
+  });
+});
+
+// ---------- 演示成品的静态只读兜底 ----------
+// 「发给朋友一个链接、第二天还能打开」不能依赖启动时是否成功注入。
+describe("演示成品静态兜底", () => {
+  it("demoFixturePlan 只认 fixture token，并带上只读标记", () => {
+    const fixture = DEMO_FIXTURES[0]!;
+    const plan = demoFixturePlan(fixture.shareId);
+    expect(plan?.city).toBe(fixture.plan.city);
+    expect(plan?.demo).toBe(true);
+    // 不能改到模块级共享的 fixture 本体，否则后续读取会串味
+    expect(fixture.plan.demo).not.toBe(true);
+    expect(demoFixturePlan(uniq("share_not_a_fixture"))).toBeNull();
+  });
+
+  it("store 未命中且关掉旧链接兜底时，成品分享页依然能打开", async () => {
+    vi.stubEnv("JOB_LINK_FALLBACK", "0");
+    const fixture = DEMO_FIXTURES[0]!;
+    const plan = await resolvePlan(fixture.shareId);
+    expect(plan?.city).toBe(fixture.plan.city);
+    expect(plan?.demo).toBe(true);
+  });
+
+  it("普通不存在的 token 仍返回 null（不把 404 变成一份假行程）", async () => {
+    expect(await resolvePlan(uniq("share_missing"))).toBeNull();
   });
 });
