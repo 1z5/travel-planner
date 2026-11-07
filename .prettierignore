@@ -20,3 +20,6 @@ demo/fixtures/*.json
 # 于是「跑一次 e2e → 文件被 Next 改脏 → 下一轮 gate 的 format:check 失败」
 # 反复发生。这里交给 Next 管，格式以它的输出为准。
 tsconfig.json
+# WorkBuddy 本地工作记忆：pre-push 的 `prettier --check .` 会扫描未跟踪文件，
+# 日志格式一乱就拦住推送。它不是产品代码，不该参与格式门禁。
+.workbuddy/
