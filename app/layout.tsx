@@ -9,6 +9,8 @@ import "./styles/atlas-home.css";
 import "./styles/atlas-workspace.css";
 import "./styles/atlas-evidence.css";
 import "./styles/atlas-marketing.css";
+// 验真台 /check 是后加的产品线，放最后：只用 desk-* 前缀，不覆盖任何既有选择器。
+import "./styles/atlas-check.css";
 import { MotionPref } from "@/components/MotionPref";
 import { PwaBootstrap } from "@/components/PwaBootstrap";
 

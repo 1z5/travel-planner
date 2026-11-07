@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
+import { PENDING_CHECK_TEXT_KEY } from "@/lib/pending-check";
 import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
 import {
   loadRecentTrips,
@@ -31,9 +32,12 @@ import { localTodayIso } from "@/lib/trip-day";
 // 1. 首屏从「一张大纸卡 + 三段文案」变成「左侧主张 + 右侧仪器面板」——
 //    右侧用真实示例数据（SAMPLE_PLAN，MOCK）展示产品长什么样，并如实标注
 //    未验真；新用户第一屏就同时看到「主张」与「证据样本」。
-// 2. 主张下面是一条**真的能用的快速开始**（城市 + 天数 → /new 深链预填），
-//    不是装饰性输入框；主 CTA 仍是「开始规划」（唯一的新建入口契约）。
-// 3. 我的行程 / 精选示例 / 想去清单全部改成仪器语言：等宽编号、状态胶囊、
+// 2. 2026-11 形态纠正：首屏第一动作从「填表生成」改成「把已有行程贴进来验」。
+//    依据 research/：生成已被 ChatGPT/OTA/地图 App 商品化，而「43% 的 AI 行程日
+//    含可验证错误」没人负责。新用户首屏给粘贴框，主 CTA 指向 /check；
+//    「开始规划」降级为次要按钮，但保留给确实要从零排的人。
+// 3. 快速开始（城市 + 天数 → /new 深链预填）保留给回访用户，不删既有能力。
+// 4. 我的行程 / 精选示例 / 想去清单继续用仪器语言：等宽编号、状态胶囊、
 //    倒计时读数、bento 网格。
 //
 // 展示契约（tests/components/TripsHome.test.tsx）必须继续满足：
@@ -57,6 +61,21 @@ export function TripsHome() {
   // 快速开始（真功能：跳到新建页并用深链预填；不在这里发请求）
   const [quickCity, setQuickCity] = useState("");
   const [quickDays, setQuickDays] = useState<(typeof QUICK_DAYS)[number]>(3);
+
+  // 首屏粘贴框：文本暂存后跳 /check 自动开跑。不用 useRouter——组件测试跑在
+  // jsdom，没有 App Router 上下文（与下方原生 GET 表单同一顾虑）。
+  const [pasteText, setPasteText] = useState("");
+
+  function submitPaste(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (pasteText.trim().length < 20) return;
+    try {
+      window.sessionStorage.setItem(PENDING_CHECK_TEXT_KEY, pasteText.trim());
+    } catch {
+      // 隐私模式下 sessionStorage 可能不可写；仍跳过去让用户手动贴一次
+    }
+    window.location.assign("/check");
+  }
 
   useEffect(() => {
     setTrips(loadRecentTrips());
@@ -102,6 +121,35 @@ export function TripsHome() {
                   输入目的地、日期和预算，2–4 分钟生成；期间可离开页面，回来接着看。
                 </p>
               </>
+            )}
+
+            {/* 形态纠正的主角：陌生人第一眼看到的是「把行程交给我」，不是十几个字段。
+                粘贴后跳 /check，那边会把 AI 读出来的点位/时刻先摊开给人核对再体检。 */}
+            {isNewUser && (
+              <form className="home-paste" onSubmit={submitPaste} aria-label="粘贴已有行程">
+                <label className="sr-only" htmlFor="home-paste-text">
+                  已有的行程原文
+                </label>
+                <textarea
+                  id="home-paste-text"
+                  className="home-paste-input"
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  rows={3}
+                  maxLength={8000}
+                  placeholder="手上已经有一份行程？把 ChatGPT 写的、小红书抄的、朋友发来的贴进来…"
+                />
+                <div className="home-paste-actions">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={pasteText.trim().length < 20}
+                  >
+                    先看看能不能照着走 <ArrowRight size={15} aria-hidden="true" />
+                  </button>
+                  <span className="home-paste-note">不用等生成，也不用登录</span>
+                </div>
+              </form>
             )}
 
             {/* 快速开始：城市 + 天数 → 新建页深链预填（真导航，不是占位） */}
@@ -150,7 +198,12 @@ export function TripsHome() {
             </form>
 
             <div className="firstscreen-cta">
-              <Link href="/new" className="btn-primary firstscreen-btn">
+              {/* 回访用户没有上面的粘贴框，这里仍是通往验真台的主入口。 */}
+              <Link href="/check" className="btn-primary firstscreen-btn">
+                <ArrowRight size={16} aria-hidden="true" />
+                验一份行程
+              </Link>
+              <Link href="/new" className="btn btn-ghost">
                 <Plus size={16} aria-hidden="true" />
                 开始规划
               </Link>

@@ -1,0 +1,166 @@
+/* 验真台（/check）：新产品线单独一份分片，挂在 ATLAS v6 覆盖层末尾。
+   为什么不放进 globals.css：那份基础样式已冻结（AGENTS.md 约定一行未动），
+   而这里全是 desk-* 新命名空间，独立文件既不改底稿，也不与现有选择器争特异性。 */
+
+.check-desk {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 0 64px;
+}
+.desk-kicker {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4, #888780);
+  margin: 0 0 10px;
+}
+.desk-title {
+  font-size: 30px;
+  line-height: 1.3;
+  margin: 0 0 12px;
+}
+.desk-lede {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--ink-2, #5f5e5a);
+  margin: 0 0 24px;
+}
+.desk-card {
+  margin-bottom: 18px;
+}
+.desk-label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.desk-textarea {
+  width: 100%;
+  min-height: 190px;
+  height: auto;
+  padding: 12px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  resize: vertical;
+}
+.desk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.desk-after {
+  margin: 20px 0 0;
+}
+.desk-honest {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.1));
+}
+.desk-error {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fcebeb;
+  color: #791f1f;
+  margin-bottom: 16px;
+}
+.desk-subtitle {
+  font-size: 19px;
+  margin: 0 0 10px;
+}
+.desk-uncertain {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #faeeda;
+  color: #633806;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.desk-uncertain summary {
+  cursor: pointer;
+}
+.desk-uncertain ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+.desk-days {
+  margin-top: 18px;
+}
+.desk-day {
+  margin-bottom: 18px;
+}
+.desk-day-head {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.desk-spots {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.desk-spot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
+.desk-spot-name {
+  flex: 1;
+  min-width: 0;
+}
+.desk-spot input {
+  width: 160px;
+  height: 34px;
+  font-size: 13px;
+}
+.desk-spot input.is-unspecified {
+  border-color: #ba7517;
+  color: #854f0b;
+}
+.spin {
+  animation: desk-spin 1s linear infinite;
+}
+@keyframes desk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 首页首屏粘贴框：与验真台同一条产品线，样式放同一分片避免两处漂移。 */
+.home-paste {
+  margin: 20px 0 18px;
+}
+.home-paste-input {
+  width: 100%;
+  min-height: 96px;
+  height: auto;
+  padding: 12px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  resize: vertical;
+}
+.home-paste-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.home-paste-note {
+  font-size: 12px;
+  color: var(--ink-4, #888780);
+}
+@media (max-width: 600px) {
+  .desk-title {
+    font-size: 24px;
+  }
+  .desk-spot {
+    flex-wrap: wrap;
+  }
+  .desk-spot input {
+    width: 100%;
+  }
+}

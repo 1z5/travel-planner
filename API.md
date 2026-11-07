@@ -623,6 +623,7 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 
 | 方法 | 路径                   | 说明                                                                                                                                                     |
 | ---- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST | `/api/verify/extract`  | 任意来源行程文本 → 开放文档草稿（调模型；产品入口 `/check` 用，见下方专节）                                                                              |
 | POST | `/api/verify`          | 体检。body `{ document }` **或** `{ shareId }`（二选一），可选 `{ options: { pace } }`                                                                   |
 | POST | `/api/verify/repair`   | 确定性修复：顺延时间/删重复 → 前后两份报告 + 前后凭据链（不写回任何存储）                                                                                |
 | GET  | `/api/verify`          | 服务元信息：`{ name, specVersion, engineVersion, rulesetVersion, schema, docs }`                                                                         |
@@ -632,6 +633,39 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 | GET  | `/p/<id>/check/poster` | 竖版体检海报（1080×1920，`image/png`）                                                                                                                   |
 | POST | `/api/mcp`             | MCP（JSON-RPC 2.0、stateless）：`verify_itinerary` / `repair_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule` |
 | GET  | `/verify`              | 公开体检体验台（粘贴 JSON 或分享链接）                                                                                                                   |
+
+### POST /api/verify/extract — 任意来源行程文本 → 开放文档
+
+产品新入口 `/check` 的预处理：把用户主动粘贴的行程（ChatGPT 输出、小红书笔记、群聊记录）
+**照抄**成开放文档，再交给 `POST /api/verify` 体检。与 `POST /api/plan/extract` 的区别要说清：
+那个只提「规划条件」回填表单，这个**不生成任何行程**、不烧生成配额、不需要高德 key。
+刻意不合并进 `/api/verify`：后者对外承诺「deterministic、不调模型」，而抽取要调模型、有配额成本，
+混在一个 URL 会让「可复算」这个承诺变模糊。
+
+| 字段   | 类型   | 必填 | 说明                                                                        |
+| ------ | ------ | ---- | --------------------------------------------------------------------------- |
+| `text` | string | 是   | 20–8000 字；服务端用【行程原文开始/结束】分隔块包裹后送模型，块内一律当数据 |
+
+响应 `{ document, uncertain, tokens }`：
+
+- `document`：`TripCheckDocument` 或 `null`（原文读不出点位时如实返回 null，不编一份空行程）；
+- `uncertain`：逐条列出「原文没写明确时间/日期」「这一步没查任何外部数据」等，UI 必须摊开让人确认；
+- `tokens`：本次模型用量。
+
+**不猜的三道闸**（整条链唯一非确定性环节，最容易让假数据混进可复算凭据）：
+
+1. 文档由服务端按白名单字段**重新构造**，`verification` / `provenance` / `location` /
+   `legs` / `hours` 一律不填——模型即便伪造 `existence:"hit"` 也进不来；
+2. 原文写「上午」「逛一会」或没写时间 → `time: "未标注"`，由 `TC-C101` 如实报
+   「时间格式无法解析」，不换算成 09:00；
+3. 抽取结果先在 `/check` 逐点摊开给人核对/改时刻，确认后才提交体检。
+
+因为没查外部数据，随后 `/api/verify` 的事实轴必然是 `unverified`——这是**如实结论**，不是缺陷。
+要连地点存在性与营业时间一起验，需走站内生成链路（接高德）或提交已带 `verification` 的文档。
+
+防护：`crossSiteWriteError` → `readJsonBody(32 KiB)` → zod → LLM 并发闸门 → 按 IP 小时桶
+（`VERIFY_EXTRACT_HOURLY_LIMIT`，默认 10）→ 全站 LLM 日预算；失败退还额度。
+错误：400（参数）、403（跨站写）、429（限流/日预算）、502（模型失败或返回非法 JSON）、503（并发满）。
 
 ### POST /api/verify
 

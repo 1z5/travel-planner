@@ -126,6 +126,53 @@ function extractContent(userMsg) {
   });
 }
 
+// 行程文档抽取（lib/trip-document-extract.ts → POST /api/verify/extract）分支。
+// 判定只看 system prompt 的「行程文档抽取器」标记；开关词仍然只从
+// 【行程原文开始】…【行程原文结束】数据区里取，不对整条 prompt 做 includes。
+// 返回的文档故意留了时间重叠、重复点位和「未标注」，这样体检能报出问题、
+// 一键理顺也有东西可修——e2e 验的是整条闭环，不是桩自己想象的成功。
+function documentExtractContent(userMsg) {
+  const m = userMsg.match(/【行程原文开始】\s*([\s\S]*?)\s*【行程原文结束】/);
+  const text = m ? m[1] : "";
+  if (text.includes("什么都提取不到")) {
+    return JSON.stringify({ city: null, budgetCny: null, days: [] });
+  }
+  if (text.includes("提取服务错误")) return "抱歉，我不知道怎么回答这个问题。";
+  return JSON.stringify({
+    city: "苏州",
+    budgetCny: 2000,
+    days: [
+      {
+        day: 1,
+        date: null,
+        spots: [
+          { name: "拙政园", time: "09:00-11:00", durationMin: 120, costCny: 80 },
+          { name: "苏州博物馆", time: "10:30-12:00", durationMin: 90, costCny: 0 },
+          { name: "平江路", time: "14:00-16:00", durationMin: 120, costCny: 0 },
+        ],
+      },
+      {
+        day: 2,
+        date: null,
+        spots: [
+          { name: "虎丘", time: "未标注", durationMin: null, costCny: null },
+          { name: "留园", time: "未标注", durationMin: null, costCny: null },
+          { name: "山塘街", time: "未标注", durationMin: null, costCny: null },
+        ],
+      },
+      {
+        day: 3,
+        date: null,
+        spots: [
+          { name: "狮子林", time: "09:00-11:00", durationMin: 120, costCny: 0 },
+          { name: "狮子林", time: "09:00-11:00", durationMin: 120, costCny: 0 },
+          { name: "耦园", time: "14:00-16:00", durationMin: 120, costCny: 0 },
+        ],
+      },
+    ],
+  });
+}
+
 function planForRequestedDays(userMsg) {
   const city = requestedCity(userMsg);
   const m = userMsg.match(/天数：(\d+)\s*天/);
@@ -793,7 +840,7 @@ const server = createServer((req, res) => {
       }
       await sleep(delay);
     }
-    const content =
+    let content =
       // 行程管家优先：它的响应结构（answer/suggestion）与所有生成分支不同
       mode === "copilot"
         ? copilotContent(userMsg)
@@ -847,6 +894,12 @@ const server = createServer((req, res) => {
                                   : isDayCall
                                     ? JSON.stringify(dayForRequested(userMsg))
                                     : JSON.stringify(planForRequestedDays(userMsg));
+
+    // 行程文档抽取是独立产品线：判定只看 system 标记，响应结构与所有生成分支
+    // 都不同。放在三元链之后覆盖，避免为加一层条件重排整条链的缩进。
+    if (systemMsg.includes("行程文档抽取器")) {
+      content = documentExtractContent(userMsg);
+    }
 
     if (isStream) {
       // SSE：模拟真实流式（role 帧 → 内容分两帧 → 结束帧带 usage）

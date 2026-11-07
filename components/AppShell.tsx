@@ -13,7 +13,9 @@ import { ThemeToggle } from "./ThemeToggle";
 //   从玻璃下穿过，品牌章与主页入口保持可达；
 // - 顶部加 2px 滚动进度线（纯 CSS scroll-driven animation，无 JS）；
 // - 右侧加主题开关（跟随系统 / 浅色 / 深色），产品面与营销面共用品牌章；
-// - 顶栏仍不放「新建行程」按钮：新建入口收敛到首页主行动卡，避免三处重复。
+// - 顶栏不放「新建行程」按钮：新建入口收敛到首页行动区，避免三处重复。
+//   2026-11 起放「验一份行程」：它是新的第一动作，且回访用户在首页看不到
+//   粘贴框，需要一个随时可达的入口（新建不是第一动作，所以不占这个位置）。
 // ============================================================
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -31,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav className="app-nav" aria-label="产品导航">
             <Link href="/">我的行程</Link>
+            <Link href="/check">验一份行程</Link>
           </nav>
 
           <div className="app-topbar-actions">

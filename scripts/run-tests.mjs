@@ -2881,6 +2881,109 @@ async function phaseShowcase(base) {
   );
 }
 
+// ---------------- 阶段 T：粘贴验真闭环（产品新第一入口） ----------------
+//
+// 这条链路是「把行程交给我」的最小证明：任意来源文本 → 开放文档 → 确定性
+// 体检 → 一键理顺 → 前后可复算凭据。全部走桩，不烧真 token、不需要高德 key。
+// 重点不只看「能跑通」，还要钉住两条产品红线：抽取层不许伪造核验字段、
+// 事实轴没查过就必须如实写 unverified。
+async function phaseCheckDesk(base) {
+  console.log("\n== 验真台：贴文本 → 体检 → 一键理顺 ==");
+
+  const pageRes = await fetch(`${base}/check`);
+  const pageHtml = await pageRes.text();
+  check(
+    "check：/check 页面 200 且首屏是粘贴入口",
+    pageRes.status === 200 && pageHtml.includes("先看看，这份行程能不能照着走"),
+    `got ${pageRes.status}`,
+  );
+
+  const homeRes = await fetch(`${base}/`);
+  const homeHtml = await homeRes.text();
+  check(
+    "check：首页主入口已纠正为验真（生成降级）",
+    homeHtml.includes("验一份行程") && homeHtml.includes('href="/check"'),
+    `got ${homeRes.status}`,
+  );
+
+  const sample = [
+    "苏州 3 天，人均预算 2000 元",
+    "第 1 天：09:00-11:00 拙政园，10:30-12:00 苏州博物馆",
+    "第 2 天：上午 虎丘，下午 留园",
+    "第 3 天：09:00-11:00 狮子林，09:00-11:00 狮子林",
+  ].join("\n");
+
+  const exRes = await fetch(`${base}/api/verify/extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: sample }),
+  });
+  const ex = await exRes.json().catch(() => ({}));
+  const spots = (ex?.document?.days ?? []).flatMap((d) => d.spots ?? []);
+  check(
+    "check：抽取 200 且产出 3 天开放文档",
+    exRes.status === 200 && ex?.document?.days?.length === 3,
+    `got ${exRes.status} ${JSON.stringify(ex).slice(0, 140)}`,
+  );
+  check(
+    "check：抽取结果不含伪造的核验状态 / 坐标 / 路段",
+    spots.length > 0 &&
+      spots.every((s) => s.verification === undefined && s.location === undefined) &&
+      (ex?.document?.days ?? []).every((d) => d.legs === undefined) &&
+      ex?.document?.provenance === undefined,
+    `spots=${spots.length}`,
+  );
+  check(
+    "check：原文没写明确时间标为未标注，且不确定项摊给用户",
+    spots.some((s) => s.time === "未标注") &&
+      Array.isArray(ex?.uncertain) &&
+      ex.uncertain.some((n) => n.includes("没有查任何外部数据")),
+    `uncertain=${JSON.stringify(ex?.uncertain ?? []).slice(0, 120)}`,
+  );
+
+  const vRes = await fetch(`${base}/api/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document: ex.document }),
+  });
+  const report = await vRes.json().catch(() => ({}));
+  const ruleIds = (report?.issues ?? []).map((i) => i.ruleId);
+  check(
+    "check：体检报出时间无法解析与时间重叠",
+    vRes.status === 200 && ruleIds.includes("TC-C101") && ruleIds.includes("TC-C102"),
+    `got ${vRes.status} rules=${ruleIds.join(",")}`,
+  );
+  check(
+    "check：没查过外部数据 → 事实轴如实为未核验",
+    report?.verdict?.facts?.state === "unverified",
+    `state=${report?.verdict?.facts?.state}`,
+  );
+  check(
+    "check：签发可复算凭据",
+    typeof report?.credential?.id === "string" && report.credential.id.startsWith("tc_"),
+    `id=${report?.credential?.id}`,
+  );
+
+  const rRes = await fetch(`${base}/api/verify/repair`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document: ex.document }),
+  });
+  const repaired = await rRes.json().catch(() => ({}));
+  check(
+    "check：一键理顺真的修了，并给出前后不同的凭据",
+    rRes.status === 200 &&
+      repaired?.changed === true &&
+      repaired?.parentCredential?.id !== repaired?.credential?.id,
+    `got ${rRes.status} changed=${repaired?.changed}`,
+  );
+  check(
+    "check：开放文档路径不写回存储",
+    repaired?.persisted === false && repaired?.source === "document",
+    `persisted=${repaired?.persisted} source=${repaired?.source}`,
+  );
+}
+
 // ---------------- 阶段 F：演示行程只读（安全审计 R4） ----------------
 //
 // 为什么单起一台服务器：DEMO_SEED 只在进程启动时把 demo/fixtures 灌进存储；
@@ -3139,6 +3242,7 @@ async function main() {
     // 放在最前面：此时 mock 服务器还没生成任何行程，store 一定未命中，
     // 才能真正验证「静态 fixture 兜底」而不是被注入的 seed 掩盖过去。
     await phaseShowcase(APP("mock"));
+    await phaseCheckDesk(APP("mock"));
     await phaseA(makeApi(APP("mock")));
     await runSlices(makeApi(APP("mock")), "mock");
     await phaseB(makeApi(APP("real")));
