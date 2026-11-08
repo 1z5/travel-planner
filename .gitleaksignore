@@ -12,3 +12,9 @@
 # （上一次就是这么被自己扫出来的）。
 9a8cfa7d8cecd263fff81c98fe5e31c9d47ce304:lib/trip-execution.ts:generic-api-key:20
 2b93a36fc33e916df3c9295bef1783663ffd09a8:.gitleaksignore:generic-api-key:8
+#
+# 2026-11-08：交接台实验（8e828da）里 lib/pending-handoff.ts 的
+# sessionStorage 命名空间常量被同一条 generic-api-key 误判。该文件已在
+# d233227 回滚删除，但 CI 用 fetch-depth: 0 扫全历史，删文件不会让它消失。
+# 仅忽略这一条历史 finding，不影响今后任何真实密钥的检测。
+8e828da354fdc783f49e81c41d24bee642ce5975:lib/pending-handoff.ts:generic-api-key:5
