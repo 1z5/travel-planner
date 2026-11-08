@@ -1,3 +1,7 @@
+> **归档（2026-11-08）**：本项目已放弃商业化，定位为个人开源技术展示项目。
+> 本文件记录当时的产品 / 获客策略，**不是当前依据**，仅用于追溯决策脉络。
+> 现行文档见 [文档索引](../../README.md)，架构总览见 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
+
 # 上线剩余行动清单（NEXT STEPS）
 
 本文件是给「接手的人」看的：做什么、为什么、怎么做。工程侧已就绪（见 README 的实测数据与测试章节），剩下的都是需要账号/资金/决策的外部事项。
@@ -8,7 +12,7 @@
 
 技术栈已全面升级到当前最新稳定版：Next 16 / React 19 / openai SDK 7 / zod 4 / Prisma 7 / TypeScript 5.9。（TypeScript 7 实测不可用——Next 15.5 的配置加载器需要 `ts.sys.fileExists`，等 Next 支持后重试，过程记录在 CHANGELOG。）
 
-> **v5「事实先行」已落地**（提交 `ad502fe`）：生成前先从高德取真实素材清单（名称/营业时间/闭馆日/评分/人均）注入 prompt，行程天生可执行。架构决策见 [ADR-006](docs/adr/006-ground-truth-first.md)，产品路线见 [产品北极星](docs/archive/PRODUCT-NORTH-STAR.md)。
+> **v5「事实先行」已落地**（提交 `ad502fe`）：生成前先从高德取真实素材清单（名称/营业时间/闭馆日/评分/人均）注入 prompt，行程天生可执行。架构决策见 [ADR-006](../../adr/006-ground-truth-first.md)，产品路线见 [产品北极星](../PRODUCT-NORTH-STAR.md)。
 > **✅ v5 已用真实高德 key 验收（2026-10-28）**：`npm run verify:amap` 全绿（POI + 通勤矩阵可用）；
 > `EVAL_CASES=3 npm run eval:cases` 在北京/上海/广州 3 城实测：**3/3 生成成功、POI 验真 100%（51/51）、
 > 通勤估算失败 0%、预算贴合中位 82%、耗时中位 341s**；明细见 `eval-results/2026-10-28T12-45-33.json`。
@@ -18,7 +22,7 @@
 
 - **演示部署继续用 memory store**：重启丢数据可接受，真实上线前再一次性切 Postgres（含迁移与 `check:env` 通过）。
 - **高德数据存储合规暂不改保守方案**：保持「生成时取事实、持久化行程 JSON」的现状，风险已在
-  [安全审计](docs/SECURITY-AUDIT-2026-10-28.md) 与本文档标注；商业化/法务确认后再决定是否剥离营业时间原文与评分。
+  [安全审计](../../SECURITY-AUDIT-2026-10-28.md) 与本文档标注；商业化/法务确认后再决定是否剥离营业时间原文与评分。
 - **20 城全量真 key 评测暂缓**：当前 3 城样本（北京/上海/广州，3/3 成功、POI 验真 100%）足够冒烟；
   等上线前或确认 token 预算后再跑，用于阈值调优。
 
@@ -101,7 +105,7 @@ v6「传播飞轮 + 在场智能 + 记忆与生长」六切片全部完成：海
 （五字段 + 推断治理）、流式生长体验（stage 遥测 + 天数逐张生长）。
 **506 条 e2e + 781 条单测全绿**，详见 CHANGELOG 的 v6 记录与 README 的 v6 章节。
 
-剩余赛道（产品北极星见 [docs/archive/PRODUCT-NORTH-STAR.md](docs/archive/PRODUCT-NORTH-STAR.md)）：
+剩余赛道（产品北极星见 [docs/archive/PRODUCT-NORTH-STAR.md](../PRODUCT-NORTH-STAR.md)）：
 
 | 顺序 | 赛道               | 一句话                                                 | 第一个提交大致工作量                          |
 | ---- | ------------------ | ------------------------------------------------------ | --------------------------------------------- |
@@ -121,4 +125,4 @@ v6「传播飞轮 + 在场智能 + 记忆与生长」六切片全部完成：海
 
 ## 决策记录（为什么是现在这样）
 
-关键工程决策与踩坑记录见 CHANGELOG.md；测试体系见 README「测试」节；部署陷阱见 DEPLOY.md；产品路线见 [docs/archive/PRODUCT-NORTH-STAR.md](docs/archive/PRODUCT-NORTH-STAR.md)。
+关键工程决策与踩坑记录见 CHANGELOG.md；测试体系见 README「测试」节；部署陷阱见 DEPLOY.md；产品路线见 [docs/archive/PRODUCT-NORTH-STAR.md](../PRODUCT-NORTH-STAR.md)。

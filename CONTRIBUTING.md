@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢参与 travel-planner 的开发。本项目按生产级标准运作，请遵循以下规范。
+感谢关注 travel-planner。本项目是**个人开源技术展示项目**，已放弃商业化：欢迎 issue / 讨论 / 试验性 PR，但不保证合并，也不提供维护承诺。仓库按较严格的工程标准维护，贡献时请遵循以下规范。读代码前建议先看 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [docs/README.md](docs/README.md)。
 
 ## 开发环境
 
@@ -65,7 +65,7 @@ step-5 驱动的行程问答，只依据行程事实回答，
 1. 从 `main` 创建分支：`git checkout -b feat/your-feature`
 2. 开发并通过所有检查
 3. 提交 PR，填写 PR 模板
-4. 等待 review 通过后合并
+4. 维护者会尽量回复；个人项目不承诺 review 时限或合并
 
 ## 项目结构
 
@@ -76,6 +76,7 @@ lib/            核心业务逻辑（planner / validate / amap / store 等）
 tests/          测试（e2e 编排 + Vitest 单测）
 scripts/        构建/测试/部署脚本
 prisma/         数据库 schema
+docs/           架构总览、开放标准、ADR、设计系统（索引见 docs/README.md）
 ```
 
 ## 环境变量

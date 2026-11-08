@@ -7,7 +7,7 @@
 ## 背景
 
 2026-10 全球市场重调研（`research/2026-10-global/`，结论见
-[PRODUCT-REVOLUTION-2026-10.md](../PRODUCT-REVOLUTION-2026-10.md)）暴露了一个
+[PRODUCT-REVOLUTION-2026-10.md](../archive/strategy/PRODUCT-REVOLUTION-2026-10.md)）暴露了一个
 结构性问题：产品的核心能力（事实先行 + 体检 + 修复）在上一轮定位里被包装成
 **To C 功能叙事**，但市场证据指向相反的方向：
 
@@ -69,6 +69,6 @@
 ## 参考
 
 - 标准：[docs/TRIP-CHECK-STANDARD.md](../TRIP-CHECK-STANDARD.md)
-- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../PRODUCT-REVOLUTION-2026-10.md)
+- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../archive/strategy/PRODUCT-REVOLUTION-2026-10.md)
 - 实现：`lib/verify/`、`app/api/verify/`、`app/api/mcp/`、`app/(marketing)/verify/`
 - 调研证据（本地）：`research/2026-10-global/R1|R2|R3*.md`

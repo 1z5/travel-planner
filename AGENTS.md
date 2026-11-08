@@ -83,12 +83,14 @@ components/
   实现方式是**覆盖层**：`app/styles/atlas-{tokens,base,shell,home,workspace,evidence,marketing}.css`
   按 import 顺序后写者胜；**`app/globals.css` 一行未动**，不要往里加东西。
   趋势依据与「不要做」清单：同文档 §0 与 §6（完整调研底稿在本地 `research/`，按仓库惯例不入库）。
-- **当前阶段（2026-10-28，v9）**：从「To C 产品感」进入**「行程可执行性核验层」**——卖可复算的证据，
-  而不是再做一个行程生成器：Trip Check 开放标准 v0.1（两轴报告 / 17 规则 / 可复算凭据）+
-  确定性修复（前后凭据链）+ `/api/verify` + MCP `/api/mcp` + 工作台第五镜头「体检」+
-  `/api/plan/check|repair` 预览→确认写入 + 分享页凭据/JSON-LD + 可分享报告页/海报 + 安全加固。
-  入口：[docs/README.md](docs/README.md)；当前策略 [docs/PRODUCT-REVOLUTION-2026-10.md](docs/PRODUCT-REVOLUTION-2026-10.md)；
-  标准 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)；上线行动 [NEXT_STEPS.md](NEXT_STEPS.md)。
+- **工程现状（2026-11-08 起）**：本项目已放弃商业化，定位为个人开源技术展示项目。
+  现有能力（Trip Check 开放标准 v0.1 + 16 条规则 + 可复算凭据 + 确定性修复前后链 +
+  `/api/verify` + MCP + 工作台体检镜头 + 预览→确认写入 + 分享页凭据/JSON-LD + 报告/海报 +
+  安全加固）作为工程样例保留并维护，但不再背负产品/营收目标。
+  读代码前先看 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)；文档入口 [docs/README.md](docs/README.md)；
+  标准 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)。
+- **历史策略已归档**：2026-10 ~ 11 的产品/获客/商业化文档在 [docs/archive/strategy/](docs/archive/strategy/)，
+  只作决策脉络，不要按归档文档排期。
 - **历史阶段已归档**：v8 及以前的「To C 产品化 / 事实先行」路线在 [docs/archive/](docs/archive/)，
   只作决策脉络，不要按归档文档排期。Phase 0（官网/产品分离）已完成：`/` 是我的行程、`/new` 新建、
   `/about` 营销页；产品页用 `AppShell`，不要再把营销区块加回产品页。
@@ -101,10 +103,10 @@ components/
   `crossSiteWriteError` 保护状态变更端点、demo 行程（`plan.demo`）只读、不得信任客户端回传的
   `verified/verification/tripCheck` 等受信字段。
 - **下一轮候选**：工作台内直接操纵的剩余部分（跨天拖动/改时长/锁定必去点）、候选池、
-  生成中可编辑骨架、行中通知；以及真实上线前的正式域名/账号/支付决策（见 NEXT_STEPS）。
+  生成中可编辑骨架、行中通知。均为可选工程改进，不构成排期或商业化计划。
 - **v5 事实层已用真实高德 key 验收（2026-10-28）**：`verify:amap` 全绿；
   `EVAL_CASES=3 eval:cases` 实测 3/3 成功、POI 验真 100%（51/51）、通勤失败 0%、预算贴合中位 82%。
-  仍建议：20 城全量基线、对照 v4 看预警变化、境外无覆盖降级确认（清单见 NEXT_STEPS）。
+  仍建议：20 城全量基线、对照 v4 看预警变化、境外无覆盖降级确认（历史清单见 [docs/archive/strategy/NEXT_STEPS.md](docs/archive/strategy/NEXT_STEPS.md)）。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
 
 ## 如何添加新功能
@@ -260,7 +262,7 @@ UI 改动不能只靠人眼。该命令会自起桩 LLM + dev server（独立 di
 - 对外数字必须可复现：测试条数以 `npm run gate` 实测为准，评测数字注明城市数/日期；
 - 新增文档先登记到 [docs/README.md](docs/README.md)；被取代的路线图移入 [docs/archive/](docs/archive/)
   并加归档 banner，不要让过期文档和当前策略打架；
-- 已知限制/取舍写进文档（README「已知边界」、ADR、NEXT_STEPS），不要用营销话术盖过去。
+- 已知限制/取舍写进文档（README「已知边界」、ADR、ARCHITECTURE「已知技术债」），不要用营销话术盖过去。
 
 ### 给 AI 代理的「诚实工程」检查
 

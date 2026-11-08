@@ -53,4 +53,4 @@ S1/S1.5/S1.6 把核验层做成了「判定 + 修复 + 产品内闭环」，但�
 - 模型：[lib/trip-check-report.ts](../../lib/trip-check-report.ts)
 - 建议计算：[lib/verify/engine.ts](../../lib/verify/engine.ts)（`hoursSuggestion`）、[lib/poi-hours.ts](../../lib/poi-hours.ts)（`openWindowsOnDate`）
 - 页面/海报：`app/(app)/p/[id]/check/page.tsx`、`app/p/[id]/check/poster/route.tsx`
-- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../PRODUCT-REVOLUTION-2026-10.md) §3.3
+- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../archive/strategy/PRODUCT-REVOLUTION-2026-10.md) §3.3

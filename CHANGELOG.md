@@ -1,3 +1,30 @@
+## 2026-11-08 仓库整理：转为开源技术展示项目
+
+**定位变化**：放弃商业化，仓库改为个人开源技术展示项目；不提供商业服务、不承诺可用性、
+不收集真实用户数据。在线演示保留作工程样例（Render 免费实例，会休眠、重启丢数据）。
+
+**做了什么**
+
+- **门面重写**：`README.md` / `README.en.md` 改为技术展示向（技术栈、能力表、快速开始、
+  已知边界、非商业化声明）。文档不再写死测试条数——此前 README / CHANGELOG / 路线图
+  三处数字互相矛盾，统一以 `npm run gate` 实测为准。
+- **新增 `docs/ARCHITECTURE.md`**：模块地图、三条核心数据流、存储双实现、测试与门禁、
+  配置与安全边界，并诚实列出已知技术债（TS 7 超 typescript-eslint 支持、60 条存量 warning、
+  22038 行 CSS 覆盖层、3272 行 e2e 编排、环境变量裸读、memory 配额按实例、门禁口径分裂等）。
+- **文档分层**：按 `docs/README.md` 自身约定，把 `NEXT_STEPS.md`、
+  `docs/PRODUCT-REVOLUTION-2026-10.md`、`docs/PHASE0-ACQUISITION-PLAYBOOK.md` 移入
+  `docs/archive/strategy/` 并加归档 banner；全仓交叉引用（AGENTS、ADR 012–015、开放标准、
+  历史文档、`lib/verify/types.ts` 注释）已同步修正，旧链接不留。
+  `docs/README.md` 重写为「现行技术 / 部署 / 开源标配 / 归档」四组；`docs/adr/README.md` 补齐 012–016。
+- **叙事一致性**：`CONTRIBUTING.md` 改成个人项目口径；`/pricing` 标注为历史页面并从站内
+  导航移除入口（页面与 `upgrade_intent` 端点保留，不无谓打断既有 e2e 契约）；
+  `AGENTS.md` 去掉「当前策略 / 上线行动 / 支付决策」等过时表述，改指向架构总览。
+- **边界**：没有改动任何生成 / 验真 / 存储逻辑、路由、测试断言或线上行为。
+
+**验证**：typecheck ✓ · lint 0 error（60 条存量 warning）· format:check ✓ ·
+组件单测 275/275 · e2e 795/795 · 全仓 40 份 markdown 的 186 个相对链接全部有效
+（含 1 处原本就坏的 `ATLAS-V6.md → CHANGELOG.md`）。
+
 ## 2026-11-08 回滚：撤销「出发前交接单」，恢复 /check 为第一入口
 
 **为什么回滚**：交接单上线后实测反馈是「不知道有什么用，还不如之前的产品」。它把用户本来

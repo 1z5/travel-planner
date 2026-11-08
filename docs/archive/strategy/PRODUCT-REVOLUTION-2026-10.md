@@ -1,7 +1,11 @@
+> **归档（2026-11-08）**：本项目已放弃商业化，定位为个人开源技术展示项目。
+> 本文件记录当时的产品 / 获客策略，**不是当前依据**，仅用于追溯决策脉络。
+> 现行文档见 [文档索引](../../README.md)，架构总览见 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
+
 # 产品形态跃迁 2026-10：从「会体检的行程规划师」到「行程可执行性核验层」
 
 > 本文是 2026-10-28 全球市场重调研后的产品决策文档（执行版）。
-> 上一轮蓝图（To C 产品化，见 [PRODUCT-UPGRADE-2026-10.md](archive/PRODUCT-UPGRADE-2026-10.md)）的 S0–S4 已基本落地；
+> 上一轮蓝图（To C 产品化，见 [PRODUCT-UPGRADE-2026-10.md](../PRODUCT-UPGRADE-2026-10.md)）的 S0–S4 已基本落地；
 > 本轮不是再加一个功能，而是**改产品的形态与买家**。
 >
 > 调研证据（本轮三份，本地目录不进仓库）：`research/2026-10-global/`（R1 市场与平台迁移 / R2 竞品与用户痛点 / R3 数据与分发可行性）。
@@ -109,7 +113,7 @@
 
 | 层       | 交付                                                                                                                                                                                                               |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 标准     | [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md) v0.1：文档格式、三态语义、17 条规则、两轴报告、凭据公式、接口、版本策略、合规边界；JSON Schema `GET /api/verify/schema`                                           |
+| 标准     | [TRIP-CHECK-STANDARD.md](../../TRIP-CHECK-STANDARD.md) v0.1：文档格式、三态语义、17 条规则、两轴报告、凭据公式、接口、版本策略、合规边界；JSON Schema `GET /api/verify/schema`                                     |
 | 引擎     | `lib/verify/`：`types` / `rules` / `engine`（纯函数、可复算）/ `repair`（确定性修复）/ `schema` / `validate` / `credential`（sha256 规范 JSON）/ `adapt`（内部 Plan→开放文档）/ `jsonld`（schema.org TouristTrip） |
 | API      | `POST /api/verify`（document 或 shareId；CORS；限流；无状态不落库）；`POST /api/verify/repair`（修复 + 前后凭据链，**不写回**）；`GET /api/verify` 元信息；`GET /api/verify/schema`                                |
 | MCP      | `POST /api/mcp`（JSON-RPC 2.0 stateless）+ `mcp/stdio.mjs` 本地桥；工具：`verify_itinerary` / `repair_itinerary` / `verify_shared_trip` / `get_trip_check_schema` / `list_rules` / `explain_rule`                  |
@@ -161,8 +165,8 @@ S1/S1.5 的核验层此前还是「产品外面的一套工具」：分享页一
 ### 3.4 S1.8 增量：底座安全加固 + 行中「今日体检」
 
 产品开始承载「可信证据」后，底座的可信度变成产品的一部分。S1.8 做了一次只读安全审计
-（[SECURITY-AUDIT-2026-10-28.md](./SECURITY-AUDIT-2026-10-28.md)，无 Critical），并把结论
-落成代码约束（详见 [ADR-016](adr/016-security-hardening-baseline.md)）：
+（[SECURITY-AUDIT-2026-10-28.md](../../SECURITY-AUDIT-2026-10-28.md)，无 Critical），并把结论
+落成代码约束（详见 [ADR-016](../../adr/016-security-hardening-baseline.md)）：
 
 - 统一请求体上限、jobId CSPRNG、demo 行程只读、restore 不再接受客户端回传的核验/修复元数据
   （「已核验/已修复」徽章不可再被一次 restore 伪造）、写端点同源校验、海报/OG/MCP 限流、
@@ -237,7 +241,7 @@ S1/S1.5 的核验层此前还是「产品外面的一套工具」：分享页一
 | 不做全球化事实层                        | Google/高德条款双重锁死；单人团队无法承担多源合规                                               |
 | 本轮不接支付/订阅                       | 29% 规划类负面是扣费问题；先做证据价值，再谈收费                                                |
 
-详见 [ADR-012](adr/012-trip-check-open-verification.md)。
+详见 [ADR-012](../../adr/012-trip-check-open-verification.md)。
 
 ---
 

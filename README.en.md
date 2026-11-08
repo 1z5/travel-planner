@@ -6,7 +6,8 @@
 
 - Live demo: <https://travel-planner-demo.onrender.com> (free Render instance; may cold-start for 30–60s; demo itineraries are read-only and clonable)
 - Public verifier: <https://travel-planner-demo.onrender.com/verify>
-- Status: v9 (2026-10-28; Trip Check verification layer + deterministic repair + shareable evidence). Full history in [CHANGELOG.md](CHANGELOG.md).
+- Status (since 2026-11-08): **personal open-source technology showcase**; commercialization dropped. No service commitment, no availability guarantee, no real user data. The live demo is a free Render instance that sleeps and loses data on restart.
+- Full history: [CHANGELOG.md](CHANGELOG.md) · [Architecture](docs/ARCHITECTURE.md).
 
 ## What it solves
 
@@ -32,7 +33,7 @@ An LLM can write an itinerary, but it doesn't know that the Suzhou Museum is clo
 | Sharing & in-trip     | Poster-grade share page + JSON-LD; `/t/<id>` today view with weather replanning and today's check                        |
 | Metrics               | Privacy-bounded events (no phone/IP/content) + read-only summary endpoint                                                |
 
-**Honesty boundaries**: credentials are reproducible hashes, not signatures; "unverified" never means "fine"; MOCK mode never claims real verification; Amap data is not stored long-term (commercial licensing noted in [NEXT_STEPS.md](NEXT_STEPS.md)).
+**Honesty boundaries**: credentials are reproducible hashes, not signatures; "unverified" never means "fine"; MOCK mode never claims real verification; Amap data is not stored long-term per the provider terms; this project is not used commercially.
 
 ## Stack & layout
 
@@ -66,8 +67,7 @@ npm run gate:visual   # visual/accessibility regression (15 pages × desktop/mob
 npm run check:env     # env drift / production safety check
 ```
 
-Baseline (2026-10-28): **1202 unit tests + 776 e2e assertions**, `npm run gate` green; real-key evaluation across
-Beijing / Shanghai / Guangzhou: 3/3 successful, POI verification 100% (51/51), median budget fit 82%.
+Test counts are deliberately not hard-coded in docs — run `npm run gate` (CI runs it on every push). Currently `lint` reports 0 errors / 60 pre-existing warnings; see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Deployment acceptance: `node scripts/smoke-deployed.mjs <URL>` after Render reports the new commit via `/api/health`.
 
 ## Deployment
@@ -80,7 +80,7 @@ Deployment acceptance: `node scripts/smoke-deployed.mjs <URL>` after Render repo
 ## Documentation
 
 Index and reading order: [docs/README.md](docs/README.md). Key docs:
-[standard](docs/TRIP-CHECK-STANDARD.md) · [strategy](docs/PRODUCT-REVOLUTION-2026-10.md) · [next steps](NEXT_STEPS.md) ·
+[architecture](docs/ARCHITECTURE.md) · [standard](docs/TRIP-CHECK-STANDARD.md) · [archived strategy](docs/archive/strategy/) ·
 [ADRs](docs/adr/) · [security](SECURITY.md) / [audit](docs/SECURITY-AUDIT-2026-10-28.md) · [API](API.md) · [history](CHANGELOG.md).
 
 ## Known boundaries

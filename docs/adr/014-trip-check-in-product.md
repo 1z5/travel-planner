@@ -64,7 +64,7 @@ repairedAt, repairCount, applied }`。为什么放 Plan JSON 而不是另建表�
 
 ## 参考
 
-- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../PRODUCT-REVOLUTION-2026-10.md) §3.2
+- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../archive/strategy/PRODUCT-REVOLUTION-2026-10.md) §3.2
 - 判定标准：[docs/TRIP-CHECK-STANDARD.md](../TRIP-CHECK-STANDARD.md)
 - 修复器：[ADR-013](013-trip-check-repair.md)、`lib/verify/repair.ts`
 - 实现：`app/api/plan/check/`、`app/api/plan/repair/`、`components/WorkspaceCheck.tsx`

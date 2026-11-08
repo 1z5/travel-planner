@@ -52,7 +52,6 @@ export function SiteFooter() {
                 <Link href="/about#faq">常见问题</Link>
               </li>
               <li>
-                <Link href="/pricing">定价与功能意愿</Link>
                 <Link href="/privacy">隐私政策</Link>
               </li>
               <li>

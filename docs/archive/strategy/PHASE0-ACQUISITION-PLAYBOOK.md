@@ -1,8 +1,12 @@
+> **归档（2026-11-08）**：本项目已放弃商业化，定位为个人开源技术展示项目。
+> 本文件记录当时的产品 / 获客策略，**不是当前依据**，仅用于追溯决策脉络。
+> 现行文档见 [文档索引](../../README.md)，架构总览见 [ARCHITECTURE.md](../../ARCHITECTURE.md)。
+
 # Phase 0 获客测试手册（2026-11-05）
 
 > **目的**：用最低成本验证一件事——**有没有人愿意为「行程体检」停下来找你**。
 > 这是整个「体检获客 → 行中值班」漏斗的止损闸门：**10 个免费名额一周内约不满，
-> 后面两轮都不做**（见 [../NEXT_STEPS.md](../NEXT_STEPS.md) 的止损表）。
+> 后面两轮都不做**（见 [NEXT_STEPS.md](NEXT_STEPS.md) 的止损表）。
 >
 > 本手册只覆盖 Phase 0：**不写产品代码、不改部署**。交付是人工的（我/你亲手出报告），
 > 因为要验证的是需求，不是自动化程度。
@@ -84,7 +88,7 @@
 ### 3.1 输入整理
 
 用户发来的通常是文字或截图。整理成 Trip Check 开放文档（格式见
-[TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md) §3，机器契约 `GET /api/verify/schema`）：
+[TRIP-CHECK-STANDARD.md](../../TRIP-CHECK-STANDARD.md) §3，机器契约 `GET /api/verify/schema`）：
 
 1. 逐点位抽出：`name` / `time`（`HH:MM-HH:MM`）/ `durationMin` / `costCny` / `type`；
 2. **没有的信息不要编**：缺 `durationMin` 就跳过节奏判定（TC-C105 会如实报「信息不足」），
@@ -124,7 +128,7 @@ curl -s -X POST http://localhost:3000/api/verify \
   MOCK 模式下**不能**说「已核验」。
 - 代价：出来的是**按对方行程重排后的版本**，不是原文逐字核对——这一点必须在交付时讲明。
 - 已验证证据（不必重跑）：`npm run verify:amap` 全绿；`EVAL_CASES=3 npm run eval:cases`
-  实测 3/3 成功、POI 验真 100%（51/51）（见 [../NEXT_STEPS.md](../NEXT_STEPS.md)）。
+  实测 3/3 成功、POI 验真 100%（51/51）（见 [NEXT_STEPS.md](NEXT_STEPS.md)）。
 
 ### 3.3 交付物（三选一或全给）
 

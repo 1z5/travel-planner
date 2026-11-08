@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { IntentButton } from "@/components/IntentButton";
 
-// 定价与付费意愿（S3 商业化试点）。
-//
-// 为什么现在做：先验证「愿意为什么付费」再谈支付——不接支付时页面必须把
-// 「还没上线、不会收费」写在最显眼的位置，否则就是拿未兑现的东西钓鱼。
-// 意愿通过 /api/events 的 upgrade_intent 上报（只有 tier 计数，没有身份信息）。
+// 历史页面（2026-11-08 归档）：本项目已放弃商业化，转为个人开源技术展示项目。
+// 保留此页与 upgrade_intent 事件端点，是为了不无谓打断既有 e2e 契约；
+// 页面顶部明确标注「已作废」，不再收集或主张任何付费意愿。
 
 export const metadata: Metadata = {
   title: "定价与功能意愿 — 行程规划师",
@@ -48,11 +46,15 @@ export default function PricingPage() {
             <span className="eyebrow-dot" aria-hidden="true" />
             定价 · 意愿收集
           </p>
-          <h1 className="pricing-title">现在全部功能免费，未来怎么收费还没定</h1>
+          <p className="pricing-honest">
+            <b>历史页面（2026-11-08 起）</b>：本项目已放弃商业化，转为个人开源技术展示项目，
+            不再收集付费意愿、不计划上线收费。以下内容仅作当时的决策记录。
+          </p>
+          <h1 className="pricing-title">本项目全部功能免费，不计划商业化</h1>
           <p className="pricing-lede">
             我们不卖排名、没有广告位、没有返佣（见
-            <Link href="/about#neutrality">中立承诺</Link>）。付费点只可能来自「更强的核验」与
-            「更省心的提醒」——但在做之前，我们想先知道你到底愿意为什么付钱。
+            <Link href="/about#neutrality">中立承诺</Link>）。下面三个是当时的<b>候选</b>
+            设想，现已作废。
           </p>
           <p className="pricing-honest">
             下面三个是<b>候选</b>功能，都还没做。点「我想要这个」只是投一票：

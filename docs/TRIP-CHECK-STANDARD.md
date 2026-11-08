@@ -9,7 +9,7 @@
 
 ## 1. 为什么要有这个标准
 
-2026 年的旅行 AI 市场有一个结构性矛盾（证据见 [PRODUCT-REVOLUTION-2026-10.md](PRODUCT-REVOLUTION-2026-10.md)）：
+2026 年的旅行 AI 市场有一个结构性矛盾（证据见 [archive/strategy/PRODUCT-REVOLUTION-2026-10.md](archive/strategy/PRODUCT-REVOLUTION-2026-10.md)）：
 
 - **规划侧采用率已经很高**（全球 79–80% 用过 AI 规划，中国 86%+）；
 - **委托率极低**（仅 6–8% 敢把大部分规划交给 AI），且 **68% 的人仍更信任品牌、66% 不接受 AI 代订**；
