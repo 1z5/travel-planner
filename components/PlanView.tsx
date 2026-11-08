@@ -594,6 +594,20 @@ export function PlanView({
     }
   }, [today]);
 
+  // 体检卡（≤2 个问题时服务端默认展开）：移动端改为默认收起。
+  // 为什么只在窄屏收起：桌面一屏放得下，摊开是「不隐瞒」；手机上展开会把
+  // 行程本体推到 2-3 屏之后，摘要行（「发现 N 个问题」）已如实传达了风险，
+  // 逐条问题保持一键可达即可。只在挂载时改一次 DOM 属性，不参与渲染。
+  const checkupRef = useRef<HTMLDetailsElement | null>(null);
+  const defaultOpenCheckup = viewPlan.warnings.length <= 2;
+  useEffect(() => {
+    if (!defaultOpenCheckup) return;
+    if (window.matchMedia("(max-width: 720px)").matches) {
+      checkupRef.current?.removeAttribute("open");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 「行中」第二步：今天在行程内时，算「现在在进行哪个点 / 下一站是哪个」。
   // 每分钟刷新——旅途中页面可能长开，一次算完会过期。仅在 during 时跑。
   const duringIdx = today.kind === "during" ? today.dayIndex : -1;
@@ -1490,7 +1504,12 @@ export function PlanView({
           「体检而非隐瞒」的红线不能破：摘要行明确写出问题数，详情一键可达。
           少量问题（≤2）时默认展开，避免为了美观藏起关键信息。 */}
       {viewPlan.warnings.length > 0 && (
-        <details className="checkup" id="plan-alerts" open={viewPlan.warnings.length <= 2}>
+        <details
+          ref={checkupRef}
+          className="checkup"
+          id="plan-alerts"
+          open={viewPlan.warnings.length <= 2}
+        >
           <summary className="checkup-head">
             <AlertTriangle size={17} className="checkup-icon" />
             <span className="checkup-title">行程体检发现 {viewPlan.warnings.length} 个问题</span>

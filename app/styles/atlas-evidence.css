@@ -519,6 +519,46 @@ html[data-theme="dark"] .poster-map-wrap::after {
   color: var(--at-ink-4);
 }
 
+/* 体检凭据卡的「说明与报告入口」：默认收起（2026-11 移动端改造）。
+   一行结论（自洽性 / 事实核验 / 凭据 ID）永远可见，说明文字对只想看行程的
+   人是噪音——手机上原来是一整屏文字墙，收起后首屏给行程本体。 */
+.cred-more {
+  margin-top: 2px;
+}
+.cred-more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--at-accent);
+  font-size: var(--at-fs-small);
+  font-weight: 600;
+}
+.cred-more summary::-webkit-details-marker {
+  display: none;
+}
+.cred-more summary::before {
+  content: "＋";
+  font-family: var(--at-mono);
+  font-weight: 700;
+}
+.cred-more[open] summary::before {
+  content: "－";
+}
+.cred-more[open] summary {
+  margin-bottom: 4px;
+}
+.cred-more > p:first-of-type {
+  margin-top: 4px;
+}
+
+/* 移动端底部操作条：基础态只在 ≤720px 打开（见 §11），桌面/打印不渲染。 */
+.share-mobile-bar {
+  display: none;
+}
+
 /* ---------- 吸顶导航偏移按新壳重新校准 ----------
    globals.css 里 `.plan-toc{top:52px}` / `--plan-anchor-offset:113px` 是按 v5 的
    52px 实心顶栏定的；ATLAS v6 顶栏是悬浮药丸（top 10 + 高 56 → 底 66px），
@@ -3970,6 +4010,49 @@ main.at-share-page [class*="demo-note"] {
     margin-left: 0;
     flex-basis: 100%;
   }
+  /* 分享页移动端信息架构（2026-11）：DOM 顺序不变（SEO/RSS/读屏一致），
+     视觉顺序用 flex order 调整——
+     封面海报提到面包屑之后、长说明卡之前；「也想去 X？」CTA 挪到行程末尾
+     （它是创建者视角的动作，接收者先看行程，看完再被引导生成自己的）。 */
+  main.at-share-page {
+    display: flex;
+    flex-direction: column;
+  }
+  main.at-share-page > .page-meta {
+    order: -3;
+  }
+  main.at-share-page > .poster {
+    order: -2;
+  }
+  main.at-share-page > .card[aria-label="行程体检凭据"] {
+    order: -1;
+  }
+  main.at-share-page > .share-cta {
+    order: 1;
+  }
+  /* 底部操作条：行程长页的关键动作常驻拇指可达区（safe-area 适配全面屏） */
+  main.at-share-page {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  .share-mobile-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    gap: 10px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in oklab, var(--at-surface-solid) 86%, transparent);
+    -webkit-backdrop-filter: var(--at-glass-blur);
+    backdrop-filter: var(--at-glass-blur);
+    border-top: 1px solid var(--at-line);
+  }
+  .share-mobile-bar .btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+  }
   .poster {
     padding: 20px 16px 18px;
     border-radius: var(--at-r-md);
@@ -4193,6 +4276,7 @@ main.at-share-page [class*="demo-note"] {
 @media print {
   .page-meta,
   .share-cta,
+  .share-mobile-bar,
   .poster-foot,
   .report-cta,
   .tc-report-page-foot,

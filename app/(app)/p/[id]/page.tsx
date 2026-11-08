@@ -161,26 +161,12 @@ export default async function SharePage({
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stamp.jsonLdInline }} />
 
       {/* 行程体检凭据：两轴结论 + 可复算 ID + 跳转开放报告。
-          故意放在分享页最上方——「可对账的证据」就是给别人看的第一件东西。 */}
+          故意放在分享页最上方——「可对账的证据」就是给别人看的第一件东西。
+          但说明文字对「只想看行程的人」是噪音（手机上是一整屏文字墙），
+          所以 2026-11 起收进 <details>：默认只露一行结论，说明与报告入口一键可达。 */}
       <section className="card" aria-label="行程体检凭据">
         <div className="card-body">
           <p className="muted">Trip Check · 行程体检凭据（开放标准 v0.1）</p>
-          {/* 「开放标准 v0.1 / 两轴结论」对外人是黑话：先用一句白话说清凭什么可信。
-              未接高德时如实说明体检只覆盖结构问题，不冒充事实核验。 */}
-          <p>
-            {plan.verification === "ok" ? (
-              <>
-                这不是一段 AI 写好的文字：
-                <strong>每个地点、营业时间与通勤都先按真实数据核过</strong>
-                ，体检把会出问题的地方摊开，结论可以用同一份行程独立复算。
-              </>
-            ) : (
-              <>
-                这份行程<strong>未接入真实 POI 数据</strong>
-                ，下面的体检只覆盖时间安排、节奏与预算等结构问题。
-              </>
-            )}
-          </p>
           <p>
             结构自洽性 <strong>{stamp.report.verdict.consistency.grade}</strong>（
             {stamp.report.verdict.consistency.score} 分） · 事实核验{" "}
@@ -191,35 +177,54 @@ export default async function SharePage({
             {stamp.report.verdict.facts.state !== "verified" && "（未核验 ≠ 没问题）"} · 凭据{" "}
             <code>{stamp.credential.id}</code>
           </p>
-          <Link href={`/verify?share=${id}`} className="btn-link">
-            在开放体检台查看完整报告 / 复算凭据 →
-          </Link>
-          {/* 可传播的体检报告工件：独立报告页 + 1080×1920 竖版海报（同源 stamp） */}
-          <p className="muted">
-            <Link href={`/p/${id}/check`} className="btn-link">
-              查看体检报告 →
-            </Link>
-            <span aria-hidden="true"> · </span>
-            <a
-              href={`/p/${id}/check/poster`}
-              className="btn-link"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              保存体检海报 →
-            </a>
-          </p>
-          {plan.tripCheck && (
-            <p className="muted">
-              已在第 {plan.tripCheck.repairCount ?? 1} 次确定性修复中写入新版本 · 修复链：
-              <code>{plan.tripCheck.parentCredentialId ?? "—"}</code> →{" "}
-              <code>{plan.tripCheck.credentialId}</code>
-              <br />
-              <Link href={`/w/${id}?view=check`} className="btn-link">
-                在工作台查看体检记录 →
-              </Link>
+          <details className="cred-more">
+            {/* 「开放标准 v0.1 / 两轴结论」对外人是黑话：先用一句白话说清凭什么可信。
+                未接高德时如实说明体检只覆盖结构问题，不冒充事实核验。 */}
+            <summary>这份凭据是什么？点开看说明与报告入口</summary>
+            <p>
+              {plan.verification === "ok" ? (
+                <>
+                  这不是一段 AI 写好的文字：
+                  <strong>每个地点、营业时间与通勤都先按真实数据核过</strong>
+                  ，体检把会出问题的地方摊开，结论可以用同一份行程独立复算。
+                </>
+              ) : (
+                <>
+                  这份行程<strong>未接入真实 POI 数据</strong>
+                  ，下面的体检只覆盖时间安排、节奏与预算等结构问题。
+                </>
+              )}
             </p>
-          )}
+            <Link href={`/verify?share=${id}`} className="btn-link">
+              在开放体检台查看完整报告 / 复算凭据 →
+            </Link>
+            {/* 可传播的体检报告工件：独立报告页 + 1080×1920 竖版海报（同源 stamp） */}
+            <p className="muted">
+              <Link href={`/p/${id}/check`} className="btn-link">
+                查看体检报告 →
+              </Link>
+              <span aria-hidden="true"> · </span>
+              <a
+                href={`/p/${id}/check/poster`}
+                className="btn-link"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                保存体检海报 →
+              </a>
+            </p>
+            {plan.tripCheck && (
+              <p className="muted">
+                已在第 {plan.tripCheck.repairCount ?? 1} 次确定性修复中写入新版本 · 修复链：
+                <code>{plan.tripCheck.parentCredentialId ?? "—"}</code> →{" "}
+                <code>{plan.tripCheck.credentialId}</code>
+                <br />
+                <Link href={`/w/${id}?view=check`} className="btn-link">
+                  在工作台查看体检记录 →
+                </Link>
+              </p>
+            )}
+          </details>
         </div>
       </section>
 
@@ -268,6 +273,23 @@ export default async function SharePage({
       <TripAlert plan={plan} />
 
       <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck hideCover />
+
+      {/* 移动端底部操作条（≤720px 显示，桌面隐藏）：分享页很长，关键动作
+          （保存海报 / 生成自己的行程）滚回顶部才能碰到是不行的——拇指可达
+          是移动端底线。纯链接渲染，不引入客户端 JS。 */}
+      <div className="share-mobile-bar">
+        <a
+          href={`/p/${id}/poster`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-sm"
+        >
+          保存海报
+        </a>
+        <Link href="/new" className="btn btn-primary btn-sm">
+          生成我的行程
+        </Link>
+      </div>
     </main>
   );
 }
