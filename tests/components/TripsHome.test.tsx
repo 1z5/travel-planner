@@ -15,13 +15,8 @@ describe("我的行程", () => {
   it("新用户首屏：主张 + 唯一主行动卡 + 可溯源的记忆点", async () => {
     render(<TripsHome />);
     // 首屏必须回答「这是什么产品」：价值主张在行动卡里，而不是只剩一句「还没有行程」
-    await waitFor(() => expect(screen.getByText("出发前，把行程交接清楚")).toBeInTheDocument());
-    // 2026-11-08 产品重构：第一动作是「出发前交接」，不是生成也不是体检
-    expect(screen.getByRole("link", { name: /出发前交接一份行程/ })).toHaveAttribute(
-      "href",
-      "/handoff",
-    );
-    // 引导明确：新建页仍可达，但已降级为次要（页面内唯一的新建入口）
+    await waitFor(() => expect(screen.getByText("先核验真实世界，再排行程")).toBeInTheDocument());
+    // 引导明确：主 CTA 指向新建（页面内唯一的新建入口，顶栏不再重复）
     expect(screen.getByRole("link", { name: /开始规划/ })).toHaveAttribute("href", "/new");
     // 「看示例」必须秒开真实验真的成品，不能再指向 MOCK 的 sample 预览
     expect(screen.getByRole("link", { name: /验真过的成品/ })).toHaveAttribute(
@@ -92,7 +87,7 @@ describe("想去清单与倒计时", () => {
     // 链接指向分享页
     expect(screen.getByRole("link", { name: /大理/ })).toHaveAttribute("href", "/p/share_wish01");
     // 新用户首屏（营销主张）不出现——有想去清单就不是空房间
-    expect(screen.queryByText("出发前，把行程交接清楚")).not.toBeInTheDocument();
+    expect(screen.queryByText("先核验真实世界，再排行程")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /从想去清单移除 大理/ }));
     await waitFor(() => expect(screen.queryByText("大理")).not.toBeInTheDocument());
