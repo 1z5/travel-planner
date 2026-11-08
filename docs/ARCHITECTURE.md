@@ -79,6 +79,9 @@ demo 只读拦截、配额与 revision 检查（见 §6）。
 > 环境提示：连续跑 e2e 后 `.next-t-*` 会累积到 1GB+，Turbopack 清理时可能触发沙箱的批量删除保护，
 > 表现为随机一台测试服务器起不来；清掉这 6 个目录即可。删除页面后若残留
 > `.next-t-*/dev/types/validator.ts`，`tsc --noEmit` 会报指向已删除路由的 TS2307，同样清缓存解决。
+> 此外 e2e 的 dev server 会改写被 git 忽略的 `next-env.d.ts`（把 import 指向
+> `.next-t-*/dev/types/routes.d.ts`，末尾还会留下一个孤立的 `.`），清缓存后
+> `tsc --noEmit` 会报 `TS1128`；把该文件恢复成 Next 的标准四行即可，不需要提交。
 
 ## 6. 配置与安全边界
 
