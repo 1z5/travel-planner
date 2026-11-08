@@ -6,7 +6,7 @@ import {
   removeWish,
   toggleWish,
   type WishlistTrip,
-} from "@/lib/wishlist";
+} from "@/lib/plan/wishlist";
 
 // 想去清单：只记用户主动点星的行程；脏数据不炸；幂等；有上限。
 

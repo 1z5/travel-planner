@@ -19,8 +19,8 @@
 //   取决于文档声明的来源，不能用一个总分掩盖「没核验」。
 // ============================================================
 
-import { checkOpenHours, openWindowsOnDate } from "../poi-hours";
-import { parseTimeRange } from "../schedule";
+import { checkOpenHours, openWindowsOnDate } from "../plan/poi-hours";
+import { parseTimeRange } from "../plan/schedule";
 import { RULE_IDS, RULES, SEVERITY_WEIGHT } from "./rules";
 import {
   TRIP_CHECK_ENGINE_NAME,

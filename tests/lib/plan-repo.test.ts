@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { memoryStore } from "@/lib/store/memory";
 import { getStore } from "@/lib/store";
-import { isJobStale, interruptJob, JOB_INTERRUPTED_ERROR, staleJobMs } from "@/lib/jobs";
-import { consume, peek } from "@/lib/ratelimit";
+import { isJobStale, interruptJob, JOB_INTERRUPTED_ERROR, staleJobMs } from "@/lib/jobs/jobs";
+import { consume, peek } from "@/lib/server/ratelimit";
 import type { JobRecord } from "@/lib/store/types";
 import {
   commitPlan,
@@ -13,7 +13,7 @@ import {
   newShareId,
   replacePlan,
   resolvePlan,
-} from "@/lib/plan-repo";
+} from "@/lib/plan/plan-repo";
 import { DEMO_FIXTURES } from "@/demo/fixtures";
 import type { Plan, PlanInput } from "@/lib/types";
 

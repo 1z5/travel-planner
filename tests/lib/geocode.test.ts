@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { pickCityName } from "@/lib/amap";
+import { pickCityName } from "@/lib/geo/amap";
 
 // pickCityName 有两个实测踩过的坑（真实高德 key 验证）：
 // 1. 直辖市的 addressComponent.city 是**空数组**（city 与 province 被合一）
@@ -78,7 +78,7 @@ describe("reverseGeocode 降级", () => {
     const saved = process.env.AMAP_WEB_SERVICE_KEY;
     delete process.env.AMAP_WEB_SERVICE_KEY;
     vi.resetModules();
-    const { reverseGeocode } = await import("@/lib/amap");
+    const { reverseGeocode } = await import("@/lib/geo/amap");
     const r = await reverseGeocode(116.48, 39.99);
     expect(r).toBeNull();
     if (saved !== undefined) process.env.AMAP_WEB_SERVICE_KEY = saved;

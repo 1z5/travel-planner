@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { resolvePlan } from "@/lib/plan-repo";
+import { resolvePlan } from "@/lib/plan/plan-repo";
 import { TripReport } from "@/components/TripReport";
 
 // 「旅程报告」页：/r/<share token>——出行结束后的 post-trip 传播物。

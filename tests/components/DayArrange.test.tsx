@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DayArrange } from "@/components/DayArrange";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 调整镜头：直接操纵 + 确定性重算 + 失败回滚。
 // 只验证交互契约（顺序/请求体/错误回滚），不验证 retimeDay 本身（schedule 单测覆盖）。

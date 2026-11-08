@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { suggestPlaces } from "@/lib/amap";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { suggestPlaces } from "@/lib/geo/amap";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

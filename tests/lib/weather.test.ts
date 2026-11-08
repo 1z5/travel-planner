@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { buildWeatherAdvice, fetchWeather } from "@/lib/weather";
+import { buildWeatherAdvice, fetchWeather } from "@/lib/geo/weather";
 import type { Plan } from "@/lib/types";
 
 // 天气规划的两个核心原则必须钉死：
@@ -59,7 +59,7 @@ describe("fetchWeather", () => {
     const saved = process.env.AMAP_WEB_SERVICE_KEY;
     delete process.env.AMAP_WEB_SERVICE_KEY;
     vi.resetModules();
-    const { fetchWeather } = await import("@/lib/weather");
+    const { fetchWeather } = await import("@/lib/geo/weather");
     const r = await fetchWeather("成都");
     expect(r.state).toBe("unavailable");
     if (saved !== undefined) process.env.AMAP_WEB_SERVICE_KEY = saved;
@@ -99,7 +99,7 @@ describe("fetchWeather", () => {
         }),
       })),
     );
-    const { fetchWeather } = await import("@/lib/weather");
+    const { fetchWeather } = await import("@/lib/geo/weather");
     const r = await fetchWeather("成都");
     expect(r.state).toBe("ok");
     if (r.state !== "ok") throw new Error("应为 ok");
@@ -118,7 +118,7 @@ describe("fetchWeather", () => {
         json: async () => ({ status: "0", info: "INVALID_USER_KEY" }),
       })),
     );
-    const { fetchWeather } = await import("@/lib/weather");
+    const { fetchWeather } = await import("@/lib/geo/weather");
     const r = await fetchWeather("成都");
     expect(r.state).toBe("unavailable");
   });

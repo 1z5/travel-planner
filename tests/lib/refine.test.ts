@@ -16,8 +16,8 @@ const mockStream = vi.hoisted(() => vi.fn());
 const mockClient = vi.hoisted(() => vi.fn(() => ({ __fakeLlm: true })));
 const mockValidatePlan = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/planner", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/planner")>();
+vi.mock("@/lib/plan/planner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/plan/planner")>();
   return {
     ...actual,
     client: mockClient,
@@ -25,8 +25,8 @@ vi.mock("@/lib/planner", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/validate", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/validate")>();
+vi.mock("@/lib/plan/validate", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/plan/validate")>();
   return { ...actual, validatePlan: mockValidatePlan };
 });
 
@@ -37,8 +37,8 @@ const {
   RefineLlmError,
   RefineOutputError,
   RefineRejectedError,
-} = await import("@/lib/refine");
-const { baseLines, LlmError } = await import("@/lib/planner");
+} = await import("@/lib/plan/refine");
+const { baseLines, LlmError } = await import("@/lib/plan/planner");
 
 // ---------- fixtures ----------
 

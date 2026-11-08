@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveCloneInput, CloneOverridesSchema } from "@/lib/plan-clone";
+import { deriveCloneInput, CloneOverridesSchema } from "@/lib/plan/plan-clone";
 import type { Plan, PlanInput } from "@/lib/types";
 import type { PlanRecord } from "@/lib/store/types";
 

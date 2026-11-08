@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EVENT_NAMES, summarize, newEventId } from "@/lib/metrics";
+import { EVENT_NAMES, summarize, newEventId } from "@/lib/server/metrics";
 import type { TripEventRecord } from "@/lib/store/types";
 
 // 指标纯函数：北极星「照着走完」第一次变得可计算。

@@ -6,7 +6,7 @@ import {
   loadExecutionLog,
   markArrived,
   markDeparted,
-} from "@/lib/trip-execution";
+} from "@/lib/trip/trip-execution";
 import type { PlanLeg, PlanSpot } from "@/lib/types";
 
 // 行中打卡：本地存储的 CRUD、脏数据防御、以及「没有真实路段就不给出发建议」。

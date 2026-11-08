@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as mcpGET, OPTIONS as mcpOPTIONS, POST as mcpPOST } from "@/app/api/mcp/route";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 import {
   JSON_RPC_ERRORS,
   MCP_PROTOCOL_VERSION,

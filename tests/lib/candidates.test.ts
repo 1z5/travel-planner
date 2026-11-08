@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildReplacementSpot, findCandidates } from "@/lib/candidates";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import type { PoiInfo } from "@/lib/amap";
+import { buildReplacementSpot, findCandidates } from "@/lib/plan/candidates";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
+import type { PoiInfo } from "@/lib/geo/amap";
 
 // 候选替换的纯逻辑：只换事实字段（名称/区域/坐标/POI），保留时间/停留/类型。
 

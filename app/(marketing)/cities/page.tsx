@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CITY_TEMPLATES, templateHref } from "@/lib/city-templates";
+import { CITY_TEMPLATES, templateHref } from "@/lib/plan/city-templates";
 
 // 城市模板索引页（产品线 B2，SEO 获取层）。
 //

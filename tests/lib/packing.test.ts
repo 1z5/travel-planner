@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { derivePackingList, PACKING_NO_WEATHER_NOTE } from "@/lib/packing";
+import { derivePackingList, PACKING_NO_WEATHER_NOTE } from "@/lib/plan/packing";
 import type { Plan, PlanDay, PlanSpot } from "@/lib/types";
 
 // 出发前准备：钉住的契约是「只按真实依据推导、不塞通用清单」。

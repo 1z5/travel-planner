@@ -8,7 +8,7 @@ import {
   projectPixels,
   type MapPoint,
   type MapView,
-} from "@/lib/map-view";
+} from "@/lib/geo/map-view";
 
 // ============================================================
 // 真实地图：高德静态地图底图 + 自绘路线/编号标记覆盖层。

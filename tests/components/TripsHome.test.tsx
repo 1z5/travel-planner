@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripsHome } from "@/components/TripsHome";
-import { DEMO_SHOWCASE_SHARE_ID } from "@/lib/demo-links";
+import { DEMO_SHOWCASE_SHARE_ID } from "@/lib/demo/demo-links";
 
 // 产品入口从营销首页改成「我的行程」后，列表/空态/删除都由这个组件承担。
 const STORAGE_KEY = "tp.recent-trips.v1";

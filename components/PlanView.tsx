@@ -40,23 +40,23 @@ import {
   fmtDist,
   type SpotNow,
   type TripToday,
-} from "@/lib/trip-day";
-import { warnTag } from "@/lib/warn-tag";
-import { ownsRecentTrip } from "@/lib/recent-trips";
+} from "@/lib/trip/trip-day";
+import { warnTag } from "@/lib/server/warn-tag";
+import { ownsRecentTrip } from "@/lib/plan/recent-trips";
 import { RouteMap } from "./RouteMap";
 import { PlanCopilot } from "./PlanCopilot";
-import type { CopilotSuggestion } from "@/lib/copilot-types";
+import type { CopilotSuggestion } from "@/lib/plan/copilot-types";
 import { RealMap } from "./RealMap";
 import { BudgetInsight } from "./BudgetInsight";
 import { PackingList } from "./PackingList";
 import { ExecutabilityBadge } from "./ExecutabilityBadge";
-import { summarizeBudget } from "@/lib/budget";
-import { suggestFix } from "@/lib/fix-actions";
-import { isScheduleWarning, isHoursWarning } from "@/lib/schedule";
-import { changeImpact, type ChangeImpact } from "@/lib/change-impact";
+import { summarizeBudget } from "@/lib/plan/budget";
+import { suggestFix } from "@/lib/plan/fix-actions";
+import { isScheduleWarning, isHoursWarning } from "@/lib/plan/schedule";
+import { changeImpact, type ChangeImpact } from "@/lib/plan/change-impact";
 import { SpotCandidates } from "./SpotCandidates";
 import { BackToTop } from "./BackToTop";
-import { formatHoursShort } from "@/lib/poi-hours";
+import { formatHoursShort } from "@/lib/plan/poi-hours";
 import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
 

@@ -33,7 +33,7 @@ describe("lookupPoi 的 scope 行为", () => {
   it("城市模式：带 city + citylimit=true（收窄到目标城市，防同名 POI 误配）", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { lookupPoi } = await import("@/lib/amap");
+    const { lookupPoi } = await import("@/lib/geo/amap");
     const calls = captureFetch();
 
     await lookupPoi("成都", "武侯祠", "city");
@@ -47,7 +47,7 @@ describe("lookupPoi 的 scope 行为", () => {
   it("区域模式：不带 city/citylimit（否则被不存在的区域名滤空）", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { lookupPoi } = await import("@/lib/amap");
+    const { lookupPoi } = await import("@/lib/geo/amap");
     const calls = captureFetch();
 
     await lookupPoi("川西环线", "四姑娘山", "region");
@@ -63,7 +63,7 @@ describe("lookupPoi 的 scope 行为", () => {
   it("scope 默认 city（不传参时保持原有行为，向后兼容）", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { lookupPoi } = await import("@/lib/amap");
+    const { lookupPoi } = await import("@/lib/geo/amap");
     const calls = captureFetch();
 
     await lookupPoi("成都", "武侯祠");
@@ -74,7 +74,7 @@ describe("lookupPoi 的 scope 行为", () => {
   it("两种 scope 的缓存键不互相污染（同名 POI 在不同范围下结果不同）", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { lookupPoi } = await import("@/lib/amap");
+    const { lookupPoi } = await import("@/lib/geo/amap");
     let callCount = 0;
     const calls = captureFetch(() => {
       callCount += 1;
@@ -98,7 +98,7 @@ describe("lookupPoi 的 scope 行为", () => {
   it("区域模式下通勤估算同样放开 citylimit（transitMinutes 内部走 lookupPoi）", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { transitMinutes } = await import("@/lib/amap");
+    const { transitMinutes } = await import("@/lib/geo/amap");
     const calls = captureFetch((url) => {
       if (url.pathname.includes("/place/text")) {
         return {

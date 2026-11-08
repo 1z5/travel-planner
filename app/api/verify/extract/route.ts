@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
-import { clientIpFromHeaders } from "@/lib/client-ip";
-import { consume, hourKey, refund } from "@/lib/ratelimit";
-import { tryAcquireSlot, tryReserveLlmBudget } from "@/lib/capacity-gate";
-import { LlmError } from "@/lib/planner";
-import { extractTripDocument } from "@/lib/trip-document-extract";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
+import { consume, hourKey, refund } from "@/lib/server/ratelimit";
+import { tryAcquireSlot, tryReserveLlmBudget } from "@/lib/server/capacity-gate";
+import { LlmError } from "@/lib/plan/planner";
+import { extractTripDocument } from "@/lib/plan/trip-document-extract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

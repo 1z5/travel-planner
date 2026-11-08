@@ -63,7 +63,7 @@ async function loadStaticMap(opts: { key?: string | null; disabled?: boolean } =
   else delete process.env.AMAP_MAP_DISABLED;
   delete process.env.AMAP_BASE_URL; // 默认走 https://restapi.amap.com
   vi.resetModules();
-  return await import("@/lib/staticmap");
+  return await import("@/lib/geo/staticmap");
 }
 
 afterEach(() => {

@@ -9,7 +9,7 @@ import {
   tryAcquireSlot,
   tryReserveGenerationBudget,
   tryReserveLlmBudget,
-} from "@/lib/capacity-gate";
+} from "@/lib/server/capacity-gate";
 
 // 全局限流/日预算闸门：审计 P0-3 的服务端兜底（配额按 IP 可伪造，只能防
 // 「同一个用户多刷」；真实爆量需要进程内并发上限 + 日预算）。

@@ -10,8 +10,8 @@ import type { TripCheckDocument, TripCheckReport } from "@/lib/verify/types";
 // （它们已被 lib 单测覆盖）——这里测的是「真实行中逻辑 + 可控时钟输入」。
 // mockClock 前缀 + vi.hoisted 是 vitest 的要求（vi.mock 会提升到文件顶部）。
 const mockClock = vi.hoisted(() => ({ today: "2026-10-18", minutes: 9 * 60 + 30 }));
-vi.mock("@/lib/trip-day", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/trip-day")>();
+vi.mock("@/lib/trip/trip-day", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trip/trip-day")>();
   return {
     ...actual,
     localTodayIso: () => mockClock.today,

@@ -22,7 +22,7 @@
 // 规则、同一个 now）。这样「修复后变好了」不是自证，而是同一把尺子量的。
 // ============================================================
 
-import { parseTimeRange } from "../schedule";
+import { parseTimeRange } from "../plan/schedule";
 import { verifyDocument } from "./engine";
 import { RULES } from "./rules";
 import {

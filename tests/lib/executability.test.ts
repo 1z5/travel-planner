@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Plan, PlanSpot } from "@/lib/types";
-import { executabilityOf, formatCheckedAt } from "@/lib/executability";
+import { executabilityOf, formatCheckedAt } from "@/lib/plan/executability";
 
 // 可执行性评分：把体检结论收敛成用户能一眼看懂的 A/B/C/D + 证据。
 // 这里守住评分契约：MOCK/草稿不评假分、扣分表可对账、证据字段完整。

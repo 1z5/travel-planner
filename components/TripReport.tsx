@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, MapPin, Route as RouteIcon, Utensils, Wallet } from "lucide-react";
 import { RealMap } from "./RealMap";
 import { RouteMap } from "./RouteMap";
-import { computeTripReport } from "@/lib/trip-report";
-import { localTodayIso } from "@/lib/trip-day";
-import { formatCny } from "@/lib/budget";
+import { computeTripReport } from "@/lib/trip/trip-report";
+import { localTodayIso } from "@/lib/trip/trip-day";
+import { formatCny } from "@/lib/plan/budget";
 import type { Plan, PlanDay } from "@/lib/types";
 
 // ============================================================

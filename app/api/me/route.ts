@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readSession } from "@/lib/auth/session";
 import { isProductionAuthMisconfigured, resolveAuthProviderId } from "@/lib/auth/guards";
-import { peek, userLimit } from "@/lib/ratelimit";
+import { peek, userLimit } from "@/lib/server/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

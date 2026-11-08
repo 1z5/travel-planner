@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
-import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
-import { matchSpotName, replanSolve } from "@/lib/replan";
-import { parseTimeRange } from "@/lib/schedule";
-import { consume, hourKey, refund } from "@/lib/ratelimit";
-import { clientIpFromHeaders } from "@/lib/client-ip";
-import type { HoursPoiInput } from "@/lib/poi-hours";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
+import { getPlanForEdit, resolvePlan } from "@/lib/plan/plan-repo";
+import { matchSpotName, replanSolve } from "@/lib/plan/replan";
+import { parseTimeRange } from "@/lib/plan/schedule";
+import { consume, hourKey, refund } from "@/lib/server/ratelimit";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
+import type { HoursPoiInput } from "@/lib/plan/poi-hours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

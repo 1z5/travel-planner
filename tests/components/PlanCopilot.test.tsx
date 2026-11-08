@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanCopilot } from "@/components/PlanCopilot";
-import type { CopilotSuggestion } from "@/lib/copilot-types";
+import type { CopilotSuggestion } from "@/lib/plan/copilot-types";
 
 // 「行程管家」组件测试：钉住请求契约（/api/plan/chat + 最近 8 条 + 最后一条 user）、
 // 纯文本渲染、建议按钮的二次确认、错误如实展示、等待期防并发与清空对话。

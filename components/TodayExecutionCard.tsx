@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bike, Car, Check, Footprints, LogOut } from "lucide-react";
 import type { PlanLeg, PlanSpot } from "@/lib/types";
-import type { SpotNow } from "@/lib/trip-day";
+import type { SpotNow } from "@/lib/trip/trip-day";
 import {
   arrivedSpotNames,
   departureAdvice,
@@ -11,8 +11,8 @@ import {
   markArrived,
   markDeparted,
   type SpotExecution,
-} from "@/lib/trip-execution";
-import { track } from "@/lib/track";
+} from "@/lib/trip/trip-execution";
+import { track } from "@/lib/server/track";
 
 // ============================================================
 // 行中执行卡（产品线 C2）：出发建议 + 我已出发/我已到达

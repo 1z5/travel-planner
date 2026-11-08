@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { CITY_TEMPLATES } from "@/lib/city-templates";
+import { CITY_TEMPLATES } from "@/lib/plan/city-templates";
 
 // 站点地图（SEO）：只列可以通过自然搜索进来的公开页面。
 //

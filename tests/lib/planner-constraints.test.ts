@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { constraintProblem } from "@/lib/planner";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { constraintProblem } from "@/lib/plan/planner";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 import type { Plan, PlanInput } from "@/lib/types";
 
 // 硬约束核对：用户明确说的话必须进行程。

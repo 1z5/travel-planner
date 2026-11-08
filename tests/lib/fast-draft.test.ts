@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildFastDraft, isPublishableFastDraft } from "@/lib/fast-draft";
+import { buildFastDraft, isPublishableFastDraft } from "@/lib/plan/fast-draft";
 import type { PlanInput } from "@/lib/types";
-import type { Grounding } from "@/lib/grounding";
+import type { Grounding } from "@/lib/plan/grounding";
 
 // 秒级初版契约：真实 POI + 确定性规则 + 诚实标注。
 // 这是「豆包几秒出稿、我们 3 分钟黑盒」这个体验差距的直接回应：用户在 LLM

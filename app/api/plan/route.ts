@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createJob } from "@/lib/jobs";
-import { readJsonBody } from "@/lib/http-body";
-import { consume, refund } from "@/lib/ratelimit";
+import { createJob } from "@/lib/jobs/jobs";
+import { readJsonBody } from "@/lib/server/http-body";
+import { consume, refund } from "@/lib/server/ratelimit";
 import { readSession } from "@/lib/auth/session";
 import { validateProfile, type TravelProfile } from "@/lib/profile";
-import { clientIpFromHeaders } from "@/lib/client-ip";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
 import {
   releaseGenerationBudget,
   tryAcquireSlot,
   tryReserveGenerationBudget,
-} from "@/lib/capacity-gate";
+} from "@/lib/server/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

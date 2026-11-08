@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { distMeters, fmtDist, localTodayIso, nowMinutes, spotNow, tripToday } from "@/lib/trip-day";
+import {
+  distMeters,
+  fmtDist,
+  localTodayIso,
+  nowMinutes,
+  spotNow,
+  tripToday,
+} from "@/lib/trip/trip-day";
 
 // tripToday 是「行中」高亮的地基：算错一天，用户打开 App 就看到错的「今天」。
 // 边界（出发前/最后一天/结束后/缺日期）必须钉死。

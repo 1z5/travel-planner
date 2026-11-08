@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SpotCandidates } from "@/components/SpotCandidates";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 「多看几个」面板：候选来自服务端真实核验；缺数据不编；替换走服务端。
 

@@ -19,8 +19,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { CalendarDays, MapPin, Wallet, Route, ArrowRight } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { budgetTone, formatCny, summarizeBudget } from "@/lib/budget";
-import { parseLocText } from "@/lib/map-view";
+import { budgetTone, formatCny, summarizeBudget } from "@/lib/plan/budget";
+import { parseLocText } from "@/lib/geo/map-view";
 import { RealMap } from "./RealMap";
 import { CloneCTA } from "./CloneCTA";
 

@@ -12,15 +12,15 @@
 
 ## 这个项目展示什么
 
-| 主题       | 具体做法                                                                                                  | 从哪看                                                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 长任务编排 | 2–4 分钟的推理做成异步 Job + 心跳自愈；≥5 天走「大纲 → 并发 3 路分日生成 → 逐日校验 → 前缀发布」          | `lib/jobs.ts` · `lib/planner.ts` · [ADR-001](docs/adr/001-async-jobs.md) · [ADR-004](docs/adr/004-streaming-multi-day.md)       |
-| 确定性判定 | 16 条纯函数规则 + 两轴报告，判定不调模型；同一输入 + 同一引擎/规则版本 → 同一凭据 ID，第三方可独立复算    | `lib/verify/*` · [开放标准](docs/TRIP-CHECK-STANDARD.md)                                                                        |
-| 幻觉治理   | 生成前注入高德事实；POI 三态 `hit/miss/error`；没查过就写 `unverified`，不猜、不伪造核验状态              | `lib/grounding.ts` · `lib/amap.ts` · [ADR-002](docs/adr/002-poi-three-state.md) · [ADR-006](docs/adr/006-ground-truth-first.md) |
-| 可撤销修复 | 只做机械修复（顺延时间 / 删同天重复），预览 → 确认写入，`revision+1` 乐观并发，签发前后凭据链             | `lib/verify/repair.ts` · [ADR-005](docs/adr/005-deterministic-fix.md) · [ADR-013](docs/adr/013-trip-check-repair.md)            |
-| 存储抽象   | 同一 Store 接口的 memory / postgres 双实现，静态 fixture 兜底，统一读入口 `resolvePlan`                   | `lib/store/` · `lib/plan-repo.ts` · `prisma/schema.prisma`                                                                      |
-| 契约化工程 | 33 条 API 路由、单测 + 自建 e2e 编排（4 个桩 / 隔离端口 / 文件锁）、CI 三 job、pre-commit / pre-push 钩子 | [架构总览](docs/ARCHITECTURE.md) · [贡献指南](CONTRIBUTING.md)                                                                  |
-| 前端       | ATLAS v6 双主题设计系统、React 19 View Transitions、CSS scroll-driven 进度线，零新增依赖                  | `app/styles/` · [设计文档](docs/design/ATLAS-V6.md)                                                                             |
+| 主题       | 具体做法                                                                                                  | 从哪看                                                                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 长任务编排 | 2–4 分钟的推理做成异步 Job + 心跳自愈；≥5 天走「大纲 → 并发 3 路分日生成 → 逐日校验 → 前缀发布」          | `lib/jobs/jobs.ts` · `lib/plan/planner.ts` · [ADR-001](docs/adr/001-async-jobs.md) · [ADR-004](docs/adr/004-streaming-multi-day.md)      |
+| 确定性判定 | 16 条纯函数规则 + 两轴报告，判定不调模型；同一输入 + 同一引擎/规则版本 → 同一凭据 ID，第三方可独立复算    | `lib/verify/*` · [开放标准](docs/TRIP-CHECK-STANDARD.md)                                                                                 |
+| 幻觉治理   | 生成前注入高德事实；POI 三态 `hit/miss/error`；没查过就写 `unverified`，不猜、不伪造核验状态              | `lib/plan/grounding.ts` · `lib/geo/amap.ts` · [ADR-002](docs/adr/002-poi-three-state.md) · [ADR-006](docs/adr/006-ground-truth-first.md) |
+| 可撤销修复 | 只做机械修复（顺延时间 / 删同天重复），预览 → 确认写入，`revision+1` 乐观并发，签发前后凭据链             | `lib/verify/repair.ts` · [ADR-005](docs/adr/005-deterministic-fix.md) · [ADR-013](docs/adr/013-trip-check-repair.md)                     |
+| 存储抽象   | 同一 Store 接口的 memory / postgres 双实现，静态 fixture 兜底，统一读入口 `resolvePlan`                   | `lib/store/` · `lib/plan-repo.ts` · `prisma/schema.prisma`                                                                               |
+| 契约化工程 | 33 条 API 路由、单测 + 自建 e2e 编排（4 个桩 / 隔离端口 / 文件锁）、CI 三 job、pre-commit / pre-push 钩子 | [架构总览](docs/ARCHITECTURE.md) · [贡献指南](CONTRIBUTING.md)                                                                           |
+| 前端       | ATLAS v6 双主题设计系统、React 19 View Transitions、CSS scroll-driven 进度线，零新增依赖                  | `app/styles/` · [设计文档](docs/design/ATLAS-V6.md)                                                                                      |
 
 串起来看：**任意来源的行程文本 → 结构化摊开确认 → 确定性体检 → 一键理顺 → 可复算凭据**；
 或从表单生成一份带事实约束的行程，再看它在分享页 / 工作台 / 行中模式里怎么被复用。
@@ -80,9 +80,9 @@ docs/            架构总览、开放标准、16 篇 ADR、设计系统、安�
 
 - [架构总览](docs/ARCHITECTURE.md) — 模块地图、三条数据流、测试与门禁、已知技术债
 - [文档索引](docs/README.md) — 现行 / 归档 / 部署 / 开源标配
-- [Trip Check 开放标准 v0.1](docs/TRIP-CHECK-STANDARD.md) · [API 契约](API.md) · [ADR 001–016](docs/adr/)
+- [Trip Check 开放标准 v0.1](docs/TRIP-CHECK-STANDARD.md) · [API 契约](docs/API.md) · [ADR 001–016](docs/adr/)
 - [安全边界](SECURITY.md) · [安全审计](docs/SECURITY-AUDIT-2026-10-28.md) · [变更历史](CHANGELOG.md)
-- [演示部署](DEMO.md) · [生产部署参考](DEPLOY.md)（保留作工程样例，不代表本项目要上线）
+- [演示部署](docs/DEMO.md) · [生产部署参考](docs/DEPLOY.md)（保留作工程样例，不代表本项目要上线）
 
 ## 已知边界（有意为之）
 

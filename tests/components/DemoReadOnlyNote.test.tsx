@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DemoReadOnlyNote } from "@/components/DemoReadOnlyNote";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 演示行程只读提示：组件自己做 plan.demo 判断（非 demo 返回 null），
 // 保证 Lead 可以在分享页/工作台无条件挂载而不改变现有页面。

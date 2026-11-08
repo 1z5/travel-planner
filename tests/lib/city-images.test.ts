@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BRAND_BACKGROUND, cityImage } from "@/lib/city-images";
+import { BRAND_BACKGROUND, cityImage } from "@/lib/plan/city-images";
 
 // 背景图已从「按城市切换」改为「系统固定」。这些用例钉住新契约：
 // 任何输入都返回同一张固定背景、是合法 data-URI SVG、无外部图床依赖。

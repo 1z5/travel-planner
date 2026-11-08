@@ -6,7 +6,7 @@ import {
   isScheduleWarning,
   parseTimeRange,
   retimeDay,
-} from "@/lib/schedule";
+} from "@/lib/plan/schedule";
 import type { Plan, PlanDay, PlanInput, PlanLeg, PlanSpot } from "@/lib/types";
 
 // ============================================================

@@ -12,7 +12,7 @@ export async function register() {
   if (process.env.DEMO_SEED !== "1") return;
 
   try {
-    const { seedDemoPlans } = await import("@/lib/demo-seed");
+    const { seedDemoPlans } = await import("@/lib/demo/demo-seed");
     await seedDemoPlans();
   } catch (e) {
     // 种子失败不能阻止服务启动：演示环境宁可少几条样例，也不能起不来

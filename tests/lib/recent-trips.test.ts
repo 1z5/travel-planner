@@ -6,7 +6,7 @@ import {
   ownsRecentTrip,
   recentTripLabel,
   type RecentTrip,
-} from "@/lib/recent-trips";
+} from "@/lib/plan/recent-trips";
 
 // 「最近行程」本地索引：行程已持久化在服务端（持久分享 token），
 // 但未登录用户没有账号可查，只能靠浏览器记住「这台设备生成过哪些」。

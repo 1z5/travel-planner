@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownFor } from "@/lib/countdown";
+import { countdownFor } from "@/lib/trip/countdown";
 
 // 行前倒计时：全部基于 tripToday 口径，不自己另算日期；无法判断就不显示。
 

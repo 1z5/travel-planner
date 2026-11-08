@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // 打卡埋点：断言「用户点了」才上报，不拿页面打开冒充到达。
-vi.mock("@/lib/track", () => ({ track: vi.fn() }));
+vi.mock("@/lib/server/track", () => ({ track: vi.fn() }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TodayExecutionCard } from "@/components/TodayExecutionCard";
-import { track } from "@/lib/track";
+import { track } from "@/lib/server/track";
 import type { PlanLeg, PlanSpot } from "@/lib/types";
-import type { SpotNow } from "@/lib/trip-day";
+import type { SpotNow } from "@/lib/trip/trip-day";
 
 const mockedTrack = vi.mocked(track);
 

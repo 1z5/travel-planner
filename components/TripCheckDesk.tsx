@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2, RotateCcw } from "lucide-react";
-import { parseTimeRange } from "@/lib/schedule";
-import { PENDING_CHECK_TEXT_KEY } from "@/lib/pending-check";
+import { parseTimeRange } from "@/lib/plan/schedule";
+import { PENDING_CHECK_TEXT_KEY } from "@/lib/jobs/pending-check";
 import type { TripCheckDocument, TripCheckReport as TripCheckReportData } from "@/lib/verify/types";
 import {
   TripCheckReport,

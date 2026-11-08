@@ -3,19 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Plan, PlanEvent } from "@/lib/types";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
 import { AlertTriangle, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
-import { formatCny } from "@/lib/budget";
+import { formatCny } from "@/lib/plan/budget";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
 import { LiveProgress } from "@/components/LiveProgress";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
-import { saveRecentTrip } from "@/lib/recent-trips";
+import { saveRecentTrip } from "@/lib/plan/recent-trips";
 import { loadProfile } from "@/lib/profile-store";
-import { clearPendingJob, loadPendingJob, savePendingJob } from "@/lib/pending-job";
-import { PREF_OPTIONS, isPrefOption } from "@/lib/pref-options";
+import { clearPendingJob, loadPendingJob, savePendingJob } from "@/lib/jobs/pending-job";
+import { PREF_OPTIONS, isPrefOption } from "@/lib/plan/pref-options";
 
 // 偏好白名单下沉到 lib/pref-options.ts（服务端「攻略提取」也要用它校验模型输出）。
 // 这里继续 re-export：tests/lib/featured-destinations.test.ts 等既有引用不破坏，

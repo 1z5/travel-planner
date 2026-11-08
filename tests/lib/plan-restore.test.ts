@@ -4,8 +4,8 @@ import {
   RESTORE_TRUSTED_FIELDS,
   sanitizeRestoredPlan,
   validateRestorePlan,
-} from "@/lib/plan-restore";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+} from "@/lib/plan/plan-restore";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 撤销校验：结构与尺寸挡畸形数据；**服务端受信字段一律剥离**（安全审计 R5）。
 // 内容字段（days/spots/legs/tips/totalCostCny）保留——撤销不该丢用户已有的行程内容。

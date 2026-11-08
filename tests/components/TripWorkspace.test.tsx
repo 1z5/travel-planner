@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripWorkspace } from "@/components/TripWorkspace";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 import { verifyDocument } from "@/lib/verify/engine";
 import type { TripCheckCredential, TripCheckReport } from "@/lib/verify/types";
 

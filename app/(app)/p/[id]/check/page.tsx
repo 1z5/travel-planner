@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { resolvePlan } from "@/lib/plan-repo";
+import { resolvePlan } from "@/lib/plan/plan-repo";
 import { stampPlan } from "@/lib/verify/stamp";
-import { reportHeadline } from "@/lib/trip-check-report";
+import { reportHeadline } from "@/lib/trip/trip-check-report";
 import { TripCheckReport } from "@/components/TripCheckReport";
 import { TripCheckShareActions } from "@/components/TripCheckShareActions";
 import type { FactsVerdict } from "@/lib/verify/types";

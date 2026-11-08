@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { getStore } from "@/lib/store";
-import { summarize } from "@/lib/metrics";
+import { summarize } from "@/lib/server/metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

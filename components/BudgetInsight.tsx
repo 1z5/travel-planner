@@ -8,7 +8,7 @@
 // 否则 UI 和图例会各算各的，出现「92% + 9% = 101%」这类肉眼可见的假数据。
 
 import { Wallet } from "lucide-react";
-import { budgetTone, formatCny, type BudgetStatus, type BudgetSummary } from "@/lib/budget";
+import { budgetTone, formatCny, type BudgetStatus, type BudgetSummary } from "@/lib/plan/budget";
 import { CostChart } from "./CostChart";
 
 /** 状态文案：只说事实，不渲染情绪。颜色由 lib 的 budgetTone 统一决定。 */

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_FIXTURES } from "@/demo/fixtures";
-import { DEMO_POLISHED_SHARE_ID, DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
+import {
+  DEMO_POLISHED_SHARE_ID,
+  DEMO_SHOWCASE_SHARE_ID,
+  demoShareHref,
+} from "@/lib/demo/demo-links";
 
 // 展示入口是产品里最不能悄悄坏掉的链接：按钮点开 404，比没有按钮更伤。
 // demo:gen 会重新生成 fixture 并换掉 shareId，所以这里把常量与 fixture 钉在一起，

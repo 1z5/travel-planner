@@ -56,7 +56,7 @@ npx prisma generate    # required since Prisma 7 (no postinstall)
 npm run dev            # http://localhost:3000
 ```
 
-With an Amap key, run `npm run verify:amap` first (POI + transit smoke). Production setup: [DEPLOY.md](DEPLOY.md).
+With an Amap key, run `npm run verify:amap` first (POI + transit smoke). Production setup: [DEPLOY.md](docs/DEPLOY.md).
 
 ## Tests & acceptance
 
@@ -72,16 +72,16 @@ Deployment acceptance: `node scripts/smoke-deployed.mjs <URL>` after Render repo
 
 ## Deployment
 
-| Mode                   | When        | Notes                                                                                                     |
-| ---------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
-| [DEMO.md](DEMO.md)     | public demo | Render free Web Service + pre-generated fixtures; memory store, sleeps, not production                    |
-| [DEPLOY.md](DEPLOY.md) | production  | `DATA_STORE=postgres` + auth provider + monitoring + domain; `preflight`/`check:env` block unsafe configs |
+| Mode                        | When        | Notes                                                                                                     |
+| --------------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| [DEMO.md](docs/DEMO.md)     | public demo | Render free Web Service + pre-generated fixtures; memory store, sleeps, not production                    |
+| [DEPLOY.md](docs/DEPLOY.md) | production  | `DATA_STORE=postgres` + auth provider + monitoring + domain; `preflight`/`check:env` block unsafe configs |
 
 ## Documentation
 
 Index and reading order: [docs/README.md](docs/README.md). Key docs:
 [architecture](docs/ARCHITECTURE.md) · [standard](docs/TRIP-CHECK-STANDARD.md) · [archived strategy](docs/archive/strategy/) ·
-[ADRs](docs/adr/) · [security](SECURITY.md) / [audit](docs/SECURITY-AUDIT-2026-10-28.md) · [API](API.md) · [history](CHANGELOG.md).
+[ADRs](docs/adr/) · [security](SECURITY.md) / [audit](docs/SECURITY-AUDIT-2026-10-28.md) · [API](docs/API.md) · [history](CHANGELOG.md).
 
 ## Known boundaries
 

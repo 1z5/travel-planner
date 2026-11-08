@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
+import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/plan/featured-destinations";
 import { PREF_OPTIONS } from "@/app/home-client";
 
 // 首屏「灵感三卡」的数据契约。

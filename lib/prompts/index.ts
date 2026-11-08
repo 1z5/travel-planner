@@ -20,6 +20,6 @@ export {
   OUTLINE_SYSTEM_PROMPT,
   baseLines,
   PACE_RULES,
-} from "../planner";
-export { REFINE_MARK, buildRefinePrompt } from "../refine";
-export { ANSWER_RULES, COPILOT_MARK } from "../copilot";
+} from "../plan/planner";
+export { REFINE_MARK, buildRefinePrompt } from "../plan/refine";
+export { ANSWER_RULES, COPILOT_MARK } from "../plan/copilot";

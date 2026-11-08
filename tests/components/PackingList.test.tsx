@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingList } from "@/components/PackingList";
 import type { Plan } from "@/lib/types";
-import { derivePackingList } from "@/lib/packing";
+import { derivePackingList } from "@/lib/plan/packing";
 
 // 出发前准备卡：钉住「每项带依据与来源」「空清单如实说明」两条红线。
 

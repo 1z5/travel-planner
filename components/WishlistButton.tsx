@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
-import { isWished, toggleWish } from "@/lib/wishlist";
+import { isWished, toggleWish } from "@/lib/plan/wishlist";
 
 // ============================================================
 // 「想去」按钮（产品线 B3）：分享页的收藏入口

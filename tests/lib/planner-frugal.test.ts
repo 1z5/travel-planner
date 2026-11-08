@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { baseLines } from "@/lib/planner";
-import { finalizePlan } from "@/lib/validate";
+import { baseLines } from "@/lib/plan/planner";
+import { finalizePlan } from "@/lib/plan/validate";
 import type { PlanInput } from "@/lib/types";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 穷游模式契约：预算 0 / 极低预算是**正当输入**，不是要拒绝的异常。
 // 这条契约曾经是反的（min(500) + 「总花费应落在 80%-100% 预算之间」），

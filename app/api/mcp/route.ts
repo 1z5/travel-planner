@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
-import { resolvePlan } from "@/lib/plan-repo";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
+import { resolvePlan } from "@/lib/plan/plan-repo";
 import { JSON_RPC_ERRORS, handleMcpMessage } from "@/lib/verify/mcp";
 import { TRIP_CHECK_SPEC_VERSION } from "@/lib/verify/types";
 

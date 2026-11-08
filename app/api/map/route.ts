@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fitView, parseLocText } from "@/lib/map-view";
-import { fetchStaticMap, staticMapEnabled } from "@/lib/staticmap";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { fitView, parseLocText } from "@/lib/geo/map-view";
+import { fetchStaticMap, staticMapEnabled } from "@/lib/geo/staticmap";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 
 export const runtime = "nodejs";
 // 地图随中心/zoom/站点变化，必须每次按参数生成（不能静态化）

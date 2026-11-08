@@ -11,19 +11,19 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
-import { PENDING_CHECK_TEXT_KEY } from "@/lib/pending-check";
-import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
+import { PENDING_CHECK_TEXT_KEY } from "@/lib/jobs/pending-check";
+import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/plan/featured-destinations";
 import {
   loadRecentTrips,
   recentTripLabel,
   removeRecentTrip,
   type RecentTrip,
-} from "@/lib/recent-trips";
-import { loadWishlist, removeWish, type WishlistTrip } from "@/lib/wishlist";
-import { countdownFor } from "@/lib/countdown";
-import { localTodayIso } from "@/lib/trip-day";
+} from "@/lib/plan/recent-trips";
+import { loadWishlist, removeWish, type WishlistTrip } from "@/lib/plan/wishlist";
+import { countdownFor } from "@/lib/trip/countdown";
+import { localTodayIso } from "@/lib/trip/trip-day";
 
 // ============================================================
 // 产品首页：我的行程（ATLAS v6 改版）

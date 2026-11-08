@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { DEMO_FIXTURES } from "@/demo/fixtures";
-import { demoWriteBlockedMessage, seedDemoPlans } from "@/lib/demo-seed";
+import { demoWriteBlockedMessage, seedDemoPlans } from "@/lib/demo/demo-seed";
 import { getStore } from "@/lib/store";
 
 // 安全审计 R4：演示 token 写在 DEMO.md 里是公开的，而「分享 token 即写能力」——

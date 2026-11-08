@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Plan } from "@/lib/types";
-import { buildPosterModel } from "@/lib/poster-model";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { buildPosterModel } from "@/lib/plan/poster-model";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 海报模型：数字必须与页面同源（lib/budget.ts），三态必须诚实。
 function plan(over: Partial<Plan> = {}): Plan {

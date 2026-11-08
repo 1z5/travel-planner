@@ -4,7 +4,7 @@ import {
   checkOpenHours,
   formatHoursShort,
   isTemporarilyClosedName,
-} from "@/lib/poi-hours";
+} from "@/lib/plan/poi-hours";
 
 // 本文件里的复杂营业时间文本**全部是 2026-10 用真实高德 key + extensions=all
 // 实测拿到的原文**（苏州/成都 POI），原样引用——解析器必须按真机格式设计，

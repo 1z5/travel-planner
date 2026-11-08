@@ -4,7 +4,7 @@ import {
   buildDocumentUserPrompt,
   EXTRACT_DOCUMENT_SYSTEM,
   UNSPECIFIED_TIME,
-} from "@/lib/trip-document-extract";
+} from "@/lib/plan/trip-document-extract";
 import { TRIP_CHECK_SPEC_VERSION } from "@/lib/verify/types";
 
 // 「任意文本 → 开放文档」是整条链路里唯一非确定性环节，也是唯一能让假数据

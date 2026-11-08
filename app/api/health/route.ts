@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isProductionAuthMisconfigured, resolveAuthProviderId } from "@/lib/auth/guards";
-import { capacitySnapshot } from "@/lib/capacity-gate";
+import { capacitySnapshot } from "@/lib/server/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

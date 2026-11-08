@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Copy } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { saveRecentTrip } from "@/lib/recent-trips";
+import { saveRecentTrip } from "@/lib/plan/recent-trips";
 
 // ============================================================
 // 一键克隆 CTA（分享页挂载位，由海报封面组件预留）

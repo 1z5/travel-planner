@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEMO_FIXTURES } from "@/demo/fixtures";
-import { seedDemoPlans } from "@/lib/demo-seed";
+import { seedDemoPlans } from "@/lib/demo/demo-seed";
 import { getStore } from "@/lib/store";
 
 // 公开演示的预置行程：fixture 是「真实高德 + 真实模型」的生成产物，被静态打进

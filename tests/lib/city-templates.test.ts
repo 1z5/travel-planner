@@ -4,8 +4,8 @@ import {
   cityTemplateByCity,
   cityTemplateBySlug,
   templateHref,
-} from "@/lib/city-templates";
-import { PREF_OPTIONS } from "@/lib/pref-options";
+} from "@/lib/plan/city-templates";
+import { PREF_OPTIONS } from "@/lib/plan/pref-options";
 
 // 城市模板：数据完整性与诚实口径的机器约束（页面文案靠人，字段靠测试）。
 

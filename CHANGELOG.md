@@ -1,3 +1,42 @@
+## 2026-11-08 移动端体验与仓库结构整理
+
+项目定位为「主要在手机上用」，这一轮做了两件事：移动端体验改造（真实页面，非独立静态页），
+以及 lib/ 目录按领域分组。
+
+**移动端（分享页信息架构 + 底部操作条）**
+
+- **分享页 `/p/<id>` 手机版重排**：原来手机要滚过 page-meta → 体检凭据卡（整屏文字）→
+  传播 CTA → 海报封面才看到行程本体（实测前 3 屏几乎全是说明文字）。现在 DOM 顺序不变
+  （SEO / 读屏一致），视觉顺序用 flex order 调整：面包屑 → 海报封面 → 凭据卡 → 行程 →
+  传播 CTA（创建者视角的动作挪到末尾）。
+- **凭据卡折叠**：两轴结论一行常显（结构自洽性 / 事实核验 / 凭据 ID），「凭什么可信」的
+  说明与报告入口收进 `<details>`（桌面同样折叠，行为一致）。
+- **体检卡移动端默认收起**：≤2 个问题时服务端默认展开，手机上展开会把行程推后 2-3 屏；
+  现在挂载后在窄屏（≤720px）收起，摘要行仍如实写「发现 N 个问题」，逐条一键可达
+  （`PlanView` 挂载 effect，只改一次 DOM 属性）。
+- **移动端底部操作条**：分享页很长，新增 ≤720px 显示的固定底栏（保存海报 / 生成我的行程），
+  `env(safe-area-inset-bottom)` 适配全面屏，纯链接无客户端 JS；桌面与打印面不渲染。
+- **验证**：390×844 与 1440×900 截图逐屏核对；`gate:visual` 全绿（120 项检查 0 失败，
+  含横向溢出 / 触控目标 ≥40px / 对比度 / 控制台异常）。
+
+**目录整理**
+
+- **`lib/` 按领域分组**（此前 60 个文件平铺在根）：
+  `plan/`（31 个：生成/重排/校验/预算/日程/克隆/愿望清单/海报/ICS）、`trip/`（5：今日视图/执行/报告）、
+  `demo/`（3：fixture/示例）、`geo/`（4：高德/天气/静态图/地图视图）、`server/`（9：读体/同源/限流/配额/埋点）、
+  `jobs/`（3：Job 注册表 + 客户端任务句柄）；根级只留 `types.ts`、`concurrency.ts`、`profile.ts`、
+  `profile-store.ts` 与既有 `verify/` `store/` `auth/` `prompts/`。全仓 127 处 `@/lib/*` 别名导入与
+  lib 内相对导入同步重写，`docs/ARCHITECTURE.md` 新增 §1.5 目录约定与放行规则。
+- **根级文档归位**：`API.md` / `DEMO.md` / `DEPLOY.md` 移入 `docs/`（GitHub 惯例的 README /
+  SECURITY / CONTRIBUTING / AGENTS / CHANGELOG / NOTICE 留根），README 中英与 `docs/README.md`
+  交叉链接同步。AGENTS.md 补记受限环境跑 `gate:visual` 的三条坑（Chrome no-sandbox 开关、
+  profile 移临时目录、批量删除保护会卡 dev server 清缓存）。
+- **`scripts/visual-check.mjs` 适配受限环境**：Chrome profile 移到系统临时目录（进程号隔离，
+  不再整删仓库内几百个文件）；新增 `VISUAL_CHROME_NO_SANDBOX=1` 开关放行容器内的 headless Chrome。
+
+**验证**：typecheck ✓ · lint 0 error（60 条存量 warning）· format:check ✓ ·
+单测 1229（lib 946 + 组件 283）· e2e 全量 · `gate:visual` 120 项全绿。
+
 ## 2026-11-08 仓库整理：转为开源技术展示项目
 
 **定位变化**：放弃商业化，仓库改为个人开源技术展示项目；不提供商业服务、不承诺可用性、

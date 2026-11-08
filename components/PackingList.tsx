@@ -1,6 +1,6 @@
 import { Backpack, ChevronDown } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { derivePackingList, PACKING_NO_WEATHER_NOTE } from "@/lib/packing";
+import { derivePackingList, PACKING_NO_WEATHER_NOTE } from "@/lib/plan/packing";
 
 // 出发前准备卡：由 lib/packing.ts 的确定性规则推导（不调模型）。
 //

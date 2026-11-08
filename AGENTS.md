@@ -96,10 +96,10 @@ components/
   `/about` 营销页；产品页用 `AppShell`，不要再把营销区块加回产品页。
 - **度量闭环**：`POST /api/events`（隐私口径：只收 shareId/城市/第几天，不收手机号与 IP）+
   `GET /api/events/summary?token=` 只读看板（未配置 `METRICS_TOKEN` 一律 404）；纯函数在
-  `lib/metrics.ts`，Store 双实现（memory 上限 5000 条 / postgres `TripEvent` 表）。
+  `lib/server/metrics.ts`，Store 双实现（memory 上限 5000 条 / postgres `TripEvent` 表）。
 - **底座安全（2026-10-28）**：只读审计见 [docs/SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)，
   基线决策见 [ADR-016](docs/adr/016-security-hardening-baseline.md)。新增/修改 API 必须：
-  用 `lib/http-body.ts` 的 `readJsonBody`（不要裸 `req.json()`）、用 `lib/http-origin.ts` 的
+  用 `lib/server/http-body.ts` 的 `readJsonBody`（不要裸 `req.json()`）、用 `lib/server/http-origin.ts` 的
   `crossSiteWriteError` 保护状态变更端点、demo 行程（`plan.demo`）只读、不得信任客户端回传的
   `verified/verification/tripCheck` 等受信字段。
 - **下一轮候选**：工作台内直接操纵的剩余部分（跨天拖动/改时长/锁定必去点）、候选池、
@@ -108,6 +108,7 @@ components/
   `EVAL_CASES=3 eval:cases` 实测 3/3 成功、POI 验真 100%（51/51）、通勤失败 0%、预算贴合中位 82%。
   仍建议：20 城全量基线、对照 v4 看预警变化、境外无覆盖降级确认（历史清单见 [docs/archive/strategy/NEXT_STEPS.md](docs/archive/strategy/NEXT_STEPS.md)）。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
+- **坑提醒（受限环境跑 `gate:visual`，2026-11）**：① Chrome headless 在容器/受限 shell 里自身沙箱会初始化失败，加 `VISUAL_CHROME_NO_SANDBOX=1`（脚本已支持，仅在一次性临时 profile 进程上放开）；② Chrome profile 已移到系统临时目录（进程号隔离），不再整删仓库内几百个文件；③ 受限环境的批量删除保护会让 Next dev 在启动时清 `<distDir>/dev/logs` 直接崩溃——重跑前先 `rm -rf .next-visual-check .next-t-*`。
 
 ## 如何添加新功能
 
@@ -141,15 +142,15 @@ e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM
 oxlint 用 Rust 自解析 TS，接管全部 TS/TSX（配置 `.oxlintrc.json`：correctness=error、
 suspicious=warn、格式规则交给 Prettier，`react-hooks/*` 规则可用）。当前口径 **0 error**；
 被显式降为 warn 的规则是已归档的存量债（见 `.oxlintrc.json` 的 `rules`），
-新增代码不要制造新的 error/warning。单文件排查可直接 `npx oxlint lib/planner.ts`。
+新增代码不要制造新的 error/warning。单文件排查可直接 `npx oxlint lib/plan/planner.ts`。
 
 ## LLM 相关
 
 - **模型**：step-5-preview（OpenAI 兼容，1M context，64000 max tokens）
 - **配置**：`.env` 的 `LLM_*` 变量
 - **Prompt 管理**：集中在 `lib/prompts/` 目录，每个 prompt 有版本号和单测
-- **流式**：`lib/planner.ts` 的 `streamChatRetry` 统一处理连接重试 + 10 分钟总时长兜底
-- **行程管家**：`lib/copilot.ts`，只依据行程事实回答，结构化 JSON 输出
+- **流式**：`lib/plan/planner.ts` 的 `streamChatRetry` 统一处理连接重试 + 10 分钟总时长兜底
+- **行程管家**：`lib/plan/copilot.ts`，只依据行程事实回答，结构化 JSON 输出
 
 ## 关键设计决策
 
@@ -210,9 +211,9 @@ node scripts/smoke-deployed.mjs https://travel-planner-demo.onrender.com
 
 ### 度量闭环（北极星可计算）
 
-- 埋点写入端 `POST /api/events`（前端 `lib/track.ts` fire-and-forget；服务端事件由路由直接写）；
+- 埋点写入端 `POST /api/events`（前端 `lib/server/track.ts` fire-and-forget；服务端事件由路由直接写）；
 - 看板 `GET /api/events/summary?token=<METRICS_TOKEN>`，**未配置 token 一律 404**；
-- 纯函数 `lib/metrics.ts`（漏斗 / 北极星 / 改动集中日 / Top 城市），单测 `tests/lib/metrics.test.ts`；
+- 纯函数 `lib/server/metrics.ts`（漏斗 / 北极星 / 改动集中日 / Top 城市），单测 `tests/lib/metrics.test.ts`；
 - 隐私红线：事件表**不存手机号、不存 IP、不存行程内容**；`meta` 只放少量布尔/枚举。
 
 ### 视觉与可访问性回归：`npm run gate:visual`

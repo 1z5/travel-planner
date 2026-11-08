@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // 单测里 mock 掉 planner 的 LLM 调用：提取逻辑本身（prompt 构造 / 宽容过滤 /
 // 「没提取到」的判定）必须能在不烧 token 的情况下被钉住。
-vi.mock("@/lib/planner", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/planner")>();
+vi.mock("@/lib/plan/planner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/plan/planner")>();
   return {
     ...actual,
     client: () => ({}),
@@ -11,14 +11,14 @@ vi.mock("@/lib/planner", async (importOriginal) => {
   };
 });
 
-import { streamChatRetry } from "@/lib/planner";
+import { streamChatRetry } from "@/lib/plan/planner";
 import {
   EXTRACT_SYSTEM,
   buildExtractUserPrompt,
   extractTripConditions,
   missingConditions,
   TripConditionsSchema,
-} from "@/lib/trip-extract";
+} from "@/lib/plan/trip-extract";
 
 const mocked = vi.mocked(streamChatRetry);
 

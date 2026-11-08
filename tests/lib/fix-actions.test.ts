@@ -6,7 +6,7 @@ import {
   fixInstruction,
   resolveFixDay,
   suggestFix,
-} from "@/lib/fix-actions";
+} from "@/lib/plan/fix-actions";
 
 // ============================================================
 // 体检「一键修复」纯函数单测。

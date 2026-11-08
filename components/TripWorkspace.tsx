@@ -16,8 +16,8 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { localTodayIso, tripToday, type TripToday } from "@/lib/trip-day";
-import { executabilityOf } from "@/lib/executability";
+import { localTodayIso, tripToday, type TripToday } from "@/lib/trip/trip-day";
+import { executabilityOf } from "@/lib/plan/executability";
 import { PlanView } from "./PlanView";
 import { TodayView } from "./TodayView";
 import { RealMap } from "./RealMap";
@@ -26,7 +26,7 @@ import { CloneCTA } from "./CloneCTA";
 import { DayArrange } from "./DayArrange";
 import { DemoReadOnlyNote } from "./DemoReadOnlyNote";
 import { WorkspaceCheck } from "./WorkspaceCheck";
-import { track } from "@/lib/track";
+import { track } from "@/lib/server/track";
 
 // ============================================================
 // Trip Workspace：一个行程对象，五个镜头。

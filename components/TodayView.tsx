@@ -36,13 +36,13 @@ import {
   tripToday,
   type SpotNow,
   type TripToday,
-} from "@/lib/trip-day";
-import { formatHoursShort } from "@/lib/poi-hours";
-import { parseTimeRange } from "@/lib/schedule";
+} from "@/lib/trip/trip-day";
+import { formatHoursShort } from "@/lib/plan/poi-hours";
+import { parseTimeRange } from "@/lib/plan/schedule";
 import { useArrivedSpots } from "./TodayExecutionCard";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
 // 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
-import type { ReplanResult } from "@/lib/replan";
+import type { ReplanResult } from "@/lib/plan/replan";
 
 // ============================================================
 // 行中模式（/t/<token>）：旅行当天的「执行视角」。

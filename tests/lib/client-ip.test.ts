@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientIpFromHeaders, DIRECT_IP, trustedProxyHops } from "@/lib/client-ip";
+import { clientIpFromHeaders, DIRECT_IP, trustedProxyHops } from "@/lib/server/client-ip";
 
 // 客户端 IP 提取：审计 P0-3 的修复点。此前 8 处限流都取 XFF 首值，换一个头
 // 就是新用户（LLM 账单无上限）。这里钉住「从右往左数受信代理」的取信规则。

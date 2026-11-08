@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Plan, PlanInput, PlanSpot } from "@/lib/types";
-import type { CopilotMsg } from "@/lib/copilot";
+import type { CopilotMsg } from "@/lib/plan/copilot";
 
 // ============================================================
 // 行程管家（Copilot）单测：不依赖真实 LLM。
@@ -16,8 +16,8 @@ import type { CopilotMsg } from "@/lib/copilot";
 const mockStream = vi.hoisted(() => vi.fn());
 const mockClient = vi.hoisted(() => vi.fn(() => ({ __fakeLlm: true })));
 
-vi.mock("@/lib/planner", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/planner")>();
+vi.mock("@/lib/plan/planner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/plan/planner")>();
   return {
     ...actual,
     client: mockClient,
@@ -25,8 +25,8 @@ vi.mock("@/lib/planner", async (importOriginal) => {
   };
 });
 
-const { answerCopilot, buildCopilotMessages, CopilotError } = await import("@/lib/copilot");
-const { LlmError } = await import("@/lib/planner");
+const { answerCopilot, buildCopilotMessages, CopilotError } = await import("@/lib/plan/copilot");
+const { LlmError } = await import("@/lib/plan/planner");
 
 // ---------- fixtures ----------
 

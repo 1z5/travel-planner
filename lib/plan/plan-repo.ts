@@ -1,0 +1,191 @@
+import "server-only";
+import { randomBytes } from "node:crypto";
+import { DEMO_FIXTURES } from "@/demo/fixtures";
+import { getStore } from "../store";
+import type { Plan, PlanInput } from "../types";
+import type { PlanRecord } from "../store/types";
+
+// ============================================================
+// 行程（Plan）领域门面：路由只通过这里拿/改行程，不直接碰 Store。
+//
+// 为什么需要这一层：以前「行程」寄生在 Job 记录里（job.plan），而 Job 是
+// 一次性执行记录、TTL 只有 2 小时——于是分享链接 2 小时后就失效、服务重启
+// 即丢。现在 Plan 是一等聚合（持久化 + 分享 token + revision），Job 退回为
+// 「一次性执行记录」，只保留 shareId 作为指向 Plan 的指针。
+//
+// 两层兼容（这轮升级的硬约束）：
+//   - 新链接：/p/<shareId> → PlanStore
+//   - 旧链接：/p/<jobId>   → 2 小时内仍可读 Job 里的 plan（resolvePlan 兜底）
+// ============================================================
+
+export type { PlanRecord };
+
+/** 分享 token 前缀：一眼能区分「行程 token」与「任务 id」，排障时不用猜 */
+const SHARE_ID_PREFIX = "share_";
+
+/**
+ * 生成分享 token（不可猜测，URL-safe）。
+ *
+ * 为什么不能直接用 job id 当分享 token：
+ * 1) 可枚举：job id 是 `job_<毫秒时间戳 base36><4 位随机>`，随机部分只有
+ *    ~20 bit。知道大概提交时间就能爆破别人的行程（未授权读取）。
+ * 2) 权限混淆：job id 同时是轮询 /api/plan/status 的凭据，拿它当分享 token
+ *    等于把「看进度/看错误」的权限也一起分享了。
+ * 3) 生命周期错配：job 2 小时就被清理，分享链接不该跟着失效。
+ *
+ * 72 bit 随机（9 字节 base64url = 12 字符）+ `share_` 前缀。碰撞概率可忽略，
+ * 不需要查重（也不该用「先查再写」制造 TOCTOU）。
+ */
+export function newShareId(): string {
+  return `${SHARE_ID_PREFIX}${randomBytes(9).toString("base64url")}`;
+}
+
+/**
+ * 生成完成后把行程落为持久 Plan，返回分享 token；失败返回 null。
+ *
+ * 幂等：同一 jobId 重复调用返回同一个 token、不产生第二份 Plan。判重依据是
+ * JobRecord.shareId——PlanStore 没有 jobId 索引（不为一个反查字段建索引/加唯一
+ * 约束），任务记录才是「这个 job 是否已交付分享链接」的权威。
+ *
+ * 失败处理（明确取舍）：**不阻断主流程**。落库失败只记日志、返回 null，
+ * 任务照常标 done——用户等了 4 分钟，行程本体已经生成好了，不能因为一次
+ * 数据库抖动把成果判失败。代价是这一次没有分享/日历链接，前端据
+ * `shareId === null` 隐藏分享按钮（诚实降级，不给打不开的链接）。
+ *
+ * 已知窄缝（可接受）：save 成功但回写 job.shareId 失败时，Plan 已存在而任务
+ * 没有指针；重放会再生成一个新 token（旧记录成为无人引用的孤儿，30 天后被
+ * 清理）。数据无损坏，代价是一次失败后的重放可能多一份孤儿记录。
+ */
+export async function commitPlan(
+  jobId: string,
+  plan: Plan,
+  input: PlanInput,
+  ownerKey?: string,
+): Promise<string | null> {
+  const store = getStore();
+  try {
+    const job = await store.jobs.get(jobId);
+    if (job?.shareId) return job.shareId;
+
+    const now = Date.now();
+    const record: PlanRecord = {
+      id: newShareId(),
+      jobId,
+      ownerKey,
+      plan,
+      input,
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await store.plans.save(record);
+    // 回写 job：前端轮询到 done 时同一响应里就能拿到 shareId
+    await store.jobs.update(jobId, { shareId: record.id });
+    console.log(
+      `[plan-repo] ${jobId} 行程已持久化 shareId=${record.id}（${plan.city} ${plan.days.length} 天）`,
+    );
+    return record.id;
+  } catch (e) {
+    console.error(
+      `[plan-repo] ${jobId} 行程持久化失败（任务继续 done，分享链接缺省）: ${(e as Error).message}`,
+    );
+    return null;
+  }
+}
+
+/** 按分享 token 读行程（新链接路径）；不存在返回 null */
+export async function getSharedPlan(id: string): Promise<Plan | null> {
+  const record = await getStore().plans.get(id);
+  return record?.plan ?? null;
+}
+
+/**
+ * 读可编辑的行程记录（含 input，改行程要用它重跑体检/提示）。
+ *
+ * 只对持久化 Plan 开放：旧 job 链接是只读的历史结果，没有 input/owner 语义，
+ * 在 Job 上原地改会破坏「Job 是一次性执行记录」的模型。
+ */
+export async function getPlanForEdit(id: string): Promise<PlanRecord | null> {
+  return getStore().plans.get(id);
+}
+
+/**
+ * 替换行程内容（改行程）：revision+1、updatedAt 刷新。
+ *
+ * 返回 null 表示分享链接不存在（路由应回 404）。并发两次修改时 revision 由
+ * Store 层原子自增（postgres 用数据库 increment），不会丢更新；本轮接口的
+ * 语义是「最后写入生效」，不对外暴露 If-Match 冲突检测（由 refine 决定是否加）。
+ */
+export async function replacePlan(id: string, plan: Plan): Promise<PlanRecord | null> {
+  return getStore().plans.replace(id, plan);
+}
+
+/**
+ * 旧 job 链接只读兜底开关（安全审计 R3 收尾）。
+ *
+ * 背景：升级前发出去的 `/p/<jobId>`、`/api/plan/ics?id=<jobId>`、`/t/<jobId>` 等
+ * 链接依赖 resolvePlan 在 PlanStore 未命中后回查 Job（2 小时 TTL 内可读）。但
+ * jobId 历史上是弱随机（R3 已改为 CSPRNG），旧链接的读取面越小越好。
+ *
+ * 口径：`JOB_LINK_FALLBACK` 缺省**开启**（本地/演示/旧部署零配置不回归）；
+ * `0/false/off/no`（大小写/空白不敏感）关闭——此时 PlanStore 是唯一读入口，
+ * 旧 job 链接一律读不到。生产 `render.yaml` 显式设 0（演示站 memory 模式重启后
+ * 本来也没有旧 job，关了不影响任何真实链接）。
+ *
+ * 导出纯函数是为了单测能直接钉住两态解析（不依赖真实环境变量）。
+ */
+export function jobLinkFallbackEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const raw = (env.JOB_LINK_FALLBACK ?? "").trim().toLowerCase();
+  if (raw === "") return true; // 缺省开启：保持向后兼容
+  return !["0", "false", "off", "no"].includes(raw);
+}
+
+/**
+ * 演示成品的静态只读兜底：按稳定 share token 返回仓库里真实生成的行程。
+ *
+ * 为什么要有这一层：DEMO_SEED=1 会在启动时把 fixture 灌进 store，但「发给朋友
+ * 一个链接、第二天还能打开」不该依赖启动注入是否成功——本地 `npm run dev`
+ * 默认不设 DEMO_SEED、演示站重启后现场生成的行程会清空、生产还可能关掉
+ * JOB_LINK_FALLBACK。fixture 是随构建产物一起走的静态工件，让它自己可读，
+ * 示例链接才真的不会失效。
+ *
+ * 为什么必须带 demo: true：这些 token 是公开的（DEMO.md 直接给出），写端点靠
+ * demoWriteBlockedMessage 判定只读。兜底路径也得给同一标记，否则等于绕过
+ * 安全边界（本项目「分享 token 即写能力」）。
+ *
+ * 只认精确匹配 fixture 的 shareId，普通链接不受影响。
+ */
+export function demoFixturePlan(id: string): Plan | null {
+  const fixture = DEMO_FIXTURES.find((f) => f.shareId === id);
+  return fixture ? { ...fixture.plan, demo: true } : null;
+}
+
+/**
+ * 统一读行程入口（分享页 / OG / .ics / 工作台都用它）：
+ * 先查 PlanStore（新链接），再查静态演示工件，最后按开关决定是否兜底查 Job。
+ *
+ * 为什么演示工件排在 Job 兜底之前：它不依赖任何环境变量，包括生产关掉的
+ * JOB_LINK_FALLBACK；且这些 token 是固定的公开工件，不会与 jobId 冲突。
+ *
+ * 为什么保留 Job 兜底：升级前已经发出去的 /p/<jobId> 链接、以及现有 e2e
+ * 都直接拿 jobId 访问分享页。只要任务还在 2 小时 TTL 内就照常可读；
+ * 超过 TTL 才失效——这比升级前「一律 2 小时失效」严格更好，不回归。
+ * 生产可用 JOB_LINK_FALLBACK=0 关掉（见 jobLinkFallbackEnabled 注释）。
+ */
+export async function resolvePlan(id: string): Promise<Plan | null> {
+  const store = getStore();
+  const record = await store.plans.get(id);
+  if (record) return record.plan;
+
+  // 静态演示成品：store 未命中时也要能秒开（重启 / 未设 DEMO_SEED / 关掉旧链接兜底）
+  const fixture = demoFixturePlan(id);
+  if (fixture) return fixture;
+
+  // 旧 job 链接只读兜底：开关关闭时直接返回 null，PlanStore 成为唯一读入口
+  if (!jobLinkFallbackEnabled()) return null;
+  const job = await store.jobs.get(id);
+  if (job?.status === "done" && job.plan) return job.plan;
+  return null;
+}

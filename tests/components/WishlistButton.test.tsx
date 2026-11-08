@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WishlistButton } from "@/components/WishlistButton";
-import { loadWishlist } from "@/lib/wishlist";
+import { loadWishlist } from "@/lib/plan/wishlist";
 
 // 想去按钮：点一下加入、再点移除；状态落 localStorage（未登录也能用）。
 

@@ -5,7 +5,7 @@ import {
   savePendingJob,
   PENDING_JOB_STORAGE_KEY,
   PENDING_JOB_TTL_MS,
-} from "@/lib/pending-job";
+} from "@/lib/jobs/pending-job";
 
 // 「进行中的任务」本地句柄：生成要 2-7 分钟，用户离开/刷新后要能续上轮询。
 // 这里守住四类真实故障：没存过不恢复、过期不恢复、脏数据不炸、终态能清掉。

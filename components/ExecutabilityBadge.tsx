@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import { ChevronRight, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import type { Plan } from "@/lib/types";
-import { executabilityOf, formatCheckedAt } from "@/lib/executability";
+import { executabilityOf, formatCheckedAt } from "@/lib/plan/executability";
 
 /**
  * 评分环的语义色档位：A/B 为通过、C 为需微调、D 为走不通。

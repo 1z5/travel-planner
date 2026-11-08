@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthProvider } from "@/lib/auth/providers";
-import { readJsonBody } from "@/lib/http-body";
-import { consume, hourKey } from "@/lib/ratelimit";
-import { clientIpFromHeaders } from "@/lib/client-ip";
+import { readJsonBody } from "@/lib/server/http-body";
+import { consume, hourKey } from "@/lib/server/ratelimit";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

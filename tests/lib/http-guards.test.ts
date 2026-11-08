@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { readBody, readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError, isSameOriginRequest } from "@/lib/http-origin";
+import { readBody, readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError, isSameOriginRequest } from "@/lib/server/http-origin";
 
 function req(body: string, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest("http://127.0.0.1:3000/api/test", {

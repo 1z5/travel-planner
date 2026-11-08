@@ -12,7 +12,7 @@ import {
   parseLocText,
   projectPixels,
   type MapPoint,
-} from "@/lib/map-view";
+} from "@/lib/geo/map-view";
 
 // 真实地图覆盖层的「对齐地基」单测。
 //

@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
-import { resolvePlan } from "@/lib/plan-repo";
-import { buildPosterModel } from "@/lib/poster-model";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { resolvePlan } from "@/lib/plan/plan-repo";
+import { buildPosterModel } from "@/lib/plan/poster-model";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 
 // 竖版行程海报：1080×1920，供「保存海报 → 微信发朋友」。
 //

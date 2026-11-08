@@ -3,8 +3,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { HomeClient } from "@/app/home-client";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { loadPendingJob, savePendingJob } from "@/lib/pending-job";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
+import { loadPendingJob, savePendingJob } from "@/lib/jobs/pending-job";
 
 // 任务句柄落 localStorage：每条用例后清掉，避免「恢复上一个用例的 pending 任务」
 // 这种跨用例污染（新逻辑引入的测试隔离要求）。

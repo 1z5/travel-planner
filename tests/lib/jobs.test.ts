@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { clearStage, dayFailureError, dayStage, getJobStage, newJobId, setStage } from "@/lib/jobs";
+import {
+  clearStage,
+  dayFailureError,
+  dayStage,
+  getJobStage,
+  newJobId,
+  setStage,
+} from "@/lib/jobs/jobs";
 
 // dayFailureError 把「哪一天、哪个阶段、什么原因、已成功几天」组织成可行动的信息。
 //

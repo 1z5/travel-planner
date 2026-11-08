@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { demoWriteBlockedMessage } from "@/lib/demo-seed";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
-import { getPlanForEdit, replacePlan } from "@/lib/plan-repo";
-import { buildReplacementSpot, findCandidates } from "@/lib/candidates";
-import { lookupPoi, AMAP_MOCK, type PoiLookup } from "@/lib/amap";
-import { validatePlan } from "@/lib/validate";
-import { consume, hourKey, refund } from "@/lib/ratelimit";
-import { clientIpFromHeaders } from "@/lib/client-ip";
+import { demoWriteBlockedMessage } from "@/lib/demo/demo-seed";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
+import { getPlanForEdit, replacePlan } from "@/lib/plan/plan-repo";
+import { buildReplacementSpot, findCandidates } from "@/lib/plan/candidates";
+import { lookupPoi, AMAP_MOCK, type PoiLookup } from "@/lib/geo/amap";
+import { validatePlan } from "@/lib/plan/validate";
+import { consume, hourKey, refund } from "@/lib/server/ratelimit";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
 import { getStore } from "@/lib/store";
-import { newEventId } from "@/lib/metrics";
+import { newEventId } from "@/lib/server/metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

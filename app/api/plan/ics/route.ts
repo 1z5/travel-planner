@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolvePlan } from "@/lib/plan-repo";
-import { buildIcs } from "@/lib/ics";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { resolvePlan } from "@/lib/plan/plan-repo";
+import { buildIcs } from "@/lib/plan/ics";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

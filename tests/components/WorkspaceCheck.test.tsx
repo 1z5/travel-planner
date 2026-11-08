@@ -6,7 +6,7 @@ import {
   type PlanCheckResponse,
   type PlanRepairPreview,
 } from "@/components/WorkspaceCheck";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 import { verifyDocument } from "@/lib/verify/engine";
 import type { TripCheckCredential, TripCheckDocument, TripCheckReport } from "@/lib/verify/types";
 

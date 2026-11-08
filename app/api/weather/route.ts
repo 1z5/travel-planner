@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { fetchWeather } from "@/lib/weather";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { fetchWeather } from "@/lib/geo/weather";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

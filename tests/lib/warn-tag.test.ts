@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { warnTag } from "@/lib/warn-tag";
+import { warnTag } from "@/lib/server/warn-tag";
 
 // warnTag 把一条长文本预警归成短标签（PlanView 用来给预警上分类徽章）。
 // 特征短语来自 validate.ts 生成的预警文本——每条分类钉一条，再加「匹配不上

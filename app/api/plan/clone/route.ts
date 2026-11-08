@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createJob } from "@/lib/jobs";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
-import { consume, refund } from "@/lib/ratelimit";
+import { createJob } from "@/lib/jobs/jobs";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
+import { consume, refund } from "@/lib/server/ratelimit";
 import { readSession } from "@/lib/auth/session";
-import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
-import { deriveCloneInput, CloneOverridesSchema } from "@/lib/plan-clone";
-import { clientIpFromHeaders } from "@/lib/client-ip";
+import { getPlanForEdit, resolvePlan } from "@/lib/plan/plan-repo";
+import { deriveCloneInput, CloneOverridesSchema } from "@/lib/plan/plan-clone";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
 import { getStore } from "@/lib/store";
-import { newEventId } from "@/lib/metrics";
+import { newEventId } from "@/lib/server/metrics";
 import {
   releaseGenerationBudget,
   tryAcquireSlot,
   tryReserveGenerationBudget,
-} from "@/lib/capacity-gate";
+} from "@/lib/server/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

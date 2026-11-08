@@ -3,15 +3,15 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { PlanView } from "@/components/PlanView";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
-import { localTodayIso } from "@/lib/trip-day";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
+import { localTodayIso } from "@/lib/trip/trip-day";
 
 // 控制「现在」：只 mock 两个读时钟的函数，tripToday/spotNow 保持真实（已被单测
 // 覆盖）——测的是真实逻辑 + 可控时钟输入。mockClock 前缀 + vi.hoisted 是 vitest
 // 让工厂引用外层变量的规矩（否则 vi.mock 提升到顶部会撞上暂时性死区）。
 const mockClock = vi.hoisted(() => ({ today: "2026-10-18", minutes: 9 * 60 + 30 }));
-vi.mock("@/lib/trip-day", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/trip-day")>();
+vi.mock("@/lib/trip/trip-day", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trip/trip-day")>();
   return { ...actual, localTodayIso: () => mockClock.today, nowMinutes: () => mockClock.minutes };
 });
 

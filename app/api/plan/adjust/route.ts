@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { demoWriteBlockedMessage } from "@/lib/demo-seed";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
-import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
-import { RetimeUnavailableError, retimeDay, type RetimeResult } from "@/lib/schedule";
-import { refreshTimeWarnings } from "@/lib/validate";
-import { consume, hourKey, refund } from "@/lib/ratelimit";
-import { newEventId } from "@/lib/metrics";
+import { demoWriteBlockedMessage } from "@/lib/demo/demo-seed";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
+import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan/plan-repo";
+import { RetimeUnavailableError, retimeDay, type RetimeResult } from "@/lib/plan/schedule";
+import { refreshTimeWarnings } from "@/lib/plan/validate";
+import { consume, hourKey, refund } from "@/lib/server/ratelimit";
+import { newEventId } from "@/lib/server/metrics";
 import { getStore } from "@/lib/store";
-import { clientIpFromHeaders } from "@/lib/client-ip";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
 import type { Plan, PlanDay } from "@/lib/types";
 
 export const runtime = "nodejs";

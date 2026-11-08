@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { resolvePlan } from "@/lib/plan-repo";
+import { resolvePlan } from "@/lib/plan/plan-repo";
 import { TodayView } from "@/components/TodayView";
 
 // 「行中模式」页：/t/<share token>

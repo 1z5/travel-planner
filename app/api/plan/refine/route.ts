@@ -6,23 +6,23 @@ import {
   fixInstruction,
   resolveFixDay,
   type FixKind,
-} from "@/lib/fix-actions";
-import { demoWriteBlockedMessage } from "@/lib/demo-seed";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
-import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan-repo";
+} from "@/lib/plan/fix-actions";
+import { demoWriteBlockedMessage } from "@/lib/demo/demo-seed";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
+import { getPlanForEdit, replacePlan, resolvePlan } from "@/lib/plan/plan-repo";
 import {
   refinePlan,
   RefineLlmError,
   RefineOutputError,
   RefineRejectedError,
   type RefineAction,
-} from "@/lib/refine";
-import { consume, hourKey, refund } from "@/lib/ratelimit";
-import { newEventId } from "@/lib/metrics";
+} from "@/lib/plan/refine";
+import { consume, hourKey, refund } from "@/lib/server/ratelimit";
+import { newEventId } from "@/lib/server/metrics";
 import { getStore } from "@/lib/store";
-import { clientIpFromHeaders } from "@/lib/client-ip";
-import { tryAcquireSlot, tryReserveLlmBudget } from "@/lib/capacity-gate";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
+import { tryAcquireSlot, tryReserveLlmBudget } from "@/lib/server/capacity-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

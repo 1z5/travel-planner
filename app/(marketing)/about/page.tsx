@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LandingSections } from "@/app/landing-sections";
-import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
 
 // 营销页：只服务「第一次了解产品」的访客。
 // 产品入口是 /（我的行程），这里不承担工具职责。

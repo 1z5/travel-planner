@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // 意愿按钮：点一次上报一次（不重复刷），失败静默不阻断。
-vi.mock("@/lib/track", () => ({ track: vi.fn() }));
+vi.mock("@/lib/server/track", () => ({ track: vi.fn() }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { IntentButton } from "@/components/IntentButton";
-import { track } from "@/lib/track";
+import { track } from "@/lib/server/track";
 
 const mockedTrack = vi.mocked(track);
 

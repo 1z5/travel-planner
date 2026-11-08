@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlanView } from "@/components/PlanView";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 撤销这次修改（A4 延伸）：改坏了能退回上一版，且撤销走服务端（落成新版本）。
 

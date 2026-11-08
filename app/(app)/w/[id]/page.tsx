@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { resolvePlan } from "@/lib/plan-repo";
+import { resolvePlan } from "@/lib/plan/plan-repo";
 import { TripWorkspace } from "@/components/TripWorkspace";
 
 // Trip Workspace：一个行程的工作台（规划 / 地图 / 今日三个镜头）。

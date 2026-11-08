@@ -6,7 +6,7 @@ import {
   cityTemplateBySlug,
   templateHref,
   type CityTemplate,
-} from "@/lib/city-templates";
+} from "@/lib/plan/city-templates";
 
 // 城市模板详情页（产品线 B2）：某城市的 3/4/5 天条件模板。
 //

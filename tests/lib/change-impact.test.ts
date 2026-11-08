@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Plan } from "@/lib/types";
-import { changeImpact } from "@/lib/change-impact";
-import { SAMPLE_PLAN } from "@/lib/sample-plan";
+import { changeImpact } from "@/lib/plan/change-impact";
+import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 
 // 「改一次，验一次」的效果对比：数字复用可执行性评分；变差也要如实说。
 

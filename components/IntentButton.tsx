@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Heart } from "lucide-react";
-import { track } from "@/lib/track";
+import { track } from "@/lib/server/track";
 
 // ============================================================
 // 付费意愿按钮（产品线 S3：商业化试点）

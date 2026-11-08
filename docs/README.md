@@ -11,7 +11,7 @@
 4. [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md) — 开放标准 v0.1（文档格式 / 规则 / 凭据 / 三态）
 5. [adr/](adr/) — 16 篇架构决策记录，改架构前先查历史
 6. [design/ATLAS-V6.md](design/ATLAS-V6.md) — 改任何 UI 前先读（token / 材质 / 动效 / 分片规则）
-7. [API.md](../API.md) — HTTP 接口契约；[CONTRIBUTING.md](../CONTRIBUTING.md) — 贡献与提交规范
+7. [API.md](API.md) — HTTP 接口契约；[CONTRIBUTING.md](../CONTRIBUTING.md) — 贡献与提交规范
 8. [SECURITY.md](../SECURITY.md) + [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) — 安全基线与审计
 
 ## 现行技术文档
@@ -23,15 +23,15 @@
 | [design/ATLAS-V6.md](design/ATLAS-V6.md)                     | 前端设计系统与「不要做」清单（§0 / §6）             |
 | [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) | 只读安全审计、修复状态与未闭环项                    |
 | [adr/](adr/)                                                 | 架构决策记录 001–016，含替代方案与取舍              |
-| [../API.md](../API.md) / [../CHANGELOG.md](../CHANGELOG.md)  | 接口契约 / 逐轮变更与踩坑记录                       |
+| [API.md](API.md) / [../CHANGELOG.md](../CHANGELOG.md)        | 接口契约 / 逐轮变更与踩坑记录                       |
 | [../mcp/README.md](../mcp/README.md)                         | MCP 服务说明                                        |
 
 ## 部署与运维（工程参考）
 
 | 文档                               | 适用                                                          |
 | ---------------------------------- | ------------------------------------------------------------- |
-| [../DEMO.md](../DEMO.md)           | 公开演示：Render 免费实例 + 静态 fixture，memory 存储、会休眠 |
-| [../DEPLOY.md](../DEPLOY.md)       | 生产配置参考（Postgres / 登录 / 监控 / 域名）                 |
+| [DEMO.md](DEMO.md)                 | 公开演示：Render 免费实例 + 静态 fixture，memory 存储、会休眠 |
+| [DEPLOY.md](DEPLOY.md)             | 生产配置参考（Postgres / 登录 / 监控 / 域名）                 |
 | [../.env.example](../.env.example) | 环境变量分组与说明                                            |
 
 > 本项目不计划商业上线；这两份文档保留作工程样例，不代表当前排期。

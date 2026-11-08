@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Download } from "lucide-react";
-import { reportPlainText } from "@/lib/trip-check-report";
+import { reportPlainText } from "@/lib/trip/trip-check-report";
 import type { TripCheckReport as TripCheckReportData } from "@/lib/verify/types";
 
 // ============================================================

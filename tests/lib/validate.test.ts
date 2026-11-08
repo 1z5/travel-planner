@@ -6,8 +6,8 @@ import {
   nameCovered,
   refreshTimeWarnings,
   validateDay,
-} from "@/lib/validate";
-import { isHoursWarning, isScheduleWarning } from "@/lib/schedule";
+} from "@/lib/plan/validate";
+import { isHoursWarning, isScheduleWarning } from "@/lib/plan/schedule";
 import type { Plan, PlanDay, PlanInput, PlanLeg, PlanSpot } from "@/lib/types";
 
 // 时间轴/营业时间体检要测 validateDay 的真实装配逻辑（legs → 冲突 → 文案），
@@ -18,7 +18,7 @@ const amapStub = vi.hoisted(() => ({
   transitMinutes: vi.fn(),
 }));
 
-vi.mock("@/lib/amap", () => ({
+vi.mock("@/lib/geo/amap", () => ({
   // 关键：走「真实模式」分支，才会回填坐标、算 legs、跑营业时间体检
   AMAP_MOCK: false,
   lookupPoi: amapStub.lookupPoi,

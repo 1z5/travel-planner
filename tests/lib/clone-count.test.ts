@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TripEventRecord } from "@/lib/store/types";
-import { countClones } from "@/lib/clone-count";
+import { countClones } from "@/lib/plan/clone-count";
 
 // 克隆计数：分享页社交证明的口径。0 次不渲染、同 shareId 才计数、其它事件不混入。
 

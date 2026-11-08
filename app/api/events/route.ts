@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { readJsonBody } from "@/lib/http-body";
-import { crossSiteWriteError } from "@/lib/http-origin";
+import { readJsonBody } from "@/lib/server/http-body";
+import { crossSiteWriteError } from "@/lib/server/http-origin";
 import { getStore } from "@/lib/store";
-import { consume, hourKey } from "@/lib/ratelimit";
-import { EVENT_NAMES, newEventId } from "@/lib/metrics";
-import { clientIpFromHeaders } from "@/lib/client-ip";
+import { consume, hourKey } from "@/lib/server/ratelimit";
+import { EVENT_NAMES, newEventId } from "@/lib/server/metrics";
+import { clientIpFromHeaders } from "@/lib/server/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { COST_CATEGORIES, budgetTone, formatCny, summarizeBudget } from "@/lib/budget";
-import { finalizePlan } from "@/lib/validate";
+import { COST_CATEGORIES, budgetTone, formatCny, summarizeBudget } from "@/lib/plan/budget";
+import { finalizePlan } from "@/lib/plan/validate";
 import type { Plan, PlanDay, PlanInput, PlanSpot, SpotType } from "@/lib/types";
 import fixture from "../../scripts/fixture-plan.json";
 

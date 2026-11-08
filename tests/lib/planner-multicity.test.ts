@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseLines, dayCityOf, citiesRoute } from "@/lib/planner";
+import { baseLines, dayCityOf, citiesRoute } from "@/lib/plan/planner";
 import type { PlanInput } from "@/lib/types";
 
 // 跨城/多城市契约：按天分配城市、逐城验真、城际段不编造。

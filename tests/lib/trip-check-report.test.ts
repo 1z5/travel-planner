@@ -5,7 +5,7 @@ import {
   issueGroupTitle,
   reportHeadline,
   reportPlainText,
-} from "@/lib/trip-check-report";
+} from "@/lib/trip/trip-check-report";
 import { getSample } from "@/lib/verify/samples";
 
 const NOW = new Date("2026-10-28T10:00:00.000Z");

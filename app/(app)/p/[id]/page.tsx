@@ -1,15 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { resolvePlan } from "@/lib/plan-repo";
+import { resolvePlan } from "@/lib/plan/plan-repo";
 import { getStore } from "@/lib/store";
-import { countClones } from "@/lib/clone-count";
+import { countClones } from "@/lib/plan/clone-count";
 import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
 import { WishlistButton } from "@/components/WishlistButton";
 import { DemoReadOnlyNote } from "@/components/DemoReadOnlyNote";
 import { stampPlan } from "@/lib/verify/stamp";
-import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
+import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTripReport } from "@/lib/trip-report";
+import { computeTripReport } from "@/lib/trip/trip-report";
 import type { Plan, PlanDay, PlanLeg, PlanSpot, SpotType, TransportMode } from "@/lib/types";
 import fixture from "../../scripts/fixture-plan.json";
 

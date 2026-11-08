@@ -5,8 +5,8 @@ process.env.AMAP_WEB_SERVICE_KEY = "test-key";
 
 // lib/amap.ts 顶部 import "server-only"：Vitest 侧由 vitest.config.mts 的
 // resolve.alias 指到 tests/stubs/server-only.js（空模块）
-const { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes } = await import("@/lib/amap");
-const { validatePlan } = await import("@/lib/validate");
+const { AMAP_MOCK, lookupPoi, routeSegment, transitMinutes } = await import("@/lib/geo/amap");
+const { validatePlan } = await import("@/lib/plan/validate");
 import type { Plan, PlanInput } from "@/lib/types";
 
 // ---------- 桩 fetch：按 URL 路径 + keywords 分支，模拟高德的各类响应 ----------
@@ -372,7 +372,7 @@ describe("QPS 限流的退避策略", () => {
         return res({ status: "0", info: "CUQPS_HAS_EXCEEDED_THE_LIMIT", infocode: "10021" });
       }),
     );
-    const { lookupPoi } = await import("@/lib/amap");
+    const { lookupPoi } = await import("@/lib/geo/amap");
     await lookupPoi("成都", "限流退避测试");
 
     expect(timestamps).toHaveLength(3); // 三次尝试都发生了
@@ -394,7 +394,7 @@ describe("QPS 限流的退避策略", () => {
         throw new Error("network down");
       }),
     );
-    const { lookupPoi } = await import("@/lib/amap");
+    const { lookupPoi } = await import("@/lib/geo/amap");
     await lookupPoi("成都", "网络退避测试");
 
     expect(timestamps).toHaveLength(3);
@@ -652,7 +652,7 @@ describe("MOCK 模式不填假 POI 详情", () => {
     try {
       const noFetch = vi.fn();
       vi.stubGlobal("fetch", noFetch);
-      const m = await import("@/lib/amap");
+      const m = await import("@/lib/geo/amap");
       expect(m.AMAP_MOCK).toBe(true);
       const r = await m.lookupPoi("成都", "MOCK详情测试");
       expect(r.state).toBe("hit");
@@ -681,7 +681,7 @@ describe("智能组合（auto）：按距离选方式", () => {
   it("阈值口径：≤1.2km 步行 / ≤5km 骑行 / 更远驾车", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { pickModeByDistance, haversineMeters } = await import("@/lib/amap");
+    const { pickModeByDistance, haversineMeters } = await import("@/lib/geo/amap");
     expect(pickModeByDistance(800)).toBe("walking");
     expect(pickModeByDistance(1200)).toBe("walking");
     expect(pickModeByDistance(1201)).toBe("bicycling");
@@ -695,7 +695,7 @@ describe("智能组合（auto）：按距离选方式", () => {
   it("haversine：同一点 0 米；已知坐标对量级正确", async () => {
     process.env.AMAP_WEB_SERVICE_KEY = "test-key";
     vi.resetModules();
-    const { haversineMeters } = await import("@/lib/amap");
+    const { haversineMeters } = await import("@/lib/geo/amap");
     expect(haversineMeters("116.4,39.9", "116.4,39.9")).toBeCloseTo(0, 3);
     // 约 0.01 度经度 ≈ 0.9km（北京附近）
     const d = haversineMeters("116.40,39.90", "116.41,39.90");

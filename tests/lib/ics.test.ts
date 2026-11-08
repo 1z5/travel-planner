@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildIcs } from "@/lib/ics";
+import { buildIcs } from "@/lib/plan/ics";
 import type { Plan, PlanSpot } from "@/lib/types";
 
 function spot(overrides: Partial<PlanSpot> = {}): PlanSpot {

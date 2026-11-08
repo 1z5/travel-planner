@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Loader2, Send, Sparkles, Trash2, Wand2 } from "lucide-react";
-import type { CopilotAnswer, CopilotMsg, CopilotSuggestion } from "@/lib/copilot-types";
+import type { CopilotAnswer, CopilotMsg, CopilotSuggestion } from "@/lib/plan/copilot-types";
 
 // ============================================================
 // 「行程管家」对话卡：在行程页里针对**当前这份行程**提问。

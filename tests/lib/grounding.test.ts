@@ -8,7 +8,7 @@ import {
   tripDates,
   type Grounding,
   type PoiSearcher,
-} from "@/lib/grounding";
+} from "@/lib/plan/grounding";
 import type { PlanInput } from "@/lib/types";
 
 // 事实先行（grounding）的单测。

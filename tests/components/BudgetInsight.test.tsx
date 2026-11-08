@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BudgetInsight } from "@/components/BudgetInsight";
-import { summarizeBudget } from "@/lib/budget";
+import { summarizeBudget } from "@/lib/plan/budget";
 import type { Plan, PlanSpot, SpotType } from "@/lib/types";
 
 // 预算透视卡组件测试：钉住 Props 契约（BudgetSummary 进、UI 出）、

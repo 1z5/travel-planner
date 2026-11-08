@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { readJsonBody } from "@/lib/http-body";
-import { getPlanForEdit, resolvePlan } from "@/lib/plan-repo";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { readJsonBody } from "@/lib/server/http-body";
+import { getPlanForEdit, resolvePlan } from "@/lib/plan/plan-repo";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 import type { Plan } from "@/lib/types";
 import { planToDocument } from "@/lib/verify/adapt";
 import { credentialOf } from "@/lib/verify/credential";

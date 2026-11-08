@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { resolvePlan } from "@/lib/plan-repo";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { resolvePlan } from "@/lib/plan/plan-repo";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 import { planToDocument } from "@/lib/verify/adapt";
 import { credentialOf } from "@/lib/verify/credential";
 import { verifyDocument } from "@/lib/verify/engine";

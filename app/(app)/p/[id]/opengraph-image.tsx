@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 import { headers } from "next/headers";
-import { resolvePlan } from "@/lib/plan-repo";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
-import { formatCny, summarizeBudget } from "@/lib/budget";
+import { resolvePlan } from "@/lib/plan/plan-repo";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
+import { formatCny, summarizeBudget } from "@/lib/plan/budget";
 
 // 分享卡片图：分享到微信/Twitter 时渲染「城市 + 天数 + 概览」而非裸链接。
 // 视觉对齐 globals.css 的「纸上行程」设计系统（暖纸底 / 墨色 / 陶土橙）——

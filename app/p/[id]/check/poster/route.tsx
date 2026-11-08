@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
-import { resolvePlan } from "@/lib/plan-repo";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import { resolvePlan } from "@/lib/plan/plan-repo";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 import { stampPlan } from "@/lib/verify/stamp";
-import { buildCheckPosterModel } from "@/lib/trip-check-report";
+import { buildCheckPosterModel } from "@/lib/trip/trip-check-report";
 
 // 竖版体检海报：1080×1920，供「保存海报 → 微信发朋友」。
 //

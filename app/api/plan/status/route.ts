@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJob, getJobStage, interruptJob, isJobStale, JOB_INTERRUPTED_ERROR } from "@/lib/jobs";
-import { peek } from "@/lib/ratelimit";
-import { checkProxyRateLimit } from "@/lib/proxy-rate-limit";
+import {
+  getJob,
+  getJobStage,
+  interruptJob,
+  isJobStale,
+  JOB_INTERRUPTED_ERROR,
+} from "@/lib/jobs/jobs";
+import { peek } from "@/lib/server/ratelimit";
+import { checkProxyRateLimit } from "@/lib/server/proxy-rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
