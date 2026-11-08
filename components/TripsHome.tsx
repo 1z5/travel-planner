@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { SAMPLE_PLAN } from "@/lib/sample-plan";
 import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo-links";
-import { PENDING_CHECK_TEXT_KEY } from "@/lib/pending-check";
+import { PENDING_HANDOFF_TEXT_KEY } from "@/lib/pending-handoff";
 import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/featured-destinations";
 import {
   loadRecentTrips,
@@ -32,20 +32,21 @@ import { localTodayIso } from "@/lib/trip-day";
 // 1. 首屏从「一张大纸卡 + 三段文案」变成「左侧主张 + 右侧仪器面板」——
 //    右侧用真实示例数据（SAMPLE_PLAN，MOCK）展示产品长什么样，并如实标注
 //    未验真；新用户第一屏就同时看到「主张」与「证据样本」。
-// 2. 2026-11 形态纠正：首屏第一动作从「填表生成」改成「把已有行程贴进来验」。
-//    依据 research/：生成已被 ChatGPT/OTA/地图 App 商品化，而「43% 的 AI 行程日
-//    含可验证错误」没人负责。新用户首屏给粘贴框，主 CTA 指向 /check；
-//    「开始规划」降级为次要按钮，但保留给确实要从零排的人。
+// 2. 2026-11-08 产品重构：第一动作从「填表生成 / 贴进来体检」改成
+//    「出发前交接」——把任何来源的行程原样贴进来，逐条说清哪些自己核过、
+//    哪些先信着，带走一张可离线复算的单子（/handoff）。
+//    依据 research/2026-11-08-final/：生成与核验都已被平台免费化，
+//    「我们替用户判断」的四条路全部被占，剩下的是「用户自己那次判断」。
+//    旧的 /check、/new、示例成品都保留可达，但不再是门面。
 // 3. 快速开始（城市 + 天数 → /new 深链预填）保留给回访用户，不删既有能力。
 // 4. 我的行程 / 精选示例 / 想去清单继续用仪器语言：等宽编号、状态胶囊、
 //    倒计时读数、bento 网格。
 //
 // 展示契约（tests/components/TripsHome.test.tsx）必须继续满足：
-// - 新用户首屏有「先核验真实世界，再排行程」这段**完整文本**（一个文本节点）；
+// - 新用户首屏有「出发前，把行程交接清楚」这段**完整文本**（一个文本节点）；
 // - 只有一个 role=link 且名为「开始规划」（href=/new）；
-// - 「看示例」直接指向真实验真的成品分享页（秒开、不用等生成、不用登录）；
-//   右侧 specimen 只作结构预览并如实标注未验真，两者不许混用——把 MOCK
-//   数据叫「真实生成的示例」会把演示对象直接劝退；
+// - 主 CTA 指向 /handoff；「看示例」仍指向真实验真的成品分享页；
+//   右侧 specimen 只作结构预览并如实标注未验真，两者不许混用；
 // - 回归用户的 hero 不再出现示例面板（否则「苏州」会与最近行程列表同名）。
 // ============================================================
 
@@ -62,19 +63,20 @@ export function TripsHome() {
   const [quickCity, setQuickCity] = useState("");
   const [quickDays, setQuickDays] = useState<(typeof QUICK_DAYS)[number]>(3);
 
-  // 首屏粘贴框：文本暂存后跳 /check 自动开跑。不用 useRouter——组件测试跑在
+  // 首屏粘贴框：文本暂存后跳 /handoff 自动摊开。不用 useRouter——组件测试跑在
   // jsdom，没有 App Router 上下文（与下方原生 GET 表单同一顾虑）。
+  // 交接台全程零请求，所以这里只传文本，不触发任何生成或体检。
   const [pasteText, setPasteText] = useState("");
 
   function submitPaste(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (pasteText.trim().length < 20) return;
     try {
-      window.sessionStorage.setItem(PENDING_CHECK_TEXT_KEY, pasteText.trim());
+      window.sessionStorage.setItem(PENDING_HANDOFF_TEXT_KEY, pasteText.trim());
     } catch {
       // 隐私模式下 sessionStorage 可能不可写；仍跳过去让用户手动贴一次
     }
-    window.location.assign("/check");
+    window.location.assign("/handoff");
   }
 
   useEffect(() => {
@@ -101,13 +103,13 @@ export function TripsHome() {
               <>
                 <p className="firstscreen-eyebrow">
                   <span className="eyebrow-dot" aria-hidden="true" />
-                  事实先行 · 生成前先核验真实世界
+                  出发前 · 一次交接
                 </p>
-                <h1 className="firstscreen-title">先核验真实世界，再排行程</h1>
+                <h1 className="firstscreen-title">出发前，把行程交接清楚</h1>
                 <p className="firstscreen-lede">
-                  先说去哪、几天、大概预算。我们先用高德核验真实 POI、营业时间与通勤，再排成
-                  <strong>走得通的行程</strong>
-                  ——闭馆、绕路、时间接不上，出发前就标出来。
+                  手上那份 AI 写的行程，哪些你真核过、哪些只是先信着？原样贴进来，
+                  <strong>你自己逐条说清楚</strong>
+                  ，带走一张能离线复算的交接单。不上传、不评分、不替你改。
                 </p>
               </>
             ) : (
@@ -123,8 +125,9 @@ export function TripsHome() {
               </>
             )}
 
-            {/* 形态纠正的主角：陌生人第一眼看到的是「把行程交给我」，不是十几个字段。
-                粘贴后跳 /check，那边会把 AI 读出来的点位/时刻先摊开给人核对再体检。 */}
+            {/* 产品第一动作：陌生人第一眼看到的是「把你手上的行程交过来」，
+                不是十几个字段，也不是一份体检报告。粘贴后跳 /handoff，
+                那边只把原文切成能逐条签字的片段，全程零请求、零落库。 */}
             {isNewUser && (
               <form className="home-paste" onSubmit={submitPaste} aria-label="粘贴已有行程">
                 <label className="sr-only" htmlFor="home-paste-text">
@@ -137,7 +140,7 @@ export function TripsHome() {
                   onChange={(e) => setPasteText(e.target.value)}
                   rows={3}
                   maxLength={8000}
-                  placeholder="手上已经有一份行程？把 ChatGPT 写的、小红书抄的、朋友发来的贴进来…"
+                  placeholder="把 ChatGPT 写的、小红书抄的、朋友发来的行程原样贴进来…"
                 />
                 <div className="home-paste-actions">
                   <button
@@ -145,9 +148,9 @@ export function TripsHome() {
                     className="btn btn-primary"
                     disabled={pasteText.trim().length < 20}
                   >
-                    先看看能不能照着走 <ArrowRight size={15} aria-hidden="true" />
+                    摊开，我来签字 <ArrowRight size={15} aria-hidden="true" />
                   </button>
-                  <span className="home-paste-note">不用等生成，也不用登录</span>
+                  <span className="home-paste-note">不上传 · 不用等生成 · 不用登录</span>
                 </div>
               </form>
             )}
@@ -198,10 +201,10 @@ export function TripsHome() {
             </form>
 
             <div className="firstscreen-cta">
-              {/* 回访用户没有上面的粘贴框，这里仍是通往验真台的主入口。 */}
-              <Link href="/check" className="btn-primary firstscreen-btn">
+              {/* 回访用户没有上面的粘贴框，这里仍是通往交接台的主入口。 */}
+              <Link href="/handoff" className="btn-primary firstscreen-btn">
                 <ArrowRight size={16} aria-hidden="true" />
-                验一份行程
+                出发前交接一份行程
               </Link>
               <Link href="/new" className="btn btn-ghost">
                 <Plus size={16} aria-hidden="true" />
@@ -227,9 +230,9 @@ export function TripsHome() {
 
             {/* 一行能力点：把营销从「三张长卡」压缩成一行，不占首屏高度 */}
             <ul className="home-chips firstscreen-points" aria-label="产品能力">
-              <li>高德验真 POI / 营业时间 / 通勤</li>
-              <li>可执行性体检 A–D</li>
-              <li>改坏了能撤销</li>
+              <li>不上传，全在本地完成</li>
+              <li>默认全部「未核」，不替你猜</li>
+              <li>单子可带走、可离线复算</li>
             </ul>
           </div>
 

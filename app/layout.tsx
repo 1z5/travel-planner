@@ -9,8 +9,11 @@ import "./styles/atlas-home.css";
 import "./styles/atlas-workspace.css";
 import "./styles/atlas-evidence.css";
 import "./styles/atlas-marketing.css";
-// 验真台 /check 是后加的产品线，放最后：只用 desk-* 前缀，不覆盖任何既有选择器。
+// 验真台 /check 是后加的产品线：只用 desk-* 前缀，不覆盖任何既有选择器。
 import "./styles/atlas-check.css";
+// 出发前交接台 /handoff 是 2026-11-08 的新第一入口：ho-* 独立命名空间，
+// 挂在覆盖层最后，不改冻结的 globals.css，也不与旧产品线争特异性。
+import "./styles/atlas-handoff.css";
 import { MotionPref } from "@/components/MotionPref";
 import { PwaBootstrap } from "@/components/PwaBootstrap";
 

@@ -2887,6 +2887,44 @@ async function phaseShowcase(base) {
 // 体检 → 一键理顺 → 前后可复算凭据。全部走桩，不烧真 token、不需要高德 key。
 // 重点不只看「能跑通」，还要钉住两条产品红线：抽取层不许伪造核验字段、
 // 事实轴没查过就必须如实写 unverified。
+// 交接台（2026-11-08 产品重构后的第一入口）：
+// 纯客户端、零接口、零落库。e2e 只验「页面能开、首屏确实换成了交接、
+// 旧首页没有偷偷把用户送回生成/体检」，不验 JS 交互（单测已覆盖）。
+async function phaseHandoff(base) {
+  console.log("\n== 交接台：首屏第一动作与零接口静态页 ==");
+
+  const pageRes = await fetch(`${base}/handoff`);
+  const pageHtml = await pageRes.text();
+  check(
+    "handoff：/handoff 页面 200 且首屏是交接主张",
+    pageRes.status === 200 && pageHtml.includes("把 AI 说的，变成你自己确认过的"),
+    `got ${pageRes.status}`,
+  );
+  check(
+    "handoff：页面明说零上传、零评分、默认未核",
+    pageHtml.includes("不上传：全程在你浏览器里完成") &&
+      pageHtml.includes("不评分：没有等级") &&
+      pageHtml.includes("不核验：默认每条都是"),
+    `got ${pageRes.status}`,
+  );
+
+  const homeRes = await fetch(`${base}/`);
+  const homeHtml = await homeRes.text();
+  check(
+    "handoff：首页主入口已换成交接，生成降级为次要",
+    homeHtml.includes("出发前交接一份行程") && homeHtml.includes('href="/handoff"'),
+    `got ${homeRes.status}`,
+  );
+  // 注意：新用户 h1 由客户端 loaded/isNewUser 决定，SSR HTML 里没有，别拿它断言。
+  // 顶栏（AppShell）+ 首屏主 CTA 各有一个 /handoff 链接，两个都在才算形态改到位。
+  const handoffLinks = (homeHtml.match(/href="\/handoff"/g) ?? []).length;
+  check(
+    "handoff：顶栏常驻入口 + 首屏主 CTA 双入口都在",
+    handoffLinks >= 2,
+    `got ${handoffLinks} links, ${homeRes.status}`,
+  );
+}
+
 async function phaseCheckDesk(base) {
   console.log("\n== 验真台：贴文本 → 体检 → 一键理顺 ==");
 
@@ -2898,13 +2936,8 @@ async function phaseCheckDesk(base) {
     `got ${pageRes.status}`,
   );
 
-  const homeRes = await fetch(`${base}/`);
-  const homeHtml = await homeRes.text();
-  check(
-    "check：首页主入口已纠正为验真（生成降级）",
-    homeHtml.includes("验一份行程") && homeHtml.includes('href="/check"'),
-    `got ${homeRes.status}`,
-  );
+  // 首页主入口已在 2026-11-08 换成交接台，断言移到 phaseHandoff；
+  // 这里保留 /check 本身的链路验证，证明旧产品线没有在这次重构里被误删。
 
   const sample = [
     "苏州 3 天，人均预算 2000 元",
@@ -3242,6 +3275,7 @@ async function main() {
     // 放在最前面：此时 mock 服务器还没生成任何行程，store 一定未命中，
     // 才能真正验证「静态 fixture 兜底」而不是被注入的 seed 掩盖过去。
     await phaseShowcase(APP("mock"));
+    await phaseHandoff(APP("mock"));
     await phaseCheckDesk(APP("mock"));
     await phaseA(makeApi(APP("mock")));
     await runSlices(makeApi(APP("mock")), "mock");

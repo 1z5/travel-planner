@@ -14,8 +14,9 @@ import { ThemeToggle } from "./ThemeToggle";
 // - 顶部加 2px 滚动进度线（纯 CSS scroll-driven animation，无 JS）；
 // - 右侧加主题开关（跟随系统 / 浅色 / 深色），产品面与营销面共用品牌章；
 // - 顶栏不放「新建行程」按钮：新建入口收敛到首页行动区，避免三处重复。
-//   2026-11 起放「验一份行程」：它是新的第一动作，且回访用户在首页看不到
-//   粘贴框，需要一个随时可达的入口（新建不是第一动作，所以不占这个位置）。
+//   2026-11-08 起放「出发前交接」：产品第一动作已从「生成 / 体检」换成
+//   「把你手上的 AI 行程交接成自己确认过的」。回访用户在首页看不到粘贴框，
+//   需要随时可达的入口；新建与验真台都保留在页面内，不再占顶栏。
 // ============================================================
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav className="app-nav" aria-label="产品导航">
             <Link href="/">我的行程</Link>
-            <Link href="/check">验一份行程</Link>
+            <Link href="/handoff">出发前交接</Link>
           </nav>
 
           <div className="app-topbar-actions">
