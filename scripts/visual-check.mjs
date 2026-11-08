@@ -22,6 +22,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -386,12 +387,25 @@ async function main() {
     }
 
     // Chrome
+    // profile 放系统临时目录（每进程独立）：这个目录动辄几百个文件，放仓库里
+    // 每次启动前整删既慢，也会撞上环境里的批量删除保护（一次性 unlink 超过
+    // 阈值直接抛错，视觉门就假红）。临时目录 + 进程号隔离，脏了也不用管。
     const cdpPort = await pickPort(9333);
-    const profile = path.join(OUT_DIR, ".chrome-profile");
-    fs.rmSync(profile, { recursive: true, force: true });
+    const profile =
+      process.env.VISUAL_PROFILE_DIR ||
+      path.join(os.tmpdir(), `travel-planner-visual-profile-${process.pid}`);
+    try {
+      fs.rmSync(profile, { recursive: true, force: true });
+    } catch (e) {
+      log(`  ⚠️  旧 profile 清理失败（不影响本次检查）：${e.message}`);
+    }
     chromeProc = spawnCmd(CHROME, [
       "--headless=new",
       "--disable-gpu",
+      // 沙箱化环境（容器/受限 shell）里 Chrome 自身沙箱会初始化失败，
+      // 用 VISUAL_CHROME_NO_SANDBOX=1 显式放开——仅在临时 profile 的
+      // 一次性检查进程上使用，不影响日常浏览。
+      ...(process.env.VISUAL_CHROME_NO_SANDBOX ? ["--no-sandbox"] : []),
       "--hide-scrollbars",
       "--no-first-run",
       "--no-default-browser-check",
