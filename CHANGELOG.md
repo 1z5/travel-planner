@@ -1,4 +1,25 @@
-## 2026-11-10 Trip Check CLI + 展示定位收窄
+## 2026-11-10（第二波）凭据同构化 + 离线验真台 + 门面资产
+
+决策全文见 [ADR-018](docs/adr/018-client-side-verification.md)。
+
+- **凭据层同构化**：新增 `lib/verify/sha256.ts`（约 90 行纯 JS FIPS 180-4），
+  `credential.ts` 去掉 `server-only` 与 `node:crypto`。判定/修复/凭据三层现在全部
+  client-safe，函数签名与已公开的凭据 ID 一个字节未变。
+  `tests/lib/verify/sha256.test.ts` 与 node:crypto 逐用例对拍（中文/emoji/补位边界/跨块），
+  并冻结三份示例的凭据 ID——换实现必须先让测试红。
+- **单文件离线验真台** `public/verify-playground.html`（257 KB，内联 bundle 116 KiB）：
+  `cli/playground-entry.ts` 复用同一套引擎，`npm run playground:build` 生成；
+  CSP `connect-src 'none'` 物理关闭出站请求；`#blocked` 等 hash 可直接链到跑完的结果。
+  真实 Chrome 与 `tests/cli/playground.test.ts` 都验证浏览器算出同一个
+  `tc_46031b87…`（含 `--fix` 前后凭据链 `tc_ffb2639c…`）。
+- **门面资产**：`docs/images/social-preview.png`（1280×640，供 GitHub Settings 上传）
+  与 `readme-hero.png`（README 顶部首图），由
+  `node scripts/build-showcase-images.mjs`（Chrome headless）生成，可重跑；
+  中英 README 均已接入，并补上「三种接口同一个凭据 ID」的说明与仓库元数据建议。
+- **坑**：`String.replace(占位符, 压缩后的 bundle)` 会因 zod 里的 `$&` / `$'` 把产物插坏，
+  必须函数式替换；vitest jsdom 不提供 `TextEncoder`，测试从 `node:util` 注入。两条都写进 ADR-018。
+
+## 2026-11-10（第一波）Trip Check CLI + 展示定位收窄
 
 面向「GitHub 个人主页展示」的一轮重构（决策全文见 [ADR-017](docs/adr/017-trip-check-cli.md)）：
 

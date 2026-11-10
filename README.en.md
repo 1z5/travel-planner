@@ -6,6 +6,8 @@
 
 > [中文文档](README.md) · [Live demo](https://travel-planner-demo.onrender.com) · [Architecture](docs/ARCHITECTURE.md) · [Open standard](docs/TRIP-CHECK-STANDARD.md)
 
+![One document, one ruleset, one credential — recomputed independently in the CLI, the API and the browser](docs/images/readme-hero.png)
+
 An LLM can draft an itinerary in three minutes, but nobody is accountable for whether it
 actually works. This repository is an engineering answer:
 
@@ -51,11 +53,18 @@ document format is a published [JSON Schema](docs/TRIP-CHECK-STANDARD.md).
 
 ## Three ways to use it
 
-| Usage              | Entry point                                      | Notes                                                                       |
-| ------------------ | ------------------------------------------------ | --------------------------------------------------------------------------- |
-| **CLI**            | `npm run trip:check -- <file.json>`              | Zero keys, zero network, offline; verification and repair are deterministic |
-| **Open API / MCP** | `POST /api/verify` · `mcp/stdio.mjs`             | Plug any agent/OTA itinerary into the same engine ([MCP](mcp/README.md))    |
-| **Full web app**   | [Demo](https://travel-planner-demo.onrender.com) | Grounded generation → check → workspace → share → in-trip mode              |
+| Usage                | Entry point                                             | Notes                                                                                                       |
+| -------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **CLI**              | `npm run trip:check -- <file.json>`                     | Zero keys, zero network, offline; verification and repair are deterministic                                 |
+| **Offline verifier** | [verify-playground.html](public/verify-playground.html) | Single self-contained HTML: engine inlined, CSP blocks every outbound request, credentials computed locally |
+| **Open API / MCP**   | `POST /api/verify` · `mcp/stdio.mjs`                    | Plug any agent/OTA itinerary into the same engine ([MCP](mcp/README.md))                                    |
+| **Full web app**     | [Demo](https://travel-planner-demo.onrender.com)        | Grounded generation → check → workspace → share → in-trip mode                                              |
+
+All three paths run the same `lib/verify/` engine and produce **the same credential ID**
+(`tc_46031b87…`) for the same document. The browser build is not a simplified port —
+judgment, repair and hashing are literally the same source files.
+Use `#verified` / `#blocked` / `#unverified` to link straight to a finished result; once
+deployed, `/verify-playground.html#blocked` on the demo site serves the same file (no API calls).
 
 ## What this repo demonstrates
 

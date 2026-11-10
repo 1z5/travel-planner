@@ -6,6 +6,8 @@
 
 > [English](README.en.md) · [在线演示](https://travel-planner-demo.onrender.com) · [架构总览](docs/ARCHITECTURE.md) · [开放标准](docs/TRIP-CHECK-STANDARD.md)
 
+![同一文档、同一规则集、同一凭据：CLI / API / 浏览器三处独立复算](docs/images/readme-hero.png)
+
 大模型三分钟就能生成一份行程，但没人对「它排得对不对」负责。这个仓库给出一种工程回答：
 
 **把行程变成一份结构化文档，用 16 条确定性规则（不调模型）判它走不走得通，
@@ -47,11 +49,17 @@ npm run trip:check -- --sample blocked --fix
 
 ## 三种用法
 
-| 用法               | 入口                                               | 说明                                                                 |
-| ------------------ | -------------------------------------------------- | -------------------------------------------------------------------- |
-| **CLI**            | `npm run trip:check -- <file.json>`                | 零 key、零网络、离线可跑；判定与修复完全确定性                       |
-| **开放 API / MCP** | `POST /api/verify` · `mcp/stdio.mjs`               | 把任意 agent / OTA 的行程接进同一套引擎（[MCP 说明](mcp/README.md)） |
-| **完整 Web 应用**  | [演示站](https://travel-planner-demo.onrender.com) | 从表单生成（事实先行）→ 体检 → 工作台 → 分享 → 行中模式的完整链路    |
+| 用法               | 入口                                                    | 说明                                                                    |
+| ------------------ | ------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **CLI**            | `npm run trip:check -- <file.json>`                     | 零 key、零网络、离线可跑；判定与修复完全确定性                          |
+| **离线验真台**     | [verify-playground.html](public/verify-playground.html) | 单文件 HTML，双击即用：引擎内联、CSP 关闭一切出站请求，浏览器本地算凭据 |
+| **开放 API / MCP** | `POST /api/verify` · `mcp/stdio.mjs`                    | 把任意 agent / OTA 的行程接进同一套引擎（[MCP 说明](mcp/README.md)）    |
+| **完整 Web 应用**  | [演示站](https://travel-planner-demo.onrender.com)      | 从表单生成（事实先行）→ 体检 → 工作台 → 分享 → 行中模式的完整链路       |
+
+三种接口跑同一套 `lib/verify/` 引擎，同一份文档产出**同一个凭据 ID**
+（`tc_46031b87…`）——浏览器那份不是简化版，判定、修复、哈希都是同一份源码。
+离线验真台可用 `#verified` / `#blocked` / `#unverified` 直接链到「已跑完」的状态；
+部署后也能从演示站的 `/verify-playground.html#blocked` 打开（不调用任何 API）。
 
 ## 这个仓库展示什么
 
