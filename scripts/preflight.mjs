@@ -24,9 +24,9 @@ function env(name) {
 
 const trimmed = (name) => (env(name) ?? "").trim();
 
-// 1. Node 版本（engines 已约束 >=20，SDK/Next 都需要）
-const nodeOk = Number(process.versions.node.split(".")[0]) >= 20;
-check("BLOCK", "Node.js >= 20", nodeOk, `当前 ${process.version}`);
+// 1. Node 版本（与 package.json engines / .nvmrc 同口径：>=22）
+const nodeOk = Number(process.versions.node.split(".")[0]) >= 22;
+check("BLOCK", "Node.js >= 22", nodeOk, `当前 ${process.version}`);
 
 // 2. LLM 必需配置
 check("BLOCK", "LLM_API_KEY 已配置", Boolean(env("LLM_API_KEY")) && env("LLM_API_KEY").length > 10);

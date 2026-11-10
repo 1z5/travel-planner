@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { IntentButton } from "@/components/IntentButton";
 
-// 历史页面（2026-11-08 归档）：本项目已放弃商业化，转为个人开源技术展示项目。
-// 保留此页与 upgrade_intent 事件端点，是为了不无谓打断既有 e2e 契约；
-// 页面顶部明确标注「已作废」，不再收集或主张任何付费意愿。
+// ============================================================
+// 定价页（2026-11-10 起：纯历史留档）
+//
+// 本项目已放弃商业化，转为个人开源技术展示项目。这一页不再收集任何意愿
+// （IntentButton 已随投票机制一并移除），只回答一个问题：「这个项目收费吗？」
+// —— 不收，也不会收。下面保留当时的候选设想，仅作决策记录。
+//
+// 为什么页面还留着而不是删掉：搜索引擎与旧分享链接里已有这个 URL，
+// 让 URL 变成 404 不如让它变成一句诚实的回答。（e2e 仍断言本页 200。）
+// ============================================================
 
 export const metadata: Metadata = {
-  title: "定价与功能意愿 — 行程规划师",
-  description:
-    "现在全部功能免费、没有广告位。这里列出候选付费点并收集意愿：点击只是投票，不会收费、不承诺上线时间。",
+  title: "定价 — 行程规划师",
+  description: "本项目全部功能免费、不计划商业化。此页为历史决策留档。",
   alternates: { canonical: "/pricing" },
 };
 
-const CANDIDATES = [
+const ARCHIVED_IDEAS = [
   {
     tier: "deep-check",
     name: "深度核验",
@@ -44,22 +49,16 @@ export default function PricingPage() {
         <header className="pricing-hero">
           <p className="about-eyebrow">
             <span className="eyebrow-dot" aria-hidden="true" />
-            定价 · 意愿收集
-          </p>
-          <p className="pricing-honest">
-            <b>历史页面（2026-11-08 起）</b>：本项目已放弃商业化，转为个人开源技术展示项目，
-            不再收集付费意愿、不计划上线收费。以下内容仅作当时的决策记录。
+            定价 · 历史留档
           </p>
           <h1 className="pricing-title">本项目全部功能免费，不计划商业化</h1>
           <p className="pricing-lede">
-            我们不卖排名、没有广告位、没有返佣（见
-            <Link href="/about#neutrality">中立承诺</Link>）。下面三个是当时的<b>候选</b>
-            设想，现已作废。
+            这是一个个人开源技术展示项目（Apache-2.0）。不会收费、没有广告位、没有返佣，
+            也不收集付费意愿——意愿投票机制已于 2026-11-10 移除。
           </p>
           <p className="pricing-honest">
-            下面三个是<b>候选</b>功能，都还没做。点「我想要这个」只是投一票：
-            <b>不会收费、不会承诺上线时间、不会记录你的身份信息</b>
-            （看板只看到「某个候选被点了多少次」）。
+            <b>为什么留着这个页面：</b>旧链接不该变成 404。下面三个是 2026-10 商业化探索期 的
+            <b>候选</b>设想，从未实现、已作废，仅作决策记录。
           </p>
         </header>
 
@@ -77,11 +76,11 @@ export default function PricingPage() {
               <li>分享、克隆、行中模式（PWA 离线）、导出日历</li>
             </ul>
             <Link href="/new" className="btn btn-primary">
-              先免费用起来 →
+              免费新建行程 →
             </Link>
           </article>
 
-          {CANDIDATES.map((c) => (
+          {ARCHIVED_IDEAS.map((c) => (
             <article key={c.tier} className="pricing-card" data-tier={c.tier}>
               <div className="pricing-card-head">
                 <h2>{c.name}</h2>
@@ -89,7 +88,9 @@ export default function PricingPage() {
               </div>
               <p className="pricing-card-desc">{c.desc}</p>
               <p className="pricing-card-why">{c.why}</p>
-              <IntentButton tier={c.tier} />
+              <p className="pricing-card-why">
+                <b>状态：已作废（2026-11-08 放弃商业化）</b>
+              </p>
             </article>
           ))}
         </div>
@@ -98,16 +99,14 @@ export default function PricingPage() {
           <h2>关于收费，我们把话说清楚</h2>
           <dl>
             <dt>现在会收钱吗？</dt>
-            <dd>不会。页面上没有任何支付入口；点意愿按钮也不扣费。</dd>
-            <dt>点了之后会被推销吗？</dt>
-            <dd>不会。我们只记「某个候选被点了多少次」，没有邮箱、手机号或账号可以联系你。</dd>
-            <dt>会不会变成「基础免费、体检收费」？</dt>
+            <dd>不会。页面上没有任何支付入口，也没有任何投票/意愿收集入口。</dd>
+            <dt>以后会变成「基础免费、体检收费」吗？</dt>
             <dd>
-              不会。体检（风险摊开）是产品的地基，不拿来当付费墙；付费点只可能是「更多候选」「跨城核验」「提醒」
-              这类增量能力。
+              不会。本项目已定位为开源技术展示，体检（风险摊开）是整个设计的地基，源码以 Apache-2.0
+              开放，任何人都可以自己部署完整功能。
             </dd>
-            <dt>数据拿去做什么？</dt>
-            <dd>只用来决定先做哪个候选功能，聚合后出现在内部看板，不做用户画像、不对外出售。</dd>
+            <dt>那这个项目靠什么维持？</dt>
+            <dd>不维持营收。它是作者的技术作品，演示站跑在免费实例上，重启会丢数据。</dd>
           </dl>
         </section>
       </div>

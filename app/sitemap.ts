@@ -24,7 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/verify", priority: 0.8, changeFrequency: "weekly" },
     { path: "/about", priority: 0.7, changeFrequency: "monthly" },
     { path: "/cities", priority: 0.8, changeFrequency: "weekly" },
-    { path: "/pricing", priority: 0.5, changeFrequency: "monthly" },
+    // /pricing 是历史留档页（已放弃商业化），不进 sitemap——不主动向搜索引擎展示
     { path: "/privacy", priority: 0.2, changeFrequency: "monthly" },
     { path: "/terms", priority: 0.2, changeFrequency: "monthly" },
   ];
