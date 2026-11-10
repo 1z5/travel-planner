@@ -1,0 +1,51 @@
+name: Deploy offline verifier (GitHub Pages)
+
+# 手机上的日常入口：把 public/verify-playground.html 发成纯静态站。
+# 为什么不用 Render 那个 Next 服务做日常入口：免费 Web Service 15 分钟无请求
+# 就休眠，第一位访客要等 30-60s 冷启动；静态站没有实例、不休眠、不依赖
+# 数据库/LLM/高德 key，页面本身也零出站请求（CSP connect-src 'none'）。
+#
+# 启用方式（一次性）：GitHub 仓库 → Settings → Pages → Build and deployment
+# → Source 选 "GitHub Actions"。之后每次改了验真台产物都能自动更新。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/verify-playground.html"
+      - "public/verify-playground-sw.js"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# 第三方 action 一律 pin 到 commit SHA（与 ci.yml 同口径，审计 R15）。
+# 取 SHA：gh api repos/<owner>/<repo>/git/refs/tags/<tag> --jq .object.sha
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  # 部署中的任务不要被取消：中断到一半的 Pages deployment 会留下不一致状态
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: 组装静态站（零构建：产物已提交，直接改名）
+        run: |
+          mkdir -p _site
+          cp public/verify-playground.html _site/index.html
+          cp public/verify-playground-sw.js _site/verify-playground-sw.js
+          # 单文件版仍可从 /verify-playground.html 打开，方便与本地路径一致
+          cp public/verify-playground.html _site/verify-playground.html
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

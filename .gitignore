@@ -13,3 +13,5 @@ coverage/
 .DS_Store
 # WorkBuddy 本地工作记忆（append-only 日志）：只属于本机，不进产品仓库
 .workbuddy/
+# 本地发布标记：只属于本机，不进产品仓库
+.wbapp_*.genie

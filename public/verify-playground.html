@@ -2,11 +2,22 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <!-- 物理上关掉一切出站请求：这个页面能离线复算，靠的不是承诺，是 CSP -->
+    <!-- manifest-src / worker-src 只放行「内联清单」与「同源 SW」：两者都不产生网络请求，
+         却让手机能把页面加到主屏、断网后仍可打开。 -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; manifest-src data:; worker-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <meta name="theme-color" content="#0f6e56" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Trip Check" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f6e56'/%3E%3Cpath d='M18 32l9 9 19-19' fill='none' stroke='white' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
     />
     <title>Trip Check · 离线验真台</title>
     <style>
@@ -257,6 +268,106 @@
         padding: 2px 5px;
         border-radius: 4px;
       }
+      .result-tools {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .result-tools button {
+        min-height: 44px;
+      }
+      /* 手机优先：首屏先看到主张，触控目标 ≥44px，单列卡片；
+         跑完自动滚到结果，避免手机上先滚过一整屏 JSON 才看到结论。 */
+      @media (max-width: 720px) {
+        .wrap {
+          padding: 24px 14px calc(40px + env(safe-area-inset-bottom));
+        }
+        h1 {
+          font-size: 25px;
+          margin: 10px 0 8px;
+        }
+        .lede {
+          font-size: 13.5px;
+          margin-bottom: 12px;
+        }
+        .chips {
+          gap: 6px;
+          margin-bottom: 18px;
+        }
+        .chip {
+          font-size: 11px;
+          padding: 3px 9px;
+        }
+        .panel {
+          padding: 14px;
+          margin-bottom: 12px;
+        }
+        .panel-head {
+          align-items: flex-start;
+        }
+        .samples {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .samples button {
+          min-width: 0;
+          min-height: 44px;
+          padding: 8px 4px;
+          font-size: 12px;
+          line-height: 1.3;
+        }
+        textarea {
+          min-height: 130px;
+          font-size: 12px;
+        }
+        .actions {
+          gap: 8px;
+        }
+        .actions button {
+          flex: 1 1 45%;
+          min-width: 0;
+          min-height: 44px;
+        }
+        .actions .hint {
+          width: 100%;
+        }
+        .result-tools {
+          flex-wrap: wrap;
+        }
+        .result-tools button {
+          flex: 1 1 45%;
+          min-width: 0;
+          font-size: 12px;
+        }
+        .card .detail,
+        .card .value,
+        .issue .body,
+        .cred .id,
+        .cred .hash,
+        .chain {
+          overflow-wrap: anywhere;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+        .card {
+          padding: 12px;
+        }
+        .card .value {
+          font-size: 19px;
+        }
+        .issue {
+          padding: 8px 10px;
+        }
+        .result-tools button {
+          flex: 1;
+        }
+        .foot {
+          margin-top: 18px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -374,6 +485,37 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         $("versions").textContent =
           "引擎 " + TripCheck.versions.engine + " · 规则集 " + TripCheck.versions.ruleset;
 
+        // 内联清单：不引外链（CSP 关了 default-src），但让 Android 能「安装应用」、
+        // iOS 能「添加到主屏」并以 standalone 全屏打开。start_url 用当前地址，
+        // 因此同一个文件在 GitHub Pages / 本地 / 任意静态托管下都对。
+        var manifest = {
+          name: "Trip Check · 离线验真台",
+          short_name: "Trip Check",
+          start_url: location.href.split("#")[0],
+          scope: "./",
+          display: "standalone",
+          background_color: "#f4f6f9",
+          theme_color: "#0f6e56",
+          icons: [
+            {
+              src:
+                "data:image/svg+xml," +
+                encodeURIComponent(
+                  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='#0f6e56'/><path d='M54 96l27 27 57-57' fill='none' stroke='white' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/></svg>",
+                ),
+              sizes: "any",
+              type: "image/svg+xml",
+              purpose: "any maskable",
+            },
+          ],
+        };
+        var mf = document.createElement("link");
+        mf.rel = "manifest";
+        mf.href =
+          "data:application/manifest+json;charset=utf-8," +
+          encodeURIComponent(JSON.stringify(manifest));
+        document.head.appendChild(mf);
+
         var buttons = [];
         function loadSample(i) {
           $("doc").value = JSON.stringify(samples[i].document, null, 2);
@@ -410,17 +552,69 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           }
         }
 
-        function showErrors(errors) {
-          $("result").hidden = false;
-          $("result").innerHTML =
-            '<h2>文档不符合 Trip Check v0.1</h2><div class="error">' +
-            errors
-              .slice(0, 10)
-              .map(function (x) {
-                return "· " + esc(x.path) + "：" + esc(x.message);
-              })
-              .join("<br>") +
+        // 结果区统一收尾：手机上把结论滚到眼前，给「改文档 / 复制凭据」两个大按钮。
+        // 复制失败（file:// 或权限限制）静默降级，不弹窗打断判定结果。
+        function finish(html, credentialId) {
+          var tools =
+            '<div class="result-tools"><button type="button" id="back-edit">改文档</button>' +
+            (credentialId ? '<button type="button" id="copy-id">复制凭据 ID</button>' : "") +
             "</div>";
+          $("result").hidden = false;
+          $("result").innerHTML = tools + html;
+          $("back-edit").addEventListener("click", function () {
+            $("doc").scrollIntoView({ behavior: "smooth", block: "center" });
+            $("doc").focus();
+          });
+          if (credentialId) {
+            $("copy-id").addEventListener("click", function () {
+              var btn = $("copy-id");
+              var done = function () {
+                btn.textContent = "已复制";
+                setTimeout(function () {
+                  btn.textContent = "复制凭据 ID";
+                }, 1600);
+              };
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(credentialId).then(done, function () {});
+              } else {
+                var ta = document.createElement("textarea");
+                ta.value = credentialId;
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                  document.execCommand("copy");
+                  done();
+                } catch (e) {
+                  /* file:// 下没有剪贴板权限：不假装复制成功 */
+                }
+                document.body.removeChild(ta);
+              }
+            });
+          }
+          if (window.matchMedia && window.matchMedia("(max-width: 720px)").matches) {
+            // 用 auto 而不是 smooth：手机上要的是「点完立刻看到结论」。
+            // 延到下一帧：hash 直达时脚本可能先于首帧布局执行，立即调用会被
+            // 浏览器的锚点定位覆盖掉，表现为「按钮有反应但页面没动」。
+            var jump = function () {
+              $("result").scrollIntoView({ behavior: "auto", block: "start" });
+            };
+            requestAnimationFrame(jump);
+            setTimeout(jump, 120);
+          }
+        }
+
+        function showErrors(errors) {
+          finish(
+            '<h2>文档不符合 Trip Check v0.1</h2><div class="error">' +
+              errors
+                .slice(0, 10)
+                .map(function (x) {
+                  return "· " + esc(x.path) + "：" + esc(x.message);
+                })
+                .join("<br>") +
+              "</div>",
+            null,
+          );
         }
 
         function factsText(facts) {
@@ -533,8 +727,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
             "）</h2>" +
             issuesHtml(report.issues) +
             credBlock(report.credential);
-          $("result").hidden = false;
-          $("result").innerHTML = html;
+          finish(html, report.credential && report.credential.id);
         }
 
         function renderRepair(r) {
@@ -589,8 +782,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
             r.delta.blockingReduced +
             "</div>" +
             issuesHtml(after.issues);
-          $("result").hidden = false;
-          $("result").innerHTML = html;
+          finish(html, after.credential && after.credential.id);
         }
 
         $("btn-verify").addEventListener("click", function () {
@@ -608,6 +800,24 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
           if (!out.ok) return showErrors(out.errors);
           renderRepair(out.repair);
         });
+
+        // 部署到 HTTPS 后注册同源 SW：加到主屏的页面断网也能打开。
+        // 页面挂在 /verify-playground.html 时（Next 站、部分静态托管）注册一个
+        // 极窄 scope，避免与主站 /sw.js 的 root scope 抢控制权；挂在站点根/index.html
+        // 时（GitHub Pages）用默认目录 scope。file:// 下 SW 本来就不许注册，跳过。
+        if (
+          (location.protocol === "https:" || location.protocol === "http:") &&
+          "serviceWorker" in navigator
+        ) {
+          window.addEventListener("load", function () {
+            var scriptUrl = new URL("./verify-playground-sw.js", location.href).href;
+            var isFilePage = /\/verify-playground\.html$/.test(location.pathname);
+            var options = isFilePage
+              ? { scope: new URL("./verify-playground.html", location.href).pathname }
+              : {};
+            navigator.serviceWorker.register(scriptUrl, options).catch(function () {});
+          });
+        }
 
         if (idx >= 0) $("btn-verify").click();
       })();
