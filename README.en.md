@@ -71,8 +71,8 @@ deployed, `/verify-playground.html#blocked` on the demo site serves the same fil
 
 - **Live now**: <https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG>
   (static hosting, no instance, no cold start)
-- **Permanent entry**: after enabling GitHub Pages, `https://1z5.github.io/travel-planner/`
-  (published automatically by `.github/workflows/pages.yml`)
+- **Permanent entry**: <https://1z5.github.io/travel-planner/> (GitHub Pages is enabled;
+  `.github/workflows/pages.yml` publishes on every push)
 - "Add to Home Screen" launches it full-screen; a same-origin Service Worker keeps the
   page available offline. Documents never leave the device (`connect-src 'none'`).
 - `#blocked` links straight to a finished result with three blocking issues.

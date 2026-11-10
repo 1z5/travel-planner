@@ -68,8 +68,8 @@ npm run trip:check -- --sample blocked --fix
 
 - **现在就能打开的公网入口**：<https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG>
   （纯静态托管，无实例、不休眠、秒开）
-- **长期入口**：启用 GitHub Pages 后是 `https://1z5.github.io/travel-planner/`
-  （`.github/workflows/pages.yml` 自动发布，改了验真台就自动更新）
+- **长期入口**：<https://1z5.github.io/travel-planner/>（Pages 已启用，
+  `.github/workflows/pages.yml` 每次 push 自动发布）
 - 手机浏览器「添加到主屏」→ 全屏独立启动；Service Worker 缓存导航文档，**断网也能打开**；
 - 行程文档不会离开手机：CSP 写死 `connect-src 'none'`，判定/修复/凭据全在本地算；
 - `#blocked` 可以直接链到一份「已经跑完、查出 3 个阻断问题」的结果。

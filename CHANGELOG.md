@@ -20,6 +20,9 @@
   仍如实保留「免费实例会休眠」「无错误监控」等边界，并写明手机两个入口怎么开。
 - **坑**：Chrome headless `--window-size` 最小 500 CSS px，直接截 390 的图会把
   500px 布局裁切，看起来像横向溢出；必须用 CDP `Emulation.setDeviceMetricsOverride`。
+- **已同步 GitHub**：10 笔提交推送到 `main`；通过 API 设置 description / topics /
+  homepage，并启用 Pages（`build_type: workflow`）后重跑部署成功。
+  CI 三个 job（secret-scan / test / test-postgres）全绿。
 
 ## 2026-11-10（第二波）凭据同构化 + 离线验真台 + 门面资产
 

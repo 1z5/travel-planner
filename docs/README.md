@@ -62,7 +62,7 @@
   `public/verify-playground.html`； `npm run showcase:images`
   重生成 `docs/images/{social-preview,readme-hero}.png`。改了引擎/规则/文案后要重跑，
   否则图与产物会说谎。改了验真台产物会由 [pages.yml](../.github/workflows/pages.yml)
-  自动发到 GitHub Pages（首次需在网页端启用 Pages → Source: GitHub Actions）。
+  自动发到 GitHub Pages（站点已启用，Source: GitHub Actions）。
 - **手机改动必须真机视口验收**：Chrome headless 最小 500 CSS px，直接截图会裁切
   500px 布局、看起来像溢出；用 CDP `Emulation.setDeviceMetricsOverride(390×844,mobile:true)`，
   验收口径见 [ADR-019](adr/019-personal-use-online-mobile.md)。
@@ -72,7 +72,9 @@
 - **Description**：`Reproducible, deterministic verification for AI-generated itineraries — 16 rules, no LLM in the judging path`
 - **Topics**：`llm` `deterministic` `verification` `typescript` `nextjs` `open-source` `trip-check`
 - **Social preview**：上传 [docs/images/social-preview.png](images/social-preview.png)（1280×640）
-- **Website**：主站地址；手机常用入口是 GitHub Pages 静态验真台（启用后
-  `https://1z5.github.io/travel-planner/`），另有一个立即可用的托管入口
+- **Website**：已设为 `https://1z5.github.io/travel-planner/`（手机常用入口，
+  不依赖 Render 实例）；另有一个立即可用的托管入口
   `https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG`。
-  两者都不依赖 Render 免费实例是否活着。
+- **Social preview**：GitHub 没有公开 API 可上传自定义预览图，需在
+  Settings → General → Social preview 手动上传
+  [docs/images/social-preview.png](images/social-preview.png)（1280×640）。

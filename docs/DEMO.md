@@ -56,8 +56,8 @@
 ## 0. 手机上的两个入口（为什么要把验真台单独发静态站）
 
 `.github/workflows/pages.yml` 会把 `public/verify-playground.html` 发成 GitHub Pages
-静态页。在仓库 **Settings → Pages → Source 选 "GitHub Actions"** 启用一次后，
-地址形如 `https://1z5.github.io/travel-planner/`。
+静态页。仓库已启用 Pages（Source: GitHub Actions，2026-11-10 通过 API 配置），
+地址为 <https://1z5.github.io/travel-planner/>，每次 push 自动更新。
 
 - 手机浏览器打开 → 「添加到主屏」，之后像 App 一样全屏启动；
 - 页面自包含（引擎 + 规则 + SHA-256 全内联），CSP 关闭一切出站请求：
