@@ -1,12 +1,22 @@
-# Render Blueprint：面试演示用的一键部署（免费 plan）
+# Render Blueprint：个人日常使用的主站部署（Web Service 免费 plan + 外部 Postgres）
 #
 # 为什么用 Node runtime 而不是 Docker：本机没有 docker daemon，Dockerfile 在提交前
 # 无法验证；这里的 build/start 命令与 DEPLOY.md「裸机 standalone」路径完全一致，
 # 同一组命令本地已经实测跑通过（build → 拷 static/public → node standalone/server.js）。
 #
+# 为什么数据库用外部连接串而不是 Blueprint 的 databases 块：
+# Render 免费 Postgres **创建 30 天后过期**，再有 14 天宽限期就连数据一起删除，
+# 且无备份。这是「自己用」最不能接受的一种丢数据。改用不设过期的免费 Postgres
+# （Neon / Supabase 免费层均可），把连接串填进 DATABASE_URL 即可；代码里的
+# store/postgres.ts + prisma/schema.prisma 早就支持，不需要改应用逻辑。
+# 若你愿意付费，也可以把下面两个变量换成 Blueprint databases + fromDatabase。
+#
 # 使用：Render Dashboard → New + → Blueprint → 选 GitHub 仓库 1z5/travel-planner
-# → 按提示填 4 个 secret（LLM_API_KEY / LLM_BASE_URL / AMAP_WEB_SERVICE_KEY /
-# SESSION_SECRET）→ Deploy。详见 DEMO.md。
+# → 按提示填 5 个 secret（DATABASE_URL / LLM_API_KEY / LLM_BASE_URL /
+# AMAP_WEB_SERVICE_KEY / SESSION_SECRET）→ Deploy。详见 DEMO.md。
+#
+# 只想看展示、不需要持久化：把 DATA_STORE 改成 memory 并删掉 preDeployCommand，
+# 其余不动（重启丢行程，静态 fixture 仍可读）。
 services:
   - type: web
     name: travel-planner-demo
@@ -22,6 +32,11 @@ services:
       npm ci && npx prisma generate && npm run build &&
       (cp -r .next/static .next/standalone/.next/static || true) &&
       (mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/ || true)
+    # 每次部署前把 Prisma schema 推到外部库（幂等，不删数据）。
+    # 为什么不放在 buildCommand：build 阶段该失败就失败，但迁移属于「服务启动前」
+    # 的动作；preDeployCommand 在 Render 的服务环境里跑，能拿到运行时注入的
+    # DATABASE_URL，且只在部署时执行一次，不会每次重启都连库。
+    preDeployCommand: npx prisma db push --skip-generate
     # HOSTNAME 显式绑 0.0.0.0：Render 会给容器注入 HOSTNAME 环境变量，
     # Next standalone 会拿它当监听地址，不覆盖会绑定失败。
     startCommand: sh -c 'HOSTNAME=0.0.0.0 exec node .next/standalone/server.js'
@@ -32,10 +47,18 @@ services:
       # 启动时注入 demo/fixtures 里的真实生成行程（秒开分享页，冷启动后也在）
       - key: DEMO_SEED
         value: "1"
+      # 持久化：同一 Store 接口的 postgres 实现，行程/分享链接不再随实例重启消失。
+      # DATABASE_URL 是外部免费 Postgres 的连接串（sync:false → 部署时在 Dashboard 填，
+      # 永不进 Git）。没有它就别把 DATA_STORE 设成 postgres：preDeployCommand 会
+      # 直接失败，这是刻意的「不猜、不假装」，不会悄悄退回 memory 假装存好了。
+      - key: DATA_STORE
+        value: postgres
+      - key: DATABASE_URL
+        sync: false
       # 旧 job 链接只读兜底开关（安全审计 R3）：生产关掉后，/p/<jobId>、
       # /api/plan/ics?id=<jobId> 等旧链接一律读不到，PlanStore 成为唯一读入口，
-      # 进一步缩小「弱凭据可读他人行程」的读取面。演示站是 memory 模式、重启后
-      # 本来也没有旧 job；已持久化的 share_… 分享链接完全不受影响。
+      # 进一步缩小「弱凭据可读他人行程」的读取面。已持久化的 share_… 分享链接
+      # 完全不受影响。
       - key: JOB_LINK_FALLBACK
         value: "0"
       - key: LLM_BASE_URL

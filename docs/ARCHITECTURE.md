@@ -80,9 +80,12 @@ lib/
 事件上限 5000），`postgres` 走 PrismaClient 懒实例化。Schema 只有 5 个 model：
 `Job` / `Plan` / `QuotaBucket` / `SmsCode` / `TripEvent`。
 
-演示部署（`render.yaml`）刻意不设 `DATA_STORE`（=memory）+ `DEMO_SEED=1` + `JOB_LINK_FALLBACK=0`，
-因此**免费实例重启会丢数据**，分享链接只保证静态 fixture 可读。真要持久化须设
-`DATA_STORE=postgres` 并跑迁移。
+演示/个人部署（`render.yaml`）自 2026-11-10 起设 `DATA_STORE=postgres` + 外部
+`DATABASE_URL`（`sync:false`，部署时填）+ `preDeployCommand: npx prisma db push`，
+所以**行程与分享链接不再随实例重启丢失**。为什么不用 Render 自带免费 Postgres：
+它创建 30 天后过期，宽限期结束连数据一起删除且无备份；改用不设过期的免费层
+（Neon / Supabase）。`DEMO_SEED=1` + `JOB_LINK_FALLBACK=0` 保持不变。
+只想看展示时可把 `DATA_STORE` 改回 `memory` 并删掉 `preDeployCommand`。
 
 ## 5. 测试与门禁
 
@@ -113,7 +116,7 @@ lib/
   `verified` / `verification` / `tripCheck` 受信字段。
 - 声明边界见 [SECURITY.md](../SECURITY.md) 与 [ADR-016](adr/016-security-hardening-baseline.md)：
   分享 token 即能力、开放核验接口无鉴权仅靠限流、凭据非签名、CSP 仍含 `unsafe-inline`、
-  演示站 memory + 重启丢数据、无错误监控。
+  个人部署的持久化依赖外部 Postgres（连接串失效会写失败，不静默退化）、无错误监控。
 
 ## 7. 已知技术债
 
@@ -122,13 +125,13 @@ lib/
 | 项                                       | 证据                                                                            | 现状                                                             |
 | ---------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | TypeScript 7 超出 typescript-eslint 支持 | `package.json` / `eslint.config.js:2`                                           | 类型感知 lint 全缺，TS/TSX 由 oxlint 兜底；lint 分两段           |
-| 60 条存量 lint warning                   | `npm run lint` 实测 0 error / 60 warning                                        | 多为 `react/set-state-in-effect` 等历史代码；新增代码要求 0 告警 |
+| 57 条存量 lint warning                   | `npm run lint` 实测 0 error / 57 warning                                        | 多为 `react/set-state-in-effect` 等历史代码；新增代码要求 0 告警 |
 | CSS 覆盖层「后写者胜」                   | `app/layout.tsx` import 顺序；`app/globals.css` 10150 行 + `atlas-*.css` 分片   | `globals.css` 冻结不动，新样式只能追加独立命名空间分片           |
 | e2e 编排单文件 3272 行                   | `scripts/run-tests.mjs`                                                         | 切片已外置到 `e2e-slices/`，主文件仍是编排 + 全阶段断言          |
 | 环境变量无统一 config 层                 | `scripts/check-env.mjs` 自述、全仓 80+ 处 `process.env` 裸读                    | 拼错的症状是静默降级                                             |
 | 门禁口径分裂                             | `preflight.mjs` 无条件 BLOCK；`check-env.mjs` 仅 `NODE_ENV=production` 才 BLOCK | `render.yaml` 的 buildCommand 不跑 preflight                     |
 | memory store / 配额按实例计数            | `store/memory.ts`、`capacity-gate.ts:13-15`                                     | 多副本会失真，重启丢数据                                         |
-| ADR 索引曾落后                           | `docs/adr/README.md`                                                            | 已补齐 001–016                                                   |
+| ADR 索引曾落后                           | `docs/adr/README.md`                                                            | 已补齐 001–019                                                   |
 | Node 版本口径                            | `package.json` engines `>=22` / `.nvmrc` 22，`preflight.mjs` 按 `>=20` 检查     | 未统一                                                           |
 
 ## 8. 设计取舍速查

@@ -1,28 +1,42 @@
-# 公开演示上线（Render 免费版，约 10 分钟）
+# 个人日常使用的公网部署（Render 免费版 + 外部 Postgres）
 
-> 目标：**拿一个公网链接做公开演示**，不做正式生产运营。
-> 正式上线（持久化 / 登录 / 监控 / 多实例）见 [DEPLOY.md](DEPLOY.md)，两套不要混。
+> 目标：**自己每天用、手机上随时能打开**。不是「演示一次就扔」的临时环境，
+> 也不是面向陌生人的商业服务。更完整的生产参考见 [DEPLOY.md](DEPLOY.md)。
 
-这套方案 = **Render 免费 Web Service（Node runtime）** + **仓库内预生成行程 fixture**：
+两个入口，故意分工：
 
-- 链接 24h 在线（免费实例 15 分钟无请求会休眠，冷启动 30-60 秒；演示前用预热脚本叫醒）；
-- 预置的 2 条演示行程是**真实高德 + 真实模型生成**的产物，服务启动时自动灌入（`DEMO_SEED=1`），
-  冷启动/重启后分享链接依然有效 —— 演示时 `/p/<shareId>` 秒开，不用等 3 分钟生成；
-- 不依赖数据库、登录、域名备案；成本闸门在环境变量里收紧（见 §4）。
+| 入口                                           | 用途                     | 可用性                                 |
+| ---------------------------------------------- | ------------------------ | -------------------------------------- |
+| **离线验真台**（GitHub Pages / 静态托管）      | 手机上随手验一份 AI 行程 | 纯静态，无实例、不休眠、断网可用、秒开 |
+| **主站**（Render Web Service + 外部 Postgres） | 生成行程 / 工作台 / 行中 | 免费实例会休眠，靠 `keep-warm` 保活    |
+
+主站方案 = **Render 免费 Web Service（Node runtime）** + **不设过期的外部免费 Postgres** +
+**仓库内预生成行程 fixture**：
+
+- 行程与分享链接落 Postgres（`DATA_STORE=postgres`），**实例重启/休眠不再丢数据**；
+- 为什么不用 Render 自带的免费 Postgres：它创建 30 天后过期，再有 14 天宽限期就
+  连数据一起删除、且无备份。用 Neon / Supabase 免费层的连接串填 `DATABASE_URL` 即可；
+- 预置的 2 条演示行程是**真实高德 + 真实模型生成**的产物（`DEMO_SEED=1`），秒开；
+- 不依赖登录、域名备案；成本闸门在环境变量里收紧（见 §4）。
 
 ## 1. 一次性部署（10 分钟）
 
 1. 打开 <https://render.com> → **Sign up with GitHub**（免费 plan 不需要信用卡）。
 2. Dashboard → **New +** → **Blueprint** → 选仓库 `1z5/travel-planner` → **Apply**。
    Render 会读仓库根的 [`render.yaml`](render.yaml)，自动配好 build/start/健康检查/成本闸门。
-3. 它会把 4 个 secret 标成待填（`sync: false`），按下面填：
+3. 它会把 5 个 secret 标成待填（`sync: false`），按下面填：
 
-   | 变量                   | 从哪里取                                              |
-   | ---------------------- | ----------------------------------------------------- |
-   | `LLM_API_KEY`          | 本地 `.env` 的同名值（不要发到聊天/截图里，自己复制） |
-   | `LLM_BASE_URL`         | `https://api.stepfun.com/step_plan/v1`                |
-   | `AMAP_WEB_SERVICE_KEY` | 本地 `.env` 的同名值                                  |
-   | `SESSION_SECRET`       | 终端跑 `openssl rand -hex 32` 生成                    |
+   | 变量                   | 从哪里取                                                             |
+   | ---------------------- | -------------------------------------------------------------------- |
+   | `DATABASE_URL`         | Neon / Supabase 免费 Postgres 的连接串（`postgres://…`，不要进 Git） |
+   | `LLM_API_KEY`          | 本地 `.env` 的同名值（不要发到聊天/截图里，自己复制）                |
+   | `LLM_BASE_URL`         | `https://api.stepfun.com/step_plan/v1`                               |
+   | `AMAP_WEB_SERVICE_KEY` | 本地 `.env` 的同名值                                                 |
+   | `SESSION_SECRET`       | 终端跑 `openssl rand -hex 32` 生成                                   |
+
+   `preDeployCommand` 会在每次部署前跑 `npx prisma db push`（幂等、不删数据），
+   所以建好空库就行，不用手动执行 SQL。**不填 `DATABASE_URL` 会直接部署失败**——
+   这是刻意的：宁可失败，也不悄悄退回 memory 假装「已经持久化」。
 
 4. **Deploy** → 等 5-8 分钟（npm ci + prisma generate + next build）。
 5. 部署成功后会得到形如 `https://travel-planner-demo-xxxx.onrender.com` 的地址。
@@ -36,7 +50,23 @@
    ```
 
 > 免费实例第一次请求会冷启动（30-60s），`warm-demo` 会等它起来。
-> 如果想让链接更「正式」（自定义域名/常驻），再走 DEPLOY.md 的服务器或云托管方案。
+> **手机上只想快速验一份行程，别开主站**：用离线验真台（见 §0），它没有实例、
+> 不休眠、页面本身也不发任何请求。
+
+## 0. 手机上的两个入口（为什么要把验真台单独发静态站）
+
+`.github/workflows/pages.yml` 会把 `public/verify-playground.html` 发成 GitHub Pages
+静态页。在仓库 **Settings → Pages → Source 选 "GitHub Actions"** 启用一次后，
+地址形如 `https://1z5.github.io/travel-planner/`。
+
+- 手机浏览器打开 → 「添加到主屏」，之后像 App 一样全屏启动；
+- 页面自包含（引擎 + 规则 + SHA-256 全内联），CSP 关闭一切出站请求：
+  **不上传行程、不依赖主站是否在线**；
+- 同源 Service Worker 让加到主屏的页面断网也能打开；
+- `#blocked` / `#verified` / `#unverified` 可以直链到跑完的结果。
+
+主站仍然负责真正需要服务端的部分（生成、持久化、分享、行中），
+由 `keep-warm.yml` 每 5 分钟保活；两者互不依赖。
 
 ## 2. 演示前 2 分钟 checklist
 
@@ -145,9 +175,11 @@ https://travel-planner-demo.onrender.com/api/events/summary?token=<METRICS_TOKEN
 
 ## 5. 已知限制（被问到时主动说，反而是加分项）
 
-- **免费实例会休眠**：15 分钟无请求 → 下次请求 30-60s 冷启动。演示前 `warm-demo` 叫醒。
-- **存储是 memory**：现场生成的行程在实例休眠/重启后丢失；预置演示行程不受影响
-  （fixture 静态存在仓库/构建产物里，启动时重新注入）。
+- **免费实例会休眠**：15 分钟无请求 → 下次请求 30-60s 冷启动；`keep-warm` 每 5 分钟
+  ping `/api/health` 保活，手机上的快速验真请走不休眠的静态验真台。
+- **持久化依赖外部 Postgres**：`DATA_STORE=postgres` + 你自己准备的免费库。
+  数据库到期/连接串失效时写端点会失败（不会退化成内存存储骗你「已保存」）；
+  预置 fixture 是静态兜底，任何时候都可读。
 - **没有登录**：生产守卫在 `NODE_ENV=production` 且未配 `AUTH_PROVIDER` 时自动关闭登录链路，
   所以演示站是「纯匿名 + 每 IP 6 次/天」。
 - **PWA 已可用但离线只覆盖「打开过的行中/分享页」**：手机浏览器「添加到主屏」后像 App
