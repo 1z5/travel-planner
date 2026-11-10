@@ -602,6 +602,9 @@ export function PlanView({
   const defaultOpenCheckup = viewPlan.warnings.length <= 2;
   useEffect(() => {
     if (!defaultOpenCheckup) return;
+    // jsdom 没有 matchMedia（单测环境）：与上方 prefersReducedMotion 同样做防御，
+    // 缺 API 时按桌面处理（保持展开），不崩。
+    if (typeof window.matchMedia !== "function") return;
     if (window.matchMedia("(max-width: 720px)").matches) {
       checkupRef.current?.removeAttribute("open");
     }
