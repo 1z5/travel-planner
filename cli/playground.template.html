@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 物理上关掉一切出站请求：这个页面能离线复算，靠的不是承诺，是 CSP -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <title>Trip Check · 离线验真台</title>
+    <style>
+      :root {
+        --bg: #f4f6f9;
+        --panel: #ffffff;
+        --line: #dfe4ec;
+        --ink: #17202e;
+        --muted: #5d6779;
+        --accent: #0f6e56;
+        --red: #a32d2d;
+        --amber: #854f0b;
+        --blue: #185fa5;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "PingFang SC",
+          "Segoe UI",
+          sans-serif;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 48px 24px 64px;
+      }
+      .eyebrow {
+        font: 12px/1 var(--mono);
+        letter-spacing: 0.12em;
+        color: var(--accent);
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.3;
+        margin: 14px 0 10px;
+        font-weight: 600;
+      }
+      .lede {
+        color: var(--muted);
+        max-width: 720px;
+        margin: 0 0 16px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 28px;
+      }
+      .chip {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 999px;
+        padding: 3px 11px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .chip.strong {
+        border-color: #9fe1cb;
+        color: var(--accent);
+        background: #e1f5ee;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 18px;
+      }
+      .panel h2 {
+        font-size: 15px;
+        margin: 0;
+        font-weight: 600;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .samples {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 6px 13px;
+      }
+      button:hover {
+        border-color: #9aa5b5;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      button.primary:hover {
+        background: #0b5744;
+      }
+      button.active {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      textarea {
+        width: 100%;
+        min-height: 230px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        font: 12px/1.6 var(--mono);
+        color: var(--ink);
+        background: #fbfcfe;
+      }
+      textarea:focus {
+        outline: 2px solid #9fe1cb;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      .hint,
+      .foot {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        margin: 16px 0;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px;
+      }
+      .card .label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .card .value {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 4px 0;
+      }
+      .card .detail {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .grade-a,
+      .grade-b,
+      .ok {
+        color: var(--accent);
+      }
+      .grade-c,
+      .warn {
+        color: var(--amber);
+      }
+      .grade-d,
+      .bad {
+        color: var(--red);
+      }
+      .issues {
+        margin: 8px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .issue {
+        border-left: 3px solid var(--line);
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        background: #fbfcfe;
+      }
+      .issue.blocking {
+        border-color: var(--red);
+      }
+      .issue.warning {
+        border-color: var(--amber);
+      }
+      .issue.info {
+        border-color: var(--blue);
+      }
+      .issue .head {
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .issue .body {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .rule {
+        font: 11px/1 var(--mono);
+        color: var(--muted);
+        margin-right: 8px;
+      }
+      .cred {
+        background: #f2f7fb;
+        border: 1px solid #cfe0f0;
+        border-radius: 8px;
+        padding: 14px;
+        margin-top: 16px;
+      }
+      .cred .id {
+        font: 13px/1.5 var(--mono);
+        color: var(--blue);
+        word-break: break-all;
+      }
+      .cred .hash {
+        font: 11px/1.6 var(--mono);
+        color: var(--muted);
+        word-break: break-all;
+      }
+      .chain {
+        font: 13px/1.8 var(--mono);
+        word-break: break-all;
+      }
+      .error {
+        color: var(--red);
+        font-size: 13px;
+      }
+      .foot {
+        margin-top: 24px;
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+      }
+      code {
+        font: 12px/1 var(--mono);
+        background: #eef1f6;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="eyebrow">TRIP CHECK · OFFLINE VERIFIER</div>
+        <h1>行程体检，不需要服务器</h1>
+        <p class="lede">
+          判定引擎、16 条规则与 SHA-256 凭据已经打包进这一个 HTML
+          文件。判定、修复、凭据全部在你的浏览器里算， 文档不会离开这台设备；同一个凭据 ID 也能在
+          CLI 与公开 API 上复算出来。
+        </p>
+        <div class="chips">
+          <span class="chip strong">CSP 已关闭 connect-src</span>
+          <span class="chip">零网络 · 零 key</span>
+          <span class="chip">不上传 · 不落库</span>
+          <span class="chip" id="versions"></span>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>1 · 选一份行程文档</h2>
+          <div class="samples" id="samples"></div>
+        </div>
+        <textarea id="doc" spellcheck="false" aria-label="Trip Check v0.1 行程文档 JSON"></textarea>
+        <div class="actions">
+          <button id="btn-verify" class="primary">体检</button>
+          <button id="btn-repair">确定性修复</button>
+          <span class="hint">只接受 Trip Check v0.1 JSON；格式错误会指出具体字段。</span>
+        </div>
+      </section>
+
+      <section class="panel" id="result" hidden></section>
+
+      <div class="foot">
+        想核对结果？把左侧文档存成 <code>trip.json</code>，在仓库里跑
+        <code>npm run trip:check -- trip.json</code>，会得到同一个凭据 ID。
+        这是可复算哈希，不是数字签名；<code>unverified</code> 不等于「没问题」。
+      </div>
+    </div>
+
+    <script>
+      /*__TRIP_CHECK_BUNDLE__*/
+    </script>
+    <script>
+      (function () {
+        "use strict";
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        var esc = function (s) {
+          return String(s == null ? "" : s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+        };
+        var samples = TripCheck.samples;
+        $("versions").textContent =
+          "引擎 " + TripCheck.versions.engine + " · 规则集 " + TripCheck.versions.ruleset;
+
+        var buttons = [];
+        function loadSample(i) {
+          $("doc").value = JSON.stringify(samples[i].document, null, 2);
+          $("result").hidden = true;
+          buttons.forEach(function (x, j) {
+            x.classList.toggle("active", i === j);
+          });
+        }
+        samples.forEach(function (s, i) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.textContent = s.label;
+          b.title = s.description;
+          b.addEventListener("click", function () {
+            loadSample(i);
+          });
+          buttons.push(b);
+          $("samples").appendChild(b);
+        });
+
+        // #verified / #blocked / #unverified 可直接链到「已跑完体检」的状态，
+        // 便于 README / 社交分享给出一键可达的证据，而不是一个空表单。
+        var initial = location.hash.slice(1);
+        var idx = samples.findIndex(function (s) {
+          return s.id === initial;
+        });
+        loadSample(idx >= 0 ? idx : 1);
+
+        function readDoc() {
+          try {
+            return { ok: true, raw: JSON.parse($("doc").value) };
+          } catch (e) {
+            return { ok: false, message: "不是合法 JSON：" + e.message };
+          }
+        }
+
+        function showErrors(errors) {
+          $("result").hidden = false;
+          $("result").innerHTML =
+            '<h2>文档不符合 Trip Check v0.1</h2><div class="error">' +
+            errors
+              .slice(0, 10)
+              .map(function (x) {
+                return "· " + esc(x.path) + "：" + esc(x.message);
+              })
+              .join("<br>") +
+            "</div>";
+        }
+
+        function factsText(facts) {
+          var c = facts.coverage;
+          return (
+            "POI " +
+            c.poiHit +
+            "/" +
+            c.poiTotal +
+            " 命中 · 查无 " +
+            c.poiMiss +
+            " · 失败 " +
+            c.poiError +
+            " · 未查 " +
+            c.poiNotChecked +
+            "<br>营业时间 " +
+            c.hoursChecked +
+            " 处 · 路段 " +
+            c.routesChecked +
+            "/" +
+            c.routesTotal
+          );
+        }
+
+        function credBlock(cred) {
+          if (!cred) return "";
+          return (
+            '<div class="cred"><div class="label">体检凭据（可复算，不是签名）</div>' +
+            '<div class="id">' +
+            esc(cred.id) +
+            "</div>" +
+            '<div class="hash">input sha256: ' +
+            esc(cred.inputHash) +
+            "</div>" +
+            '<div class="hash">口径: ' +
+            esc(cred.basis) +
+            "</div></div>"
+          );
+        }
+
+        function issuesHtml(issues) {
+          if (!issues.length) return '<p class="hint">没有发现问题。</p>';
+          var order = { blocking: 0, warning: 1, info: 2 };
+          var sorted = issues.slice().sort(function (a, b) {
+            return order[a.severity] - order[b.severity];
+          });
+          return (
+            '<ul class="issues">' +
+            sorted
+              .map(function (i) {
+                var extra = i.suggestion
+                  ? "建议：" + esc(i.suggestion)
+                  : i.fixHint
+                    ? "修复方向：" + esc(i.fixHint)
+                    : "";
+                return (
+                  '<li class="issue ' +
+                  esc(i.severity) +
+                  '"><div class="head"><span class="rule">' +
+                  esc(i.ruleId) +
+                  "</span>" +
+                  esc(i.title) +
+                  '</div><div class="body">' +
+                  esc(i.detail) +
+                  (extra ? "<br>" + extra : "") +
+                  "</div></li>"
+                );
+              })
+              .join("") +
+            "</ul>"
+          );
+        }
+
+        function renderReport(report, title) {
+          var v = report.verdict;
+          var g = v.consistency.grade.toLowerCase();
+          var html =
+            "<h2>" +
+            title +
+            "</h2>" +
+            '<div class="grid">' +
+            '<div class="card"><div class="label">结构自洽性</div><div class="value grade-' +
+            g +
+            '">' +
+            esc(v.consistency.grade) +
+            " · " +
+            v.consistency.score +
+            '/100</div><div class="detail">' +
+            esc(v.consistency.summary) +
+            "</div></div>" +
+            '<div class="card"><div class="label">事实核验</div><div class="value">' +
+            esc(v.facts.state) +
+            '</div><div class="detail">' +
+            factsText(v.facts) +
+            "</div></div>" +
+            '<div class="card"><div class="label">总评</div><div class="value">' +
+            esc(v.overall) +
+            '</div><div class="detail">' +
+            esc(v.summary) +
+            "</div></div>" +
+            "</div>" +
+            "<h2>问题 " +
+            report.stats.total +
+            " 条（阻断 " +
+            report.stats.blocking +
+            " · 提醒 " +
+            report.stats.warnings +
+            " · 提示 " +
+            report.stats.infos +
+            "）</h2>" +
+            issuesHtml(report.issues) +
+            credBlock(report.credential);
+          $("result").hidden = false;
+          $("result").innerHTML = html;
+        }
+
+        function renderRepair(r) {
+          var before = r.before;
+          var after = r.after;
+          var html =
+            "<h2>确定性修复 " +
+            r.applied.length +
+            " 处</h2>" +
+            (r.applied.length
+              ? '<ul class="issues">' +
+                r.applied
+                  .map(function (a) {
+                    return '<li class="issue"><div class="body">' + esc(a.detail) + "</div></li>";
+                  })
+                  .join("") +
+                "</ul>"
+              : '<p class="hint">没有可机械修复的问题。</p>') +
+            (r.unrepairable.length
+              ? "<h2>修不了 " +
+                r.unrepairable.length +
+                ' 条（需人工）</h2><ul class="issues">' +
+                r.unrepairable
+                  .map(function (u) {
+                    return (
+                      '<li class="issue"><div class="body"><span class="rule">' +
+                      esc(u.ruleId) +
+                      "</span>" +
+                      esc(u.reason) +
+                      "</div></li>"
+                    );
+                  })
+                  .join("") +
+                "</ul>"
+              : "") +
+            '<h2>前后凭据链</h2><div class="chain">修复前 ' +
+            esc(before.credential && before.credential.id) +
+            "（" +
+            esc(before.verdict.consistency.grade) +
+            " · " +
+            before.verdict.consistency.score +
+            "）<br>修复后 " +
+            esc(after.credential && after.credential.id) +
+            "（" +
+            esc(after.verdict.consistency.grade) +
+            " · " +
+            after.verdict.consistency.score +
+            "）<br>分数变化 " +
+            (r.delta.score >= 0 ? "+" : "") +
+            r.delta.score +
+            " · 阻断减少 " +
+            r.delta.blockingReduced +
+            "</div>" +
+            issuesHtml(after.issues);
+          $("result").hidden = false;
+          $("result").innerHTML = html;
+        }
+
+        $("btn-verify").addEventListener("click", function () {
+          var input = readDoc();
+          if (!input.ok) return showErrors([{ path: "(JSON)", message: input.message }]);
+          var out = TripCheck.verify(input.raw);
+          if (!out.ok) return showErrors(out.errors);
+          renderReport(out.report, "2 · 体检结果");
+        });
+
+        $("btn-repair").addEventListener("click", function () {
+          var input = readDoc();
+          if (!input.ok) return showErrors([{ path: "(JSON)", message: input.message }]);
+          var out = TripCheck.repair(input.raw);
+          if (!out.ok) return showErrors(out.errors);
+          renderRepair(out.repair);
+        });
+
+        if (idx >= 0) $("btn-verify").click();
+      })();
+    </script>
+  </body>
+</html>

@@ -24,6 +24,7 @@
 | [015](015-shareable-trip-check-report.md)        | 可分享的体检报告               | 已接受 |
 | [016](016-security-hardening-baseline.md)        | 安全加固基线                   | 已接受 |
 | [017](017-trip-check-cli.md)                     | Trip Check CLI 与展示定位收窄  | 已接受 |
+| [018](018-client-side-verification.md)           | 凭据同构化 + 离线验真台        | 已接受 |
 
 > 012–015 里引用的产品策略文档已归档到 [../archive/strategy/](../archive/strategy/)，
 > 链接已更新，但 ADR 的结论与上下文保持原样（历史记录）。

@@ -269,6 +269,14 @@ npm run trip:check -- --fix <document.json>   # 确定性修复 + 前后两张�
 退出码：`0` 通过 · `1` 有阻断问题（`--strict` 下提醒/未核验也算失败） · `2` 输入非法。
 `--json` 输出机读报告。CLI 不做文本抽取（不调模型），只接受已成形的 Trip Check 文档。
 
+### 7.0.1 浏览器（离线，单文件）
+
+`public/verify-playground.html` 把同一套引擎（含同构 SHA-256 凭据）内联进一个 HTML，
+CSP 写死 `connect-src 'none'`，判定与确定性修复全部在本地完成、不上传文档。
+`#verified` / `#blocked` / `#unverified` 可直接链到跑完的结果；浏览器算出的凭据 ID
+与 CLI / API 完全一致（由 `tests/cli/playground.test.ts` 与真实 Chrome 双重验证）。
+重生成：`npm run playground:build`。
+
 ### 7.1 HTTP
 
 | 方法/路径                 | 说明                                                                                                                                                         |

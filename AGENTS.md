@@ -77,7 +77,13 @@ cli/                  Trip Check CLI（ADR-017）：零 key 离线验真 + 确�
   trip-check.ts         IO 入口（run()，IO 全注入可测）
   report-format.ts      人读输出（纯函数）
   args.ts               参数解析（纯函数）
-  scripts/trip-check.mjs 启动器：vite 现打 SSR bundle 后调 run()
+  playground-entry.ts   浏览器验真台入口（与 CLI 同一套引擎）
+  playground.template.html  验真台模板（CSP 关网 + 占位符）
+  scripts/trip-check.mjs        CLI 启动器：vite 现打 SSR bundle 后调 run()
+  scripts/build-verify-playground.mjs  生成 public/verify-playground.html
+  scripts/build-showcase-images.mjs    生成 docs/images/ 两张门面图
+lib/verify/sha256.ts  同构 SHA-256（ADR-018）：credential.ts 不再依赖 node:crypto
+public/verify-playground.html  自包含离线验真台（生成物，需提交）
 ```
 
 ## 开工前先看这里（当前状态）
@@ -114,6 +120,10 @@ cli/                  Trip Check CLI（ADR-017）：零 key 离线验真 + 确�
   `EVAL_CASES=3 eval:cases` 实测 3/3 成功、POI 验真 100%（51/51）、通勤失败 0%、预算贴合中位 82%。
   仍建议：20 城全量基线、对照 v4 看预警变化、境外无覆盖降级确认（历史清单见 [docs/archive/strategy/NEXT_STEPS.md](docs/archive/strategy/NEXT_STEPS.md)）。
 - **坑提醒**：桩测试的开关词只能从「目的地 / 出行偏好」两行取（见 `scripts/stub-llm.mjs` 的 `switchSource`），**不能对整条 prompt 做 `includes` 匹配**——prompt 正文里现在有真实营业时间原文（「全天不开放」含「空」），整条匹配会把普通正文误判成测试开关。
+- **坑提醒（生成内联 bundle，2026-11）**：`String.replace(占位符, 压缩后的代码)` 会因 zod 里的
+  `$&` / `$'` 替换标记把占位符甚至整段模板重新注入 bundle，产出「写盘成功但脚本坏掉」的 HTML；
+  必须用函数式替换 `replace(占位符, () => code)`（见 `scripts/build-verify-playground.mjs`）。
+  另外 vitest 的 jsdom 不提供 `TextEncoder`，测试需从 `node:util` 注入（浏览器/Node 原生有）。
 - **坑提醒（受限环境跑 `gate:visual`，2026-11）**：① Chrome headless 在容器/受限 shell 里自身沙箱会初始化失败，加 `VISUAL_CHROME_NO_SANDBOX=1`（脚本已支持，仅在一次性临时 profile 进程上放开）；② Chrome profile 已移到系统临时目录（进程号隔离），不再整删仓库内几百个文件；③ 受限环境的批量删除保护会让 Next dev 在启动时清 `<distDir>/dev/logs` 直接崩溃——重跑前先 `rm -rf .next-visual-check .next-t-*`。
 
 ## 如何添加新功能
@@ -140,6 +150,7 @@ npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
 npm run trip:check     # Trip Check CLI：零 key 离线验真（--sample blocked 看效果）
+npm run playground:build  # 引擎/模板改动后重生成 public/verify-playground.html
 ```
 
 e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM 和高德，不烧真 token、不需要真 key。桩按请求内容切换行为（城市名/关键词），让故障注入测试秒级完成。

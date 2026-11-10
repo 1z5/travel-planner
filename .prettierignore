@@ -23,3 +23,7 @@ tsconfig.json
 # WorkBuddy 本地工作记忆：pre-push 的 `prettier --check .` 会扫描未跟踪文件，
 # 日志格式一乱就拦住推送。它不是产品代码，不该参与格式门禁。
 .workbuddy/
+# 离线验真台是 scripts/build-verify-playground.mjs 的产物：里面内联了
+# 116 KiB 压缩后的 IIFE bundle。Prettier 既不该重排它（会改变产物、制造无意义
+# 的巨大 diff），也不该因为一行超长代码让门禁变红。格式以模板为准。
+public/verify-playground.html

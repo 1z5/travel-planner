@@ -9,7 +9,7 @@
 2. [ARCHITECTURE.md](ARCHITECTURE.md) — **读代码前先看**：模块地图、三条数据流、测试与门禁、已知技术债
 3. [AGENTS.md](../AGENTS.md) — 开发协议、红线、验收流程（AI 必读）
 4. [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md) — 开放标准 v0.1（文档格式 / 规则 / 凭据 / 三态）
-5. [adr/](adr/) — 17 篇架构决策记录，改架构前先查历史
+5. [adr/](adr/) — 18 篇架构决策记录，改架构前先查历史
 6. [design/ATLAS-V6.md](design/ATLAS-V6.md) — 改任何 UI 前先读（token / 材质 / 动效 / 分片规则）
 7. [API.md](API.md) — HTTP 接口契约；[CONTRIBUTING.md](../CONTRIBUTING.md) — 贡献与提交规范
 8. [SECURITY.md](../SECURITY.md) + [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) — 安全基线与审计
@@ -22,7 +22,7 @@
 | [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)             | 核验层开放标准 v0.1                                 |
 | [design/ATLAS-V6.md](design/ATLAS-V6.md)                     | 前端设计系统与「不要做」清单（§0 / §6）             |
 | [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) | 只读安全审计、修复状态与未闭环项                    |
-| [adr/](adr/)                                                 | 架构决策记录 001–017，含替代方案与取舍              |
+| [adr/](adr/)                                                 | 架构决策记录 001–018，含替代方案与取舍              |
 | [API.md](API.md) / [../CHANGELOG.md](../CHANGELOG.md)        | 接口契约 / 逐轮变更与踩坑记录                       |
 | [../mcp/README.md](../mcp/README.md)                         | MCP 服务说明                                        |
 
@@ -58,3 +58,15 @@
 - **公开叙事**：仓库公开，文档 / 提交信息使用中性项目口径；不写本地绝对路径、
   不写占位联系方式（用 GitHub 私密渠道）。
 - **新样式**：`app/globals.css` 冻结，只在 `app/styles/` 追加独立命名空间分片。
+- **门面资产可重生成**：`npm run playground:build` 重生成
+  `public/verify-playground.html`； `npm run showcase:images`
+  重生成 `docs/images/{social-preview,readme-hero}.png`。改了引擎/规则/文案后要重跑，
+  否则图与产物会说谎。
+
+## GitHub 仓库元数据（需在网页端设置）
+
+- **Description**：`Reproducible, deterministic verification for AI-generated itineraries — 16 rules, no LLM in the judging path`
+- **Topics**：`llm` `deterministic` `verification` `typescript` `nextjs` `open-source` `trip-check`
+- **Social preview**：上传 [docs/images/social-preview.png](images/social-preview.png)（1280×640）
+- **Website**：在线演示地址；`public/verify-playground.html` 可直接发 GitHub Pages，
+  不依赖演示站是否活着。

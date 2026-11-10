@@ -26,6 +26,8 @@
     "demo:polish": "node scripts/demo-polish.mjs",
     "mcp": "node mcp/stdio.mjs",
     "trip:check": "node scripts/trip-check.mjs",
+    "playground:build": "node scripts/build-verify-playground.mjs",
+    "showcase:images": "node scripts/build-showcase-images.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
