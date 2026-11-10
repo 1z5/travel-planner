@@ -1,5 +1,8 @@
-import "server-only";
-import { createHash } from "node:crypto";
+// 同构哈希（2026-11-10）：此前这里用 node:crypto + `import "server-only"`，
+// 结果是「开放标准可复算」只在服务器上成立，浏览器里跑出的报告对不上账。
+// 换成 sha256.ts 的纯 JS 实现后，判定/凭据/修复三层全部 client-safe；
+// 与 node:crypto 的逐用例对拍见 tests/lib/verify/sha256.test.ts（含填充边界与中文）。
+import { sha256HexUtf8 } from "./sha256";
 import {
   TRIP_CHECK_ENGINE_VERSION,
   TRIP_CHECK_RULESET_VERSION,
@@ -48,7 +51,7 @@ export function canonicalJson(value: unknown): string {
 }
 
 function sha256Hex(input: string): string {
-  return createHash("sha256").update(input, "utf8").digest("hex");
+  return sha256HexUtf8(input);
 }
 
 /** 输入哈希：document + options 的规范 JSON 的 sha256 */
