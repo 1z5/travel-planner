@@ -258,6 +258,17 @@ id        = "tc_" + sha256(`${specVersion}|${engineVersion}|${rulesetVersion}|${
 
 ## 7. 接口
 
+### 7.0 CLI（离线，零 key）
+
+```bash
+npm run trip:check -- <document.json>   # 或 --sample verified/blocked/unverified、-（stdin）
+npm run trip:check -- --fix <document.json>   # 确定性修复 + 前后两张凭据
+```
+
+判定/修复与 HTTP/MCP 走**同一套** `lib/verify/` 引擎，同一文档在三种接口下产出同一凭据 ID。
+退出码：`0` 通过 · `1` 有阻断问题（`--strict` 下提醒/未核验也算失败） · `2` 输入非法。
+`--json` 输出机读报告。CLI 不做文本抽取（不调模型），只接受已成形的 Trip Check 文档。
+
 ### 7.1 HTTP
 
 | 方法/路径                 | 说明                                                                                                                                                         |

@@ -72,6 +72,12 @@ components/
   TodayView.tsx         行中模式今日视图
   RealMap.tsx           真实地图（高德底图 + 自绘覆盖层）
   BudgetInsight.tsx     预算透视
+
+cli/                  Trip Check CLI（ADR-017）：零 key 离线验真 + 确定性修复
+  trip-check.ts         IO 入口（run()，IO 全注入可测）
+  report-format.ts      人读输出（纯函数）
+  args.ts               参数解析（纯函数）
+  scripts/trip-check.mjs 启动器：vite 现打 SSR bundle 后调 run()
 ```
 
 ## 开工前先看这里（当前状态）
@@ -133,6 +139,7 @@ npm test               # e2e 776 条（桩 LLM + 桩高德 + 隔离服务器，�
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，15 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）
+npm run trip:check     # Trip Check CLI：零 key 离线验真（--sample blocked 看效果）
 ```
 
 e2e 用桩服务（`scripts/stub-llm.mjs` / `scripts/amap-stub.mjs`）模拟 LLM 和高德，不烧真 token、不需要真 key。桩按请求内容切换行为（城市名/关键词），让故障注入测试秒级完成。

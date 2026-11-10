@@ -9,7 +9,7 @@
 2. [ARCHITECTURE.md](ARCHITECTURE.md) — **读代码前先看**：模块地图、三条数据流、测试与门禁、已知技术债
 3. [AGENTS.md](../AGENTS.md) — 开发协议、红线、验收流程（AI 必读）
 4. [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md) — 开放标准 v0.1（文档格式 / 规则 / 凭据 / 三态）
-5. [adr/](adr/) — 16 篇架构决策记录，改架构前先查历史
+5. [adr/](adr/) — 17 篇架构决策记录，改架构前先查历史
 6. [design/ATLAS-V6.md](design/ATLAS-V6.md) — 改任何 UI 前先读（token / 材质 / 动效 / 分片规则）
 7. [API.md](API.md) — HTTP 接口契约；[CONTRIBUTING.md](../CONTRIBUTING.md) — 贡献与提交规范
 8. [SECURITY.md](../SECURITY.md) + [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) — 安全基线与审计
@@ -22,7 +22,7 @@
 | [TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)             | 核验层开放标准 v0.1                                 |
 | [design/ATLAS-V6.md](design/ATLAS-V6.md)                     | 前端设计系统与「不要做」清单（§0 / §6）             |
 | [SECURITY-AUDIT-2026-10-28.md](SECURITY-AUDIT-2026-10-28.md) | 只读安全审计、修复状态与未闭环项                    |
-| [adr/](adr/)                                                 | 架构决策记录 001–016，含替代方案与取舍              |
+| [adr/](adr/)                                                 | 架构决策记录 001–017，含替代方案与取舍              |
 | [API.md](API.md) / [../CHANGELOG.md](../CHANGELOG.md)        | 接口契约 / 逐轮变更与踩坑记录                       |
 | [../mcp/README.md](../mcp/README.md)                         | MCP 服务说明                                        |
 
