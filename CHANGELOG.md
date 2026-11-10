@@ -1,3 +1,26 @@
+## 2026-11-10 Trip Check CLI + 展示定位收窄
+
+面向「GitHub 个人主页展示」的一轮重构（决策全文见 [ADR-017](docs/adr/017-trip-check-cli.md)）：
+
+- **新增 `cli/`：Trip Check 命令行工具**（`npm run trip:check -- <file.json>` 或
+  `--sample verified/blocked/unverified`）。零 LLM key、零高德 key、零网络，
+  判定与确定性修复（`--fix`，前后两张凭据）全部走既有的 `lib/verify/` 引擎，
+  与 API/MCP 同一口径。退出码 `0/1/2` 可进 CI，`--json` 机读输出。
+  「任何人都能独立复算同一凭据 ID」从此是可以 10 秒动手验证的事实，
+  不再依赖演示站存活（Render 免费实例冷启动 30–60s）。
+- **实现方式**：`scripts/trip-check.mjs` 用 vite（rolldown）每次现打 SSR bundle
+  （无扩展名相对 import 跑不了 Node type-stripping；打包同时把 `server-only`
+  别名为空桩、zod 打进单文件）。格式（`cli/report-format.ts`）与参数解析
+  （`cli/args.ts`）拆成纯函数，IO 注入，16 条单测覆盖退出码/确定性/错误路径。
+- **README 重写（中英同步）**：定位从「旅行规划器」收窄为「AI 行程的可复算机械验真
+  - 完整参考实现」，首屏放 CLI 真实输出（阻断三连 + 凭据 ID），加 CI/license/Node 徽章，
+    新增「推荐阅读路径（20 分钟）」。
+- **叙事清理**：`/pricing` 从投票收集页改成纯历史留档页（删除 `IntentButton` 与
+  `upgrade_intent` 上报；URL 保留不 404），并移出 sitemap；
+  Node 版本口径三处统一为 >=22（`engines` / `.nvmrc` / `preflight.mjs`）。
+- **刻意不做**（避免半截实现）：不发 npm 包、不动登录体系、不改首页形态、
+  不做浏览器端 bundle——理由与候选方向都在 ADR-017。
+
 ## 2026-11-08 移动端体验与仓库结构整理
 
 项目定位为「主要在手机上用」，这一轮做了两件事：移动端体验改造（真实页面，非独立静态页），
