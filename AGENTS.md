@@ -83,7 +83,10 @@ cli/                  Trip Check CLI（ADR-017）：零 key 离线验真 + 确�
   scripts/build-verify-playground.mjs  生成 public/verify-playground.html
   scripts/build-showcase-images.mjs    生成 docs/images/ 两张门面图
 lib/verify/sha256.ts  同构 SHA-256（ADR-018）：credential.ts 不再依赖 node:crypto
-public/verify-playground.html  自包含离线验真台（生成物，需提交）
+public/verify-playground.html      自包含离线验真台（生成物，需提交）
+public/verify-playground-sw.js     手机「加到主屏 / 断网可开」的同源 SW（窄 scope）
+.github/workflows/pages.yml       把验真台发成 GitHub Pages 静态入口（零冷启动）
+render.yaml                      主站部署：DATA_STORE=postgres + 外部 DATABASE_URL
 ```
 
 ## 开工前先看这里（当前状态）
@@ -95,7 +98,10 @@ public/verify-playground.html  自包含离线验真台（生成物，需提交�
   实现方式是**覆盖层**：`app/styles/atlas-{tokens,base,shell,home,workspace,evidence,marketing}.css`
   按 import 顺序后写者胜；**`app/globals.css` 一行未动**，不要往里加东西。
   趋势依据与「不要做」清单：同文档 §0 与 §6（完整调研底稿在本地 `research/`，按仓库惯例不入库）。
-- **工程现状（2026-11-08 起）**：本项目已放弃商业化，定位为个人开源技术展示项目。
+- **工程现状（2026-11-10 起）**：本项目已放弃商业化，定位为个人开源项目——
+  既是 GitHub 展示作品，也是作者自己每天用的工具（**要上线、手机也要能用**）。
+  主站 Render + 外部 Postgres 持久化，手机日常入口是零冷启动的静态验真台
+  （见 [ADR-019](docs/adr/019-personal-use-online-mobile.md)）。
   现有能力（Trip Check 开放标准 v0.1 + 16 条规则 + 可复算凭据 + 确定性修复前后链 +
   `/api/verify` + MCP + 工作台体检镜头 + 预览→确认写入 + 分享页凭据/JSON-LD + 报告/海报 +
   安全加固）作为工程样例保留并维护，但不再背负产品/营收目标。
@@ -124,6 +130,10 @@ public/verify-playground.html  自包含离线验真台（生成物，需提交�
   `$&` / `$'` 替换标记把占位符甚至整段模板重新注入 bundle，产出「写盘成功但脚本坏掉」的 HTML；
   必须用函数式替换 `replace(占位符, () => code)`（见 `scripts/build-verify-playground.mjs`）。
   另外 vitest 的 jsdom 不提供 `TextEncoder`，测试需从 `node:util` 注入（浏览器/Node 原生有）。
+- **坑提醒（手机验收，2026-11）**：Chrome headless 的 `--window-size` 最小是
+  500 CSS px，直接截 390×844 会把 500px 的布局裁成 390px 的图，看起来像横向溢出。
+  验收必须用 CDP `Emulation.setDeviceMetricsOverride({width:390,height:844,mobile:true})`
+  再看 `scrollWidth === innerWidth`；口径见 [ADR-019](docs/adr/019-personal-use-online-mobile.md)。
 - **坑提醒（受限环境跑 `gate:visual`，2026-11）**：① Chrome headless 在容器/受限 shell 里自身沙箱会初始化失败，加 `VISUAL_CHROME_NO_SANDBOX=1`（脚本已支持，仅在一次性临时 profile 进程上放开）；② Chrome profile 已移到系统临时目录（进程号隔离），不再整删仓库内几百个文件；③ 受限环境的批量删除保护会让 Next dev 在启动时清 `<distDir>/dev/logs` 直接崩溃——重跑前先 `rm -rf .next-visual-check .next-t-*`。
 
 ## 如何添加新功能
@@ -144,8 +154,8 @@ npm run typecheck      # TypeScript strict
 npm run lint           # ESLint(.js/.mjs) + oxlint(TS/TSX) 串联，覆盖全部 TS/TSX
 npm run lint:js        # 只跑 ESLint（.js/.mjs 脚本）
 npm run lint:ts        # 只跑 oxlint（TS/TSX；Rust 自解析 AST，不依赖 TS 版本）
-npm run test:unit      # Vitest 1202 条（组件 + 纯逻辑）
-npm test               # e2e 776 条（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
+npm run test:unit      # Vitest 单测（组件 + 纯逻辑；条数不写死）
+npm test               # e2e（桩 LLM + 桩高德 + 隔离服务器，带文件锁自动串行）
 npm run gate:visual    # 视觉/可访问性回归（自起环境 + 种子数据，15 页 × 桌面/手机）
 npm run check:env      # 环境变量体检（格式 / 文档漂移 / 生产安全）
 npm run test:coverage  # 覆盖率（CI 用它做门禁：lines/functions 50、branches 40）

@@ -16,9 +16,10 @@ actually works. This repository is an engineering answer:
 No randomness, no wall-clock, no network in the judgment path — same document + same
 ruleset version produces the same result on your machine and on mine.
 
-> Status: a personal open-source **technology showcase**. Not commercialized, no service
-> commitment, no availability guarantee. The live demo is a free Render instance that
-> sleeps and loses data on restart.
+> Status: a personal open-source project that is **both a GitHub showcase and a tool the
+> author uses every day**. Not commercialized. The main app runs on Render with an external
+> Postgres (itineraries survive restarts); the everyday mobile entry is a purely static,
+> zero-cold-start verifier that can be added to the home screen and works offline.
 
 ## Verify once in 30 seconds
 
@@ -65,6 +66,20 @@ All three paths run the same `lib/verify/` engine and produce **the same credent
 judgment, repair and hashing are literally the same source files.
 Use `#verified` / `#blocked` / `#unverified` to link straight to a finished result; once
 deployed, `/verify-playground.html#blocked` on the demo site serves the same file (no API calls).
+
+## On your phone
+
+- **Live now**: <https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG>
+  (static hosting, no instance, no cold start)
+- **Permanent entry**: after enabling GitHub Pages, `https://1z5.github.io/travel-planner/`
+  (published automatically by `.github/workflows/pages.yml`)
+- "Add to Home Screen" launches it full-screen; a same-origin Service Worker keeps the
+  page available offline. Documents never leave the device (`connect-src 'none'`).
+- `#blocked` links straight to a finished result with three blocking issues.
+
+The main app handles generation, the workspace and in-trip mode. Its free Render instance
+sleeps (kept warm every 5 minutes), but itineraries live in an external Postgres and do
+not disappear on restart. See [DEMO.md](docs/DEMO.md).
 
 ## What this repo demonstrates
 
@@ -118,8 +133,9 @@ and CI runs the full chain on every push.
 - Credentials are reproducible hashes, **not digital signatures**; they are not an endorsement
   of the real world, and `unverified` never means "fine".
 - Amap data is not stored long-term per the provider terms; this project is not used commercially.
-- The demo uses the memory store and loses data on restart; share tokens act as capabilities
-  (no account system); quotas are per-instance.
+- Persistence depends on an external Postgres (a broken connection fails loudly instead of
+  silently falling back to memory); the free instance sleeps but itineraries survive restarts.
+  Share tokens act as capabilities (no account system); quotas are per-instance.
 - Transit is a driving-matrix estimate, not real transit routing; map lines are sequential, not navigation.
 - Generation is slow (3–4 min for ≤4 days; day-streaming above that), absorbed by async jobs,
   progress reporting, and quota refunds.

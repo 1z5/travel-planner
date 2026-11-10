@@ -1,3 +1,26 @@
+## 2026-11-10（第三波）回到「自己每天用」：上线 + 手机优先 + 数据不丢
+
+定位修正（用户明确：自用 ≠ 不上线，手机也要能用）。决策全文见
+[ADR-019](docs/adr/019-personal-use-online-mobile.md)。
+
+- **双入口上线**：`.github/workflows/pages.yml` 把自包含验真台发成 GitHub Pages 静态站
+  （零实例、不休眠、手机秒开）；另已发布一个立即可用的托管入口
+  `https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG`。
+  主站继续跑 Render，负责生成/工作台/行中；两者互不依赖。
+- **手机优先改造**（用 CDP 真实 390×844 设备模拟验收，不是猜）：单列卡片、
+  ≥44px 触控目标、无横向溢出、点完自动滚到结论、改文档/复制凭据大按钮、
+  内联 data-URI manifest 可加到主屏、同源 SW 断网可开。SW 用窄 scope 避免与
+  主站 `/sw.js` 抢控制权。实测 `scrollWidth=390`、按钮 44–49px、凭据 ID 不变。
+- **主站持久化**：`render.yaml` 改为 `DATA_STORE=postgres` + 外部 `DATABASE_URL`
+  - `preDeployCommand: npx prisma db push`。**不用 Render 自带免费 Postgres**
+    （创建 30 天后过期，宽限期结束连数据一起删且无备份），改用不设过期的免费层
+    （Neon/Supabase）。不填连接串会部署失败，不静默退化成 memory。
+- **叙事改正**：README（中英）/ DEMO / ARCHITECTURE / DEPLOY 里所有
+  「不承诺可用性、重启丢数据、memory 存储」的过时口径全部替换；
+  仍如实保留「免费实例会休眠」「无错误监控」等边界，并写明手机两个入口怎么开。
+- **坑**：Chrome headless `--window-size` 最小 500 CSS px，直接截 390 的图会把
+  500px 布局裁切，看起来像横向溢出；必须用 CDP `Emulation.setDeviceMetricsOverride`。
+
 ## 2026-11-10（第二波）凭据同构化 + 离线验真台 + 门面资产
 
 决策全文见 [ADR-018](docs/adr/018-client-side-verification.md)。
