@@ -148,7 +148,7 @@ export function buildIcs(plan: Plan): string {
         .join("\n");
 
       lines.push("BEGIN:VEVENT");
-      lines.push(`UID:${uidFor(plan, day, spot, i, date)}@travel-planner`);
+      lines.push(`UID:${uidFor(plan, day, spot, i, date)}@travel-partner`);
       if (range) {
         lines.push(`DTSTART:${date}T${range[0]}`);
         lines.push(`DTEND:${endDate}T${range[1]}`);

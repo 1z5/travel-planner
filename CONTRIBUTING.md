@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢关注 travel-planner。本项目是**个人开源技术展示项目**，已放弃商业化：欢迎 issue / 讨论 / 试验性 PR，但不保证合并，也不提供维护承诺。仓库按较严格的工程标准维护，贡献时请遵循以下规范。读代码前建议先看 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [docs/README.md](docs/README.md)。
+感谢关注 travel-partner。本项目是**个人开源技术展示项目**，已放弃商业化：欢迎 issue / 讨论 / 试验性 PR，但不保证合并，也不提供维护承诺。仓库按较严格的工程标准维护，贡献时请遵循以下规范。读代码前建议先看 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与 [docs/README.md](docs/README.md)。
 
 ## 开发环境
 

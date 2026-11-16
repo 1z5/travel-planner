@@ -22,7 +22,7 @@
 ## 1. 一次性部署（10 分钟）
 
 1. 打开 <https://render.com> → **Sign up with GitHub**（免费 plan 不需要信用卡）。
-2. Dashboard → **New +** → **Blueprint** → 选仓库 `1z5/travel-planner` → **Apply**。
+2. Dashboard → **New +** → **Blueprint** → 选仓库 `1z5/travel-partner` → **Apply**。
    Render 会读仓库根的 [`render.yaml`](render.yaml)，自动配好 build/start/健康检查/成本闸门。
 3. 它会把 5 个 secret 标成待填（`sync: false`），按下面填：
 
@@ -57,7 +57,7 @@
 
 `.github/workflows/pages.yml` 会把 `public/verify-playground.html` 发成 GitHub Pages
 静态页。仓库已启用 Pages（Source: GitHub Actions，2026-11-10 通过 API 配置），
-地址为 <https://1z5.github.io/travel-planner/>，每次 push 自动更新。
+地址为 <https://1z5.github.io/travel-partner/>，每次 push 自动更新。
 
 - 手机浏览器打开 → 「添加到主屏」，之后像 App 一样全屏启动；
 - 页面自包含（引擎 + 规则 + SHA-256 全内联），CSP 关闭一切出站请求：

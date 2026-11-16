@@ -72,7 +72,7 @@
 - **Description**：`Reproducible, deterministic verification for AI-generated itineraries — 16 rules, no LLM in the judging path`
 - **Topics**：`llm` `deterministic` `verification` `typescript` `nextjs` `open-source` `trip-check`
 - **Social preview**：上传 [docs/images/social-preview.png](images/social-preview.png)（1280×640）
-- **Website**：已设为 `https://1z5.github.io/travel-planner/`（手机常用入口，
+- **Website**：已设为 `https://1z5.github.io/travel-partner/`（手机常用入口，
   不依赖 Render 实例）；另有一个立即可用的托管入口
   `https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG`。
 - **Social preview**：GitHub 没有公开 API 可上传自定义预览图，需在

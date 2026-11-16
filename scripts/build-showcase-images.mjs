@@ -71,7 +71,7 @@ h1{font-size:60px;line-height:1.16;margin-top:24px;font-weight:600;letter-spacin
 <div class="row"><span>浏览器本地</span><b>不上传</b></div>
 <div class="same">${CRED}</div>
 </div>
-<div class="foot"><span>github.com/1z5/travel-planner</span><span>Next.js 16 · TypeScript 7 · Apache-2.0</span></div>
+<div class="foot"><span>github.com/1z5/travel-partner</span><span>Next.js 16 · TypeScript 7 · Apache-2.0</span></div>
 </div></body></html>`;
 
 const heroHtml = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>

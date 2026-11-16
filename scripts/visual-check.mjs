@@ -393,7 +393,7 @@ async function main() {
     const cdpPort = await pickPort(9333);
     const profile =
       process.env.VISUAL_PROFILE_DIR ||
-      path.join(os.tmpdir(), `travel-planner-visual-profile-${process.pid}`);
+      path.join(os.tmpdir(), `travel-partner-visual-profile-${process.pid}`);
     try {
       fs.rmSync(profile, { recursive: true, force: true });
     } catch (e) {

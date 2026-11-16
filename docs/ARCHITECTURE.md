@@ -125,7 +125,7 @@ lib/
 | 项                                       | 证据                                                                            | 现状                                                             |
 | ---------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | TypeScript 7 超出 typescript-eslint 支持 | `package.json` / `eslint.config.js:2`                                           | 类型感知 lint 全缺，TS/TSX 由 oxlint 兜底；lint 分两段           |
-| 57 条存量 lint warning                   | `npm run lint` 实测 0 error / 57 warning                                        | 多为 `react/set-state-in-effect` 等历史代码；新增代码要求 0 告警 |
+| 52 条存量 lint warning                   | `npm run lint` 实测 0 error / 57 warning                                        | 多为 `react/set-state-in-effect` 等历史代码；新增代码要求 0 告警 |
 | CSS 覆盖层「后写者胜」                   | `app/layout.tsx` import 顺序；`app/globals.css` 10150 行 + `atlas-*.css` 分片   | `globals.css` 冻结不动，新样式只能追加独立命名空间分片           |
 | e2e 编排单文件 3272 行                   | `scripts/run-tests.mjs`                                                         | 切片已外置到 `e2e-slices/`，主文件仍是编排 + 全阶段断言          |
 | 环境变量无统一 config 层                 | `scripts/check-env.mjs` 自述、全仓 80+ 处 `process.env` 裸读                    | 拼错的症状是静默降级                                             |

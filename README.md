@@ -1,6 +1,6 @@
-# travel-planner — AI 行程的可复算机械验真（附完整参考实现）
+# travel-partner — AI 行程的可复算机械验真（附完整参考实现）
 
-[![CI](https://github.com/1z5/travel-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/1z5/travel-planner/actions/workflows/ci.yml)
+[![CI](https://github.com/1z5/travel-partner/actions/workflows/ci.yml/badge.svg)](https://github.com/1z5/travel-partner/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-339933)](#快速开始完整-web-应用)
 
@@ -68,7 +68,7 @@ npm run trip:check -- --sample blocked --fix
 
 - **现在就能打开的公网入口**：<https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG>
   （纯静态托管，无实例、不休眠、秒开）
-- **长期入口**：<https://1z5.github.io/travel-planner/>（Pages 已启用，
+- **长期入口**：<https://1z5.github.io/travel-partner/>（Pages 已启用，
   `.github/workflows/pages.yml` 每次 push 自动发布）
 - 手机浏览器「添加到主屏」→ 全屏独立启动；Service Worker 缓存导航文档，**断网也能打开**；
 - 行程文档不会离开手机：CSP 写死 `connect-src 'none'`，判定/修复/凭据全在本地算；

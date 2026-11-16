@@ -25,7 +25,7 @@
 
 ```bash
 # 本地构建
-docker build -t travel-planner .
+docker build -t travel-partner .
 
 # 本地运行（密钥用环境变量注入，不要写进镜像）
 # DATA_STORE / DATABASE_URL / NEXT_PUBLIC_SITE_URL / AUTH_PROVIDER / SESSION_SECRET
@@ -41,7 +41,7 @@ docker run -d -p 3000:3000 \
   -e NEXT_PUBLIC_SITE_URL=https://your-domain.example \
   -e AUTH_PROVIDER=sms \
   -e SESSION_SECRET=$(openssl rand -hex 32) \
-  --name travel-planner travel-planner
+  --name travel-partner travel-partner
 ```
 
 镜像基于 `output: "standalone"` 构建，体积约 150MB。健康检查可打 `GET /api/health`（返回 `status:ok` 与配置自检，不泄露密钥）。
@@ -210,10 +210,10 @@ DATABASE_URL=postgres://...
 
 ```bash
 # ① 每日备份（cron 或云托管的定时任务）：压缩 + 保留 14 天
-pg_dump "$DATABASE_URL" | gzip > "backups/travel-planner-$(date +%Y%m%d).sql.gz"
+pg_dump "$DATABASE_URL" | gzip > "backups/travel-partner-$(date +%Y%m%d).sql.gz"
 
 # ② 恢复（先停服务再恢复；standalone 是无状态进程，重启即可）
-gunzip -c backups/travel-planner-20261024.sql.gz | psql "$DATABASE_URL"
+gunzip -c backups/travel-partner-20261024.sql.gz | psql "$DATABASE_URL"
 
 # ③ 恢复演练（每季度一次，只做不做记录等于没做）
 #    用备份在新库起一套：prisma migrate deploy → 灌备份 → node scripts/smoke-deployed.mjs https://staging

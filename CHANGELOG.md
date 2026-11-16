@@ -1,3 +1,23 @@
+## 2026-11-16 双轨重构启动：R5 算术收敛 + 项目改名 travel-partner
+
+产品方向转向「计划为辅、陪伴为主」（实际轨迹成为一等数据，事件驱动局部重规划）。
+决策全文见 [ADR-020](docs/adr/020-dual-track-triage.md)：混合路径——保留确定性引擎，
+替换执行数据层，删除增长期模块。本轮先落地 R5（重复算术收敛）：
+
+- **单一实现**：新增 `lib/plan/time.ts`（时刻/日期）、`lib/geo/spatial.ts`
+  （haversine/距离）、`lib/plan/name-match.ts`（名称匹配）。收敛前
+  `parseTimeRange` 3 份、`isRealDate` 4 份、名称匹配 3 份、haversine 2 份、
+  `addDays` 4 份，每份注释都写着「改的时候两处一起改」。偏离检测
+  （`deviation.time_overrun`）是事件驱动核心的算术，不允许多份实现漂移。
+- **行为零变化**：严格/容错两种时间解析口径分别保留并有单测钉住（跨零点
+  顺延仍返回 null、`spotNow` 仍容错）；`amap.haversineMeters` 保留字符串入 /
+  NaN 出的契约（`pickModeByDistance` 依赖「非有限 → 驾车」降级）。
+- **门禁实测**：单测 1282 通过（新增 37 条）、e2e 795 通过 / 0 失败、
+  lint 0 error（存量 warning 57 → 52）、format 全绿。
+- **改名**：GitHub 仓库 `1z5/travel-planner` → `1z5/travel-partner`，仓内引用
+  同步（package 名、README、Pages URL、ICS UID 域等）；Render 服务名
+  `travel-planner-demo` 与线上 URL 不变（改名只动 GitHub 侧）。
+
 ## 2026-11-10（第三波）回到「自己每天用」：上线 + 手机优先 + 数据不丢
 
 定位修正（用户明确：自用 ≠ 不上线，手机也要能用）。决策全文见
