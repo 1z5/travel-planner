@@ -1,4 +1,6 @@
 import type { Plan, PlanDay, PlanInput, PlanLeg, TransportMode } from "../types";
+import { daysBetween, fmtHourMin, isRealDate, parseClock, parseTimeRange } from "./time";
+import { matchSpotName } from "./name-match";
 
 // ============================================================
 // 时间轴可执行性：检测「时间接不上」+ 确定性顺延（不用模型、不扣配额）。
@@ -10,47 +12,15 @@ import type { Plan, PlanDay, PlanInput, PlanLeg, TransportMode } from "../types"
 // 2) 客户端组件（结果页的时间轴展示/一键顺延入口）也要能用，所以不能
 //    import server-only 模块。
 //
+// 时间/日期算术与名称匹配不在本文件实现，统一走 lib/plan/time.ts 与
+// lib/plan/name-match.ts（ADR-020 · R5：收敛前本文件各有一份私有副本，
+// 注释写着「改的时候两处一起改」——漂移会让检测器对不同端点说谎）。
+//
 // 「不猜」原则在本模块的具体落法：
 // - 时间串解析不出来 → 不判定（返回 null / 跳过该点对），不拿默认值编；
 // - 缺 leg（没验真/旧行程）→ 不判定也不顺延，由调用方提示「没有真实路段数据」；
 // - 缺出发日期 → 算不出活动落在哪一天，不拿「刚好同名」硬钉锚点。
 // ============================================================
-
-/** 分钟数 → "HH:MM"（补零；只接受 0-1439，越界由调用方先挡） */
-function fmtHourMin(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-/**
- * 解析 spot.time（"HH:MM-HH:MM"）→ 当天的分钟数区间。
- *
- * 与 trip-day.parseRange 同思路（同为 client-safe、同样容错 1-2 位小时），
- * 但这里对「非法」更严格——**跨零点/零长一律返回 null**：
- * 顺延要拿上一个点的 end 当下一段的起点，end <= start 时没有合法的同日
- * 区间可推（23:00-01:00 如果猜成「+24h 再取模」，等于替用户假设了跨天停留，
- * 而行程点是「当天某段停留」，跨零点本身就该由人确认）。
- *
- * @param time 形如 "09:00-11:30"；"9:30-11:00" 也接受
- * @returns { start, end }（均为当天分钟数）或 null（格式非法 / 越界 / 跨零点 / 零长）
- */
-export function parseTimeRange(time: string): { start: number; end: number } | null {
-  const m = String(time ?? "").match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const sh = Number(m[1]);
-  const sm = Number(m[2]);
-  const eh = Number(m[3]);
-  const em = Number(m[4]);
-  // 分/时越界必须单独挡：「25:00」乘出来是 1500 分钟，靠 end<1440 判断
-  // 碰巧能挡，但「24:00」算出来恰好 1440 会漏过去——它同样不是合法的时刻
-  if (sm > 59 || em > 59 || sh > 23 || eh > 23) return null;
-  const start = sh * 60 + sm;
-  const end = eh * 60 + em;
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  if (end <= start) return null; // 跨零点 / 零长
-  return { start, end };
-}
 
 /** 相邻点对的唯一键：from/to 名称匹配用。用 NUL 分隔，避免名字里出现 "→" 之类造成碰撞 */
 function pairKey(from: string, to: string): string {
@@ -141,68 +111,7 @@ export interface RetimeResult {
   notes: string[];
 }
 
-// ---------- 日期工具（client-safe：不能复用 server-only 的 validate.addDays/isRealDate） ----------
-
-/** 合法日历日期：格式对且能 round-trip（挡掉 2026-02-30 / 2026-13-01） */
-function isRealDate(s: string | undefined): s is string {
-  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00Z`);
-  // 先挡 NaN：月越界给 Invalid Date，直接 toISOString 会抛 RangeError
-  if (Number.isNaN(d.getTime())) return false;
-  return d.toISOString().slice(0, 10) === s;
-}
-
-/** "YYYY-MM-DD" 相差天数（to - from，UTC 算术避免时区漂移；非法返回 null） */
-function daysBetween(from: string, to: string): number | null {
-  const a = new Date(`${from}T00:00:00Z`).getTime();
-  const b = new Date(`${to}T00:00:00Z`).getTime();
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.round((b - a) / 86400000);
-}
-
-/** "HH:mm" → 当天分钟数；非法返回 null（活动时间格式不猜） */
-function parseClock(hhmm: string): number | null {
-  const m = String(hhmm ?? "").match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
-/**
- * 名称匹配（与 validate.ts 的 nameCovered 同口径）：
- * 用户写简称、行程落成场馆全称是正确执行，必须能被锚点识别出来。
- *
- * 为什么复制一份而不是 import：validate.ts 是 server-only，本模块要 client-safe。
- * **改阈值时两处必须一起改**（tests/lib/schedule.test.ts 与
- * tests/lib/validate.test.ts 都钉了同一组样本）。
- * 规则：双向包含，或最长公共子串 ≥3 字。
- */
-function longestCommonSubstring(a: string, b: string): number {
-  if (!a || !b) return 0;
-  let prev = new Array<number>(b.length + 1).fill(0);
-  let best = 0;
-  for (let i = 1; i <= a.length; i++) {
-    const cur = new Array<number>(b.length + 1).fill(0);
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        cur[j] = prev[j - 1] + 1;
-        if (cur[j] > best) best = cur[j];
-      }
-    }
-    prev = cur;
-  }
-  return best;
-}
-
-function namesMatch(a: string, b: string): boolean {
-  const x = String(a ?? "").trim();
-  const y = String(b ?? "").trim();
-  if (!x || !y) return false;
-  if (x.includes(y) || y.includes(x)) return true;
-  return longestCommonSubstring(x, y) >= 3;
-}
+// ---------- 日期/时刻工具已收敛到 lib/plan/time.ts（ADR-020 · R5） ----------
 
 /**
  * 收集「固定时间活动」锚点：spotIndex → 活动开始分钟数。
@@ -213,7 +122,8 @@ function namesMatch(a: string, b: string): boolean {
  *   钉到那个时间——那是替用户猜活动日期（活动日期是买定离手的硬信息）。
  *
  * 日期换算：第 N 天 = startDate + (N-1) 天，与 validate.finalizePlan 的活动
- * 日期校验、天气/ics 的日期口径完全一致。
+ * 日期校验、天气/ics 的日期口径完全一致（统一走 time.addDays/daysBetween）。
+ * 名称匹配走 name-match.ts（ADR-020 · R5 收敛点）。
  */
 function collectAnchors(plan: Plan, input: PlanInput, day: PlanDay): Map<number, number> {
   const anchors = new Map<number, number>();
@@ -225,7 +135,7 @@ function collectAnchors(plan: Plan, input: PlanInput, day: PlanDay): Map<number,
     if (diff === null || diff + 1 !== day.day) continue;
     const startMin = parseClock(ev.time);
     if (startMin === null) continue;
-    const idx = day.spots.findIndex((s) => namesMatch(ev.name, s.name));
+    const idx = day.spots.findIndex((s) => matchSpotName(s.name, ev.name));
     if (idx < 0) continue;
     // 同一天多个活动命中同一个 spot：时间互相矛盾，没有可行解——保留先出现的
     // 那个（用户输入顺序即优先级），不猜哪个才是对的

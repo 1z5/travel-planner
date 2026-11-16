@@ -22,7 +22,7 @@
 // 规则、同一个 now）。这样「修复后变好了」不是自证，而是同一把尺子量的。
 // ============================================================
 
-import { parseTimeRange } from "../plan/schedule";
+import { fmtHourMin, parseTimeRange } from "../plan/time";
 import { verifyDocument } from "./engine";
 import { RULES } from "./rules";
 import {
@@ -69,12 +69,8 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function fmtClock(min: number): string {
-  return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
-}
-
 function fmtRange(start: number, end: number): string {
-  return `${fmtClock(start)}-${fmtClock(end)}`;
+  return `${fmtHourMin(start)}-${fmtHourMin(end)}`;
 }
 
 /** 按 from/to 名称找路段（重复以第一条为准，与 engine/schedule 同口径） */

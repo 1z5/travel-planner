@@ -3,8 +3,9 @@ import { z } from "zod";
 import { readJsonBody } from "@/lib/server/http-body";
 import { crossSiteWriteError } from "@/lib/server/http-origin";
 import { getPlanForEdit, resolvePlan } from "@/lib/plan/plan-repo";
-import { matchSpotName, replanSolve } from "@/lib/plan/replan";
-import { parseTimeRange } from "@/lib/plan/schedule";
+import { replanSolve } from "@/lib/plan/replan";
+import { matchSpotName } from "@/lib/plan/name-match";
+import { addDays, isRealDate, parseClock, parseTimeRange } from "@/lib/plan/time";
 import { consume, hourKey, refund } from "@/lib/server/ratelimit";
 import { clientIpFromHeaders } from "@/lib/server/client-ip";
 import type { HoursPoiInput } from "@/lib/plan/poi-hours";
@@ -57,25 +58,6 @@ const BodySchema = z.object({
   // 当天分钟数（0-1439）：客户端按本地时钟算好后传入
   nowMin: z.number().int().min(0, "当前时间不合法").max(1439, "当前时间不合法"),
 });
-
-/** "YYYY-MM-DD" 加 n 天（UTC 算术避免时区漂移）；非法返回 null。
- *  与 lib/schedule.ts 的日期工具重复（那边 client-safe 且未导出） */
-function addDaysIso(iso: string | undefined, n: number): string | null {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
-  const t = new Date(`${iso}T00:00:00Z`).getTime();
-  if (Number.isNaN(t)) return null;
-  return new Date(t + n * 86400000).toISOString().slice(0, 10);
-}
-
-/** "HH:mm" → 当天分钟数；非法返回 null（活动时间格式不猜，同 schedule.ts 口径） */
-function parseClock(hhmm: string): number | null {
-  const m = String(hhmm ?? "").match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
 
 export async function POST(req: NextRequest) {
   // 0) 浏览器跨站写保护（无 Origin 的 curl/e2e 放行；replan 只读计算但仍会读行程）
@@ -163,7 +145,8 @@ export async function POST(req: NextRequest) {
   // 「给了日期+时间、落在今天、还没开始」的活动——已开始/已结束的活动
   // 不再是墙（你已经在现场，剩下的点应排在它之后而不是被挡死）。
   // 活动对应的点位已经走过/正在走时同理跳过。
-  const dayIso = addDaysIso(record.plan.startDate, day - 1);
+  // startDate 非法 → null（与旧 addDaysIso 同口径：算不出日期就不猜星期/营业时间）
+  const dayIso = isRealDate(record.plan.startDate) ? addDays(record.plan.startDate, day - 1) : null;
   let anchor: { time: string; name: string } | undefined;
   if (dayIso) {
     for (const ev of record.input?.events ?? []) {

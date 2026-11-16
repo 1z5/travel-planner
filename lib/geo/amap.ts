@@ -1,6 +1,7 @@
 import "server-only";
 import { sleep } from "../concurrency";
 import { isTemporarilyClosedName } from "../plan/poi-hours";
+import { haversineMeters as haversineCore, parseLngLat } from "./spatial";
 import type { PlanLeg, TransportMode } from "../types";
 
 // 高德 Web 服务：POI 验真 + 站点间通勤估算。
@@ -502,19 +503,14 @@ const DIRECTION_PATH: Record<"walking" | "bicycling" | "driving", string> = {
  */
 /**
  * 两点直线距离（米）。haversine，够用于「选哪种交通方式」这种粗决策。
+ *
+ * 公式本体在 lib/geo/spatial.ts（ADR-020 · R5 收敛点）；这里保留字符串入、
+ * 坏输入出 NaN 的契约——pickModeByDistance 依赖「非有限 → 驾车」的降级。
  */
 export function haversineMeters(a: string, b: string): number {
-  const [lng1, lat1] = a.split(",").map(Number);
-  const [lng2, lat2] = b.split(",").map(Number);
-  if (![lng1, lat1, lng2, lat2].every((n) => Number.isFinite(n))) return Number.NaN;
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+  const pa = parseLngLat(a);
+  const pb = parseLngLat(b);
+  return pa && pb ? haversineCore(pa, pb) : Number.NaN;
 }
 
 /**

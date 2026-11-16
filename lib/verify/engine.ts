@@ -20,7 +20,7 @@
 // ============================================================
 
 import { checkOpenHours, openWindowsOnDate } from "../plan/poi-hours";
-import { parseTimeRange } from "../plan/schedule";
+import { fmtClock, isRealDate, parseTimeRange } from "../plan/time";
 import { RULE_IDS, RULES, SEVERITY_WEIGHT } from "./rules";
 import {
   TRIP_CHECK_ENGINE_NAME,
@@ -75,19 +75,6 @@ function fmtMinutes(min: number): string {
   const m = Math.round(min % 60);
   if (h <= 0) return `${m} 分钟`;
   return m ? `${h} 小时 ${m} 分钟` : `${h} 小时`;
-}
-
-function fmtClock(min: number): string {
-  const m = ((Math.round(min) % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-}
-
-/** 合法日历日期（格式 + round-trip；与 validate.isRealDate 同口径，但不引 server 链路） */
-export function isRealDate(s: string | undefined): s is string {
-  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return false;
-  return d.toISOString().slice(0, 10) === s;
 }
 
 function findLeg(legs: DocLeg[] | undefined, from: string, to: string): DocLeg | undefined {

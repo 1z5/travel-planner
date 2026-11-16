@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { matchSpotName, replanSolve } from "@/lib/plan/replan";
-import { checkDaySchedule, parseTimeRange } from "@/lib/plan/schedule";
+import { replanSolve } from "@/lib/plan/replan";
+import { matchSpotName } from "@/lib/plan/name-match";
+import { parseTimeRange } from "@/lib/plan/time";
+import { checkDaySchedule } from "@/lib/plan/schedule";
 import type { PlanDay, PlanLeg, PlanSpot, SpotType } from "@/lib/types";
 
 // ============================================================

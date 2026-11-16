@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { client, extractJson, LlmError, streamChatRetry } from "./planner";
-import { parseTimeRange } from "./schedule";
+import { parseTimeRange } from "./time";
 import { parseTripCheckDocument } from "../verify/validate";
 import {
   TRIP_CHECK_LIMITS,

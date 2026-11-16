@@ -16,6 +16,7 @@
 // 3. **不猜通勤**：没有真实路段数据就不给出发建议（给「数据缺失」的说明）。
 
 import type { PlanLeg, PlanSpot } from "../types";
+import { fmtClock } from "../plan/time";
 
 // gitleaks:allow —— 这是 localStorage 键名（tp.execution.v1），不是密钥；
 // gitleaks 的 generic-api-key 规则会按「= 长字符串 + 熵」误报，行内白名单精确放行。
@@ -145,11 +146,6 @@ export interface DepartureAdvice {
   /** 缓冲（分钟） */
   bufferMin: number;
   mode: PlanLeg["mode"];
-}
-
-function fmtClock(minutes: number): string {
-  const m = ((minutes % 1440) + 1440) % 1440;
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
 /**

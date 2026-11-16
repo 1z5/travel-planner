@@ -1,13 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  addDays,
-  areaRegion,
-  isRealDate,
-  nameCovered,
-  refreshTimeWarnings,
-  validateDay,
-} from "@/lib/plan/validate";
+import { areaRegion, refreshTimeWarnings, validateDay } from "@/lib/plan/validate";
 import { isHoursWarning, isScheduleWarning } from "@/lib/plan/schedule";
+import { addDays, isRealDate } from "@/lib/plan/time";
+import { nameCovered } from "@/lib/plan/name-match";
 import type { Plan, PlanDay, PlanInput, PlanLeg, PlanSpot } from "@/lib/types";
 
 // 时间轴/营业时间体检要测 validateDay 的真实装配逻辑（legs → 冲突 → 文案），

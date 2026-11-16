@@ -28,8 +28,6 @@ import {
 import type { Plan, PlanDay, PlanLeg, PlanSpot, TransportMode } from "@/lib/types";
 import type { FactsVerdict, TripCheckReport, VerifyIssue } from "@/lib/verify/types";
 import {
-  distMeters,
-  fmtDist,
   localTodayIso,
   nowMinutes,
   spotNow,
@@ -38,7 +36,8 @@ import {
   type TripToday,
 } from "@/lib/trip/trip-day";
 import { formatHoursShort } from "@/lib/plan/poi-hours";
-import { parseTimeRange } from "@/lib/plan/schedule";
+import { parseTimeRange, fmtHourMin } from "@/lib/plan/time";
+import { distMeters, fmtDist } from "@/lib/geo/spatial";
 import { useArrivedSpots } from "./TodayExecutionCard";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
 // 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
@@ -97,13 +96,6 @@ function fmtDate(iso: string | undefined): string {
   const d = Number(parts[2]);
   if (!Number.isFinite(m) || !Number.isFinite(d)) return "";
   return `${m}月${d}日`;
-}
-
-/** 分钟数 → "HH:MM"（重排结果面板里标注「按几点算的」用） */
-function fmtClock(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 /**
@@ -1215,7 +1207,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
             {replan.status === "done" && (
               <div className="replan-result">
                 <p className="today-helper">
-                  按 {fmtClock(clock.minutes)} 的现在算的；过一会儿情况变了可以再算一遍。
+                  按 {fmtHourMin(clock.minutes)} 的现在算的；过一会儿情况变了可以再算一遍。
                 </p>
 
                 <h3 className="replan-sub replan-sub-ok">

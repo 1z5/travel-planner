@@ -36,8 +36,6 @@ import {
   nowMinutes,
   spotNow,
   tripToday,
-  distMeters,
-  fmtDist,
   type SpotNow,
   type TripToday,
 } from "@/lib/trip/trip-day";
@@ -53,6 +51,7 @@ import { ExecutabilityBadge } from "./ExecutabilityBadge";
 import { summarizeBudget } from "@/lib/plan/budget";
 import { suggestFix } from "@/lib/plan/fix-actions";
 import { isScheduleWarning, isHoursWarning } from "@/lib/plan/schedule";
+import { distMeters, fmtDist } from "@/lib/geo/spatial";
 import { changeImpact, type ChangeImpact } from "@/lib/plan/change-impact";
 import { SpotCandidates } from "./SpotCandidates";
 import { BackToTop } from "./BackToTop";

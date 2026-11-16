@@ -4,9 +4,9 @@ import {
   checkDaySchedule,
   isHoursWarning,
   isScheduleWarning,
-  parseTimeRange,
   retimeDay,
 } from "@/lib/plan/schedule";
+import { parseTimeRange } from "@/lib/plan/time";
 import type { Plan, PlanDay, PlanInput, PlanLeg, PlanSpot } from "@/lib/types";
 
 // ============================================================

@@ -1,7 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { baseLines, client, extractJson, LlmError, SpotSchema, streamChatRetry } from "./planner";
-import { nameCovered, validatePlan } from "./validate";
+import { nameCovered } from "./name-match";
+import { validatePlan } from "./validate";
 import type { Plan, PlanDay, PlanInput, PlanSpot } from "../types";
 
 // ============================================================

@@ -1,5 +1,6 @@
 import { checkOpenHours, type HoursPoiInput } from "./poi-hours";
-import { parseTimeRange } from "./schedule";
+import { fmtHourMin, parseClock, parseTimeRange } from "./time";
+import { matchSpotName } from "./name-match";
 import type { PlanLeg, PlanSpot } from "../types";
 
 // ============================================================
@@ -88,63 +89,11 @@ export interface ReplanResult {
   message?: string;
 }
 
-// ---------- 小工具（与 schedule.ts 重复的部分见各函数注释） ----------
-
-/** 分钟数 → "HH:MM"；1440 渲染为 "24:00"（锚点跨零点的极端情况用） */
-function fmtHourMin(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
+// ---------- 小工具（时间/日期算术与名称匹配已收敛到 time.ts / name-match.ts，ADR-020 · R5） ----------
 
 /** 相邻点对的唯一键：名称匹配用。NUL 分隔避免名字里出现 "→" 造成碰撞（同 schedule.ts） */
 function pairKey(from: string, to: string): string {
   return `${from}\u0000${to}`;
-}
-
-/** "HH:mm" → 当天分钟数；非法返回 null（锚点时间不猜） */
-function parseClock(hhmm: string): number | null {
-  const m = String(hhmm ?? "").match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
-/**
- * 名称匹配（与 lib/schedule.ts 的 namesMatch 同口径，此处复制一份）：
- * 用户写简称、行程落成全称是正确执行，必须能被锚点识别（「川剧变脸」↔
- * 「蜀风雅韵川剧变脸演出(琴台路店)」）。规则：双向包含，或最长公共子串 ≥3 字。
- *
- * 为什么复制而不是 import：schedule.ts 没导出它，而它 import 的类型链
- * 与本模块一致；改阈值时两处必须一起改（本文件与 schedule 各自的测试
- * 都钉了同组样本）。
- */
-function longestCommonSubstring(a: string, b: string): number {
-  if (!a || !b) return 0;
-  let prev = new Array<number>(b.length + 1).fill(0);
-  let best = 0;
-  for (let i = 1; i <= a.length; i++) {
-    const cur = new Array<number>(b.length + 1).fill(0);
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        cur[j] = prev[j - 1] + 1;
-        if (cur[j] > best) best = cur[j];
-      }
-    }
-    prev = cur;
-  }
-  return best;
-}
-
-/** 行程点名称与锚点名称是否指同一个地点（导出供路由判断锚点是否已走过） */
-export function matchSpotName(spotName: string, anchorName: string): boolean {
-  const x = String(spotName ?? "").trim();
-  const y = String(anchorName ?? "").trim();
-  if (!x || !y) return false;
-  if (x.includes(y) || y.includes(x)) return true;
-  return longestCommonSubstring(x, y) >= 3;
 }
 
 /** 停留分钟数的权威值：非法按 0 处理（不拿原始 time 区间长度反推——那会把数据错误藏起来，同 retimeDay 口径） */

@@ -15,9 +15,10 @@ import {
   checkDaySchedule,
   isHoursWarning,
   isScheduleWarning,
-  parseTimeRange,
   type ScheduleConflict,
 } from "./schedule";
+import { addDays, isRealDate, parseTimeRange } from "./time";
+import { nameCovered } from "./name-match";
 import { dayCityOf } from "./planner";
 import type { Plan, PlanDay, PlanInput, PlanLeg, SpotPoiMeta, TransportMode } from "../types";
 
@@ -272,51 +273,6 @@ export function refreshTimeWarnings(plan: Plan, _input: PlanInput): string[] {
   return [...kept.slice(0, insertAt), ...fresh, ...kept.slice(insertAt)];
 }
 
-/**
- * 两个字符串的最长公共子串长度（字符级，动态规划）。
- * 地名/活动名都在 30 字内，短串足够快，不需要后缀自动机那类复杂结构。
- */
-function longestCommonSubstring(a: string, b: string): number {
-  if (!a || !b) return 0;
-  let prev = new Array<number>(b.length + 1).fill(0);
-  let best = 0;
-  for (let i = 1; i <= a.length; i++) {
-    const cur = new Array<number>(b.length + 1).fill(0);
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        cur[j] = prev[j - 1] + 1;
-        if (cur[j] > best) best = cur[j];
-      }
-    }
-    prev = cur;
-  }
-  return best;
-}
-
-/**
- * 名称匹配：用户写的名字是否已被行程覆盖。
- *
- * 为什么不能只用全字符串 includes：用户写「成都川剧变脸演出」，模型会**正确**
- * 落成具体场馆「蜀风雅韵川剧变脸演出(琴台路店)」——全串匹配不上就把正确执行
- * 误报成「未出现在行程中」，预警系统说谎（与住所字段当年踩的是同一个坑，
- * 见 CHANGELOG「住所/必游地 + 误报修复」）。必游地同样：「成都大熊猫基地」
- * vs 模型落成的「成都大熊猫繁育研究基地」。
- *
- * 匹配规则（任一命中即算覆盖）：
- * 1. 双向完整包含——用户给了确切名称，或模型用了更短的规范名
- * 2. 最长公共子串 ≥3 字——用户写简称/别称，模型补全了场馆或全称
- *    （3 字是校准值：「武侯祠」这类三字地名要能命中，而「测试必游地X」与
- *     fixture 各 POI 的公共子串仅 1 字，不会把漏排误放过）
- */
-export function nameCovered(name: string, candidates: readonly string[]): boolean {
-  const n = name.trim();
-  if (!n) return false;
-  return candidates.some((c) => {
-    if (c.includes(n) || n.includes(c)) return true;
-    return longestCommonSubstring(n, c) >= 3;
-  });
-}
-
 /** 单日体检结果 */
 export interface DayCheck {
   warnings: string[]; // 当天的预警（POI 未命中 / 通勤 / 节奏）
@@ -562,32 +518,6 @@ export interface FinalizeCtx {
   missCount: number;
   /** 全天参与验真的 POI 总数（sight + food） */
   poiTotal: number;
-}
-
-/**
- * 合法日历日期判断：格式对 **且** 能 round-trip。
- *
- * 只查格式不够——API 的 DT_RE 是纯格式正则，"2026-02-30T09:00" 能过 schema，
- * 而 `new Date("2026-02-30")` 会静默规范成 3 月 2 日。拿这种值去做日期运算
- * （toISOString）会抛 RangeError，而 finalizePlan 没有 try/catch 兜底。
- * round-trip 对不上就判定非法，调用方据此跳过而不是崩。
- */
-export function isRealDate(s: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00Z`);
-  // 必须先挡 NaN：月越界（"2026-13-01"）时 V8 给的是 Invalid Date，
-  // 直接 toISOString() 会抛 RangeError——guard 自己就成了崩溃源。
-  // 日越界（"2026-02-30"）则会被静默滚动成 3 月 2 日，靠下面的
-  // round-trip 对不上来判伪。
-  if (Number.isNaN(d.getTime())) return false;
-  return d.toISOString().slice(0, 10) === s;
-}
-
-/** "YYYY-MM-DD" + n 天 → "YYYY-MM-DD"（UTC 算术避免时区漂移；与 weather/ics 同口径） */
-export function addDays(dateStr: string, n: number): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
 }
 
 /**

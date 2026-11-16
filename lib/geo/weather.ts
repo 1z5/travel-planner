@@ -1,5 +1,6 @@
 import "server-only";
 import { AMAP_MOCK, amapGetRetry } from "./amap";
+import { addDays } from "../plan/time";
 import type { Plan } from "../types";
 
 // ============================================================
@@ -127,11 +128,4 @@ export async function buildWeatherAdvice(
   }
 
   return { warnings, coveredDays };
-}
-
-/** "YYYY-MM-DD" + n 天 → "YYYY-MM-DD"（用 UTC 算术避免时区漂移） */
-function addDays(dateStr: string, n: number): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
 }
