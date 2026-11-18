@@ -45,10 +45,10 @@ describe("PlanCopilot", () => {
     render(<PlanCopilot shareId="share_test123" onSuggestion={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "行程管家" })).toBeInTheDocument();
-    expect(screen.getByText("基于这份行程回答（step-5）")).toBeInTheDocument();
+    expect(screen.getByText("问这份行程的安排、时间或路线")).toBeInTheDocument();
     expect(document.querySelectorAll(".copilot-chip")).toHaveLength(6);
     expect(screen.getByRole("button", { name: "第二天来得及吗" })).toBeInTheDocument();
-    expect(screen.getByText(/回答只基于这份行程与高德真实数据/)).toBeInTheDocument();
+    expect(screen.getByText(/修改建议由你确认后执行/)).toBeInTheDocument();
 
     expect(screen.getByRole("log")).toHaveAttribute("aria-live", "polite");
     expect(screen.getByLabelText("向行程管家提问")).toBeInTheDocument();

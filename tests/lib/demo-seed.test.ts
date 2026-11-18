@@ -3,7 +3,7 @@ import { DEMO_FIXTURES } from "@/demo/fixtures";
 import { demoWriteBlockedMessage, seedDemoPlans } from "@/lib/demo/demo-seed";
 import { getStore } from "@/lib/store";
 
-// 安全审计 R4：演示 token 写在 DEMO.md 里是公开的，而「分享 token 即写能力」——
+// 安全审计 R4：演示 token 写在 部署指南 里是公开的，而「分享 token 即写能力」——
 // 不打标记的话，任何人可 refine/restore/repair 演示行程。这里钉两条契约：
 // 1) 种子落库必须带 plan.demo=true（重启后已存在的记录跳过注入，标记不能靠内存）；
 // 2) 写端点统一用 demoWriteBlockedMessage 判断，文案可行动（提示去克隆）。

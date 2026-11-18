@@ -16,7 +16,7 @@ import type { Plan, PlanInput } from "@/lib/types";
 //
 // 只在 DEMO_SEED=1 时由 instrumentation.ts 调用。生产/测试都不设它 → 无行为。
 //
-// 安全审计 R4：演示 token 是公开的（写在 DEMO.md 里），而「分享 token 即写能力」
+// 安全审计 R4：演示 token 是公开的（写在 部署指南 里），而「分享 token 即写能力」
 // 意味着任何人都能改演示行程——可以把演示工件篡改成任意内容、甚至伪造修复链。
 // 所以种子落库时给 plan 打 `demo: true` 标记，写端点（refine/restore/repair/
 // adjust/候选替换）一律 403 只读；**克隆不受影响**（克隆产出的是新 Plan）。

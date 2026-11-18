@@ -50,7 +50,7 @@ S1/S1.5/S1.6 把核验层做成了「判定 + 修复 + 产品内闭环」，但�
 
 ## 参考
 
-- 模型：[lib/trip-check-report.ts](../../lib/trip-check-report.ts)
-- 建议计算：[lib/verify/engine.ts](../../lib/verify/engine.ts)（`hoursSuggestion`）、[lib/poi-hours.ts](../../lib/poi-hours.ts)（`openWindowsOnDate`）
+- 模型：[lib/trip-check-report.ts](../../lib/trip/trip-check-report.ts)
+- 建议计算：[lib/verify/engine.ts](../../lib/verify/engine.ts)（`hoursSuggestion`）、[lib/poi-hours.ts](../../lib/plan/poi-hours.ts)（`openWindowsOnDate`）
 - 页面/海报：`app/(app)/p/[id]/check/page.tsx`、`app/p/[id]/check/poster/route.tsx`
-- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](../archive/strategy/PRODUCT-REVOLUTION-2026-10.md) §3.3
+- 产品决策：[docs/PRODUCT-REVOLUTION-2026-10.md](https://github.com/1z5/AI-Travel-Companion/blob/a25f81d1b9cd75b58157f3eb2ef446a1c88617d6/docs/archive/strategy/PRODUCT-REVOLUTION-2026-10.md) §3.3

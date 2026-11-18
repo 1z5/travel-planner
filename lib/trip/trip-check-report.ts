@@ -151,7 +151,7 @@ export function buildCheckPosterModel(
     ),
     credentialId,
     engineLine: `Trip Check ${report.specVersion} · 引擎 ${report.engine.version} · 规则集 ${report.engine.rulesetVersion}`,
-    brandLine: "行程规划师 · 每一份行程，都经得起核验",
+    brandLine: "AI Travel Companion · 行程体检",
     sourceLine: "判定基于行程文档声明的事实来源；可复算，不是数字签名",
     checkedAt: report.checkedAt,
   };

@@ -186,7 +186,7 @@ export function jobLinkFallbackEnabled(
  * JOB_LINK_FALLBACK。fixture 是随构建产物一起走的静态工件，让它自己可读，
  * 示例链接才真的不会失效。
  *
- * 为什么必须带 demo: true：这些 token 是公开的（DEMO.md 直接给出），写端点靠
+ * 为什么必须带 demo: true：这些 token 是公开的（部署指南 直接给出），写端点靠
  * demoWriteBlockedMessage 判定只读。兜底路径也得给同一标记，否则等于绕过
  * 安全边界（本项目「分享 token 即写能力」）。
  *

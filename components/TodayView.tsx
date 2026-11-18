@@ -474,7 +474,9 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   async function checkWeather(): Promise<void> {
     setWeather({ status: "loading" });
     try {
-      const r = await fetch(`/api/weather?city=${encodeURIComponent(city)}`);
+      // 跨城行程按「今天所在城市」查天气；plan.city 只是首站，不能拿来代表第 2 天以后。
+      const weatherCity = currentDay?.city ?? city;
+      const r = await fetch(`/api/weather?city=${encodeURIComponent(weatherCity)}`);
       const d = await r.json().catch(() => ({}));
       if (d?.state !== "ok" || !Array.isArray(d.days)) {
         setWeather({

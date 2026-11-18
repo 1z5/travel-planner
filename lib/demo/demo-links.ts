@@ -5,7 +5,7 @@
 // 客户端组件直接引用会把整份行程打进首屏 bundle。
 //
 // 为什么是常量而不是运行时查表：这两个 token 对应仓库里真实生成、真实验真的
-// 成品，本来就打算公开（DEMO.md 也直接给出）。单测 tests/lib/demo-links.test.ts
+// 成品，本来就打算公开（部署指南 也直接给出）。单测 tests/lib/demo-links.test.ts
 // 会钉住它们与 DEMO_FIXTURES 一致——重跑 demo:gen 生成新 token 后若忘了同步，
 // 测试会立刻红，而不是让「看示例」按钮点了 404。
 

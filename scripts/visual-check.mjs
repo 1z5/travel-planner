@@ -127,7 +127,7 @@ const PAGE_CHECK_FN = String.raw`
     'a.poi-chip',
     'a.btn-link',
     '.site-nav a',
-    '.footer-col a',
+    '.site-footer-links a',
     '.page-back',
     '.poster-report-link',
     '.specimen-cta',
@@ -200,8 +200,9 @@ const PAGE_CHECK_FN = String.raw`
   const CONTRAST_SELECTORS = [
     '.type-badge', '.poi-chip', '.poi-chip-rating', '.packing-source', '.packing-label',
     '.packing-reason', '.spot-name', '.spot-meta', '.spot-time', '.site-nav a',
-    '.footer-col a', '.trust-meta', '.stat-label', '.poster-sub', '.pp-meta', '.pp-note',
-    '.pp-dayno', '.specimen-cta', '.kpi-label', '.helper', '.muted', '.fault-desc',
+    '.site-footer-links a', '.poster-sub', '.site-header .btn-primary', '.about-actions .btn-primary',
+    '.about-lede', '.about-sections p', '.legal-inner p',
+    '.specimen-cta', '.kpi-label', '.helper', '.muted', '.fault-desc',
     '.day-theme', '.warn-text', '.warn-tag', '.day-foot', '.recent-summary',
     '.firstscreen-title', '.firstscreen-lede', '.fs-card-tag', '.fs-card-note',
     '.fs-card-body', '.fs-warn-list li', '.firstscreen-points span', '.more-options-hint',
@@ -420,11 +421,10 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
     await cdp.send("Log.enable");
-    if (darkTheme) {
-      await cdp.send("Emulation.setEmulatedMedia", {
-        features: [{ name: "prefers-color-scheme", value: "dark" }],
-      });
-    }
+    // 明确设置两种模式，避免两次检查都跑成宿主机的深色主题。
+    await cdp.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value: darkTheme ? "dark" : "light" }],
+    });
 
     const PAGES = [
       {
@@ -441,6 +441,33 @@ async function main() {
         ],
       },
       {
+        // 已有行程首页：验证「进行中优先 / 想去 / 最近行程」在真实数据下的布局。
+        // 空态和列表态是两条完全不同的渲染分支，只截空态会漏掉列表回归。
+        name: "trips-populated",
+        path: "/",
+        required: [
+          ".companion-trip-list",
+          ".companion-trip[data-active]",
+          '.companion-home-section[aria-label="想去"]',
+        ],
+        storageSetup: `(() => {
+          const pad = (n) => String(n).padStart(2, "0");
+          const ymd = (offset) => {
+            const d = new Date();
+            d.setDate(d.getDate() + offset);
+            return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+          };
+          localStorage.setItem("tp.recent-trips.v1", JSON.stringify([
+            { shareId: "share_visual_active", city: "上海", days: 3, startDate: ymd(0), summary: "外滩与梧桐区，三天慢走。", createdAt: Date.now() },
+            { shareId: "share_visual_next", city: "成都", days: 4, startDate: ymd(30), createdAt: Date.now() - 1000 }
+          ]));
+          localStorage.setItem("tp.wishlist.v1", JSON.stringify([
+            { shareId: "share_visual_wish", city: "大理", days: 4, startDate: ymd(60), summary: "环洱海与古城", addedAt: Date.now() }
+          ]));
+          return true;
+        })()`,
+      },
+      {
         // 新建页：核心三字段 + 首屏内可见的主 CTA
         name: "new",
         path: "/new",
@@ -454,7 +481,7 @@ async function main() {
       {
         name: "about",
         path: "/about",
-        required: [".about-hero", ".trust-grid", ".site-footer"],
+        required: [".about-hero", "#how", "#trust", ".site-footer"],
       },
       { name: "privacy", path: "/privacy", required: [".legal-page", ".site-footer"] },
       // Trip Check 公开体验台（开放核验标准的产品面）：贴文档→两轴报告→凭据
@@ -463,8 +490,6 @@ async function main() {
         path: "/verify",
         required: [".tc-page", ".tc-hero", ".tc-playground", ".tc-panel"],
       },
-      // 定价/意愿页（S3 商业化试点）
-      { name: "pricing", path: "/pricing", required: [".pricing-page", ".pricing-grid"] },
       // B2 城市模板（SEO 获取层）：列表页 + 详情页都要参与移动端回归
       { name: "cities", path: "/cities", required: [".cities-page", ".cities-grid"] },
       {
@@ -525,6 +550,19 @@ async function main() {
       for (const page of PAGES) {
         log(`\n== ${page.name} @ ${vp.width}×${vp.height} ==`);
         cdp.errors.length = 0;
+        // 某些页面需要真实 localStorage 数据才能进入列表态：先在同一 origin
+        // 完成一次导航，再写 storage，最后导航到目标页。
+        if (page.storageSetup) {
+          await cdp.send("Page.navigate", { url: `${baseUrl}/` });
+          await sleep(800);
+          const seeded = await cdp.send("Runtime.evaluate", {
+            expression: page.storageSetup,
+            returnByValue: true,
+          });
+          if (seeded.exceptionDetails) {
+            fail(`${page.name}/${vp.name} 写入 localStorage 失败`);
+          }
+        }
         await cdp.send("Page.navigate", { url: `${baseUrl}${page.path}` });
         await sleep(3000); // 等 hydration + 懒加载地图请求
 
@@ -596,6 +634,11 @@ async function main() {
         fs.writeFileSync(file, Buffer.from(shot.data, "base64"));
         pageResult.screenshot = path.relative(ROOT, file);
         report.pages.push(pageResult);
+
+        // 清理播种数据，避免污染后面的分享页/工作台检查。
+        if (page.storageSetup) {
+          await cdp.send("Runtime.evaluate", { expression: "localStorage.clear()" });
+        }
       }
     }
 

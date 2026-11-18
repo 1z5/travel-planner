@@ -94,11 +94,6 @@ body::after {
   background: var(--at-accent-soft);
 }
 
-.companion-shell .app-foot {
-  background: none;
-  border-top: 1px solid var(--at-line);
-}
-
 .companion-home .trips-home-inner {
   padding-block: clamp(24px, 5vw, 56px) 56px;
 }
@@ -200,13 +195,13 @@ body::after {
   min-height: 44px;
 }
 
-.companion-shell .btn-primary:not(:disabled) {
+:is(.companion-shell, .site-header, .about-actions) .btn-primary:not(:disabled) {
   background: var(--at-primary-from);
   color: var(--at-on-primary);
   box-shadow: none;
 }
 
-.companion-shell .btn-primary:hover:not(:disabled) {
+:is(.companion-shell, .site-header, .about-actions) .btn-primary:hover:not(:disabled) {
   background: var(--at-accent-hover);
 }
 
@@ -719,6 +714,7 @@ body::after {
   background: var(--at-accent-soft);
 }
 
+.companion-page-heading .btn,
 .companion-share-actions .btn,
 .companion-today-actions .btn,
 .companion-trip-actions .btn {

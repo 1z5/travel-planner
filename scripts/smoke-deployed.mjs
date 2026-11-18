@@ -105,7 +105,7 @@ try {
     fail(`请求体上限未生效: HTTP ${bigRes.status}`);
   }
 
-  // 演示行程写保护（DEMO.md 公开 token + confirm:true；被拦截时不会改数据）
+  // 演示行程写保护（部署指南 公开 token + confirm:true；被拦截时不会改数据）
   const demoRes = await fetch(`${BASE}/api/plan/repair`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -126,7 +126,7 @@ try {
 try {
   const r = await get("/");
   const html = await r.text();
-  if (r.status === 200 && html.includes("行程规划师")) {
+  if (r.status === 200 && html.includes("AI Travel Companion")) {
     ok("首页可访问且渲染正常");
   } else {
     fail(`首页异常: HTTP ${r.status}`);

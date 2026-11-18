@@ -1,22 +1,4 @@
-# Render Blueprint：个人日常使用的主站部署（Web Service 免费 plan + 外部 Postgres）
-#
-# 为什么用 Node runtime 而不是 Docker：本机没有 docker daemon，Dockerfile 在提交前
-# 无法验证；这里的 build/start 命令与 DEPLOY.md「裸机 standalone」路径完全一致，
-# 同一组命令本地已经实测跑通过（build → 拷 static/public → node standalone/server.js）。
-#
-# 为什么数据库用外部连接串而不是 Blueprint 的 databases 块：
-# Render 免费 Postgres **创建 30 天后过期**，再有 14 天宽限期就连数据一起删除，
-# 且无备份。这是「自己用」最不能接受的一种丢数据。改用不设过期的免费 Postgres
-# （Neon / Supabase 免费层均可），把连接串填进 DATABASE_URL 即可；代码里的
-# store/postgres.ts + prisma/schema.prisma 早就支持，不需要改应用逻辑。
-# 若你愿意付费，也可以把下面两个变量换成 Blueprint databases + fromDatabase。
-#
-# 使用：Render Dashboard → New + → Blueprint → 选 GitHub 仓库 1z5/AI-Travel-Companion
-# → 按提示填 5 个 secret（DATABASE_URL / LLM_API_KEY / LLM_BASE_URL /
-# AMAP_WEB_SERVICE_KEY / SESSION_SECRET）→ Deploy。详见 DEMO.md。
-#
-# 只想看展示、不需要持久化：把 DATA_STORE 改成 memory 并删掉 preDeployCommand，
-# 其余不动（重启丢行程，静态 fixture 仍可读）。
+# 主站部署。外部数据库、运行配置和免费实例迁移见 docs/DEPLOY.md。
 services:
   - type: web
     name: travel-planner-demo

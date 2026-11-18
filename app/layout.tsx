@@ -21,22 +21,21 @@ import { PwaBootstrap } from "@/components/PwaBootstrap";
 // 3) localhost（本地开发兜底）
 // openGraph/twitter 的标题与描述在这里统一给默认值，子路由（分享页/报告页）各自覆盖。
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.RENDER_EXTERNAL_URL;
+const description = "规划旅程、查看今日安排，并检查地点、营业时间与通勤。";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl ?? "http://localhost:3000"),
   title: "AI Travel Companion — 规划和查看你的行程",
-  description:
-    "输入目的地、起止时间、预算和偏好，生成结构化国内城市行程：POI 与营业时间来自高德实时核验，通勤按真实路况计算，体检问题全部摊开。",
+  description,
   openGraph: {
     type: "website",
     siteName: "AI Travel Companion",
     title: "AI Travel Companion — 规划和查看你的行程",
-    description:
-      "先取真实世界的事实（POI / 营业时间 / 闭馆日 / 通勤），再让模型排行程。体检问题全部摊开。",
+    description,
   },
   twitter: {
     card: "summary_large_image",
     title: "AI Travel Companion — 规划和查看你的行程",
-    description: "先核验真实世界，再排行程。",
+    description,
   },
 };
 

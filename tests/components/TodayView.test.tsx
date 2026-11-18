@@ -552,6 +552,23 @@ describe("TodayView 天气与一键改室内", () => {
     expect(await screen.findByText(/室外景点可放心安排/)).toBeInTheDocument();
     expect(screen.queryByText("把今天改成室内路线")).not.toBeInTheDocument();
   });
+
+  it("跨城行程按当天所在城市查天气，而不是首站城市", async () => {
+    mockClock.today = "2026-10-19"; // 行程第 2 天
+    const crossCity = basePlan();
+    crossCity.city = "成都"; // 首站
+    crossCity.days[1] = { ...crossCity.days[1], city: "都江堰" };
+    const fetchMock = weatherThen(async () => weatherOk("晴", "晴"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TodayView plan={crossCity} shareId="share_test123" />);
+    await userEvent.click(await screen.findByText("查看今天天气"));
+
+    const weatherCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).startsWith("/api/weather"),
+    );
+    expect(weatherCall?.[0]).toBe(`/api/weather?city=${encodeURIComponent("都江堰")}`);
+  });
 });
 
 describe("TodayView 今天体检（行中只读）", () => {

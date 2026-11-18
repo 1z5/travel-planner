@@ -14,10 +14,7 @@ Base URL：`/api`（与前端同源）
 
 异步模式：立即返回 `jobId`（202），生成在服务端后台进行，前端轮询 status 接口拿结果。
 
-**生成耗时随天数分流**（这是 M6 引入的分日流式架构）：
-
-- **1-4 天**：单次调用，约 3-5 分钟
-- **5-7 天**：大纲 + 逐日生成，约 7 分钟（多天并发生成，实测比串行快约一半）。但**不必干等**——大纲秒级返回即写入骨架，之后每完成一批天就增量更新，前端轮询到部分 plan 即可开始渲染（渐进式交付）
+1–4 天走单次生成；5 天起先出大纲，再按天生成和发布进度。耗时随模型与行程长度变化。
 
 ### 请求体
 
@@ -69,7 +66,7 @@ Base URL：`/api`（与前端同源）
 
 建议轮询间隔 3 秒。**任务是执行记录**（结果只保留 2 小时，用于轮询拿到结果）；**行程本身是持久化资产**，done 时返回的 `shareId` 指向持久保存的分享 token，不受此 TTL 影响（生产 Postgres 模式行程不设过期；内存模式保留 30 天）。
 
-任务心跳与自愈：服务端每次进度更新都会刷新 `updatedAt`；running 任务超过 `JOB_STALE_MS`（默认 20 分钟）没有心跳时（典型：进程被重启/杀掉），本接口会把它置为 error 并立刻返回，前端不必白轮询到 15 分钟。
+任务心跳与自愈：服务端每次进度更新都会刷新 `updatedAt`；running 任务超过 `JOB_STALE_MS`（默认 12 分钟）没有心跳时（典型：进程被重启/杀掉），本接口会把它置为 error 并立刻返回，前端不必白轮询到 15 分钟。
 
 ### 响应
 
@@ -133,7 +130,7 @@ Base URL：`/api`（与前端同源）
 
 ## POST /api/plan/refine — 改行程（换一个景点 / 一句话改一天）
 
-对**已持久化**的行程做局部修改，不用整份重新生成、不占每日生成配额。同步接口（单次 LLM 小调用，通常 20-90 秒）。
+对**已持久化**的行程做局部修改，不用整份重新生成、不占每日生成配额。同步调用配置的模型。
 
 ### 请求体
 
@@ -291,20 +288,15 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 }
 ```
 
-**`northStar.rate` 是北极星「照着走完的比例」（弱信号口径）**：行中打开过、且没有任何 `day_modified` 的行程占比。分母只算「行中打开过」的行程——没打开过就不知道有没有照着走，把它算进分母是编数据；没有样本时 `rate` 为 `null`（不编 0% 也不编 100%）。
-
-**`upgradeIntents` 是付费意愿分布**：定价页「我想要这个」按钮上报
-`upgrade_intent`（`meta.tier` = 候选付费点），看板按 tier 聚合成
-`[{tier, count}]`。没有意愿数据时是空数组——**不编「0 人愿意付费」**（没人点过
-不等于没人愿意）。事件里只有 tier 计数，没有身份信息。
-
-**`northStar.followedRate` 是强信号口径**：行中打开过、没被改过、且用户点过「我已到达」（`today_arrived`）的占比——它证明用户真的照着走了，而不只是没改。依赖用户愿意点打卡，**没有任何 `today_arrived` 事件时 `followedRate` 为 `null`**（不硬算 0 冒充「都没照着走」）。两个口径分开报，弱信号用于与历史对比，强信号用于判断真实执行。
+- `northStar.rate` 是打开过行中页且未记录 `day_modified` 的行程比例。没有行中样本时返回 `null`。
+- `northStar.followedRate` 在前者基础上要求存在 `today_arrived`。它反映上报行为，无法据此判断全部站点是否走完。没有到达事件时返回 `null`。
+- `upgradeIntents` 保留历史 API 字段，按旧 `upgrade_intent` 事件的 `tier` 汇总。当前页面没有采集入口。
 
 | HTTP | 场景                                   |
 | ---- | -------------------------------------- |
 | 404  | 未配置 `METRICS_TOKEN` 或 token 不匹配 |
 
-## POST /api/plan/clone — 一键克隆（分享页病毒飞轮）
+## POST /api/plan/clone — 用自己的日期重排行程
 
 看到别人的行程 → 一键带出「按我的日期重排」的版本。与「复制 JSON 改日期」的假克隆的区别：**走完整生成管线**——事实层（高德检索）对新档期重新核验闭馆日与通勤，模型在新事实上重排。扣一次生成配额（克隆 = 一次生成）。
 
@@ -541,9 +533,9 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 
 - `/t/<shareId>` → 200；`/t/<无效 token>` → 200 + 友好失效页（非 500）
 
-## POST /api/plan/chat — 行程管家（step-5 对话助手）
+## POST /api/plan/chat — 行程管家
 
-就着**某一份已持久化行程**回答用户问题，并在确实需要修改时给一个可执行建议（用户点了才执行）。同步接口：一次 step-5 调用，通常 10-40 秒（首次含推理）。
+就着**某一份已持久化行程**回答用户问题，并在需要修改时给出由用户确认执行的建议。接口同步调用部署方配置的模型，响应时间随服务和请求而变。
 
 ### 请求体
 
@@ -625,7 +617,7 @@ curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
 
 ## Trip Check 公开体检 / 修复 API（`/api/verify` + `/api/verify/repair` + `/api/verify/openapi` + `/api/mcp`）
 
-把「这份 AI 行程能不能照着走」做成**可复算、可对账**的公开判定（Trip Check 开放标准 v0.1）。判定是确定性纯函数（`lib/verify/engine.ts`：不调模型、当前时间只用于 `checkedAt`、不参与任何判定），输入一份开放行程文档，输出**两轴报告**与**可复算凭据**。另有**确定性修复**（`POST /api/verify/repair`）：只做顺延时间/删重复这类有数据依据的机械变换，返回修复前后两份报告与**前后两张凭据**（可对账「改了什么、风险降了多少」）。完整规范、规则表、凭据算法与合规边界见 [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md)。
+把「这份 AI 行程能不能照着走」做成**可复算、可对账**的公开判定（Trip Check 开放标准 v0.1）。判定是确定性纯函数（`lib/verify/engine.ts`：不调模型、当前时间只用于 `checkedAt`、不参与任何判定），输入一份开放行程文档，输出**两轴报告**与**可复算凭据**。另有**确定性修复**（`POST /api/verify/repair`）：只做顺延时间/删重复这类有数据依据的机械变换，返回修复前后两份报告与**前后两张凭据**（可对账「改了什么、风险降了多少」）。完整规范、规则表、凭据算法与合规边界见 [docs/TRIP-CHECK-STANDARD.md](TRIP-CHECK-STANDARD.md)。
 
 两轴刻意分开，任何一方缺失都必须显式说明：`verdict.consistency`（结构自洽性：只靠文档判时间轴/节奏/预算，给 0-100 分 + A/B/C/D）与 `verdict.facts`（事实核验：地点/营业时间/路段「谁核的、核到哪一步」，用覆盖率 + 四态表达，不折成分数）。
 
@@ -689,7 +681,7 @@ curl -sX POST http://localhost:3000/api/verify \
   -d '{"shareId":"share_xxx"}'
 ```
 
-**200**：`TripCheckReport` + `credential`（完整字段见 [docs/TRIP-CHECK-STANDARD.md §5](docs/TRIP-CHECK-STANDARD.md)）：
+**200**：`TripCheckReport` + `credential`（完整字段见 [docs/TRIP-CHECK-STANDARD.md §5](TRIP-CHECK-STANDARD.md)）：
 
 ```jsonc
 {
@@ -835,7 +827,7 @@ curl -sX POST http://localhost:3000/api/verify/repair \
 
 - `tools/call` 结果：`{ content: [{ type: "text", text: "<JSON 字符串>" }], isError? }`；错误码 `-32700` parse / `-32600` invalid request / `-32601` method not found / `-32602` invalid params。
 - 通知（无 `id`，如 `notifications/initialized`）→ **202 空 body**。
-- 本地 stdio 桥：`npm run dev` 后 `node mcp/stdio.mjs`（换行分隔 JSON-RPC；目标地址 `TRIP_CHECK_URL`，默认 `http://127.0.0.1:3000`）。详见 [mcp/README.md](mcp/README.md)。
+- 本地 stdio 桥：`npm run dev` 后 `node mcp/stdio.mjs`（换行分隔 JSON-RPC；目标地址 `TRIP_CHECK_URL`，默认 `http://127.0.0.1:3000`）。详见 [mcp/README.md](../mcp/README.md)。
 
 ### GET /api/verify/openapi（OpenAPI 3.1 机器契约）
 
@@ -844,7 +836,7 @@ curl -sX POST http://localhost:3000/api/verify/repair \
 - **200** `application/json`，`Cache-Control: public, max-age=3600`，带 CORS 与 `X-Trip-Check-Spec`
 - `info.title = "Trip Check API"`；`info.version` = **引擎版本**（当前 `0.2.0` —— 契约随判定/修复实现演进）
 - `servers: [{ "url": "/" }]`：相对路径，同一份契约服务 localhost / 演示站 / 私有部署，不把域名写死进公开契约
-- `x-trip-check` 扩展写清三条**独立**版本轴：`spec`（文档格式，`trip-check/0.1`）/ `engine`（判定实现）/ `ruleset`（规则与阈值）——对账时必须同时比对（见 [docs/TRIP-CHECK-STANDARD.md §8](docs/TRIP-CHECK-STANDARD.md)）
+- `x-trip-check` 扩展写清三条**独立**版本轴：`spec`（文档格式，`trip-check/0.1`）/ `engine`（判定实现）/ `ruleset`（规则与阈值）——对账时必须同时比对（见 [docs/TRIP-CHECK-STANDARD.md §8](TRIP-CHECK-STANDARD.md)）
 - `paths` 覆盖 6 个端点：`/api/verify`（get/post）、`/api/verify/schema`（get）、`/api/verify/repair`（post）、`/api/plan/check`（post）、`/api/plan/repair`（post）、`/api/mcp`（post），并声明 400/404/409/413/429 等错误响应（统一 `Error` 结构）
 - `components.schemas.TripCheckDocument` **直接引用** `lib/verify/schema.ts` 的 `TRIP_CHECK_JSON_SCHEMA`（同一对象，不是手抄副本）。为什么可以直接内嵌：OpenAPI 3.1 的 schema 方言就是 JSON Schema 2020-12；`$id: urn:trip-check:document:0.1` 把资源基固定住，文档内部 `#/$defs/*` 引用在 OpenAPI 文档里仍然自洽
 - 响应结构：`TripCheckReport` / `TripCheckReportWithCredential` / `TripCheckCredential` / `OpenRepairResult` / `PlanCheckResponse` / `PlanRepairResponse` / `McpResponse` 等；客户端可据此生成类型安全的 SDK

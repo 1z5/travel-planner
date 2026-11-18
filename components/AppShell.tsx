@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { List, Plus, ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { BrandMark } from "./SiteHeader";
+import { SiteFooter } from "./SiteFooter";
 
 const navigation = [
   { href: "/", label: "我的行程", icon: List },
@@ -44,15 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {children}
-      <footer className="app-foot">
-        <div className="app-foot-inner">
-          <span>© 2026 AI Travel Companion</span>
-          <Link href="/about">关于</Link>
-          <Link href="/privacy">隐私政策</Link>
-          <Link href="/terms">用户协议</Link>
-          <span>地图和地点数据来自高德开放平台</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

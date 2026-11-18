@@ -180,7 +180,7 @@ async function handlePost(req: NextRequest, raw: unknown) {
     return NextResponse.json({ error: "行程不存在或已被删除" }, { status: 404 });
   }
 
-  // 2b) 演示行程只读（安全审计 R4）：DEMO.md 里的公开 token 不能成为公开写接口
+  // 2b) 演示行程只读（安全审计 R4）：部署指南 里的公开 token 不能成为公开写接口
   const demoBlocked = demoWriteBlockedMessage(record.plan);
   if (demoBlocked) {
     return NextResponse.json({ error: demoBlocked }, { status: 403 });

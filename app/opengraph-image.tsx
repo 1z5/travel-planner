@@ -56,15 +56,15 @@ export default async function Image() {
             lineHeight: 1.15,
           }}
         >
-          每一份行程，都经得起核验
+          规划行程，出发后看今天
         </div>
         <div style={{ display: "flex", fontSize: 28, color: "#625d55", lineHeight: 1.6 }}>
-          先取真实世界的事实（POI / 营业时间 / 闭馆日 / 通勤），再让模型排行程。
+          查看今日安排、下一站和导航，提前检查营业时间与通勤。
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        {["POI 真实核验", "营业时间与闭馆", "真实通勤", "体检而非隐瞒"].map((t) => (
+        {["行程规划", "今日安排", "行程体检"].map((t) => (
           <div
             key={t}
             style={{

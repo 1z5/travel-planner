@@ -63,6 +63,7 @@ describe("buildIcs", () => {
     expect(ics.trimEnd().endsWith("END:VCALENDAR")).toBe(true);
     expect((ics.match(/BEGIN:VEVENT/g) ?? []).length).toBe(2);
     expect((ics.match(/END:VEVENT/g) ?? []).length).toBe(2);
+    expect(ics).toContain("PRODID:-//1z5//AI Travel Companion//ZH");
   });
 
   it("事件日期按 startDate + 天序偏移", () => {

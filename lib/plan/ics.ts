@@ -121,7 +121,7 @@ export function buildIcs(plan: Plan): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//行程规划师//Travel Planner//CN",
+    "PRODID:-//1z5//AI Travel Companion//ZH",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${esc(`${plan.city} ${plan.days.length} 天行程`)}`,

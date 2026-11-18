@@ -1,7 +1,7 @@
 /* ============================================================
    ATLAS v6 · 产品壳（app shell）
    ------------------------------------------------------------
-   结构不变（AppShell 仍渲染 .app-topbar / .app-nav / .app-foot），
+   结构不变（AppShell 渲染 .app-topbar 与 .app-nav），
    变的是材质与尺度：
    - 顶栏从「通栏纸带」变成「悬浮玻璃指令条」：圆角胶囊、离顶 10px、
      滚动时内容从它下面穿过；
@@ -188,42 +188,6 @@
   transform: scale(0.94) rotate(-10deg);
 }
 
-/* ---------- 页脚：一行仪器铭牌 ---------- */
-.app-foot {
-  border-top: 1px solid var(--at-line);
-  background: color-mix(in oklab, var(--at-bg) 70%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  margin-top: var(--sp-7);
-}
-.app-foot-inner {
-  max-width: var(--at-maxw);
-  margin: 0 auto;
-  padding: 18px var(--at-gutter);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 18px;
-  font-family: var(--at-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: var(--at-ink-4);
-}
-.app-foot-inner a {
-  color: var(--at-ink-3);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  padding: 4px 0;
-  transition: color var(--at-dur-1) ease;
-}
-.app-foot-inner a:hover {
-  color: var(--at-accent);
-}
-.app-foot-inner > span:last-child {
-  margin-left: auto;
-  color: var(--at-ink-4);
-}
-
 @media (max-width: 640px) {
   .app-topbar {
     top: 8px;
@@ -235,10 +199,6 @@
   }
   .app-brand-name {
     font-size: 14px;
-  }
-  .app-foot-inner > span:last-child {
-    margin-left: 0;
-    width: 100%;
   }
 }
 

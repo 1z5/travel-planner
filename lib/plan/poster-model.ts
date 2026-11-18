@@ -107,6 +107,6 @@ export function buildPosterModel(plan: Plan): PosterModel {
     kpis,
     highlights,
     verifyLine: verifyLineOf(plan),
-    brandLine: "行程规划师 · 先核验真实世界，再排行程",
+    brandLine: "AI Travel Companion · 行程海报",
   };
 }

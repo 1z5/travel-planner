@@ -1,56 +1,7 @@
 # 安全漏洞报告
 
-本项目以 [Apache-2.0](LICENSE) 许可开源（源码公开，见 [README](README.md)）。如果你发现了
-安全漏洞，请**不要**提交公开 issue 或 PR，走下面的私密渠道。
+请通过 [GitHub Security Advisories](https://github.com/1z5/AI-Travel-Companion/security/advisories/new) 私下报告。无法使用该入口时，可开 issue 请求私下联系，公开留言请省略漏洞细节和个人数据。
 
-## 报告方式
+报告请注明受影响版本或提交、路由或组件、复现条件与影响。请使用测试数据，附样例前移除密钥、身份凭据和私人分享链接。
 
-- **私密报告**：[GitHub Security Advisories](https://github.com/1z5/AI-Travel-Companion/security/advisories/new)
-  （推荐；不公开、可见范围可控）
-- 若无法使用 Advisories：可开一个**不含漏洞细节**的 issue，请维护者提供私密渠道
-- 标题建议：`[security] <一句话概述>`
-
-## 请包含
-
-- 受影响的路由/组件与复现步骤（请求/响应样例即可，**不要附带真实密钥或用户数据**）
-- 影响判断：可读取什么、可修改什么、是否需要登录
-- 你的修复建议（如有）
-
-## 响应承诺（独立维护项目）
-
-| 阶段           | 目标时效                             |
-| -------------- | ------------------------------------ |
-| 确认收到       | 48 小时内                            |
-| 分级与修复计划 | 7 天内（高危 72 小时内先给缓解措施） |
-| 修复发布       | 高危 14 天内，其余随最近一次发布     |
-
-## 范围
-
-**在范围内**：`app/api/*` 路由、认证/会话、配额与限流、注入面（LLM prompt / 城市等
-自由文本）、地图与天气代理的 SSRF 面、依赖链漏洞。
-
-**不在范围内**：需要已登录账号权限的社会工程学、拒绝服务（DoS）压测、第三方服务
-（高德/LLM 提供方）自身的问题——请直接报告给对应服务商。
-
-## 已知加固基线（2026-10-28）
-
-完整只读审计（无 Critical）与残余风险清单见 [docs/SECURITY-AUDIT-2026-10-28.md](docs/SECURITY-AUDIT-2026-10-28.md)。
-当前已落地（决策见 [ADR-016](docs/adr/016-security-hardening-baseline.md)）：
-
-- 所有 JSON 端点统一 body 上限（普通 16–64 KiB；开放核验/MCP 256 KiB），超限 413；
-- jobId 使用 CSPRNG，`/api/plan/status`、`/api/plan/ics` 限流，ics 私有缓存；
-- `DEMO_SEED` 演示行程只读（写端点 403）；
-- 撤销修改（restore）不再信任客户端回传的核验/修复元数据（剥离后服务端重算预警）；
-- 浏览器写端点同源校验（Origin / Sec-Fetch-Site；非浏览器客户端放行）；
-- 海报/OG 限流 + CDN 缓存；MCP 端点限流；
-- 安全响应头：CSP、HSTS（HTTPS）、COOP/CORP、noindex（私页）、关闭 `X-Powered-By`；
-- Service Worker 只缓存 `/t` 行中页（分享页 URL 是能力凭据，不再落长期本地缓存）。
-
-**仍不在范围**：DoS 压测、第三方服务（高德/LLM）自身问题、需要账号权限的社会工程学。
-**已接受风险**：分享 token 即能力（拿链接可共编）、开放核验/MCP 无鉴权（限流兜底）、
-凭据是确定性哈希而非签名、CSP 仍含 `unsafe-inline`。依赖链已于 2026-10-28 清零
-（`npm audit` 0 漏洞）。
-
-## 致谢
-
-经确认有效的报告会在修复发布时致谢（除非你要求匿名）。
+[安全基线 ADR](docs/adr/016-security-hardening-baseline.md) · [历史审计](docs/SECURITY-AUDIT-2026-10-28.md)

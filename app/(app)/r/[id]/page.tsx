@@ -54,16 +54,12 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const plan = await getPlan(id);
 
   if (!plan) {
-    // 措辞与分享页（/p/[id]）保持一致：同一个链接失效原因，不该因为入口
-    // 不同给出两套说法。不承诺「过期时间」——持久化 Plan 并不会过期。
     return (
       <main className="container">
         <div className="fault-page">
           <div className="fault-eyebrow">TRAVEL REPORT · 链接已失效</div>
           <h1 className="fault-title">这份旅程报告打不开</h1>
-          <p className="fault-desc">
-            报告对应的行程不存在，或已被创建者删除。可能是链接地址有误——请让分享者重新发一次链接。
-          </p>
+          <p className="fault-desc">当前找不到报告对应的行程。请检查链接，或请分享者重新发送。</p>
           <div className="fault-actions">
             <Link href="/new" className="btn btn-primary btn-sm">
               新建一份行程

@@ -1567,7 +1567,7 @@ export function PlanView({
         </details>
       )}
 
-      {/* ===== 行程管家（step-5）：基于这份行程回答 / 给一个可执行建议 ===== */}
+      {/* ===== 行程管家 ===== */}
       {shareId && (
         <PlanCopilot
           shareId={shareId}

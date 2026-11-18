@@ -18,6 +18,7 @@ describe("buildPosterModel", () => {
     expect(m.kpis[0]?.value).toBe(String(p.days.length));
     expect(m.kpis[1]?.value).toBe(String(spots));
     expect(m.kpis[3]?.value).toMatch(/^\d+%$/);
+    expect(m.brandLine).toBe("AI Travel Companion · 行程海报");
   });
 
   it("旧数据没有预算 → 使用率 KPI 不渲染（不猜）", () => {

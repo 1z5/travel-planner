@@ -5,8 +5,7 @@ name: Keep demo warm
 # 24/7 = 730h，够用）。
 #
 # ⚠️ 两个已知边界：
-# - 仓库连续 60 天没有活动时，GitHub 会自动暂停 schedule；需要外部监控兜底
-#   （UptimeRobot / cron-job.org，见 DEMO.md「长期作为公网入口」一节）。
+# - GitHub 的定时工作流可能在仓库长期无活动时停用，可按需配置外部可用性监控。
 # - 这个 job 失败会给仓库 owner 发通知，等于一个免费的 uptime 告警。
 on:
   schedule:

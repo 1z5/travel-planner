@@ -4,7 +4,6 @@
 //
 // 产出：
 // - docs/images/social-preview.png  1280×640，仓库 Settings → Social preview 用
-// - docs/images/readme-hero.png     1280×560，README 顶部首图
 //
 // 为什么用脚本生成而不是提交一张截图：文案里的规则数、引擎版本、凭据 ID 都会变，
 // 图必须能重生成；Node 里没有可靠的 SVG 光栅化器，Chrome headless 在这台机器上
@@ -74,34 +73,6 @@ h1{font-size:60px;line-height:1.16;margin-top:24px;font-weight:600;letter-spacin
 <div class="foot"><span>github.com/1z5/AI-Travel-Companion</span><span>Next.js 16 · TypeScript 7 · Apache-2.0</span></div>
 </div></body></html>`;
 
-const heroHtml = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{width:1280px;height:560px;background:#f4f6f9;color:#17202e;font-family:${FONT};overflow:hidden;padding:44px 56px}
-.eyebrow{font:12px/1 ${MONO};letter-spacing:.14em;color:#0f6e56}
-h1{font-size:38px;margin:14px 0 8px;font-weight:600;letter-spacing:-.5px}
-.sub{color:#5d6779;font-size:17px}
-.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
-.card{background:#fff;border:1px solid #dfe4ec;border-radius:12px;padding:20px;min-height:196px}
-.card .k{font:12px/1 ${MONO};color:#0f6e56}
-.card h2{font-size:19px;margin:12px 0 10px;font-weight:600}
-.card pre{font:12px/1.7 ${MONO};color:#39465a;white-space:pre-wrap}
-.card .id{font:11px/1.6 ${MONO};color:#185fa5;word-break:break-all;margin-top:12px;border-top:1px dashed #dfe4ec;padding-top:10px}
-.bar{margin-top:22px;display:flex;align-items:center;gap:14px;background:#0a1119;color:#e8eef6;border-radius:12px;padding:18px 22px}
-.bar .arrow{font:20px/1 ${MONO};color:#5dcaa5}
-.bar .txt{font:13px/1.6 ${MONO};color:#9fb0c3}
-.bar .txt b{color:#e8eef6;font-weight:400}
-</style></head><body>
-<div class="eyebrow">ONE DOCUMENT · ONE RULESET · ONE CREDENTIAL</div>
-<h1>判定不调模型，凭据人人可复算</h1>
-<p class="sub">同一套 16 条规则与 SHA-256 凭据，跑在三个完全独立的执行环境里，产出同一个 ID。</p>
-<div class="cols">
-<div class="card"><div class="k">01 · CLI</div><h2>终端，离线</h2><pre>$ npm run trip:check --<br>  --sample blocked<br><br>✗ 3 处阻断<br>D · 55/100</pre><div class="id">${CRED}</div></div>
-<div class="card"><div class="k">02 · HTTP / MCP</div><h2>公开接口，无状态</h2><pre>POST /api/verify<br>POST /api/verify/repair<br><br>同一引擎 · 同一口径</pre><div class="id">${CRED}</div></div>
-<div class="card"><div class="k">03 · BROWSER</div><h2>单文件 HTML，不上传</h2><pre>verify-playground.html<br>CSP: connect-src 'none'<br><br>本地算，零网络</pre><div class="id">${CRED}</div></div>
-</div>
-<div class="bar"><span class="arrow">→</span><span class="txt">凭据 = <b>sha256(spec | engine | ruleset | sha256(canonical-json({document, options})))</b><br>它不是数字签名，只保证可复现、可对账；判定质量靠公开规则与测试。</span></div>
-</body></html>`;
-
 function shot(name, htmlBody, width, height) {
   const tmpHtml = join(tmpdir(), `trip-check-${name}-${process.pid}.html`);
   writeFileSync(tmpHtml, htmlBody, "utf8");
@@ -125,4 +96,3 @@ function shot(name, htmlBody, width, height) {
 }
 
 shot("social-preview", socialHtml, 1280, 640);
-shot("readme-hero", heroHtml, 1280, 560);

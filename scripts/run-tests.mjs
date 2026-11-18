@@ -1441,15 +1441,11 @@ async function phaseA(api) {
   });
   check("活动：时间格式非法 → 400", r26c.status === 400, `got ${r26c.status}`);
 
-  // ---- 定价与付费意愿（S3 商业化试点）：页面口径 + 意愿事件 ----
-  const pricingRes = await fetch(`${api.baseUrl}/pricing`);
-  const pricingHtml = await pricingRes.text();
+  // 旧链接应指向现行条款，保留书签兼容性。
+  const pricingRes = await fetch(`${api.baseUrl}/pricing`, { redirect: "manual" });
   check(
-    "定价页：200 且明确「不会收费/不承诺上线」",
-    pricingRes.status === 200 &&
-      pricingHtml.includes("不会收费") &&
-      pricingHtml.includes("候选") &&
-      pricingHtml.includes("免费"),
+    "旧定价页：308 到使用条款",
+    pricingRes.status === 308 && pricingRes.headers.get("location") === "/terms",
     `${pricingRes.status}`,
   );
   const intentRes = await fetch(`${api.baseUrl}/api/events`, {
@@ -1458,7 +1454,7 @@ async function phaseA(api) {
     body: JSON.stringify({ name: "upgrade_intent", meta: { tier: "deep-check" } }),
   });
   check(
-    "付费意愿：upgrade_intent 被接受（204）",
+    "历史事件：upgrade_intent 保持兼容（204）",
     intentRes.status === 204,
     `got ${intentRes.status}`,
   );
@@ -2858,8 +2854,8 @@ async function phaseShowcase(base) {
   const about = await fetch(`${base}/about`);
   const aboutHtml = await about.text();
   check(
-    "展示：营销页第一 CTA 可秒开真实行程",
-    aboutHtml.includes("先看一份真实行程（秒开）") && aboutHtml.includes(`/p/${SHOWCASE}`),
+    "展示：关于页可打开示例行程",
+    about.ok && aboutHtml.includes("查看示例行程") && aboutHtml.includes(`/p/${SHOWCASE}`),
     `got ${about.status}`,
   );
 
@@ -2992,7 +2988,7 @@ async function phaseCheckDesk(base) {
 // 「公开演示 token 可读不可写」——这是 R4 的端到端证据（单测只钉住 seed 标记
 // 与 guard 文案，覆盖不到路由接线）。
 //
-// 演示 token 来自 demo/fixtures/suzhou-3d.json 的稳定 shareId（DEMO.md 公开）。
+// 演示 token 来自 demo/fixtures/suzhou-3d.json 的稳定 shareId（部署指南 公开）。
 // 不跑 clone：克隆会走生成管线（LLM + 配额），e2e 不为此烧桩调用；只断言所有
 // 直接写操作 403 即可（clone 源为 demo 是产品上有意的允许路径）。
 async function phaseDemo(base) {

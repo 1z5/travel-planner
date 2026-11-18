@@ -83,22 +83,13 @@ export default async function SharePage({
         <div className="fault-page">
           <div className="fault-eyebrow">SHARE LINK · 链接已失效</div>
           <h1 className="fault-title">这个分享链接打不开</h1>
-          <p className="fault-desc">
-            这份行程不存在，或已被创建者删除。若链接来自演示站，服务重启后现场生成的行程会清空，
-            请让分享者重新发一次链接；也可能只是链接地址有误。
-          </p>
+          <p className="fault-desc">当前找不到这份行程。请检查链接，或请分享者重新发送。</p>
           <div className="fault-actions">
-            {/* 坏链接不该是死胡同：给一个秒开的真实成品，对方至少还能看到产品是什么。
-                原来那句「已生成的行程持久保存、不会因为时间过期」在 memory 演示站
-                是错的，重启就会丢，必须删掉。 */}
             <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn btn-primary btn-sm">
               先看一份示例行程
             </Link>
             <Link href="/new" className="btn btn-sm">
               新建一份行程
-            </Link>
-            <Link href="/about#faq" className="btn btn-sm">
-              查看常见问题
             </Link>
           </div>
         </div>

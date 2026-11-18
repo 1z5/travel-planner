@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // 不暴露 Next 版本（扫描器按版本找已知漏洞的第一步）
   poweredByHeader: false,
+  async redirects() {
+    return [
+      { source: "/pricing", destination: "/terms", permanent: true },
+      { source: "/showcase.html", destination: "/about", permanent: true },
+    ];
+  },
   async headers() {
     // 面向陌生人的公共部署：安全头集。
     //

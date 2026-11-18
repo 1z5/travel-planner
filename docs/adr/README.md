@@ -28,5 +28,5 @@
 | [019](019-personal-use-online-mobile.md)         | 自用上线 + 双入口 + 手机优先   | 已接受 |
 | [020](020-dual-track-triage.md)                  | 计划/实际双轨：重构三类清单    | 已接受 |
 
-> 012–015 里引用的产品策略文档已归档到 [../archive/strategy/](../archive/strategy/)，
+> 012–015 里引用的产品策略文档已归档到 [当时的仓库快照](https://github.com/1z5/AI-Travel-Companion/tree/a25f81d1b9cd75b58157f3eb2ef446a1c88617d6/docs/archive/strategy/)，
 > 链接已更新，但 ADR 的结论与上下文保持原样（历史记录）。

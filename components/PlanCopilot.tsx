@@ -94,7 +94,7 @@ export function PlanCopilot({ shareId, onSuggestion }: PlanCopilotProps) {
   const logRef = useRef<HTMLDivElement>(null);
   const bodyId = useId();
 
-  // 等待计时：step-5 一次通常 10-40 秒，用户需要知道「还在动」而不是卡死。
+  // 回复时间取决于模型服务，计时让用户知道请求仍在等待。
   // 只在 loading 期间跑，卸载/结束时清掉，不泄漏 interval。
   useEffect(() => {
     if (!loading) return;
@@ -220,7 +220,7 @@ export function PlanCopilot({ shareId, onSuggestion }: PlanCopilotProps) {
             <Sparkles size={16} className="copilot-title-icon" aria-hidden="true" />
             行程管家
           </h2>
-          <p className="copilot-sub">基于这份行程回答（step-5）</p>
+          <p className="copilot-sub">问这份行程的安排、时间或路线</p>
         </div>
         <div className="copilot-head-actions">
           <button
@@ -371,9 +371,7 @@ export function PlanCopilot({ shareId, onSuggestion }: PlanCopilotProps) {
             </button>
           </form>
 
-          <p className="copilot-foot">
-            回答只基于这份行程与高德真实数据；涉及修改会给你一个具体建议，确认后才执行。
-          </p>
+          <p className="copilot-foot">回答参考这份行程，有时会出错。修改建议由你确认后执行。</p>
         </div>
       )}
     </section>

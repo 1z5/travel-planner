@@ -58,6 +58,6 @@ ADR-012 把「行程可执行性核验」做成开放标准（判定 + 可复算
 
 ## 参考
 
-- 决策上下文：[docs/PRODUCT-REVOLUTION-2026-10.md](../archive/strategy/PRODUCT-REVOLUTION-2026-10.md) §3.1
+- 决策上下文：[docs/PRODUCT-REVOLUTION-2026-10.md](https://github.com/1z5/AI-Travel-Companion/blob/a25f81d1b9cd75b58157f3eb2ef446a1c88617d6/docs/archive/strategy/PRODUCT-REVOLUTION-2026-10.md) §3.1
 - 标准契约：[docs/TRIP-CHECK-STANDARD.md](../TRIP-CHECK-STANDARD.md) §4.0/§6.1/§7.3
 - 实现：`lib/verify/repair.ts`、`app/api/verify/repair/`、`lib/verify/mcp.ts`（`repair_itinerary`）

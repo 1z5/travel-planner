@@ -179,7 +179,7 @@ export interface Plan {
   /**
    * 演示/种子行程标记（DEMO_SEED 注入的 fixture）。
    *
-   * 为什么：演示 token 写在公开的 DEMO.md 里，若允许写操作，任何人可改演示工件
+   * 为什么：演示 token 写在公开的 部署指南 里，若允许写操作，任何人可改演示工件
    * （安全审计 R4）。带这个标记的 Plan 在 refine/restore/repair/adjust 等写端点
    * 一律 403 只读；克隆不受影响（克隆生成的是新 Plan）。
    */

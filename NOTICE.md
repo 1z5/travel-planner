@@ -3,7 +3,7 @@
 > 本文件由 `scripts/gen-notice.mjs` 依据 `package-lock.json` 生成，**请勿手改**。
 > 升级依赖后重新生成并提交。
 
-本项目（行程规划师）基于 [Apache-2.0](LICENSE) 许可开源，版权归作者所有。以下是随本项目分发的
+本项目（AI Travel Companion）基于 [Apache-2.0](LICENSE) 许可开源，版权归作者所有。以下是随本项目分发的
 第三方开源组件及其许可证。MIT/ISC/Zlib 等需保留其版权声明；Apache-2.0 需随分发
 附带 NOTICE——本文件即为此目的维护。
 
@@ -30,13 +30,15 @@
 | jsdom                       | 30.1.3  | MIT        |
 | lint-staged                 | 17.6.0  | MIT        |
 | lucide-react                | 1.59.0  | ISC        |
-| next                        | 16.4.2  | MIT        |
+| next                        | 16.4.6  | MIT        |
 | openai                      | 7.39.0  | Apache-2.0 |
+| oxlint                      | 1.89.0  | MIT        |
 | prettier                    | 3.9.10  | MIT        |
 | prisma                      | 7.10.1  | Apache-2.0 |
 | react                       | 19.3.1  | MIT        |
 | react-dom                   | 19.3.1  | MIT        |
 | typescript                  | 7.0.2   | Apache-2.0 |
+| vite                        | 8.3.4   | MIT        |
 | vitest                      | 5.0.5   | MIT        |
 | zod                         | 4.6.7   | MIT        |
 
@@ -44,7 +46,7 @@
 
 | 许可证                                   | 数量 |
 | ---------------------------------------- | ---- |
-| MIT                                      | 281  |
+| MIT                                      | 301  |
 | Apache-2.0                               | 74   |
 | ISC                                      | 30   |
 | MPL-2.0                                  | 12   |
@@ -62,7 +64,7 @@
 | CC0-1.0                                  | 1    |
 | 0BSD                                     | 1    |
 
-传递依赖合计 408 个；完整清单见 `package-lock.json`。
+传递依赖合计 426 个；完整清单见 `package-lock.json`。
 
 ## 3. 字体
 
@@ -74,7 +76,7 @@ Noto 字体遵循 [SIL Open Font License 1.1](https://openfontlicense.org/)，
 
 - **POI / 营业时间 / 闭馆 / 评分 / 人均 / 路况**：高德开放平台（Web 服务 API）。
   在产品内展示时须标注「数据来源 高德开放平台」（已在结果页/分享页/页脚落实）。
-- **生成引擎**：由 `LLM_BASE_URL` 指定的 OpenAI 兼容服务（默认 stepfun step-5）。
+- **模型服务**由部署方通过 `LLM_BASE_URL` 与 `LLM_MODEL` 配置。
   输出内容的所有权与合规义务以你与该服务商的协议为准。
 - **静态地图底图**：高德静态地图（经 `/api/map` 代理，不在客户端暴露 key）。
 

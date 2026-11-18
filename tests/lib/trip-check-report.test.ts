@@ -81,6 +81,7 @@ describe("Trip Check 报告工件模型", () => {
     expect(m.issues.every((i) => i.detail.length <= 46)).toBe(true);
     expect(m.credentialId).toMatch(/^tc_/);
     expect(m.engineLine).toContain("trip-check/0.1");
+    expect(m.brandLine).toBe("AI Travel Companion · 行程体检");
     // blocked 示例有 3 阻断 + 0 微调，maxIssues=4 → 无溢出
     expect(m.issueOverflow).toBe(0);
   });

@@ -137,12 +137,12 @@ export default async function VerifyPage({
         <section className="tc-cta" aria-labelledby="tc-cta-title">
           <div>
             <h2 className="tc-cta-title" id="tc-cta-title">
-              想要一份天生可执行的行程？
+              规划一份新行程
             </h2>
-            <p>先取真实世界的 POI / 营业时间 / 通勤，再让模型在已核验的清单上排。</p>
+            <p>输入目的地、日期和偏好，生成后可查看核验结果。</p>
           </div>
           <Link href="/new" className="btn btn-primary" prefetch={false}>
-            用真实事实生成一份 →
+            新建行程 →
           </Link>
         </section>
       </div>
