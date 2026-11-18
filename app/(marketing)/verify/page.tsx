@@ -14,7 +14,7 @@ import {
 // 页面只做壳与说明，交互在客户端组件（TripCheckPlayground）；判定逻辑一行都不在 UI。
 
 export const metadata: Metadata = {
-  title: "行程体检 — 任何 AI 行程先过一遍 — 行程规划师",
+  title: "行程体检 — 任何 AI 行程先过一遍 — AI Travel Companion",
   description:
     "把任何 AI 生成的行程 JSON 粘进来，用确定性规则引擎复算：结构自洽性（时间轴/节奏/预算）与事实核验（地点/营业时间/来源覆盖）两轴分开，附可复算凭据。免登录、不落库、不调模型。",
   alternates: { canonical: "/verify" },
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     description:
       "开放标准 Trip Check v0.1：结构自洽性与事实核验两轴分开，结论带可复算凭据。同一份输入，任何人都能复算出同一个 ID。",
     type: "article",
-    siteName: "行程规划师",
+    siteName: "AI Travel Companion",
   },
 };
 

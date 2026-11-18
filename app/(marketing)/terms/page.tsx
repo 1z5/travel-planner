@@ -4,7 +4,7 @@ import Link from "next/link";
 // 用户协议：把「AI 生成的行程」的边界写清楚——这是 ToC 产品最容易被投诉
 // 的地方（用户拿着过期营业时间白跑一趟）。宁可保守，不要含糊。
 export const metadata: Metadata = {
-  title: "用户协议 — 行程规划师",
+  title: "用户协议 — AI Travel Companion",
   description: "服务范围、内容归属、免责边界与收费方式。",
 };
 

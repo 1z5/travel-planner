@@ -35,16 +35,16 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const t = cityTemplateBySlug(slug);
-  if (!t) return { title: "城市模板 — 行程规划师" };
+  if (!t) return { title: "城市模板 — AI Travel Companion" };
   return {
-    title: `${t.city} 3/4/5 天行程模板（示例条件）— 行程规划师`,
+    title: `${t.city} 3/4/5 天行程模板（示例条件）— AI Travel Companion`,
     description: `${t.city}玩几天合适？${t.variants.map((v) => v.days).join("/")} 天条件模板：${t.tagline} 生成时逐条核验真实 POI、营业时间与通勤。`,
     alternates: { canonical: `/cities/${t.slug}` },
     openGraph: {
       title: `${t.city} 3/4/5 天行程模板`,
       description: t.tagline,
       type: "article",
-      siteName: "行程规划师",
+      siteName: "AI Travel Companion",
     },
   };
 }

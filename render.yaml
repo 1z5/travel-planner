@@ -11,7 +11,7 @@
 # store/postgres.ts + prisma/schema.prisma 早就支持，不需要改应用逻辑。
 # 若你愿意付费，也可以把下面两个变量换成 Blueprint databases + fromDatabase。
 #
-# 使用：Render Dashboard → New + → Blueprint → 选 GitHub 仓库 1z5/travel-partner
+# 使用：Render Dashboard → New + → Blueprint → 选 GitHub 仓库 1z5/AI-Travel-Companion
 # → 按提示填 5 个 secret（DATABASE_URL / LLM_API_KEY / LLM_BASE_URL /
 # AMAP_WEB_SERVICE_KEY / SESSION_SECRET）→ Deploy。详见 DEMO.md。
 #

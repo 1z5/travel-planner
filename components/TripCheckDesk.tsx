@@ -282,12 +282,8 @@ export function TripCheckDesk() {
   return (
     <div className="check-desk">
       <header className="desk-head">
-        <p className="desk-kicker">把行程交给我</p>
-        <h1 className="desk-title">先看看，这份行程能不能照着走</h1>
-        <p className="desk-lede">
-          ChatGPT 写的、小红书抄的、朋友发来的，直接贴进来就行——不用重新填表，也不用等几分钟生成。
-          我会把接不上的时间、重复的点位、超出预算的地方一条条摊开给你看。
-        </p>
+        <h1 className="desk-title">行程体检</h1>
+        <p className="desk-lede">粘贴已有行程，先核对读取结果，再检查时间安排、重复站点和预算。</p>
       </header>
 
       {error && (
@@ -313,6 +309,9 @@ export function TripCheckDesk() {
               onChange={(e) => setText(e.target.value)}
               disabled={reading}
             />
+            {text.trim().length > 0 && text.trim().length < 20 && (
+              <p className="helper">请至少输入 20 个字符。</p>
+            )}
             <div className="desk-actions">
               <button
                 type="button"
@@ -326,7 +325,7 @@ export function TripCheckDesk() {
                   </>
                 ) : (
                   <>
-                    读一遍并体检 <ArrowRight size={15} aria-hidden="true" />
+                    读取行程 <ArrowRight size={15} aria-hidden="true" />
                   </>
                 )}
               </button>

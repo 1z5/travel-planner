@@ -41,18 +41,18 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const plan = await getPlan(id);
-  if (!plan) return { title: "行程体检报告 — 行程规划师" };
+  if (!plan) return { title: "行程体检报告 — AI Travel Companion" };
   const stamp = stampPlan(plan, { id });
   const headline = reportHeadline(stamp.report);
   const title = `${plan.city} ${plan.days.length} 天行程体检报告`;
   return {
-    title: `${title} — 行程规划师`,
+    title: `${title} — AI Travel Companion`,
     description: `${headline}。两轴结论、规则级证据与可复算凭据。`,
     openGraph: {
       title,
       description: headline,
       type: "article",
-      siteName: "行程规划师",
+      siteName: "AI Travel Companion",
     },
     twitter: { card: "summary", title, description: headline },
   };

@@ -11,6 +11,7 @@ import "./styles/atlas-evidence.css";
 import "./styles/atlas-marketing.css";
 // 验真台 /check 是后加的产品线，放最后：只用 desk-* 前缀，不覆盖任何既有选择器。
 import "./styles/atlas-check.css";
+import "./styles/atlas-companion.css";
 import { MotionPref } from "@/components/MotionPref";
 import { PwaBootstrap } from "@/components/PwaBootstrap";
 
@@ -22,19 +23,19 @@ import { PwaBootstrap } from "@/components/PwaBootstrap";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.RENDER_EXTERNAL_URL;
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl ?? "http://localhost:3000"),
-  title: "行程规划师 — 先核验真实世界，再排行程",
+  title: "AI Travel Companion — 规划和查看你的行程",
   description:
     "输入目的地、起止时间、预算和偏好，生成结构化国内城市行程：POI 与营业时间来自高德实时核验，通勤按真实路况计算，体检问题全部摊开。",
   openGraph: {
     type: "website",
-    siteName: "行程规划师",
-    title: "行程规划师 — 每一份行程，都经得起核验",
+    siteName: "AI Travel Companion",
+    title: "AI Travel Companion — 规划和查看你的行程",
     description:
       "先取真实世界的事实（POI / 营业时间 / 闭馆日 / 通勤），再让模型排行程。体检问题全部摊开。",
   },
   twitter: {
     card: "summary_large_image",
-    title: "行程规划师 — 每一份行程，都经得起核验",
+    title: "AI Travel Companion — 规划和查看你的行程",
     description: "先核验真实世界，再排行程。",
   },
 };
@@ -49,14 +50,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#edf1f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#05080f" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f6f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#101816" },
   ],
 };
 
 // 首帧前同步主题：localStorage 有手动选择就写 data-theme，否则留空跟随系统。
 // 必须内联在 <head>（阻塞渲染），否则深色用户会先看到一帧白屏再翻转。
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("at-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#05080f":"#edf1f7")}}catch(e){}})();`;
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("at-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#101816":"#f4f6f4")}}catch(e){}})();`;
 
 // 根布局只提供 <html>/<body> 与动效降级开关，不再挂营销站点头尾。
 //

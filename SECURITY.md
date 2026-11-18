@@ -5,7 +5,7 @@
 
 ## 报告方式
 
-- **私密报告**：[GitHub Security Advisories](https://github.com/1z5/travel-partner/security/advisories/new)
+- **私密报告**：[GitHub Security Advisories](https://github.com/1z5/AI-Travel-Companion/security/advisories/new)
   （推荐；不公开、可见范围可控）
 - 若无法使用 Advisories：可开一个**不含漏洞细节**的 issue，请维护者提供私密渠道
 - 标题建议：`[security] <一句话概述>`

@@ -1531,12 +1531,11 @@ async function phaseA(api) {
   check(
     "PWA：manifest.webmanifest 200 且字段完整",
     mf.status === 200 &&
-      mfJson?.name?.includes("行程规划师") &&
+      mfJson?.name === "AI Travel Companion" &&
       mfJson?.display === "standalone" &&
       Array.isArray(mfJson?.icons) &&
       mfJson.icons.length >= 2 &&
-      // ATLAS v6 品牌色：陶土橙 #c2410c → 珊瑚 #c73310（见 app/manifest.ts）
-      mfJson.theme_color === "#c73310",
+      mfJson.theme_color === "#155b47",
     `${mf.status} ${JSON.stringify(mfJson)?.slice(0, 120)}`,
   );
   const sw = await fetch(`${api.baseUrl}/sw.js`);
@@ -2852,7 +2851,7 @@ async function phaseShowcase(base) {
   const homeHtml = await home.text();
   check(
     "展示：首页「看示例」指向真实成品而非 MOCK 预览",
-    homeHtml.includes("看一份验真过的成品") && homeHtml.includes(`/p/${SHOWCASE}`),
+    homeHtml.includes("已核验的示例行程") && homeHtml.includes(`/p/${SHOWCASE}`),
     `got ${home.status}`,
   );
 
@@ -2881,7 +2880,7 @@ async function phaseShowcase(base) {
   );
 }
 
-// ---------------- 阶段 T：粘贴验真闭环（产品新第一入口） ----------------
+// ---------------- 阶段 T：粘贴验真闭环 ----------------
 //
 // 这条链路是「把行程交给我」的最小证明：任意来源文本 → 开放文档 → 确定性
 // 体检 → 一键理顺 → 前后可复算凭据。全部走桩，不烧真 token、不需要高德 key。
@@ -2894,15 +2893,17 @@ async function phaseCheckDesk(base) {
   const pageHtml = await pageRes.text();
   check(
     "check：/check 页面 200 且首屏是粘贴入口",
-    pageRes.status === 200 && pageHtml.includes("先看看，这份行程能不能照着走"),
+    pageRes.status === 200 && pageHtml.includes("行程体检"),
     `got ${pageRes.status}`,
   );
 
   const homeRes = await fetch(`${base}/`);
   const homeHtml = await homeRes.text();
   check(
-    "check：首页主入口已纠正为验真（生成降级）",
-    homeHtml.includes("验一份行程") && homeHtml.includes('href="/check"'),
+    "check：首页可快速规划，也可直接体检已有行程",
+    homeHtml.includes('action="/new"') &&
+      homeHtml.includes("已有行程？先做体检") &&
+      homeHtml.includes('href="/check"'),
     `got ${homeRes.status}`,
   );
 

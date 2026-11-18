@@ -9,7 +9,7 @@ import { CITY_TEMPLATES, templateHref } from "@/lib/plan/city-templates";
 // 生成时仍然逐条核验真实 POI、营业时间与通勤。页面必须写明这一点。
 
 export const metadata: Metadata = {
-  title: "城市行程模板：选城市和天数，直接开始 — 行程规划师",
+  title: "城市行程模板：选城市和天数，直接开始 — AI Travel Companion",
   description:
     "12 个城市的 3/4/5 天行程模板（示例条件）：点一下把城市、天数和偏好带进表单，生成时逐条核验真实 POI、营业时间与通勤。",
   alternates: { canonical: "/cities" },

@@ -59,7 +59,7 @@ function stubFetch(
 
 async function reachConfirm(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /贴一段示例试试/ }));
-  await user.click(screen.getByRole("button", { name: /读一遍并体检/ }));
+  await user.click(screen.getByRole("button", { name: /读取行程/ }));
   await waitFor(() => expect(screen.getByText("先核对一下，我读到了这些")).toBeInTheDocument());
 }
 
@@ -71,10 +71,10 @@ describe("行程验真台", () => {
 
   it("首屏第一动作是贴行程，且明说这一页不查外部数据", () => {
     render(<TripCheckDesk />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("先看看");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("行程体检");
     expect(screen.getByLabelText("你的行程原文")).toBeInTheDocument();
     expect(screen.getByText(/不会查地点是否真实存在/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /读一遍并体检/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /读取行程/ })).toBeDisabled();
   });
 
   it("抽取后先摊开确认：不确定项可见，没写时间显示为未标注", async () => {
@@ -135,13 +135,13 @@ describe("行程验真台", () => {
     const user = userEvent.setup();
     render(<TripCheckDesk />);
     await user.click(screen.getByRole("button", { name: /贴一段示例试试/ }));
-    await user.click(screen.getByRole("button", { name: /读一遍并体检/ }));
+    await user.click(screen.getByRole("button", { name: /读取行程/ }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("模型没有返回内容"));
   });
 });
 
 async function reachConfirmFail(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /贴一段示例试试/ }));
-  await user.click(screen.getByRole("button", { name: /读一遍并体检/ }));
+  await user.click(screen.getByRole("button", { name: /读取行程/ }));
   await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 }

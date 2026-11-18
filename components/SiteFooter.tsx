@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "./SiteHeader";
 
 // ============================================================
 // 全站页脚（服务端组件，零客户端 JS）。
@@ -17,12 +18,9 @@ export function SiteFooter() {
       <div className="site-footer-inner">
         <div className="footer-brand">
           <div className="brand">
-            <span className="brand-mark" aria-hidden="true">
-              行
-            </span>
+            <BrandMark />
             <span className="brand-text">
-              <span className="brand-name">行程规划师</span>
-              <span className="brand-sub">TRAVEL PLANNER</span>
+              <span className="brand-name">AI Travel Companion</span>
             </span>
           </div>
           <p className="footer-desc">
@@ -91,7 +89,7 @@ export function SiteFooter() {
       </div>
 
       <div className="site-footer-bottom">
-        <span>© 2026 行程规划师</span>
+        <span>© 2026 AI Travel Companion</span>
         <span>POI / 营业时间 / 路况数据来自高德开放平台 · 生成引擎 step-5</span>
       </div>
     </footer>

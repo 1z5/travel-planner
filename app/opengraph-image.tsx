@@ -6,7 +6,7 @@ import { ImageResponse } from "next/og";
 // Satori 约束（见 app/p/[id]/opengraph-image.tsx 注释）：
 // 多子节点容器必须显式 display:flex；中文依赖系统字体回退。
 export const runtime = "nodejs";
-export const alt = "行程规划师 — 每一份行程，都经得起核验";
+export const alt = "AI Travel Companion — 规划和查看你的行程";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -42,7 +42,7 @@ export default async function Image() {
           行
         </div>
         <div style={{ display: "flex", fontSize: 26, color: "#45413b", letterSpacing: 2 }}>
-          行程规划师 · TRAVEL PLANNER
+          AI TRAVEL COMPANION
         </div>
       </div>
 

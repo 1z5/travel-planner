@@ -762,8 +762,19 @@ export function HomeClient() {
       derivedDays !== null &&
       multiCities.reduce((s, c) => s + c.days, 0) === derivedDays);
 
+  const submitHint = !city.trim()
+    ? "请先填写目的地城市"
+    : !budgetOk
+      ? "请填写人均预算（穷游可填 0）"
+      : derivedDays === null || endAt <= startAt
+        ? "请选择有效的起止时间"
+        : !citiesOk
+          ? "请把各城市天数配成总天数"
+          : null;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading || submitHint) return;
     setLoading(true);
     setError("");
     setPlan(null);
@@ -830,34 +841,17 @@ export function HomeClient() {
   // 这里不再重复计算。
 
   return (
-    <main className={displayPlan ? "has-result" : undefined}>
-      {/* 旅行档案（切片3）：fixed 定位的入口 FAB + 抽屉，挂在 main 第一位。
-          挂在这里而不是表单内：档案是跨行程的长期资产，不属于任何一次
-          表单提交；fixed 定位也让它在首页任何滚动位置都可唤起。 */}
-      <ProfileDrawer />
+    <main className={`companion-new${displayPlan ? " has-result" : ""}`}>
       <header className="new-head">
         <div className="container new-head-inner">
-          <Link href="/" className="new-back">
-            ← 我的行程
-          </Link>
-          <p className="new-eyebrow">NEW TRIP · 新建行程</p>
-          <h1 className="new-title">这次想去哪？</h1>
-          {/* 只说价值主张。等待时长/可离开是「生成那一刻」才相关的信息，
-              贴在首屏等于没人看的长命说明——移到生成态（LiveProgress 与
-              加载提示各说一次，恰好是用得上的时刻）。 */}
-          <p className="new-sub">先核验真实世界，再排行程。</p>
-          {/* 三步管线读数（纯静态说明，不改变任何流程） */}
-          <ol className="new-head-meta" aria-label="生成管线">
-            <li>
-              <span>01</span>约束
-            </li>
-            <li>
-              <span>02</span>核验
-            </li>
-            <li>
-              <span>03</span>体检
-            </li>
-          </ol>
+          <div>
+            <Link href="/" className="new-back">
+              ← 我的行程
+            </Link>
+            <h1 className="new-title">新建行程</h1>
+            <p className="new-sub">先填目的地、日期和预算，再按需要补充偏好。</p>
+          </div>
+          <ProfileDrawer />
         </div>
       </header>
 
@@ -893,62 +887,10 @@ export function HomeClient() {
           <motion.form
             className={`panel${displayPlan && !formOpen ? " panel-hidden" : ""}`}
             onSubmit={onSubmit}
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            initial={false}
           >
             <div className="field-group new-core">
               <div className="legend">行程信息</div>
-
-              {/* 攻略导入：默认折叠，不打扰想从零填的用户；展开后粘贴原文 →
-                提取条件 → 只回填空字段。放在城市输入之前，因为「Start Anywhere」
-                的入口就是「我手里已经有一段攻略」。 */}
-              <details className="import-guide" ref={guideRef}>
-                <summary>
-                  <span className="import-guide-title">从攻略/聊天记录导入</span>
-                  {/* 摘要只留「是什么、能得到什么」；安全承诺（不开链接、要确认）
-                      放进展开区——用户点开的那一刻才是关心细节的时刻 */}
-                  <span className="import-guide-desc">粘贴原文，提取成表单条件</span>
-                </summary>
-                <div className="import-guide-body">
-                  <label className="import-guide-label" htmlFor="guide-text">
-                    攻略原文
-                  </label>
-                  <textarea
-                    id="guide-text"
-                    className="import-guide-input"
-                    rows={4}
-                    maxLength={4000}
-                    placeholder="例：五一带父母去成都玩三天，预算人均 2500，一定要去武侯祠…"
-                    value={guideText}
-                    onChange={(e) => setGuideText(e.target.value)}
-                  />
-                  <div className="import-guide-actions">
-                    {/* type="button"：在 form 里，默认类型会直接触发生成 */}
-                    <button
-                      type="button"
-                      className="btn import-guide-btn"
-                      onClick={extractGuide}
-                      disabled={guideStatus === "loading" || guideText.trim().length < 20}
-                    >
-                      {guideStatus === "loading" ? "提取中…" : "提取条件"}
-                    </button>
-                    <span className="helper" style={{ margin: 0 }}>
-                      至少 20 字 · 只填空字段 · 不自动打开链接，生成仍由你确认
-                    </span>
-                  </div>
-                  {guideStatus === "error" && (
-                    <p className="import-guide-error" role="alert">
-                      {guideError}（可以修改后重试）
-                    </p>
-                  )}
-                  {guideStatus === "done" && guideSummary && (
-                    <p className="import-guide-summary" role="status">
-                      {guideSummary}
-                    </p>
-                  )}
-                </div>
-              </details>
 
               <div className="row row-form">
                 <div>
@@ -1010,22 +952,15 @@ export function HomeClient() {
                     因为它正是被 min(500) 挡掉的那部分用户 */}
                   <div className="chips" style={{ marginTop: 8 }}>
                     {BUDGET_PRESETS.map((v) => (
-                      <span
+                      <button
                         key={v}
+                        type="button"
                         className={`chip ${budget === String(v) ? "on" : ""}`}
-                        role="button"
-                        tabIndex={0}
                         aria-pressed={budget === String(v)}
                         onClick={() => setBudget(String(v))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setBudget(String(v));
-                          }
-                        }}
                       >
                         {v === 0 ? "穷游 0" : v.toLocaleString("zh-CN")}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -1158,6 +1093,53 @@ export function HomeClient() {
 
             {/* 进阶选项集中在提交之前（默认值都已合理：适中节奏/驾车/单城市）。
               摘要 = 里面有什么 + 已选几项：折叠不等于不存在，不展开也要看得见状态。 */}
+            <details className="import-guide" ref={guideRef}>
+              <summary>
+                <span className="import-guide-title">从攻略/聊天记录导入</span>
+                {/* 摘要只留「是什么、能得到什么」；安全承诺（不开链接、要确认）
+                      放进展开区——用户点开的那一刻才是关心细节的时刻 */}
+                <span className="import-guide-desc">粘贴原文，提取成表单条件</span>
+              </summary>
+              <div className="import-guide-body">
+                <label className="import-guide-label" htmlFor="guide-text">
+                  攻略原文
+                </label>
+                <textarea
+                  id="guide-text"
+                  className="import-guide-input"
+                  rows={4}
+                  maxLength={4000}
+                  placeholder="例：五一带父母去成都玩三天，预算人均 2500，一定要去武侯祠…"
+                  value={guideText}
+                  onChange={(e) => setGuideText(e.target.value)}
+                />
+                <div className="import-guide-actions">
+                  {/* type="button"：在 form 里，默认类型会直接触发生成 */}
+                  <button
+                    type="button"
+                    className="btn import-guide-btn"
+                    onClick={extractGuide}
+                    disabled={guideStatus === "loading" || guideText.trim().length < 20}
+                  >
+                    {guideStatus === "loading" ? "提取中…" : "提取条件"}
+                  </button>
+                  <span className="helper" style={{ margin: 0 }}>
+                    至少 20 字 · 只填空字段 · 不自动打开链接，生成仍由你确认
+                  </span>
+                </div>
+                {guideStatus === "error" && (
+                  <p className="import-guide-error" role="alert">
+                    {guideError}（可以修改后重试）
+                  </p>
+                )}
+                {guideStatus === "done" && guideSummary && (
+                  <p className="import-guide-summary" role="status">
+                    {guideSummary}
+                  </p>
+                )}
+              </div>
+            </details>
+
             <details className="more-options">
               <summary>
                 更多选项
@@ -1583,29 +1565,24 @@ export function HomeClient() {
               ref={actionsRef}
               className={`form-actions new-core-actions${loading ? " is-loading" : ""}`}
             >
-              <div className="form-actions-meta">
-                <span>预计 2–4 分钟</span>
-                <span className="fa-sep" aria-hidden="true" />
-                <span>消耗 1 次免费额度</span>
-                <span className="fa-sep" aria-hidden="true" />
-                <span>结果永久保存 · 可分享</span>
-              </div>
+              {submitHint && (
+                <p className="companion-form-hint" id="generation-hint">
+                  {submitHint}
+                </p>
+              )}
               <button
                 className="btn-primary"
-                disabled={loading || !city.trim() || !budgetOk || !citiesOk}
+                disabled={loading || Boolean(submitHint)}
+                aria-describedby={submitHint ? "generation-hint" : undefined}
               >
-                {loading
-                  ? "生成中…"
-                  : !city.trim()
-                    ? "请先填写目的地城市"
-                    : !budgetOk
-                      ? "请填写人均预算（穷游可填 0）"
-                      : !citiesOk
-                        ? derivedDays === null
-                          ? "请先选择出行日期"
-                          : "请把各城市天数配成总天数"
-                        : "生成行程"}
+                {loading ? "生成中…" : "生成行程"}
               </button>
+              {error && (
+                <div className="alert alert-error" role="alert">
+                  <AlertTriangle size={16} style={{ marginTop: 2 }} />
+                  {error}
+                </div>
+              )}
               {loading && (
                 <>
                   <LiveProgress
@@ -1615,7 +1592,7 @@ export function HomeClient() {
                     elapsed={fmtElapsed(elapsed)}
                   />
                   <p className="muted" role="status">
-                    约 2–4 分钟 · 可以离开页面，进度与结果会保留
+                    生成可能需要几分钟，可稍后回到此页查看进度
                   </p>
                   {plan?.draft && (
                     <p className="draft-hint" role="status">
@@ -1629,23 +1606,20 @@ export function HomeClient() {
                   今日剩余免费次数：{remaining}
                 </p>
               )}
-              <p className="form-actions-note">
-                等不及也可以
+              <div className="form-actions-note">
                 <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn-link">
-                  秒开一份真实验真的成品（苏州 3 天，不用等生成）
+                  查看已核验示例
                 </Link>
-                ；只想看结构，
                 <button type="button" onClick={() => setSampleMode(true)} className="btn-link">
                   打开结构预览
                 </button>
-                。
-              </p>
+              </div>
             </div>
           </motion.form>
 
           <aside className="new-preflight" aria-label="生成前预检">
             <div className="new-preflight-head">
-              <span className="new-preflight-kicker">PRE-FLIGHT · 生成前预检</span>
+              <h2>本次行程</h2>
               <span
                 className={`new-preflight-dot${city.trim() ? " is-on" : ""}`}
                 aria-hidden="true"
@@ -1671,24 +1645,11 @@ export function HomeClient() {
                 </dd>
               </div>
             </dl>
-            <ul className="new-preflight-list" aria-label="本次会做什么">
-              <li>POI 与营业时间逐点过高德</li>
-              <li>通勤按真实路况计算</li>
-              <li>排完自动体检（可执行性 A–D）</li>
-              <li>问题可一键修复，改完自动复检</li>
-            </ul>
             <p className="new-preflight-note">
-              拿不到事实的项会标注「未检索到」，不会用默认值填成看起来完整。
+              生成后会检查地点、营业时间与通勤。缺少的数据会注明。
             </p>
           </aside>
         </div>
-
-        {error && (
-          <div className="alert alert-error" role="alert">
-            <AlertTriangle size={16} style={{ marginTop: 2 }} />
-            {error}
-          </div>
-        )}
 
         {displayPlan && (
           <PlanView

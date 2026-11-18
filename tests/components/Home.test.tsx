@@ -77,7 +77,8 @@ describe("Home 表单", () => {
     await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
 
     await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
-    const btn = screen.getByText("请填写人均预算（穷游可填 0）").closest("button");
+    expect(screen.getByText("请填写人均预算（穷游可填 0）")).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "生成行程" });
     expect(btn).toBeDisabled();
 
     // 点「穷游 0」快捷档后即可提交
@@ -341,7 +342,7 @@ describe("Home 目的地城市默认值", () => {
     expect(cityInput.value).toBe(""); // 没有预填任何城市
     // 空城市时提交按钮禁用，且文字提示先填城市
     expect(screen.getByText("请先填写目的地城市")).toBeInTheDocument();
-    expect(screen.getByText("请先填写目的地城市").closest("button")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "生成行程" })).toBeDisabled();
   });
 
   it("定位成功时：预填定位城市，提交按钮恢复可用", async () => {

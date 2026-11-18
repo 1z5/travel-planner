@@ -15,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const plan = await resolvePlan(id);
-  if (!plan) return { title: "行程不存在 — 行程规划师" };
+  if (!plan) return { title: "行程不存在 — AI Travel Companion" };
   return { title: `${plan.city} · ${plan.days.length} 天行程 — 我的行程` };
 }
 

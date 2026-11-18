@@ -10,7 +10,7 @@ import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
 // 预览面板是**示例界面**（aria-hidden + 面板内注明「非真实行程」），
 // 不冒充真实核验结果——诚实口径优先于视觉。
 export const metadata: Metadata = {
-  title: "为什么是行程规划师 — 先核验真实世界，再排行程",
+  title: "关于 AI Travel Companion — 先核验真实世界，再排行程",
   description:
     "市面上的 AI 行程靠模型记忆编 POI 和营业时间；我们先取高德真实事实再排行程，体检问题全部摊开。",
 };

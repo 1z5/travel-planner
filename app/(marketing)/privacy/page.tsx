@@ -4,7 +4,7 @@ import Link from "next/link";
 // 隐私政策：ToC 产品面向不特定公众，且登录会收集手机号——没有这份文件
 // 既不合规也让用户不敢用。内容只写**实际发生的事**，不写漂亮话。
 export const metadata: Metadata = {
-  title: "隐私政策 — 行程规划师",
+  title: "隐私政策 — AI Travel Companion",
   description: "我们收集什么、用来做什么、保留多久、你的权利，以及如何删除。",
 };
 

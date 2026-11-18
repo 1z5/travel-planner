@@ -1,6 +1,6 @@
-# travel-partner — Reproducible, deterministic verification for AI itineraries
+# AI Travel Companion — Reproducible, deterministic verification for AI itineraries
 
-[![CI](https://github.com/1z5/travel-partner/actions/workflows/ci.yml/badge.svg)](https://github.com/1z5/travel-partner/actions/workflows/ci.yml)
+[![CI](https://github.com/1z5/AI-Travel-Companion/actions/workflows/ci.yml/badge.svg)](https://github.com/1z5/AI-Travel-Companion/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-339933)](#quick-start)
 
@@ -71,7 +71,7 @@ deployed, `/verify-playground.html#blocked` on the demo site serves the same fil
 
 - **Live now**: <https://trip-check-verifier.app.workbuddy.host/?sharecode=EG2RWDAJZG>
   (static hosting, no instance, no cold start)
-- **Permanent entry**: <https://1z5.github.io/travel-partner/> (GitHub Pages is enabled;
+- **Permanent entry**: <https://1z5.github.io/AI-Travel-Companion/> (GitHub Pages is enabled;
   `.github/workflows/pages.yml` publishes on every push)
 - "Add to Home Screen" launches it full-screen; a same-origin Service Worker keeps the
   page available offline. Documents never leave the device (`connect-src 'none'`).

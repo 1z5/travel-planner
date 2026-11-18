@@ -1,445 +1,262 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
   CalendarDays,
-  ChevronRight,
+  Compass,
   Heart,
+  MapPin,
   Plus,
-  Trash2,
+  ShieldCheck,
+  X,
 } from "lucide-react";
-import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
-import { PENDING_CHECK_TEXT_KEY } from "@/lib/jobs/pending-check";
 import { FEATURED_DESTINATIONS, featuredHref } from "@/lib/plan/featured-destinations";
 import {
   loadRecentTrips,
   recentTripLabel,
   removeRecentTrip,
+  saveRecentTrip,
   type RecentTrip,
 } from "@/lib/plan/recent-trips";
 import { loadWishlist, removeWish, type WishlistTrip } from "@/lib/plan/wishlist";
 import { countdownFor } from "@/lib/trip/countdown";
 import { localTodayIso } from "@/lib/trip/trip-day";
 
-// ============================================================
-// 产品首页：我的行程（ATLAS v6 改版）
-//
-// v6 的变化不是「换皮」，是换结构：
-// 1. 首屏从「一张大纸卡 + 三段文案」变成「左侧主张 + 右侧仪器面板」——
-//    右侧用真实示例数据（SAMPLE_PLAN，MOCK）展示产品长什么样，并如实标注
-//    未验真；新用户第一屏就同时看到「主张」与「证据样本」。
-// 2. 2026-11 形态纠正：首屏第一动作从「填表生成」改成「把已有行程贴进来验」。
-//    依据 research/：生成已被 ChatGPT/OTA/地图 App 商品化，而「43% 的 AI 行程日
-//    含可验证错误」没人负责。新用户首屏给粘贴框，主 CTA 指向 /check；
-//    「开始规划」降级为次要按钮，但保留给确实要从零排的人。
-// 3. 快速开始（城市 + 天数 → /new 深链预填）保留给回访用户，不删既有能力。
-// 4. 我的行程 / 精选示例 / 想去清单继续用仪器语言：等宽编号、状态胶囊、
-//    倒计时读数、bento 网格。
-//
-// 展示契约（tests/components/TripsHome.test.tsx）必须继续满足：
-// - 新用户首屏有「先核验真实世界，再排行程」这段**完整文本**（一个文本节点）；
-// - 只有一个 role=link 且名为「开始规划」（href=/new）；
-// - 「看示例」直接指向真实验真的成品分享页（秒开、不用等生成、不用登录）；
-//   右侧 specimen 只作结构预览并如实标注未验真，两者不许混用——把 MOCK
-//   数据叫「真实生成的示例」会把演示对象直接劝退；
-// - 回归用户的 hero 不再出现示例面板（否则「苏州」会与最近行程列表同名）。
-// ============================================================
-
-const QUICK_DAYS = [2, 3, 4, 5] as const;
-
 export function TripsHome() {
   const [trips, setTrips] = useState<RecentTrip[]>([]);
   const [wishlist, setWishlist] = useState<WishlistTrip[]>([]);
-  // 今天的日期只在客户端算（SSR 时区不一定等于用户手机时区），用于倒计时。
-  const [todayIso, setTodayIso] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  // 快速开始（真功能：跳到新建页并用深链预填；不在这里发请求）
-  const [quickCity, setQuickCity] = useState("");
-  const [quickDays, setQuickDays] = useState<(typeof QUICK_DAYS)[number]>(3);
-
-  // 首屏粘贴框：文本暂存后跳 /check 自动开跑。不用 useRouter——组件测试跑在
-  // jsdom，没有 App Router 上下文（与下方原生 GET 表单同一顾虑）。
-  const [pasteText, setPasteText] = useState("");
-
-  function submitPaste(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (pasteText.trim().length < 20) return;
-    try {
-      window.sessionStorage.setItem(PENDING_CHECK_TEXT_KEY, pasteText.trim());
-    } catch {
-      // 隐私模式下 sessionStorage 可能不可写；仍跳过去让用户手动贴一次
-    }
-    window.location.assign("/check");
-  }
+  const [today, setToday] = useState<string>();
+  const [removed, setRemoved] = useState<RecentTrip>();
 
   useEffect(() => {
-    setTrips(loadRecentTrips());
-    setWishlist(loadWishlist());
-    setTodayIso(localTodayIso());
-    setLoaded(true);
+    function refresh() {
+      setTrips(loadRecentTrips());
+      setWishlist(loadWishlist());
+      setToday(localTodayIso());
+    }
+    // 旅行中从地图切回窗口时，名单和日期可能已经变化。
+    refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
-  const isNewUser = loaded && trips.length === 0 && wishlist.length === 0;
-
-  const specimen = SAMPLE_PLAN;
+  const datedTrips = trips.map((trip) => ({
+    trip,
+    countdown: today ? countdownFor(trip.startDate, trip.days, today) : null,
+  }));
+  const orderedTrips = [
+    ...datedTrips.filter(({ countdown }) => countdown?.tone === "active"),
+    ...datedTrips.filter(({ countdown }) => countdown?.tone !== "active"),
+  ];
 
   return (
-    <main className="trips-home">
+    <main className="trips-home companion-home">
       <div className="container trips-home-inner">
-        {/* ===== 首屏：主张 + 仪器面板 ===== */}
-        <section
-          className={`home-action${isNewUser ? " home-action-new" : ""}`}
-          aria-label="新建行程"
-        >
-          <div className="home-action-copy">
-            {isNewUser ? (
-              <>
-                <p className="firstscreen-eyebrow">
-                  <span className="eyebrow-dot" aria-hidden="true" />
-                  事实先行 · 生成前先核验真实世界
-                </p>
-                <h1 className="firstscreen-title">先核验真实世界，再排行程</h1>
-                <p className="firstscreen-lede">
-                  先说去哪、几天、大概预算。我们先用高德核验真实 POI、营业时间与通勤，再排成
-                  <strong>走得通的行程</strong>
-                  ——闭馆、绕路、时间接不上，出发前就标出来。
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="firstscreen-eyebrow">
-                  <span className="eyebrow-dot" aria-hidden="true" />
-                  新建行程
-                </p>
-                <h1 className="firstscreen-title home-action-title">再规划一趟</h1>
-                <p className="firstscreen-lede">
-                  输入目的地、日期和预算，2–4 分钟生成；期间可离开页面，回来接着看。
-                </p>
-              </>
-            )}
+        <header className="companion-page-heading">
+          <div>
+            <h1>我的行程</h1>
+            <p>查看和继续这台设备上的行程。</p>
+          </div>
+          {trips.length > 0 && (
+            <Link href="/new" className="btn btn-primary">
+              <Plus size={17} aria-hidden="true" /> 新建行程
+            </Link>
+          )}
+        </header>
 
-            {/* 形态纠正的主角：陌生人第一眼看到的是「把行程交给我」，不是十几个字段。
-                粘贴后跳 /check，那边会把 AI 读出来的点位/时刻先摊开给人核对再体检。 */}
-            {isNewUser && (
-              <form className="home-paste" onSubmit={submitPaste} aria-label="粘贴已有行程">
-                <label className="sr-only" htmlFor="home-paste-text">
-                  已有的行程原文
-                </label>
-                <textarea
-                  id="home-paste-text"
-                  className="home-paste-input"
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
-                  rows={3}
-                  maxLength={8000}
-                  placeholder="手上已经有一份行程？把 ChatGPT 写的、小红书抄的、朋友发来的贴进来…"
-                />
-                <div className="home-paste-actions">
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={pasteText.trim().length < 20}
-                  >
-                    先看看能不能照着走 <ArrowRight size={15} aria-hidden="true" />
-                  </button>
-                  <span className="home-paste-note">不用等生成，也不用登录</span>
-                </div>
-              </form>
-            )}
+        {removed && (
+          <div className="companion-notice">
+            <span role="status">已从这台设备移除 {removed.city}</span>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setTrips(saveRecentTrip(removed));
+                setRemoved(undefined);
+              }}
+            >
+              撤销
+            </button>
+          </div>
+        )}
 
-            {/* 快速开始：城市 + 天数 → 新建页深链预填（真导航，不是占位） */}
-            {/* 原生 GET 表单：不依赖 useRouter（组件测试在 jsdom 里没有 App Router
-                上下文，用 router 会直接抛错），并且没有 JS 时也能跳转。
-                提交到 /new 后由该页读取 search 参数预填，口径与深链一致。 */}
-            <form className="quickstart" action="/new" method="get" aria-label="快速开始">
-              <span className="quickstart-label" aria-hidden="true">
-                快速开始
-              </span>
-              <label className="sr-only" htmlFor="qs-city">
-                目的地城市
-              </label>
-              <input type="hidden" name="days" value={quickDays} />
-              <input
-                id="qs-city"
-                name="city"
-                className="quickstart-city"
-                value={quickCity}
-                onChange={(e) => setQuickCity(e.target.value)}
-                placeholder="输入城市，如：成都"
-                maxLength={20}
-                autoComplete="off"
-              />
-              <div className="quickstart-days" role="group" aria-label="出行天数">
-                {QUICK_DAYS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`quickstart-day${quickDays === n ? " is-on" : ""}`}
-                    aria-pressed={quickDays === n}
-                    onClick={() => setQuickDays(n)}
-                  >
-                    {n} 天
-                  </button>
-                ))}
-              </div>
-              <button
-                type="submit"
-                className="quickstart-go"
-                aria-label="用这些条件开始规划"
-                title="用这些条件开始规划"
+        {orderedTrips.length > 0 ? (
+          <section className="companion-trip-list" aria-label="行程列表">
+            {orderedTrips.map(({ trip, countdown }) => {
+              const active = countdown?.tone === "active";
+              return (
+                <article
+                  className="companion-trip"
+                  key={trip.shareId}
+                  data-active={active || undefined}
+                >
+                  <div className="companion-trip-icon">
+                    <MapPin size={22} aria-hidden="true" />
+                  </div>
+                  <div className="companion-trip-info">
+                    <h2>
+                      <Link href={active ? `/t/${trip.shareId}` : `/w/${trip.shareId}`}>
+                        {trip.city}
+                      </Link>
+                    </h2>
+                    <div className="companion-trip-meta">
+                      <span>
+                        <CalendarDays size={14} aria-hidden="true" />
+                        {recentTripLabel(trip)}
+                      </span>
+                      {countdown && <span className="companion-trip-status">{countdown.text}</span>}
+                    </div>
+                    {trip.summary && <p>{trip.summary}</p>}
+                  </div>
+                  <div className="companion-trip-actions">
+                    {active ? (
+                      <Link href={`/t/${trip.shareId}`} className="btn btn-primary">
+                        查看今日 <ArrowRight size={15} aria-hidden="true" />
+                      </Link>
+                    ) : (
+                      <Link href={`/w/${trip.shareId}`} className="btn">
+                        打开行程 <ArrowRight size={15} aria-hidden="true" />
+                      </Link>
+                    )}
+                    {active && (
+                      <Link href={`/w/${trip.shareId}?view=plan`} className="btn">
+                        查看计划
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      className="btn companion-icon-button"
+                      aria-label={`从我的行程中移除 ${trip.city}`}
+                      title="从这台设备移除"
+                      onClick={() => {
+                        setTrips(removeRecentTrip(trip.shareId));
+                        setRemoved(trip);
+                      }}
+                    >
+                      <X size={17} aria-hidden="true" />
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        ) : (
+          <section className="companion-start" aria-label="开始旅行">
+            <div className="companion-start-content">
+              <Compass className="companion-start-icon" size={22} aria-hidden="true" />
+              <h2>这次想去哪？</h2>
+              <p>填个目的地和大致天数，先把下一趟旅行安排起来。</p>
+              <form
+                action="/new"
+                method="get"
+                aria-label="快速开始"
+                className="companion-start-form"
               >
-                <ArrowRight size={17} aria-hidden="true" />
-              </button>
-            </form>
-
-            <div className="firstscreen-cta">
-              {/* 回访用户没有上面的粘贴框，这里仍是通往验真台的主入口。 */}
-              <Link href="/check" className="btn-primary firstscreen-btn">
-                <ArrowRight size={16} aria-hidden="true" />
-                验一份行程
-              </Link>
-              <Link href="/new" className="btn btn-ghost">
-                <Plus size={16} aria-hidden="true" />
-                开始规划
-              </Link>
-              {/* 为什么指向 /p 而不是 /new?sample=1：sample 是 MOCK 结构预览，
-                  点开先自曝「未验真」；展示要的是 30 秒内看到真东西。 */}
-              <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="btn btn-ghost">
-                看一份验真过的成品 · 秒开
+                <label>
+                  <span>目的地</span>
+                  <input name="city" placeholder="例如，成都" maxLength={20} />
+                </label>
+                <label>
+                  <span>天数</span>
+                  <select name="days" defaultValue="3">
+                    {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                      <option value={day} key={day}>
+                        {day} 天
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit" className="btn btn-primary">
+                  开始规划 <ArrowRight size={17} aria-hidden="true" />
+                </button>
+              </form>
+              <Link href="/check" className="companion-inline-link">
+                <ShieldCheck size={16} aria-hidden="true" /> 已有行程？先做体检{" "}
+                <ArrowUpRight size={14} aria-hidden="true" />
               </Link>
             </div>
 
-            <p className="home-action-hint">
-              <span>
-                还没想好去哪？
-                <Link href="/cities">按城市看模板（12 城 · 3/4/5 天）</Link>
-              </span>
-              <span>
-                手上已有一份 AI 行程？
-                <Link href="/verify">先给它做体检</Link>
-              </span>
-            </p>
-
-            {/* 一行能力点：把营销从「三张长卡」压缩成一行，不占首屏高度 */}
-            <ul className="home-chips firstscreen-points" aria-label="产品能力">
-              <li>高德验真 POI / 营业时间 / 通勤</li>
-              <li>可执行性体检 A–D</li>
-              <li>改坏了能撤销</li>
-            </ul>
-          </div>
-
-          {/* 右侧仪器面板：只在「空房间」出现——用真实示例数据说明输出长什么样。
-              它是证据样本，不是营销插画：明确标注 MOCK 未验真。 */}
-          {isNewUser && (
-            <aside className="home-specimen" aria-label="行程结构预览（未验真）">
-              <div className="specimen-head">
-                <span className="specimen-tag">SPECIMEN · 结构预览</span>
-                <span className="specimen-status">示例数据 · 未验真</span>
+            <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="companion-example">
+              <Image
+                src="/images/companion-canal.webp"
+                width={1280}
+                height={720}
+                alt=""
+                sizes="(max-width: 760px) 92vw, 420px"
+              />
+              <div className="companion-example-caption">
+                <div>
+                  <span>已核验的示例行程</span>
+                  <strong>苏州 · 3 天</strong>
+                </div>
+                <ArrowUpRight size={20} aria-hidden="true" />
               </div>
-
-              <div className="specimen-map" aria-hidden="true">
-                <svg viewBox="0 0 320 132" role="presentation" focusable="false">
-                  <path className="specimen-route" d="M22 96 L88 62 L152 80 L214 40 L296 54" />
-                  <circle className="specimen-node" cx="22" cy="96" r="4" />
-                  <circle className="specimen-node" cx="88" cy="62" r="4" />
-                  <circle className="specimen-node" cx="152" cy="80" r="4" />
-                  <circle className="specimen-node" cx="214" cy="40" r="4" />
-                  <circle className="specimen-node specimen-node-end" cx="296" cy="54" r="5" />
-                </svg>
-                <span className="specimen-coord">31.29°N · 120.58°E</span>
-              </div>
-
-              <p className="specimen-city">
-                {specimen.city}
-                <span className="specimen-daycount">{specimen.days.length} 天</span>
-              </p>
-              <ol className="specimen-days">
-                {specimen.days.slice(0, 3).map((d) => (
-                  <li key={d.day}>
-                    <span className="specimen-dayno">D{String(d.day).padStart(2, "0")}</span>
-                    <span className="specimen-theme">{d.theme}</span>
-                    <span className="specimen-count">{d.spots.length} 站</span>
-                  </li>
-                ))}
-              </ol>
-              <div className="specimen-foot">
-                <span className="specimen-chip">POI 未验真 · MOCK</span>
-                <span className="specimen-chip specimen-chip-warn">
-                  体检 {specimen.warnings.length} 项提醒
-                </span>
-              </div>
-            </aside>
-          )}
-        </section>
-
-        {/* ===== 回访：我的行程 ===== */}
-        {loaded && trips.length > 0 && (
-          <section className="trips-list" aria-label="行程列表">
-            <header className="home-section-head">
-              <h2 className="home-section-title">
-                <CalendarDays size={15} aria-hidden="true" /> 我的行程
-              </h2>
-              <p className="home-section-sub">存在这台设备上；链接不会过期。</p>
-            </header>
-            {trips.map((trip, i) => (
-              <article className="trip-card" key={trip.shareId}>
-                <Link className="trip-card-main" href={`/w/${trip.shareId}`}>
-                  {/* 序号是「列表位置」不是天数：天数在 meta 里，别让两个数字打架 */}
-                  <span className="trip-card-index" aria-hidden="true">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span className="trip-card-city">{trip.city}</span>
-                  <span className="trip-card-meta">
-                    <CalendarDays size={14} />
-                    {recentTripLabel(trip)}
-                  </span>
-                  {trip.summary && <span className="trip-card-summary">{trip.summary}</span>}
-                  {(() => {
-                    // 行前倒计时（D2）：只对「有合法日期」的行程显示，拿不到就不显示
-                    const cd = todayIso ? countdownFor(trip.startDate, trip.days, todayIso) : null;
-                    return cd ? (
-                      <span className={`trip-card-countdown trip-card-countdown-${cd.tone}`}>
-                        {cd.text}
-                      </span>
-                    ) : null;
-                  })()}
-                  <span className="trip-card-open">
-                    继续规划 <ArrowUpRight size={14} />
-                  </span>
-                </Link>
-                <button
-                  type="button"
-                  className="trip-card-remove"
-                  aria-label={`从我的行程中移除 ${trip.city}`}
-                  title="从这台设备移除（不影响已分享的链接）"
-                  onClick={() => setTrips(removeRecentTrip(trip.shareId))}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </article>
-            ))}
+            </Link>
           </section>
         )}
 
-        {/* ===== 精选示例（真实生成样本 + 示例条件） ===== */}
-        <section className="home-examples" aria-labelledby="home-examples-title">
-          <header className="home-section-head">
-            <h2 className="home-section-title" id="home-examples-title">
-              精选示例
+        {wishlist.length > 0 && (
+          <section className="companion-home-section" aria-label="想去">
+            <h2>
+              <Heart size={19} aria-hidden="true" /> 想去
             </h2>
-            <p className="home-section-sub">
-              示例条件不是已核验行程：点开只把城市、天数、偏好带进表单，生成时逐条核验。
-            </p>
-          </header>
-
-          <div className="firstscreen-evidence">
-            {FEATURED_DESTINATIONS.map((d, i) => (
-              <article className="fs-card" key={d.city}>
-                <div className="fs-card-head">
-                  <span className="fs-card-tag">示例条件</span>
-                  <span className="fs-card-note">{d.prefs.join(" · ")}</span>
-                </div>
-                <span className="fs-card-index" aria-hidden="true">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <h3 className="fs-card-title">
-                  {d.city} · {d.days} 天
-                </h3>
-                <p className="fs-card-body">{d.blurb}</p>
-                <Link href={featuredHref(d)} className="fs-card-link">
-                  用这个条件开始 <ArrowRight size={13} aria-hidden="true" />
-                </Link>
-              </article>
-            ))}
-
-            {/* 真实验真的成品：不用等生成、不用登录，点开就有验真、体检凭据和真实地图。
-                为什么替换掉原来的 MOCK 卡：SAMPLE_PLAN 已由右侧 specimen 承担「结构预览」，
-                再拿它当「真实生成的示例」既重复又不诚实。卡片只做定性描述，
-                具体评分/预警数由分享页按当前 fixture 自己算，避免文案与数据漂移。 */}
-            <article className="fs-card fs-card-warn">
-              <div className="fs-card-head">
-                <span className="fs-card-tag">真实验真的成品</span>
-                <span className="fs-card-note">高德验真 · 含体检凭据 · 秒开</span>
-              </div>
-              <span className="fs-card-index" aria-hidden="true">
-                04
-              </span>
-              <h3 className="fs-card-title">苏州 · 3 天</h3>
-              <ul className="fs-warn-list">
-                <li>每个地点、营业时间与通勤都来自真实检索</li>
-                <li>体检把接不上的时间、闭馆风险直接摊开</li>
-              </ul>
-              <p className="fs-card-body">不用等生成，点开就是一份能核对、能复算的行程。</p>
-              <Link href={demoShareHref(DEMO_SHOWCASE_SHARE_ID)} className="fs-card-link">
-                打开完整行程 <ArrowRight size={13} aria-hidden="true" />
-              </Link>
-            </article>
-          </div>
-
-          {/* 三步管线：把「怎么做到的」压成一行读数，而不是三段长文案 */}
-          <ol className="home-steps" aria-label="产品管线">
-            <li>
-              <span className="home-step-no">01</span>
-              <span className="home-step-title">约束输入</span>
-              <span className="home-step-desc">
-                预算 / 时间 / 偏好是硬约束，模型只输出结构化行程
-              </span>
-            </li>
-            <li>
-              <span className="home-step-no">02</span>
-              <span className="home-step-title">事实核验</span>
-              <span className="home-step-desc">POI / 营业时间 / 闭馆日 / 通勤逐点过高德</span>
-            </li>
-            <li>
-              <span className="home-step-no">03</span>
-              <span className="home-step-title">体检修复</span>
-              <span className="home-step-desc">
-                绕路 / 节奏 / 预算 / 时间轴问题摊开，能修的确定性修
-              </span>
-            </li>
-          </ol>
-        </section>
-
-        {/* ===== 想去清单 ===== */}
-        {loaded && wishlist.length > 0 && (
-          <section className="wishlist" aria-label="想去清单">
-            <header className="wishlist-head">
-              <h2 className="wishlist-title">
-                <Heart size={15} aria-hidden="true" />
-                想去
-              </h2>
-              <p className="wishlist-sub">收藏的行程存在这台设备上，点开就能接着看。</p>
-            </header>
-            <div className="wishlist-list">
-              {wishlist.map((w) => (
-                <article className="wishlist-card" key={w.shareId}>
-                  <Link className="wishlist-main" href={`/p/${w.shareId}`}>
-                    <span className="wishlist-city">{w.city}</span>
-                    <span className="wishlist-meta">
-                      {w.days} 天{w.startDate ? ` · ${w.startDate}` : ""}
-                    </span>
-                    {w.summary && <span className="wishlist-summary">{w.summary}</span>}
-                    <ChevronRight size={14} className="wishlist-chev" aria-hidden="true" />
-                  </Link>
+            <div className="companion-trip-list">
+              {wishlist.map((wish) => (
+                <article className="companion-trip" key={wish.shareId}>
+                  <div className="companion-trip-info">
+                    <h3>
+                      <Link href={`/p/${wish.shareId}`}>{wish.city}</Link>
+                    </h3>
+                    <p>
+                      {wish.days} 天{wish.startDate ? ` · ${wish.startDate}` : ""}
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    className="wishlist-remove"
-                    aria-label={`从想去清单移除 ${w.city}`}
-                    title="从想去清单移除"
-                    onClick={() => setWishlist(removeWish(w.shareId))}
+                    className="btn companion-icon-button"
+                    aria-label={`从想去清单移除 ${wish.city}`}
+                    onClick={() => setWishlist(removeWish(wish.shareId))}
                   >
-                    <Trash2 size={15} />
+                    <X size={17} aria-hidden="true" />
                   </button>
                 </article>
               ))}
             </div>
           </section>
         )}
+
+        <section className="companion-home-section" aria-labelledby="companion-templates">
+          <div className="companion-section-heading">
+            <h2 id="companion-templates">从城市模板开始</h2>
+            <Link href="/cities" className="companion-inline-link">
+              全部城市 <ArrowRight size={15} aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="companion-template-list">
+            {FEATURED_DESTINATIONS.map((destination) => (
+              <Link
+                href={featuredHref(destination)}
+                className="companion-template"
+                key={destination.city}
+              >
+                <strong>
+                  {destination.city} <span>· {destination.days} 天</span>
+                </strong>
+                <p>{destination.prefs.join(" · ")}</p>
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );

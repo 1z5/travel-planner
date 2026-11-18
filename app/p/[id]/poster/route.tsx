@@ -63,7 +63,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ display: "flex", width: 14, height: 14, background: ACCENT }} />
-          <div style={{ display: "flex", fontSize: 30, letterSpacing: 2 }}>行程规划师</div>
+          <div style={{ display: "flex", fontSize: 30, letterSpacing: 2 }}>AI Travel Companion</div>
         </div>
         <div style={{ display: "flex", fontSize: 34, color: "#6b5f52" }}>{m.verifyLine}</div>
       </div>

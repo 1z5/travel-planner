@@ -27,7 +27,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const OUT_DIR = path.join(ROOT, "eval-results", "visual");
 
 const args = process.argv.slice(2);
 function opt(name, fallback = null) {
@@ -36,6 +35,8 @@ function opt(name, fallback = null) {
 }
 const BASE_URL = opt("base-url");
 const SHARE_ARG = opt("share");
+const darkTheme = opt("theme") === "dark";
+const OUT_DIR = path.join(ROOT, "eval-results", "visual", ...(darkTheme ? ["dark"] : []));
 const CHROME =
   process.env.CHROME_PATH ||
   [
@@ -213,7 +214,9 @@ const PAGE_CHECK_FN = String.raw`
     '.tc-ws-check', '.tc-ws-check-lede', '.tc-ws-check-issue', '.tc-ws-check-unrepairable',
     // 可分享体检报告页（headline / 建议块 / 凭据）
     '.tc-report-page', '.tc-report-page-headline', '.tc-fix', '.tc-cred-id',
-    '.at-journey-marks .btn',
+    '.at-journey-marks .btn', '.companion-page-heading p', '.companion-inline-link',
+    '.companion-example-caption', '.companion-template p', '.companion-today-context',
+    '.companion-today-actions a', '.companion-form-hint', '.companion-share-actions a', '.desk-lede',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);
@@ -417,21 +420,24 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
     await cdp.send("Log.enable");
+    if (darkTheme) {
+      await cdp.send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-color-scheme", value: "dark" }],
+      });
+    }
 
     const PAGES = [
       {
-        // 新用户首屏验收标准：主张、主 CTA、可溯源证据都必须在场
-        // （缺一项就说明「第一屏传递重要信息/引导明确/可记忆亮点」被改坏了）
+        // 首页要能直接开始新行程，同时保留示例入口。
         name: "trips",
         path: "/",
         required: [
           ".trips-home",
           ".app-topbar",
-          ".home-action",
-          ".firstscreen-title",
-          ".firstscreen-cta",
-          ".home-examples",
-          ".firstscreen-evidence",
+          ".companion-page-heading",
+          ".companion-start-form",
+          ".companion-example",
+          ".companion-template-list",
         ],
       },
       {
@@ -439,6 +445,11 @@ async function main() {
         name: "new",
         path: "/new",
         required: [".new-head", ".new-core", ".new-core-actions", ".more-options"],
+      },
+      {
+        name: "check",
+        path: "/check",
+        required: [".check-desk", ".desk-textarea", ".desk-actions"],
       },
       {
         name: "about",
@@ -482,7 +493,13 @@ async function main() {
       {
         name: "share",
         path: `/p/${shareId}`,
-        required: [".poster", ".packing-card", ".day-head", ".app-topbar"],
+        required: [
+          ".poster",
+          ".packing-card",
+          ".day-head",
+          ".app-topbar",
+          ".companion-share-actions",
+        ],
       },
       { name: "report", path: `/r/${shareId}`, required: [".report-poster", ".app-topbar"] },
       {

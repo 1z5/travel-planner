@@ -348,7 +348,7 @@ function TodayLeg({ leg }: { leg: PlanLeg }) {
   );
 }
 
-/** 页面底部固定入口：完整行程（规划视角）+ 回首页。三种状态都可用 */
+/** 页面底部入口放在内容结束处，避免手机上挡住时间轴。 */
 function TodayLinks({ shareId }: { shareId: string }) {
   return (
     <nav className="today-links" aria-label="页面导航">
@@ -767,6 +767,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   const spots: PlanSpot[] = Array.isArray(currentDay.spots) ? currentDay.spots : [];
   const legs: PlanLeg[] = Array.isArray(currentDay.legs) ? currentDay.legs : [];
   const spotStatus: SpotNow | null = spotNow(spots, clock.minutes);
+  const currentStop =
+    spotStatus?.kind === "now" || spotStatus?.kind === "next" ? spots[spotStatus.index] : undefined;
   const dayNo = typeof currentDay.day === "number" ? currentDay.day : today.dayIndex + 1;
 
   const outdoorSpots = spots.filter((s) => s.type === "sight" || s.type === "activity");
@@ -850,174 +852,40 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
           <p className="today-sub">
             {currentDay.theme || "今日安排"} · {fmtDate(clock.todayIso)}
           </p>
+          <p className="companion-today-context">按计划时间</p>
           <div className="today-status today-status-during" role="status" aria-live="polite">
             <span className="today-status-text">{statusText}</span>
           </div>
           {statusDetail && <p className="today-status-detail">{statusDetail}</p>}
-        </div>
-      </section>
-
-      {/* ===== 天气：用户点击才查；坏天气 + 有室外点 → 一键改室内 ===== */}
-      <section className="card today-weather">
-        <div className="card-body">
-          <h2 className="today-section-title">
-            <CloudRain size={16} aria-hidden="true" />
-            今天天气
-          </h2>
-
-          {weather.status === "idle" && (
-            <button
-              type="button"
-              className="btn today-weather-btn"
-              aria-label="查看今天天气"
-              onClick={() => void checkWeather()}
-            >
-              <CloudRain size={14} aria-hidden="true" />
-              查看今天天气
-            </button>
-          )}
-
-          {weather.status === "loading" && (
-            <p className="today-helper" role="status">
-              <Loader2 size={14} className="spin" aria-hidden="true" />
-              天气查询中…
-            </p>
-          )}
-
-          {weather.status === "unavailable" && (
-            <p className="today-degrade" role="status">
-              {weather.reason}
-            </p>
-          )}
-
-          {weather.status === "done" && (
-            <>
-              <p className="today-weather-line">
-                <span>
-                  今天白天 {weather.day.dayWeather} · 夜间 {weather.day.nightWeather}
-                </span>
-                <span className="today-temp">
-                  {weather.day.nightTemp}–{weather.day.dayTemp}°C
-                </span>
-              </p>
-              {weatherAdvice && (
-                <p className={weatherBad ? "today-weather-warn" : "today-helper"}>
-                  {weatherAdvice}
-                </p>
-              )}
-
-              {showFix && (
-                <div className="today-fix">
-                  <button
-                    type="button"
-                    className="btn today-fix-btn"
-                    aria-label="把今天改成室内路线"
-                    disabled={fix.status === "loading"}
-                    onClick={() => void applyRainFix()}
-                  >
-                    {fix.status === "loading" ? (
-                      <>
-                        <Loader2 size={14} className="spin" aria-hidden="true" />
-                        正在改今天的路线…
-                      </>
-                    ) : (
-                      <>
-                        <CloudRain size={14} aria-hidden="true" />
-                        把今天改成室内路线
-                      </>
-                    )}
-                  </button>
-                  <p className="today-fix-hint">
-                    {fix.status === "loading"
-                      ? "正在按雨天重排今天，原行程不受影响；失败会保留当前安排。"
-                      : "只改今天这一天；生成期间原行程不受影响。"}
-                  </p>
-                </div>
-              )}
-
-              {fix.status === "done" && (
-                <p className="today-fix-done" role="status">
-                  {typeof fix.revision === "number"
-                    ? `已改为第 ${fix.revision} 版`
-                    : "今天的路线已更新"}
-                </p>
-              )}
-              {fix.status === "error" && (
-                <p className="today-fix-error" role="alert">
-                  <AlertTriangle size={14} aria-hidden="true" />
-                  {fix.error}
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* ===== 今天体检：只在出行中展示；只读、失败降级、不抢执行焦点 ===== */}
-      {today?.kind === "during" &&
-        currentDay &&
-        todayCheck.status !== "idle" &&
-        todayCheck.status !== "hidden" && (
-          <TodayCheckCard
-            state={todayCheck}
-            dayNo={currentDay.day}
-            shareId={shareId}
-            onRetry={() => void checkToday()}
-          />
-        )}
-
-      {/* ===== 离我多远：用户主动定位，一次算出今天各站距离 ===== */}
-      {hasLocatableSpot && (
-        <section className="card today-locate">
-          <div className="card-body">
-            <h2 className="today-section-title">
-              <MapPin size={16} aria-hidden="true" />
-              定位与距离
-            </h2>
-            <button
-              type="button"
-              className="btn today-locate-btn"
-              aria-label="计算我离今天各站的距离"
-              disabled={locate.status === "locating"}
-              onClick={locateMe}
-            >
-              {locate.status === "locating" ? (
-                <>
-                  <Loader2 size={14} className="spin" aria-hidden="true" />
-                  定位中…
-                </>
-              ) : (
-                <>
-                  <MapPin size={14} aria-hidden="true" />
-                  离我多远
-                </>
-              )}
-            </button>
-            {locate.status === "error" && (
-              <p className="today-degrade" role="status">
-                {locate.reason}
-              </p>
+          <div className="companion-today-actions">
+            {currentStop?.location && (
+              <a
+                className="btn btn-primary"
+                href={amapNavUrl(currentStop.location, currentStop.name)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Navigation size={16} aria-hidden="true" /> 导航
+              </a>
             )}
-            {locate.status === "done" && locate.distances.length === 0 && (
-              <p className="today-degrade" role="status">
-                今天的行程点没有可用坐标，算不出距离（未验真的点没有坐标）。
-              </p>
-            )}
-            {locate.status === "done" && locate.distances.length > 0 && (
-              <p className="today-helper">
-                已算出 {locate.distances.length} 个点的直线距离，显示在时间轴各站下。
-              </p>
+            <a className="btn" href="#today-timeline">
+              查看今天的安排
+            </a>
+            {futureSpots.length > 0 && (
+              <a className="btn" href="#today-replan">
+                接下来怎么走
+              </a>
             )}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {!plan.demo && (
         <JourneyMarksPanel key={`${shareId}:${dayNo}`} shareId={shareId} spots={spots} />
       )}
 
       {/* ===== 今日时间轴：每个点 + 点之间的真实路段 ===== */}
-      <section className="card today-timeline">
+      <section className="card today-timeline" id="today-timeline">
         <div className="card-body">
           <h2 className="today-section-title">
             <CalendarDays size={16} aria-hidden="true" />
@@ -1172,16 +1040,13 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
           求解在服务端纯计算完成（毫秒级、不调模型、不扣配额），结果只是
           建议：保留什么、放弃什么、为什么，全部引用真实约束数据。 */}
       {futureSpots.length > 0 && (
-        <section className="card replan-card">
+        <section className="card replan-card" id="today-replan">
           <div className="card-body">
             <h2 className="today-section-title">
               <Route size={16} aria-hidden="true" />
               接下来怎么走
             </h2>
-            <p className="today-helper">
-              站在路口时按现在的时间重新算一遍：还剩 {futureSpots.length} 个没走的点，
-              看看哪些还来得及、哪些要放弃、为什么。
-            </p>
+            <p className="today-helper">按当前时间检查后面的 {futureSpots.length} 个计划站点。</p>
             <button
               type="button"
               className="btn replan-btn"
@@ -1266,6 +1131,161 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                   这是建议，未修改你的行程；想采用可对当天「一句话改」（在完整行程页操作）。
                 </p>
               </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ===== 天气：用户点击才查；坏天气 + 有室外点 → 一键改室内 ===== */}
+      <section className="card today-weather">
+        <div className="card-body">
+          <h2 className="today-section-title">
+            <CloudRain size={16} aria-hidden="true" />
+            今天天气
+          </h2>
+
+          {weather.status === "idle" && (
+            <button
+              type="button"
+              className="btn today-weather-btn"
+              aria-label="查看今天天气"
+              onClick={() => void checkWeather()}
+            >
+              <CloudRain size={14} aria-hidden="true" />
+              查看今天天气
+            </button>
+          )}
+
+          {weather.status === "loading" && (
+            <p className="today-helper" role="status">
+              <Loader2 size={14} className="spin" aria-hidden="true" />
+              天气查询中…
+            </p>
+          )}
+
+          {weather.status === "unavailable" && (
+            <p className="today-degrade" role="status">
+              {weather.reason}
+            </p>
+          )}
+
+          {weather.status === "done" && (
+            <>
+              <p className="today-weather-line">
+                <span>
+                  今天白天 {weather.day.dayWeather} · 夜间 {weather.day.nightWeather}
+                </span>
+                <span className="today-temp">
+                  {weather.day.nightTemp}–{weather.day.dayTemp}°C
+                </span>
+              </p>
+              {weatherAdvice && (
+                <p className={weatherBad ? "today-weather-warn" : "today-helper"}>
+                  {weatherAdvice}
+                </p>
+              )}
+
+              {showFix && (
+                <div className="today-fix">
+                  <button
+                    type="button"
+                    className="btn today-fix-btn"
+                    aria-label="把今天改成室内路线"
+                    disabled={fix.status === "loading"}
+                    onClick={() => void applyRainFix()}
+                  >
+                    {fix.status === "loading" ? (
+                      <>
+                        <Loader2 size={14} className="spin" aria-hidden="true" />
+                        正在改今天的路线…
+                      </>
+                    ) : (
+                      <>
+                        <CloudRain size={14} aria-hidden="true" />
+                        把今天改成室内路线
+                      </>
+                    )}
+                  </button>
+                  <p className="today-fix-hint">
+                    {fix.status === "loading"
+                      ? "正在按雨天重排今天，原行程不受影响；失败会保留当前安排。"
+                      : "只改今天这一天；生成期间原行程不受影响。"}
+                  </p>
+                </div>
+              )}
+
+              {fix.status === "done" && (
+                <p className="today-fix-done" role="status">
+                  {typeof fix.revision === "number"
+                    ? `已改为第 ${fix.revision} 版`
+                    : "今天的路线已更新"}
+                </p>
+              )}
+              {fix.status === "error" && (
+                <p className="today-fix-error" role="alert">
+                  <AlertTriangle size={14} aria-hidden="true" />
+                  {fix.error}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* ===== 今天体检：只在出行中展示；只读、失败降级、不抢执行焦点 ===== */}
+      {today?.kind === "during" &&
+        currentDay &&
+        todayCheck.status !== "idle" &&
+        todayCheck.status !== "hidden" && (
+          <TodayCheckCard
+            state={todayCheck}
+            dayNo={currentDay.day}
+            shareId={shareId}
+            onRetry={() => void checkToday()}
+          />
+        )}
+
+      {/* ===== 离我多远：用户主动定位，一次算出今天各站距离 ===== */}
+      {hasLocatableSpot && (
+        <section className="card today-locate">
+          <div className="card-body">
+            <h2 className="today-section-title">
+              <MapPin size={16} aria-hidden="true" />
+              定位与距离
+            </h2>
+            <button
+              type="button"
+              className="btn today-locate-btn"
+              aria-label="计算我离今天各站的距离"
+              disabled={locate.status === "locating"}
+              onClick={locateMe}
+            >
+              {locate.status === "locating" ? (
+                <>
+                  <Loader2 size={14} className="spin" aria-hidden="true" />
+                  定位中…
+                </>
+              ) : (
+                <>
+                  <MapPin size={14} aria-hidden="true" />
+                  离我多远
+                </>
+              )}
+            </button>
+            {locate.status === "error" && (
+              <p className="today-degrade" role="status">
+                {locate.reason}
+              </p>
+            )}
+            {locate.status === "done" && locate.distances.length === 0 && (
+              <p className="today-degrade" role="status">
+                今天的行程点没有可用坐标，算不出距离（未验真的点没有坐标）。
+              </p>
+            )}
+            {locate.status === "done" && locate.distances.length > 0 && (
+              <p className="today-helper">
+                已算出 {locate.distances.length} 个点的直线距离，显示在时间轴各站下。
+              </p>
             )}
           </div>
         </section>

@@ -13,7 +13,7 @@ import Link from "next/link";
 // ============================================================
 
 export const metadata: Metadata = {
-  title: "定价 — 行程规划师",
+  title: "定价 — AI Travel Companion",
   description: "本项目全部功能免费、不计划商业化。此页为历史决策留档。",
   alternates: { canonical: "/pricing" },
 };

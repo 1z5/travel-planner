@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Compass } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ============================================================
@@ -12,11 +13,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 // ≤860px 直接收成「品牌章 + 主题开关 + 主 CTA」，导航靠页内区块与页脚可达。
 // ============================================================
 
-/** 品牌标记：方形「印章」里的「行」字——可复用在 favicon/OG，产品壳也用同一个 */
+/** 营销与产品入口共享同一罗盘标记。 */
 export function BrandMark() {
   return (
-    <span className="brand-mark" aria-hidden="true">
-      行
+    <span className="companion-brand-mark" aria-hidden="true">
+      <Compass size={21} />
     </span>
   );
 }
@@ -25,11 +26,10 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link href="/" className="brand" aria-label="行程规划师 我的行程">
+        <Link href="/" className="brand" aria-label="AI Travel Companion · 我的行程">
           <BrandMark />
           <span className="brand-text">
-            <span className="brand-name">行程规划师</span>
-            <span className="brand-sub">TRAVEL PLANNER</span>
+            <span className="brand-name">AI Travel Companion</span>
           </span>
         </Link>
 

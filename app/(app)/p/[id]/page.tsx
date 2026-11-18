@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { resolvePlan } from "@/lib/plan/plan-repo";
 import { getStore } from "@/lib/store";
 import { countClones } from "@/lib/plan/clone-count";
+import { CloneCTA } from "@/components/CloneCTA";
 import { PosterCover } from "@/components/PosterCover";
 import { PlanView } from "@/components/PlanView";
 import { TripAlert } from "@/components/TripAlert";
@@ -28,17 +29,17 @@ export async function generateMetadata({
   const { id } = await params;
   const plan = await getPlan(id);
   if (!plan) {
-    return { title: "行程分享 - 行程规划师" };
+    return { title: "行程分享 - AI Travel Companion" };
   }
   const title = `${plan.city} ${plan.days.length} 天行程`;
   return {
-    title: `${title} - 行程规划师`,
+    title: `${title} - AI Travel Companion`,
     description: plan.summary,
     openGraph: {
       title,
       description: plan.summary,
       type: "article",
-      siteName: "行程规划师",
+      siteName: "AI Travel Companion",
     },
     twitter: { card: "summary", title, description: plan.summary },
   };
@@ -160,10 +161,19 @@ export default async function SharePage({
           不需要接我们的 API。内容只含文档已有事实，不含核验结论（schema.org 没有对应词汇）。 */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stamp.jsonLdInline }} />
 
-      {/* 行程体检凭据：两轴结论 + 可复算 ID + 跳转开放报告。
-          故意放在分享页最上方——「可对账的证据」就是给别人看的第一件东西。
-          但说明文字对「只想看行程的人」是噪音（手机上是一整屏文字墙），
-          所以 2026-11 起收进 <details>：默认只露一行结论，说明与报告入口一键可达。 */}
+      <PosterCover plan={plan} shareId={id} showClone={false} />
+      <nav className="companion-share-actions" aria-label="分享行程操作">
+        <a href="#shared-itinerary" className="btn btn-primary">
+          查看按天安排
+        </a>
+        <Link href={`/t/${id}`} className="btn">
+          打开行中模式
+        </Link>
+        <Link href={`/p/${id}/check`} className="btn">
+          查看体检
+        </Link>
+      </nav>
+
       <section className="card" aria-label="行程体检凭据">
         <div className="card-body">
           <p className="muted">Trip Check · 行程体检凭据（开放标准 v0.1）</p>
@@ -228,14 +238,16 @@ export default async function SharePage({
         </div>
       </section>
 
+      <section id="shared-itinerary" aria-label="按天安排">
+        <TripAlert plan={plan} />
+        <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck hideCover />
+      </section>
+
       {/* 传播型 CTA：看到别人行程的人，一键生成自己的 */}
       <div className="share-cta">
         <div className="share-cta-text">
           <strong>也想去{plan.city}？</strong>
-          {/* 口径必须与 /new 一致：真实模型 2-4 分钟（旧的「30 秒」做不到，
-              首次访问的人会以为页面卡死；「期间可离开」是 2026-10 起
-              真实成立的行为——任务句柄落 localStorage，回来能续轮询） */}
-          <span>输入你的时间和预算，2–4 分钟生成专属行程（期间可离开页面）</span>
+          <span>按自己的日期和预算重新规划。</span>
         </div>
         <div className="share-cta-actions">
           {/* 愿望清单（B3）：先记下来、以后再排。克隆是「现在就排」，两者互补。 */}
@@ -263,32 +275,10 @@ export default async function SharePage({
             生成我的行程 →
           </Link>
         </div>
+        <div className="companion-clone">
+          <CloneCTA plan={plan} shareId={id} />
+        </div>
         {cloneCount > 0 && <p className="share-clone-count">{cloneCount} 人克隆过这份行程</p>}
-      </div>
-
-      {/* 切片1 · 海报级分享页：传播飞轮的「值得截图」封面（见 components/PosterCover.tsx）。
-          纯增量插在 TripAlert 之前，现有元素与顺序一律不动。 */}
-      <PosterCover plan={plan} shareId={id} />
-
-      <TripAlert plan={plan} />
-
-      <PlanView plan={plan} shareId={id} editable={edit === "1"} ownerCheck hideCover />
-
-      {/* 移动端底部操作条（≤720px 显示，桌面隐藏）：分享页很长，关键动作
-          （保存海报 / 生成自己的行程）滚回顶部才能碰到是不行的——拇指可达
-          是移动端底线。纯链接渲染，不引入客户端 JS。 */}
-      <div className="share-mobile-bar">
-        <a
-          href={`/p/${id}/poster`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-sm"
-        >
-          保存海报
-        </a>
-        <Link href="/new" className="btn btn-primary btn-sm">
-          生成我的行程
-        </Link>
       </div>
     </main>
   );

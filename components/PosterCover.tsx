@@ -28,6 +28,7 @@ export interface PosterCoverProps {
   plan: Plan;
   /** 分享 token（/p/<shareId>）：旅行报告链接与克隆 CTA 都要用它 */
   shareId: string;
+  showClone?: boolean;
 }
 
 /** 副题里的主题段最多展示几天：海报副题是「一行」，7 天全列会溢出 */
@@ -106,7 +107,7 @@ function coverMetaLines(plan: Plan, shareId: string): string[] {
  * 视觉走「旅行刊物」：衬线大标题、卷首等宽信息行、全出血首日路线图。
  * 入场动画与 PlanView 的卡片同一套节奏，保证整页动效一致。
  */
-export function PosterCover({ plan, shareId }: PosterCoverProps) {
+export function PosterCover({ plan, shareId, showClone = true }: PosterCoverProps) {
   const days = Array.isArray(plan.days) ? plan.days.length : 0;
   const stops = countStops(plan);
   // 花费口径用 lib/budget.ts 的逐项合计（与预算透视同一处实现）：
@@ -190,7 +191,7 @@ export function PosterCover({ plan, shareId }: PosterCoverProps) {
         {/* 一键克隆（切片2）：看到别人行程的人，一键带出「按我的日期重排」的
             版本。克隆走完整生成管线（事实层按新日期重新核验闭馆与通勤）——
             这是与「复制 JSON 改日期」的假克隆的分水岭。 */}
-        <CloneCTA plan={plan} shareId={shareId} />
+        {showClone && <CloneCTA plan={plan} shareId={shareId} />}
         <Link href={`/r/${shareId}`} className="poster-report-link">
           旅行报告
           <ArrowRight size={14} />

@@ -34,7 +34,7 @@ export async function generateMetadata({
   const days = Array.isArray(plan.days) ? plan.days.length : 0;
   const title = `${plan.city} ${days} 天旅行报告`;
   return {
-    title: `${title} - 行程规划师`,
+    title: `${title} - AI Travel Companion`,
     // description 用行程摘要：报告页分享出去时，卡片预览里至少能看到这趟
     // 旅行是什么，而不是一句空泛的「AI 行程」。
     description: plan.summary,
@@ -42,7 +42,7 @@ export async function generateMetadata({
       title,
       description: plan.summary,
       type: "article",
-      siteName: "行程规划师",
+      siteName: "AI Travel Companion",
     },
     twitter: { card: "summary", title, description: plan.summary },
   };

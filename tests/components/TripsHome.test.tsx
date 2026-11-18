@@ -12,32 +12,44 @@ describe("我的行程", () => {
     window.localStorage.clear();
   });
 
-  it("新用户首屏：主张 + 唯一主行动卡 + 可溯源的记忆点", async () => {
+  it("没有行程时，提供新建、体检、样例和城市模板入口", () => {
     render(<TripsHome />);
-    // 首屏必须回答「这是什么产品」：价值主张在行动卡里，而不是只剩一句「还没有行程」
-    await waitFor(() => expect(screen.getByText("先核验真实世界，再排行程")).toBeInTheDocument());
-    // 引导明确：主 CTA 指向新建（页面内唯一的新建入口，顶栏不再重复）
-    expect(screen.getByRole("link", { name: /开始规划/ })).toHaveAttribute("href", "/new");
-    // 「看示例」必须秒开真实验真的成品，不能再指向 MOCK 的 sample 预览
-    expect(screen.getByRole("link", { name: /验真过的成品/ })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "我的行程" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "快速开始" })).toHaveAttribute("action", "/new");
+    expect(screen.getByRole("button", { name: "开始规划" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /先做体检/ })).toHaveAttribute("href", "/check");
+    expect(screen.getByRole("link", { name: /已核验的示例行程/ })).toHaveAttribute(
       "href",
       `/p/${DEMO_SHOWCASE_SHARE_ID}`,
     );
-    // specimen 只是结构预览，必须如实标注未验真，不冒充真实行程
-    expect(screen.getByText("示例数据 · 未验真")).toBeInTheDocument();
-    expect(screen.getByText("真实验真的成品")).toBeInTheDocument();
-    // 记忆点必须可溯源：示例卡说清核验来源，且链接落在真实成品上
-    expect(screen.getByText("高德验真 · 含体检凭据 · 秒开")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /打开完整行程/ })).toHaveAttribute(
-      "href",
-      `/p/${DEMO_SHOWCASE_SHARE_ID}`,
-    );
-    // 精选示例承接「不知道去哪」：示例条件必须显式标注，且入口是 /new 深链
-    expect(screen.getAllByText("示例条件").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /按城市看模板/ })).toHaveAttribute("href", "/cities");
+    expect(screen.getByRole("link", { name: /全部城市/ })).toHaveAttribute("href", "/cities");
   });
 
-  it("列出最近行程：链接带 ?edit=1，可移除且只清本地索引", async () => {
+  it("行中行程排在前面，并能直接打开今日安排", async () => {
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([
+        { shareId: "share_recent", city: "成都", days: 3, createdAt: Date.now() },
+        {
+          shareId: "share_active",
+          city: "上海",
+          days: 3,
+          startDate: day,
+          createdAt: Date.now() - 1000,
+        },
+      ]),
+    );
+    render(<TripsHome />);
+    expect(await screen.findByRole("link", { name: "查看今日" })).toHaveAttribute(
+      "href",
+      "/t/share_active",
+    );
+    expect(screen.getAllByRole("article")[0]).toHaveTextContent("上海");
+  });
+
+  it("最近行程打开工作台，本机移除后可撤销", async () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify([
@@ -47,9 +59,9 @@ describe("我的行程", () => {
     );
 
     render(<TripsHome />);
-    await waitFor(() => expect(screen.getByText("成都")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: "成都" })).toBeInTheDocument());
 
-    expect(screen.getByRole("link", { name: /成都/ })).toHaveAttribute("href", "/w/share_keep01");
+    expect(screen.getByRole("link", { name: "成都" })).toHaveAttribute("href", "/w/share_keep01");
 
     await userEvent.click(screen.getByRole("button", { name: /从我的行程中移除 苏州/ }));
     await waitFor(() => expect(screen.queryByText("苏州")).not.toBeInTheDocument());
@@ -57,6 +69,8 @@ describe("我的行程", () => {
     const raw = window.localStorage.getItem(STORAGE_KEY) ?? "";
     expect(raw).toContain("share_keep01");
     expect(raw).not.toContain("share_drop02");
+    await userEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(screen.getByRole("link", { name: "苏州" })).toBeInTheDocument();
   });
 });
 
@@ -85,12 +99,13 @@ describe("想去清单与倒计时", () => {
     render(<TripsHome />);
     await waitFor(() => expect(screen.getByText("想去")).toBeInTheDocument());
     // 链接指向分享页
-    expect(screen.getByRole("link", { name: /大理/ })).toHaveAttribute("href", "/p/share_wish01");
-    // 新用户首屏（营销主张）不出现——有想去清单就不是空房间
-    expect(screen.queryByText("先核验真实世界，再排行程")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "大理" })).toHaveAttribute("href", "/p/share_wish01");
+    expect(screen.getByRole("heading", { name: "我的行程" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /从想去清单移除 大理/ }));
-    await waitFor(() => expect(screen.queryByText("大理")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: "大理" })).not.toBeInTheDocument(),
+    );
     expect(window.localStorage.getItem(WISH_KEY)).toBe("[]");
   });
 

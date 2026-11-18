@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type CSSProperties } from "react";
 import { ViewTransition, addTransitionType } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -81,6 +81,7 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
   const requested = params.get("view");
   const explicitView = VIEWS.includes(requested as View) ? (requested as View) : null;
   const [view, setView] = useState<View>(explicitView ?? "plan");
+  const tabId = useId();
 
   // 镜头切换必须发生在一个 Transition 里，<ViewTransition> 才会真的做动画
   // （普通 setState 不触发）。渲染内容仍在同一棵树里，测试/无 JS 环境按普通
@@ -88,6 +89,9 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
   const [, startLensTransition] = useTransition();
   function switchView(next: View) {
     if (next === view) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", next);
+    window.history.replaceState(null, "", url);
     startLensTransition(() => {
       addTransitionType("lens");
       setView(next);
@@ -119,6 +123,10 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
   useEffect(() => {
     const t = tripToday(plan.startDate, localTodayIso(), plan.days.length);
     setToday(t);
+    if (explicitView) {
+      setView(explicitView);
+      return;
+    }
     if (!autoSwitched.current && !explicitView && t.kind === "during") {
       setView("today");
       autoSwitched.current = true;
@@ -147,24 +155,11 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
           ? "已结束"
           : "日期未设置";
 
-  // HUD 评分环：与 ExecutabilityBadge / 体检镜头同源（lib/executability.ts），
-  // 这里只是把同一份确定性结论做成首屏读数，不另算一套分数。
   const exec = executabilityOf(plan);
-  const ringPct = exec.state === "scored" && exec.score !== null ? exec.score : 0;
-  const ringColor =
-    exec.state === "scored" && exec.grade ? RING_COLOR[exec.grade] : "var(--at-ink-4)";
-  const ringValue = exec.state === "scored" && exec.score !== null ? String(exec.score) : "—";
-  const ringCaption =
-    exec.state === "scored"
-      ? `${exec.grade} · ${exec.gradeLabel}`
-      : exec.state === "pending"
-        ? "核验中"
-        : "未核验";
   const tabIndex = Math.max(
     0,
     TABS.findIndex((t) => t.id === view),
   );
-  const totalSpots = days.reduce((n, d) => n + d.spots.length, 0);
 
   async function copyLink() {
     const url = `${window.location.origin}/p/${shareId}`;
@@ -193,17 +188,6 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
                 <ArrowLeft size={13} aria-hidden="true" />
                 我的行程
               </Link>
-              {/* 行程编号：仪器铭牌式的「这台机器读哪份数据」，不用完整 token 以免过长 */}
-              <span className="ws-hud-id" title={shareId}>
-                TRIP ·{" "}
-                {shareId
-                  .replace(/^share_/, "")
-                  .slice(0, 8)
-                  .toUpperCase()}
-              </span>
-              <span className="ws-hud-count">
-                {days.length} DAYS / {totalSpots} STOPS
-              </span>
             </div>
             <h1 className="ws-h1">
               {plan.cities?.length
@@ -227,7 +211,7 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
                 ExecutabilityBadge，和右侧评分环、下方体检镜头**三处重复同一个分数**，
                 HUD 被撑高 60px。分数留给环（视觉锚点），可执行细节留给体检镜头。 */}
             {exec.state === "scored" && exec.hardIssues > 0 && (
-              <button type="button" className="ws-hud-fix" onClick={() => setView("check")}>
+              <button type="button" className="ws-hud-fix" onClick={() => switchView("check")}>
                 <Wrench size={13} aria-hidden="true" />
                 {exec.hardIssues} 处会影响行程 · 去体检修复
               </button>
@@ -235,24 +219,27 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
           </div>
 
           <div className="ws-hud-side">
-            {/* 评分环：conic-gradient 由 base 层 .at-ring 提供；这里只喂数值与颜色 */}
-            <div className="ws-score" data-state={exec.state}>
-              <div
-                className="at-ring ws-ring"
-                style={
-                  {
-                    "--at-ring-pct": ringPct,
-                    "--at-ring-size": "70px",
-                    "--at-ring-color": ringColor,
-                  } as CSSProperties
-                }
-                role="img"
-                aria-label={`可执行性 ${ringValue === "—" ? "未评分" : `${ringValue} 分`}`}
-              >
-                <span>{ringValue}</span>
+            {exec.state === "scored" && exec.score !== null && (
+              <div className="ws-score" data-state={exec.state}>
+                <div
+                  className="at-ring ws-ring"
+                  style={
+                    {
+                      "--at-ring-pct": exec.score,
+                      "--at-ring-size": "53px",
+                      "--at-ring-color": exec.grade ? RING_COLOR[exec.grade] : "var(--at-ink-4)",
+                    } as CSSProperties
+                  }
+                  role="img"
+                  aria-label={`可执行性 ${exec.score} 分`}
+                >
+                  <span>{exec.score}</span>
+                </div>
+                <span className="ws-score-caption">
+                  {exec.grade} · {exec.gradeLabel}
+                </span>
               </div>
-              <span className="ws-score-caption">{ringCaption}</span>
-            </div>
+            )}
             <div className="ws-actions">
               <button
                 type="button"
@@ -279,6 +266,19 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
         role="tablist"
         aria-label="行程视角"
         style={{ "--ws-tab-i": tabIndex } as CSSProperties}
+        onKeyDown={(event) => {
+          if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          const nextIndex =
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? TABS.length - 1
+                : (tabIndex + (event.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length;
+          const next = TABS[nextIndex].id;
+          switchView(next);
+          document.getElementById(`${tabId}-${next}`)?.focus();
+        }}
       >
         <div className="ws-tabs-inner">
           {/* 滑动底板：位置由 --ws-tab-i × 自身宽度换算，纯 transform，无重排 */}
@@ -291,7 +291,10 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
                 key={tab.id}
                 type="button"
                 role="tab"
+                id={`${tabId}-${tab.id}`}
+                aria-controls={`${tabId}-panel`}
                 aria-selected={active}
+                tabIndex={active ? 0 : -1}
                 className={`ws-tab${active ? " ws-tab-active" : ""}`}
                 onClick={() => switchView(tab.id)}
               >
@@ -316,7 +319,12 @@ export function TripWorkspace({ plan: initialPlan, shareId }: { plan: Plan; shar
           exit="at-lens"
           default="none"
         >
-          <div className={`ws-lens ws-lens-${view}`}>
+          <div
+            className={`ws-lens ws-lens-${view}`}
+            role="tabpanel"
+            id={`${tabId}-panel`}
+            aria-labelledby={`${tabId}-${view}`}
+          >
             {view === "plan" && (
               <>
                 {days.length > 1 && (

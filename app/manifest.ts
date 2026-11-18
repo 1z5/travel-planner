@@ -9,15 +9,15 @@ import type { MetadataRoute } from "next";
 // 图标由 scripts/gen-pwa-icons.mjs 生成（品牌源 SVG → PNG），改品牌色改脚本。
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "行程规划师 — 先核验真实世界，再排行程",
-    short_name: "行程规划师",
+    name: "AI Travel Companion",
+    short_name: "Travel Companion",
     description: "AI 生成行程前先用高德核验 POI、营业时间、闭馆日与真实通勤，出发前把风险摊开。",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#edf1f7",
-    theme_color: "#c73310",
+    background_color: "#f4f6f4",
+    theme_color: "#155b47",
     lang: "zh-CN",
     categories: ["travel", "navigation", "productivity"],
     icons: [

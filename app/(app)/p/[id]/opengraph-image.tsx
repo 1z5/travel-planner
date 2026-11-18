@@ -150,7 +150,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           </>
         )}
         <div style={{ display: "flex", marginLeft: "auto", fontSize: 22, color: "#7c7160" }}>
-          行程规划师
+          AI Travel Companion
         </div>
       </div>
     </div>,

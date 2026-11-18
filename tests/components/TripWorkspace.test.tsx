@@ -14,6 +14,7 @@ import { verifyDocument } from "@/lib/verify/engine";
 import type { TripCheckCredential, TripCheckReport } from "@/lib/verify/types";
 
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -87,6 +88,21 @@ describe("Trip Workspace", () => {
     // 切到第 3 天：出现第 3 天的点位（同里古镇）
     await userEvent.click(screen.getByRole("button", { name: /Day 3/ }));
     expect(screen.getAllByText("同里古镇").length).toBeGreaterThan(0);
+  });
+
+  it("键盘可以切换视角，选择写入地址且保留其它查询参数", async () => {
+    window.history.replaceState(null, "", "/w/share_ws01?source=test");
+    render(<TripWorkspace plan={SAMPLE_PLAN} shareId="share_ws01" />);
+
+    const planTab = screen.getByRole("tab", { name: /规划/ });
+    planTab.focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    const mapTab = screen.getByRole("tab", { name: /地图/ });
+    expect(mapTab).toHaveFocus();
+    expect(mapTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", mapTab.id);
+    expect(window.location.search).toBe("?source=test&view=map");
   });
 
   it("切到今日镜头：渲染行中模式", async () => {
