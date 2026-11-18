@@ -43,14 +43,17 @@ services:
       # 完全不受影响。
       - key: JOB_LINK_FALLBACK
         value: "0"
+      # TokenHub 的 OpenAI 兼容网关；密钥在 TokenHub 控制台创建，不能进仓库。
       - key: LLM_BASE_URL
-        sync: false
+        value: https://tokenhub.tencentmaas.com/v1
       - key: LLM_API_KEY
         sync: false
       - key: LLM_MODEL
-        value: step-5-preview
+        value: hy4-flash
       - key: LLM_REASONING_EFFORT
-        value: low
+        value: "off"
+      - key: LLM_MAX_TOKENS
+        value: "64000"
       - key: AMAP_WEB_SERVICE_KEY
         sync: false
       # 登录不做（生产守卫会自动关闭登录链路）；secret 仍建议随机，避免误开

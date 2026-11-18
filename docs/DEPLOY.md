@@ -11,16 +11,17 @@
 
 以 [`.env.example`](../.env.example) 为配置索引。使用环境变量或托管平台的密钥设置传入实际值。
 
-| 配置                                       | 用途                                           |
-| ------------------------------------------ | ---------------------------------------------- |
-| `DATA_STORE=postgres`、`DATABASE_URL`      | 持久化行程、任务和账号相关状态                 |
-| `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY` | 同一 OpenAI 兼容服务的地址、模型和密钥         |
-| `LLM_REASONING_EFFORT`                     | 网关拒绝推理参数时设为 `off`，请求会省略该字段 |
-| `AMAP_WEB_SERVICE_KEY`                     | 在线 POI、路线、地图与天气，留空时会降级       |
-| `NEXT_PUBLIC_SITE_URL`                     | 公开 HTTPS 地址，用于站点地图和分享元信息      |
-| `AUTH_PROVIDER`、`SESSION_SECRET`          | 需要登录时配置实际登录服务与随机会话密钥       |
-| `TRUSTED_PROXY_HOPS`                       | 与实际反代层数匹配，配额依赖可信转发地址       |
-| `DEMO_SEED=1`、`JOB_LINK_FALLBACK=0`       | 启用只读预置演示，并关闭旧任务链接读取         |
+| 配置                                       | 用途                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `DATA_STORE=postgres`、`DATABASE_URL`      | 持久化行程、任务和账号相关状态                                            |
+| `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY` | 同一 OpenAI 兼容服务的地址、模型和密钥；当前示例为 TokenHub + `hy4-flash` |
+| `LLM_REASONING_EFFORT`                     | 网关拒绝推理参数时设为 `off`，请求会省略该字段                            |
+| `LLM_MAX_TOKENS`                           | 单次生成输出上限；HY4 Flash 支持到 64000                                  |
+| `AMAP_WEB_SERVICE_KEY`                     | 在线 POI、路线、地图与天气，留空时会降级                                  |
+| `NEXT_PUBLIC_SITE_URL`                     | 公开 HTTPS 地址，用于站点地图和分享元信息                                 |
+| `AUTH_PROVIDER`、`SESSION_SECRET`          | 需要登录时配置实际登录服务与随机会话密钥                                  |
+| `TRUSTED_PROXY_HOPS`                       | 与实际反代层数匹配，配额依赖可信转发地址                                  |
+| `DEMO_SEED=1`、`JOB_LINK_FALLBACK=0`       | 启用只读预置演示，并关闭旧任务链接读取                                    |
 
 公开部署前设置生成、全站模型调用和并发上限。检验或备份生产数据库时使用受控连接。避免在公开 issue、配置示例或日志里粘贴密钥和行程链接。
 
