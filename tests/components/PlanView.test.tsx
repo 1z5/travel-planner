@@ -728,6 +728,20 @@ describe("PlanView browser 布局（分天目录 + 当天详情）", () => {
     expect(within(panel as HTMLElement).getByText(SAMPLE_PLAN.days[1].theme)).toBeInTheDocument();
     expect(document.querySelector(".day-rail-item-on")).toBe(items[1]);
   });
+
+  it("browser：分日流骨架 days=[] 不崩溃，显示等待第 1 天", () => {
+    const skeleton = {
+      ...SAMPLE_PLAN,
+      summary: "正在生成",
+      days: [],
+      totalCostCny: 0,
+      warnings: [],
+      tips: [],
+      verification: "pending" as const,
+    };
+    expect(() => render(<PlanView plan={skeleton} layout="browser" />)).not.toThrow();
+    expect(screen.getByRole("status")).toHaveTextContent("正在生成第 1 天");
+  });
 });
 
 describe("PlanView 长页面减滚动（吸顶 TOC）", () => {

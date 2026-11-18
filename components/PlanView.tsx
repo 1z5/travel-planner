@@ -1694,10 +1694,31 @@ export function PlanView({
               );
             })}
           </nav>
-          <div className="day-panel" role="region" aria-label={`第 ${activeDayNo} 天详情`}>
-            {renderDayCard(
-              viewPlan.days.find((d) => d.day === activeDayNo) ?? viewPlan.days[0],
-              viewPlan.days.findIndex((d) => d.day === activeDayNo),
+          <div
+            className="day-panel"
+            role="region"
+            aria-label={viewPlan.days.length > 0 ? `第 ${activeDayNo} 天详情` : "分天详情"}
+          >
+            {viewPlan.days.length > 0 ? (
+              renderDayCard(
+                viewPlan.days.find((d) => d.day === activeDayNo) ?? viewPlan.days[0]!,
+                Math.max(
+                  0,
+                  viewPlan.days.findIndex((d) => d.day === activeDayNo),
+                ),
+              )
+            ) : (
+              // 分日流初始骨架是 days: []。这里必须显式降级，不能对空数组取 [0]
+              // 后访问 day.day——那会在第一帧把整页打到全局错误边界。
+              <div className="card plan-day-pending" role="status" aria-live="polite">
+                <div className="card-body">
+                  <p className="plan-day-pending-title">
+                    <Loader2 size={16} className="spin" aria-hidden="true" />
+                    正在生成第 1 天…
+                  </p>
+                  <p className="helper">大纲已就绪。每一天生成并核验完成后，会立即出现在这里。</p>
+                </div>
+              </div>
             )}
           </div>
         </div>

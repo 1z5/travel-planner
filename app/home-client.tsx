@@ -740,7 +740,11 @@ export function HomeClient() {
     await poll();
   }
 
-  const displayPlan = plan ?? (sampleMode ? SAMPLE_PLAN : null);
+  // 分日流的初始骨架 days: [] 只用于让 LiveProgress 显示阶段；不要把它当成
+  // 完整结果渲染 PlanView。等第 1 天真正生成并核验完成（或任务进入 done）后
+  // 再做页面折叠与完整行程展示，避免「0 天行程」闪一下就报错。
+  const displayPlan =
+    plan && (!loading || plan.days.length > 0) ? plan : sampleMode ? SAMPLE_PLAN : null;
 
   // 由起止时间推导天数（日历日含头含尾），用于展示与提交前提示
   const derivedDays = (() => {

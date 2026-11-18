@@ -562,6 +562,19 @@ body::after {
   scroll-margin-top: calc(var(--companion-header-height) + 76px);
 }
 
+.plan-day-pending .card-body {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-day-pending-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 650;
+}
+
 @media (max-width: 780px) {
   .companion-start {
     grid-template-columns: minmax(0, 1fr);

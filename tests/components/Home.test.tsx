@@ -186,6 +186,75 @@ describe("Home 表单", () => {
     );
   });
 
+  it("分日流 0 天骨架只显示进度，不渲染空行程；第 1 天到达后才显示结果", async () => {
+    let statusCalls = 0;
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url === "/api/me") {
+        return {
+          ok: true,
+          json: async () => ({ loggedIn: false, remaining: null, provider: "none" }),
+        };
+      }
+      if (url === "/api/plan") {
+        return { ok: true, status: 202, json: async () => ({ jobId: "job_skeleton_1" }) };
+      }
+      if (url.startsWith("/api/plan/status")) {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              status: "running",
+              stage: "day:0/4",
+              plan: {
+                ...SAMPLE_PLAN,
+                city: "成都",
+                days: [],
+                totalCostCny: 0,
+                tips: [],
+                warnings: [],
+                summary: "正在生成",
+                verification: "pending",
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            status: "running",
+            stage: "day:1/4",
+            plan: {
+              ...SAMPLE_PLAN,
+              city: "成都",
+              days: [SAMPLE_PLAN.days[0]],
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    render(<HomeClient />);
+    await waitFor(() => expect(screen.getByText(/手机号登录/)).toBeInTheDocument());
+    await userEvent.type(screen.getByPlaceholderText("如：成都"), "成都");
+    await userEvent.type(screen.getByPlaceholderText(/如：1500/), "3000");
+    await userEvent.click(screen.getByText("生成行程"));
+
+    // 第一帧是 days:[] 的骨架：只显示流式进度，不把「0 天行程」交给 PlanView。
+    await waitFor(() => expect(screen.getByText("逐日生成")).toBeInTheDocument(), {
+      timeout: 3000,
+    });
+    expect(screen.queryByText(/已生成行程 · 成都/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "成都 · 0 天行程" })).not.toBeInTheDocument();
+
+    // 第 1 天到达后，完整行程区才出现。
+    await waitFor(
+      () => expect(screen.getByRole("heading", { name: "成都 · 1 天行程" })).toBeInTheDocument(),
+      { timeout: 6000 },
+    );
+  });
+
   it("默认节奏为适中（提交载荷 pace=balanced）", async () => {
     const calls = mockFetchSequence();
     render(<HomeClient />);
