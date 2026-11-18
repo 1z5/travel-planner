@@ -4352,3 +4352,6 @@ main.at-share-page [class*="demo-note"] {
     color: #000 !important;
   }
 }
+.at-journey-marks .btn {
+  min-block-size: 44px;
+}

@@ -213,6 +213,7 @@ const PAGE_CHECK_FN = String.raw`
     '.tc-ws-check', '.tc-ws-check-lede', '.tc-ws-check-issue', '.tc-ws-check-unrepairable',
     // 可分享体检报告页（headline / 建议块 / 凭据）
     '.tc-report-page', '.tc-report-page-headline', '.tc-fix', '.tc-cred-id',
+    '.at-journey-marks .btn',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);
@@ -324,6 +325,7 @@ async function main() {
 
   let baseUrl = BASE_URL;
   let shareId = SHARE_ARG;
+  let todayShareId = SHARE_ARG;
   let chromeProc = null;
 
   try {
@@ -349,16 +351,10 @@ async function main() {
     }
     log(`▶ 目标：${baseUrl}`);
 
-    // 种子数据：3 天苏州（stub fixture），拿 share token 测 /p /r /t
-    if (!shareId) {
-      // 日期必须**相对今天**计算，不能硬编码：硬编码会随时间漂移——
-      // 一旦今天恰好是行程首日，TripWorkspace 会自动切到「今日」镜头
-      //（今日镜头没有 .ws-daynav 日导航），视觉门就报「缺少关键元素」；
-      // 行程整体过去后又会测不到真实内容镜头。固定 +7 天出发、3 天行程，
-      // 永远落在「出行前」状态。
+    async function seedTrip(startOffset) {
       const ymd = (d) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const seedStart = new Date(Date.now() + 7 * 86_400_000);
+      const seedStart = new Date(Date.now() + startOffset * 86_400_000);
       const seedEnd = new Date(seedStart.getTime() + 2 * 86_400_000);
       const post = await fetch(`${baseUrl}/api/plan`, {
         method: "POST",
@@ -375,14 +371,17 @@ async function main() {
       if (post.status !== 202 || !j.jobId) throw new Error(`种子任务失败：${post.status}`);
       for (let i = 0; i < 240; i += 1) {
         const d = await (await fetch(`${baseUrl}/api/plan/status?id=${j.jobId}`)).json();
-        if (d.status === "done") {
-          shareId = d.shareId;
-          break;
-        }
+        if (d.status === "done" && d.shareId) return d.shareId;
         if (d.status === "error") throw new Error(`种子任务失败：${d.error}`);
         await sleep(500);
       }
-      if (!shareId) throw new Error("种子任务超时");
+      throw new Error("种子任务超时或缺少分享链接");
+    }
+
+    // 工作台需要出行前的规划镜头，今日页需要旅行中的执行面板。
+    if (!shareId) {
+      shareId = await seedTrip(7);
+      todayShareId = await seedTrip(0);
       log(`▶ 种子行程：${shareId}`);
     }
 
@@ -486,7 +485,11 @@ async function main() {
         required: [".poster", ".packing-card", ".day-head", ".app-topbar"],
       },
       { name: "report", path: `/r/${shareId}`, required: [".report-poster", ".app-topbar"] },
-      { name: "trip", path: `/t/${shareId}`, required: [".today-root", ".app-topbar"] },
+      {
+        name: "trip",
+        path: `/t/${todayShareId}`,
+        required: [".today-root", ".app-topbar", ...(SHARE_ARG ? [] : [".at-journey-marks"])],
+      },
     ];
     const VIEWPORTS = [
       { name: "desktop", width: 1440, height: 900 },

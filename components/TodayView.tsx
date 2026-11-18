@@ -39,6 +39,7 @@ import { formatHoursShort } from "@/lib/plan/poi-hours";
 import { parseTimeRange, fmtHourMin } from "@/lib/plan/time";
 import { distMeters, fmtDist } from "@/lib/geo/spatial";
 import { useArrivedSpots } from "./TodayExecutionCard";
+import { JourneyMarksPanel } from "./JourneyMarksPanel";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
 // 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
 import type { ReplanResult } from "@/lib/plan/replan";
@@ -1009,6 +1010,10 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
             )}
           </div>
         </section>
+      )}
+
+      {!plan.demo && (
+        <JourneyMarksPanel key={`${shareId}:${dayNo}`} shareId={shareId} spots={spots} />
       )}
 
       {/* ===== 今日时间轴：每个点 + 点之间的真实路段 ===== */}

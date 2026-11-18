@@ -6,11 +6,13 @@ import type {
   CodeRecord,
   EventStore,
   JobRecord,
+  JourneyStore,
   PlanRecord,
   QuotaRecord,
   Store,
   TripEventRecord,
 } from "./types";
+import { decideJourneyMark, type JourneyAction, type JourneyMark } from "../trip/journey-marks";
 
 // ============================================================
 // PostgreSQL 实现（Prisma）。客户端懒实例化——只有 DATA_STORE=
@@ -156,6 +158,58 @@ const planStore = {
   },
 };
 
+function mapJourneyMark(
+  row: Omit<JourneyMark, "action" | "recordedAt"> & {
+    action: string;
+    recordedAt: Date;
+  },
+): JourneyMark {
+  const { action, commandId, day, name, recordedAt, stopId } = row;
+  return {
+    action: action as JourneyAction,
+    commandId,
+    day,
+    name,
+    recordedAt: recordedAt.getTime(),
+    stopId,
+  };
+}
+
+const journeyStore: JourneyStore = {
+  async read(planId, ownerKey) {
+    const trip = await prisma().plan.findUnique({
+      where: { id: planId, ownerKey },
+      select: { revision: true, plan: true, journeyMarks: { orderBy: { recordedAt: "asc" } } },
+    });
+    if (!trip || (trip.plan as unknown as Plan).demo) return null;
+    return { revision: trip.revision, marks: trip.journeyMarks.map(mapJourneyMark) };
+  },
+  async mark(planId, ownerKey, command) {
+    return prisma().$transaction(async (tx) => {
+      // 与 Plan 写入争用同一行锁，防止核对版本后计划已被同步修改。
+      const rows = await tx.$queryRaw<{ plan: Prisma.JsonValue; revision: number }[]>`
+        SELECT "plan", "revision" FROM "Plan" WHERE "id" = ${planId} AND "ownerKey" = ${ownerKey}
+        FOR UPDATE
+      `;
+      const row = rows[0];
+      if (!row || (row.plan as unknown as Plan).demo) return { state: "missing" };
+      const marks = await tx.journeyMark.findMany({ where: { planId } });
+      const result = decideJourneyMark(
+        { revision: row.revision, plan: row.plan as unknown as Plan },
+        marks.map(mapJourneyMark),
+        command,
+        Date.now(),
+      );
+      if (result.state === "saved") {
+        await tx.journeyMark.create({
+          data: { ...result.mark, planId, recordedAt: new Date(result.mark.recordedAt) },
+        });
+      }
+      return result;
+    });
+  },
+};
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -275,5 +329,6 @@ export const postgresStore: Store = {
   quota: quotaStore,
   codes: codeStore,
   events: eventStore,
+  journey: journeyStore,
 };
 export { sweep };

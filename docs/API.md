@@ -2,6 +2,14 @@
 
 Base URL：`/api`（与前端同源）
 
+## GET / POST /api/journey/{id}
+
+已登录的行程主人可读取和提交私人执行记录。分享链接、旧任务链接和匿名行程不提供访问授权。所有响应带 `Cache-Control: private, no-store`。
+
+- GET 返回 `{revision, marks}`。记录包含 `stopId`、`commandId`、`action`、`day`、`name` 和 UTC 毫秒 `recordedAt`。
+- POST 接收 `{stopId, commandId, action, planRevision}`。两种 ID 均为 UUID，操作为 `arrived` 或 `skipped`。地点和时间由服务端确定。首次保存返回 201，同一命令重试返回 200。
+- 未登录返回 401。行程不存在、非主人或演示工件返回 404。站点失效、版本过期、已处理站点或命令复用冲突返回 409。
+
 ## POST /api/plan — 提交行程生成任务
 
 异步模式：立即返回 `jobId`（202），生成在服务端后台进行，前端轮询 status 接口拿结果。

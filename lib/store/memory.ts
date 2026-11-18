@@ -3,11 +3,13 @@ import type {
   CodeRecord,
   EventStore,
   JobRecord,
+  JourneyStore,
   PlanRecord,
   QuotaRecord,
   Store,
   TripEventRecord,
 } from "./types";
+import { decideJourneyMark, type JourneyMark } from "../trip/journey-marks";
 
 // ============================================================
 // 内存实现：行为与原版（globalThis Map）完全一致，作为默认实现。
@@ -21,11 +23,13 @@ const g = globalThis as typeof globalThis & {
   __tpQuota?: Map<string, QuotaRecord>;
   __tpCodes?: Map<string, CodeRecord>;
   __tpEvents?: TripEventRecord[];
+  __tpJourneyMarks?: Map<string, JourneyMark[]>;
 };
 
 const jobs = (g.__tpJobs ??= new Map<string, JobRecord>());
 // 行程是持久聚合，和 2 小时的任务记录分开存：分享链接不能跟着任务一起过期
 const plans = (g.__tpPlans ??= new Map<string, PlanRecord>());
+const journeyMarks = (g.__tpJourneyMarks ??= new Map<string, JourneyMark[]>());
 const quota = (g.__tpQuota ??= new Map<string, QuotaRecord>());
 const codes = (g.__tpCodes ??= new Map<string, CodeRecord>());
 // 产品事件：内存实现是「够用的看板」而不是持久数仓——单机/dev 用，重启即丢。
@@ -80,6 +84,22 @@ const planStore = {
   },
 };
 
+const journeyStore: JourneyStore = {
+  async read(planId, ownerKey) {
+    const trip = plans.get(planId);
+    if (!trip || trip.ownerKey !== ownerKey || trip.plan.demo) return null;
+    return { revision: trip.revision, marks: [...(journeyMarks.get(planId) ?? [])] };
+  },
+  async mark(planId, ownerKey, command) {
+    const trip = plans.get(planId);
+    if (!trip || trip.ownerKey !== ownerKey || trip.plan.demo) return { state: "missing" };
+    const marks = journeyMarks.get(planId) ?? [];
+    const result = decideJourneyMark(trip, marks, command, Date.now());
+    if (result.state === "saved") journeyMarks.set(planId, [...marks, result.mark]);
+    return result;
+  },
+};
+
 const quotaStore = {
   async consume(key: string, limit: number) {
     const t = today();
@@ -131,7 +151,11 @@ if (typeof setInterval === "function") {
     // 行程至少保留 30 天：分享链接的核心价值就是「过几天再打开」，
     // 不能像任务那样 2 小时就清掉（这正是本轮要修的产品谎言）。
     // 生产 Postgres 模式不清理，这里是内存模式的内存护栏。
-    for (const [k, v] of plans) if (v.updatedAt < now - PLAN_TTL_MS) plans.delete(k);
+    for (const [k, v] of plans) {
+      if (v.updatedAt >= now - PLAN_TTL_MS) continue;
+      plans.delete(k);
+      journeyMarks.delete(k);
+    }
   }, 600_000).unref?.();
 }
 
@@ -163,4 +187,5 @@ export const memoryStore: Store = {
   quota: quotaStore,
   codes: codeStore,
   events: eventStore,
+  journey: journeyStore,
 };

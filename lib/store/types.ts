@@ -1,5 +1,6 @@
 import "server-only";
 import type { Plan, PlanInput } from "../types";
+import type { JourneyCommand, JourneyMark, JourneyWrite } from "../trip/journey-marks";
 
 // ============================================================
 // 存储抽象层：三块状态的统一接口。
@@ -125,6 +126,15 @@ export interface Store {
   quota: QuotaStore;
   codes: CodeStore;
   events: EventStore;
+  journey: JourneyStore;
+}
+
+export interface JourneyStore {
+  read(
+    planId: string,
+    ownerKey: string,
+  ): Promise<{ revision: number; marks: JourneyMark[] } | null>;
+  mark(planId: string, ownerKey: string, command: JourneyCommand): Promise<JourneyWrite>;
 }
 
 // ---------- 产品事件（度量闭环） ----------

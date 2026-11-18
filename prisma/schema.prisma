@@ -34,14 +34,30 @@ model Job {
 ///   # 或 npx prisma migrate deploy（使用已提交 migration 的正规路径）
 /// memory 实现无需任何操作（默认 DATA_STORE=memory）。
 model Plan {
-  id        String   @id
-  jobId     String?
-  ownerKey  String?
-  plan      Json
-  input     Json
-  revision  Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id
+  jobId        String?
+  ownerKey     String?
+  plan         Json
+  input        Json
+  revision     Int           @default(1)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  journeyMarks JourneyMark[]
+}
+
+/// 到达和跳过由行程主人确认，独立存放，避免进入分享工件与页面缓存。
+model JourneyMark {
+  planId     String
+  stopId     String
+  commandId  String
+  action     String
+  day        Int
+  name       String
+  recordedAt DateTime @default(now())
+  plan       Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([planId, stopId])
+  @@unique([planId, commandId])
 }
 
 /// 每日配额计数（按 key + 日期）
