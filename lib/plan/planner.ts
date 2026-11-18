@@ -324,6 +324,7 @@ async function streamChat(
   const deadlineTimer = setTimeout(() => controller.abort(), deadline);
   deadlineTimer.unref?.();
   try {
+    const effort = process.env.LLM_REASONING_EFFORT || "low";
     const stream = await llm.chat.completions.create(
       {
         model: process.env.LLM_MODEL || "step-5-preview",
@@ -332,7 +333,8 @@ async function streamChat(
           { role: "user", content: user },
         ],
         max_tokens: Number(process.env.LLM_MAX_TOKENS || 64000),
-        reasoning_effort: (process.env.LLM_REASONING_EFFORT as "low" | "medium" | "high") || "low",
+        // 兼容不接受推理参数的网关，同时保留 StepFun 的默认推理预算。
+        ...(effort === "off" ? {} : { reasoning_effort: effort as "low" | "medium" | "high" }),
         stream: true,
         stream_options: { include_usage: true },
       },
