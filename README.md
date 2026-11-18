@@ -103,6 +103,20 @@ npm run dev            # http://localhost:3000
 想秒开一份完整成品（不调 LLM、不用 key）点首页「看一份验真过的成品」。
 拿到高德 key 后可用 `npm run verify:amap` 做 5 秒的 POI / 通勤验收。
 
+### 免费模型联调
+
+可以用 OpenRouter 免费路由做开发验收。到 [OpenRouter Keys](https://openrouter.ai/keys) 创建自己的 key，在 Git 忽略的 `.env.local` 写入以下配置，然后重启开发服务。
+
+```dotenv
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=填自己的 OpenRouter key
+LLM_MODEL=openrouter/free
+LLM_REASONING_EFFORT=off
+LLM_MAX_TOKENS=4096
+```
+
+先用虚构需求生成一日行程。免费路由的可用模型和额度会变，建议只在开发联调时使用。无 key 时可直接运行 `npm test`，它会用本地 LLM 和高德桩跑同一套 HTTP 流程。
+
 ## 推荐阅读路径（20 分钟）
 
 1. [docs/TRIP-CHECK-STANDARD.md](docs/TRIP-CHECK-STANDARD.md) — 开放标准本体（文档格式 / 凭据口径 / 三态语义）

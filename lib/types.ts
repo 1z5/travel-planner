@@ -65,6 +65,8 @@ export type Period = "morning" | "lunch" | "afternoon" | "dinner" | "evening";
 export type SpotType = "sight" | "food" | "hotel" | "transport" | "shopping" | "activity";
 
 export interface PlanSpot {
+  /** 由持久化入口分配，避免同名点与排序变更影响访问记录。旧行程可能缺省。 */
+  stopId?: string;
   period: Period;
   time: string; // "09:00-11:30"
   type: SpotType;

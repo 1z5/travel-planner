@@ -140,6 +140,8 @@ export async function findCandidates(
 export function buildReplacementSpot(oldSpot: PlanSpot, poi: PoiInfo): PlanSpot {
   return {
     ...oldSpot,
+    // 即使两家店同名，用户换了目的地也需要新的站点身份。
+    stopId: undefined,
     name: poi.name,
     area: poi.adname || oldSpot.area,
     location: poi.location,

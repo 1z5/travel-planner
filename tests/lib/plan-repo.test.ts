@@ -222,6 +222,49 @@ describe("commitPlan", () => {
 });
 
 describe("getSharedPlan / getPlanForEdit / replacePlan", () => {
+  it("同名站点有独立身份，重排和改时刻时跟随原站点", async () => {
+    const plan = makePlan();
+    const spot = plan.days[0].spots[0];
+    plan.days[0].spots.push({ ...spot, time: "14:00-15:00" });
+    const shareId = (await commitPlan(await makeJob(), plan, INPUT))!;
+    const stored = structuredClone((await getSharedPlan(shareId))!);
+    const [first, second] = stored.days[0].spots;
+    expect(first.stopId).toBeTruthy();
+    expect(second.stopId).toBeTruthy();
+    expect(first.stopId).not.toBe(second.stopId);
+
+    stored.days[0].spots = [second, { ...first, time: "16:00-17:00" }];
+    const saved = (await replacePlan(shareId, stored))!;
+    expect(saved.plan.days[0].spots.map((s) => s.stopId)).toEqual([second.stopId, first.stopId]);
+  });
+
+  it("为替换地点和旧行程分配新身份，且不接受重复或未签发的站点 ID", async () => {
+    const plan = makePlan();
+    const shareId = newShareId();
+    await getStore().plans.save({
+      id: shareId,
+      plan,
+      input: INPUT,
+      revision: 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    const legacy = (await getSharedPlan(shareId))!;
+    expect(legacy.days[0].spots[0].stopId).toBeUndefined();
+    const first = (await replacePlan(shareId, legacy))!.plan.days[0].spots[0];
+    const update = makePlan();
+    update.days[0].spots = [
+      first,
+      { ...first },
+      { ...first, name: "武侯祠" },
+      { ...first, stopId: "from-client" },
+    ];
+    const ids = (await replacePlan(shareId, update))!.plan.days[0].spots.map((s) => s.stopId);
+    expect(ids[0]).toBe(first.stopId);
+    expect(new Set(ids).size).toBe(4);
+    expect(ids).not.toContain("from-client");
+  });
+
   it("未知 id 全部返回 null（路由可安全映射 404）", async () => {
     const missing = uniq("share_missing");
     expect(await getSharedPlan(missing)).toBeNull();

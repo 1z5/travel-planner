@@ -1,5 +1,5 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { DEMO_FIXTURES } from "@/demo/fixtures";
 import { getStore } from "../store";
 import type { Plan, PlanInput } from "../types";
@@ -40,6 +40,38 @@ export function newShareId(): string {
   return `${SHARE_ID_PREFIX}${randomBytes(9).toString("base64url")}`;
 }
 
+function withStopIds(plan: Plan, previous?: Plan): Plan {
+  const retained = new Set<string>();
+  return {
+    ...plan,
+    days: plan.days.map((day) => {
+      const priorDay = previous?.days.find(
+        (prior) =>
+          prior.day === day.day && (prior.city ?? previous.city) === (day.city ?? plan.city),
+      );
+      return {
+        ...day,
+        spots: day.spots.map((spot) => {
+          const prior =
+            spot.stopId && priorDay?.spots.find((candidate) => candidate.stopId === spot.stopId);
+          // 恢复接口可能携带旧快照。只有当前站点仍存在且地点一致时才能沿用身份。
+          const stopId =
+            prior &&
+            prior.stopId &&
+            !retained.has(prior.stopId) &&
+            prior.name === spot.name &&
+            prior.area === spot.area &&
+            prior.type === spot.type
+              ? prior.stopId
+              : randomUUID();
+          retained.add(stopId);
+          return { ...spot, stopId };
+        }),
+      };
+    }),
+  };
+}
+
 /**
  * 生成完成后把行程落为持久 Plan，返回分享 token；失败返回 null。
  *
@@ -72,7 +104,7 @@ export async function commitPlan(
       id: newShareId(),
       jobId,
       ownerKey,
-      plan,
+      plan: withStopIds(plan),
       input,
       revision: 1,
       createdAt: now,
@@ -117,7 +149,10 @@ export async function getPlanForEdit(id: string): Promise<PlanRecord | null> {
  * 语义是「最后写入生效」，不对外暴露 If-Match 冲突检测（由 refine 决定是否加）。
  */
 export async function replacePlan(id: string, plan: Plan): Promise<PlanRecord | null> {
-  return getStore().plans.replace(id, plan);
+  const plans = getStore().plans;
+  const previous = await plans.get(id);
+  if (!previous) return null;
+  return plans.replace(id, withStopIds(plan, previous.plan));
 }
 
 /**
