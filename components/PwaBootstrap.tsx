@@ -21,11 +21,13 @@ function registerServiceWorker() {
   if (process.env.NODE_ENV !== "production") return;
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   // 页面 load 后再注册：避免和首屏抢带宽（行中首屏要快）
-  window.addEventListener("load", () => {
+  const register = () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {
       // 注册失败（隐私模式/不支持）静默降级：PWA 是增强，不是门槛
     });
-  });
+  };
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
 }
 
 export function PwaBootstrap() {

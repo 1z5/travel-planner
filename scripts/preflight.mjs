@@ -23,20 +23,27 @@ function env(name) {
 }
 
 const trimmed = (name) => (env(name) ?? "").trim();
+const localOnly = trimmed("LOCAL_TRIPS_ONLY") === "1";
+const modelEnabled = !localOnly || trimmed("ENABLE_ONLINE_GENERATION") === "1";
 
 // 1. Node 版本（与 package.json engines / .nvmrc 同口径：>=22）
 const nodeOk = Number(process.versions.node.split(".")[0]) >= 22;
 check("BLOCK", "Node.js >= 22", nodeOk, `当前 ${process.version}`);
 
 // 2. LLM 必需配置
-check("BLOCK", "LLM_API_KEY 已配置", Boolean(env("LLM_API_KEY")) && env("LLM_API_KEY").length > 10);
 check(
   "BLOCK",
-  "LLM_BASE_URL 是 https",
-  (env("LLM_BASE_URL") ?? "").startsWith("https://"),
-  env("LLM_BASE_URL") || "未设置（默认 stepfun 网关）",
+  modelEnabled ? "LLM_API_KEY 已配置" : "在线生成关闭",
+  !modelEnabled || (Boolean(env("LLM_API_KEY")) && env("LLM_API_KEY").length > 10),
 );
-check("WARN", "LLM_MODEL 已设置", Boolean(env("LLM_MODEL")), env("LLM_MODEL") || "未设置");
+check(
+  "BLOCK",
+  modelEnabled ? "LLM_BASE_URL 是 https" : "在线生成无需模型地址",
+  !modelEnabled || (env("LLM_BASE_URL") ?? "").startsWith("https://"),
+  modelEnabled ? env("LLM_BASE_URL") || "未设置" : "",
+);
+if (modelEnabled)
+  check("WARN", "LLM_MODEL 已设置", Boolean(env("LLM_MODEL")), env("LLM_MODEL") || "未设置");
 
 // 3. 高德（缺失 = MOCK 模式，POI 不验真，产品核心卖力缺失）
 const amapKey = env("AMAP_WEB_SERVICE_KEY");
@@ -52,13 +59,15 @@ check(
 const dataStore = trimmed("DATA_STORE");
 check(
   "BLOCK",
-  "DATA_STORE=postgres（生产必须持久化）",
-  dataStore === "postgres",
-  dataStore === "postgres"
-    ? "已配置持久化存储（分享链接长期有效）"
-    : dataStore
-      ? `当前 ${dataStore}：重启丢 Plan（分享链接 404）、配额归零、多副本各算各的`
-      : "未设置（代码默认 memory）：重启丢 Plan（分享链接 404）、配额归零",
+  "存储模式与部署配置匹配",
+  localOnly ? dataStore === "memory" : dataStore === "postgres",
+  localOnly
+    ? "本机行程模式使用 DATA_STORE=memory"
+    : dataStore === "postgres"
+      ? "已配置持久化存储（分享链接长期有效）"
+      : dataStore
+        ? `当前 ${dataStore}：重启丢 Plan（分享链接 404）、配额归零、多副本各算各的`
+        : "未设置（代码默认 memory）：重启丢 Plan（分享链接 404）、配额归零",
 );
 
 // 5. 数据库连接串：Prisma 7 + @prisma/adapter-pg 只认 postgres 协议
@@ -66,13 +75,15 @@ const dbUrl = trimmed("DATABASE_URL");
 const dbProtocolOk = /^(postgres|postgresql):\/\//.test(dbUrl);
 check(
   "BLOCK",
-  "DATABASE_URL 是 postgres 连接串",
-  dbUrl !== "" && dbProtocolOk,
-  !dbUrl
-    ? "DATA_STORE=postgres 时必填，如 postgres://user:pass@host:5432/db"
-    : dbProtocolOk
-      ? "已配置（不要在仓库/镜像里留真实连接串）"
-      : "协议不是 postgres://（adapter-pg 不接受）",
+  localOnly ? "本机模式无需数据库" : "DATABASE_URL 是 postgres 连接串",
+  localOnly || (dbUrl !== "" && dbProtocolOk),
+  localOnly
+    ? ""
+    : !dbUrl
+      ? "DATA_STORE=postgres 时必填，如 postgres://user:pass@host:5432/db"
+      : dbProtocolOk
+        ? "已配置（不要在仓库/镜像里留真实连接串）"
+        : "协议不是 postgres://（adapter-pg 不接受）",
 );
 
 // 6. 对外绝对地址（P0-6）：app/layout.tsx 的 metadataBase 读它，
@@ -94,13 +105,15 @@ const authProvider = trimmed("AUTH_PROVIDER") || "none";
 const allowDevAuth = trimmed("ALLOW_DEV_AUTH") === "1";
 check(
   "BLOCK",
-  "AUTH_PROVIDER 不是 none（除非显式 ALLOW_DEV_AUTH=1）",
-  authProvider !== "none" || allowDevAuth,
-  authProvider !== "none"
-    ? `当前 ${authProvider}`
-    : allowDevAuth
-      ? "ALLOW_DEV_AUTH=1 显式允许 dev provider：仅限预发/内部演示，不要对公网开"
-      : "当前 none/未设置：固定验证码 123456 可登录任意手机号——配 sms/wechat，或显式 ALLOW_DEV_AUTH=1 承担风险",
+  localOnly ? "本机模式关闭登录" : "AUTH_PROVIDER 不是 none（除非显式 ALLOW_DEV_AUTH=1）",
+  localOnly ? authProvider === "none" && !allowDevAuth : authProvider !== "none" || allowDevAuth,
+  localOnly
+    ? ""
+    : authProvider !== "none"
+      ? `当前 ${authProvider}`
+      : allowDevAuth
+        ? "ALLOW_DEV_AUTH=1 显式允许 dev provider：仅限预发/内部演示，不要对公网开"
+        : "当前 none/未设置：固定验证码 123456 可登录任意手机号——配 sms/wechat，或显式 ALLOW_DEV_AUTH=1 承担风险",
 );
 
 // 8. session 签名密钥：默认值是源码里的公开常量，等于没签名（可伪造任意用户）
@@ -108,11 +121,13 @@ const secret = trimmed("SESSION_SECRET");
 const sessionSecretOk = secret !== "" && secret !== "dev-only-insecure-secret";
 check(
   "BLOCK",
-  "SESSION_SECRET 不是开发默认值",
-  sessionSecretOk,
-  sessionSecretOk
-    ? "已替换为随机密钥"
-    : "用 openssl rand -hex 32 生成；默认值公开在源码里 = 任意用户 session 可伪造",
+  localOnly ? "本机模式无需会话密钥" : "SESSION_SECRET 不是开发默认值",
+  localOnly || sessionSecretOk,
+  localOnly
+    ? ""
+    : sessionSecretOk
+      ? "已替换为随机密钥"
+      : "用 openssl rand -hex 32 生成；默认值公开在源码里 = 任意用户 session 可伪造",
 );
 
 // 9. 指标看板（P0-8）：没有 token 时 /api/events/summary 一律 404，北极星不可见

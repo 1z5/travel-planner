@@ -38,6 +38,7 @@ import {
 import { formatHoursShort } from "@/lib/plan/poi-hours";
 import { parseTimeRange, fmtHourMin } from "@/lib/plan/time";
 import { distMeters, fmtDist } from "@/lib/geo/spatial";
+import type { LocalMarks } from "@/lib/trip/trip-file";
 import { useArrivedSpots } from "./TodayExecutionCard";
 import { JourneyMarksPanel } from "./JourneyMarksPanel";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
@@ -349,12 +350,14 @@ function TodayLeg({ leg }: { leg: PlanLeg }) {
 }
 
 /** 页面底部入口放在内容结束处，避免手机上挡住时间轴。 */
-function TodayLinks({ shareId }: { shareId: string }) {
+function TodayLinks({ shareId }: { shareId?: string }) {
   return (
     <nav className="today-links" aria-label="页面导航">
-      <Link className="btn today-link" href={`/p/${shareId}`}>
-        查看完整行程
-      </Link>
+      {shareId && (
+        <Link className="btn today-link" href={`/p/${shareId}`}>
+          查看完整行程
+        </Link>
+      )}
       <Link className="btn today-link today-link-home" href="/">
         我的行程
       </Link>
@@ -370,7 +373,17 @@ function TodayLinks({ shareId }: { shareId: string }) {
  * 组件内部维护本地 viewPlan：一键改室内成功后立刻渲染新版本，不必刷新页面
  * （与 PlanView 的本地视图态同一模式）。
  */
-export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
+export function TodayView({
+  plan,
+  shareId,
+  localMarks,
+  onLocalMark,
+}: {
+  plan: Plan;
+  shareId?: string;
+  localMarks?: LocalMarks;
+  onLocalMark?: (stopId: string, action?: LocalMarks[string]) => void;
+}) {
   const [viewPlan, setViewPlan] = useState<Plan>(plan);
   useEffect(() => setViewPlan(plan), [plan]);
 
@@ -399,6 +412,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   const todayCheckRequested = useRef(false);
 
   const checkToday = useCallback(async () => {
+    if (!shareId) return;
     setTodayCheck({ status: "loading" });
     try {
       const r = await fetch("/api/plan/check", {
@@ -443,17 +457,20 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   // hooks 顺序不能随「今天是不是出行日」改变（React Rules of Hooks，踩过）。
   // dayNo 这里用防御式计算（currentDay 可能不存在），与下方 during 分支的
   // dayNo 同源；非出行日读 day 1 的记录也不会有副作用（UI 不展示）。
-  const arrivedSpots = useArrivedSpots(shareId, today?.kind === "during" ? today.dayIndex + 1 : 1);
+  const arrivedSpots = useArrivedSpots(
+    shareId ?? "",
+    today?.kind === "during" ? today.dayIndex + 1 : 1,
+  );
 
   // 出行日自动拉一次今日体检（before/after/unknown 一律不发请求）。
   // 请求是只读、无外部上游、毫秒级，但也要防重：todayCheckRequested 只放行一次；
   // 失败后的「重试」是用户显式动作，不经过这个 ref。
   useEffect(() => {
-    if (today?.kind !== "during" || todayCheckRequested.current) return;
+    if (!shareId || today?.kind !== "during" || todayCheckRequested.current) return;
     todayCheckRequested.current = true;
     // eslint-disable-next-line react/set-state-in-effect -- 挂载后按需拉取只读体检（与外部系统同步）
     void checkToday();
-  }, [today?.kind, checkToday]);
+  }, [today?.kind, shareId, checkToday]);
 
   // 行程被改过（今天换成室内路线）后，之前算出的直线距离可能对应的是旧点位：
   // 清掉定位结果，宁可让用户重新点一次，也不把旧距离贴在新景点上。
@@ -506,7 +523,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
    * 失败时展示服务端给的可行动文案；请求期间不禁用整页交互，只禁这个按钮。
    */
   async function applyRainFix(): Promise<void> {
-    if (!currentDay) return;
+    if (!shareId || !currentDay) return;
     setFix({ status: "loading" });
     try {
       const r = await fetch("/api/plan/refine", {
@@ -584,6 +601,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
    * 422（缺真实路段）等失败透传服务端可行动文案；网络异常如实说。
    */
   async function askReplan(): Promise<void> {
+    if (!shareId) return;
     setReplan({ status: "loading" });
     try {
       const r = await fetch("/api/plan/replan", {
@@ -768,7 +786,19 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
 
   const spots: PlanSpot[] = Array.isArray(currentDay.spots) ? currentDay.spots : [];
   const legs: PlanLeg[] = Array.isArray(currentDay.legs) ? currentDay.legs : [];
-  const spotStatus: SpotNow | null = spotNow(spots, clock.minutes);
+  const openIndices = spots.flatMap((stop, index) =>
+    stop.stopId && localMarks?.[stop.stopId] ? [] : [index],
+  );
+  const openStatus = spotNow(
+    openIndices.map((index) => spots[index]!),
+    clock.minutes,
+  );
+  const spotStatus: SpotNow =
+    openStatus.kind === "now" || openStatus.kind === "next"
+      ? { ...openStatus, index: openIndices[openStatus.index]! }
+      : spots.length > 0 && openIndices.length === 0
+        ? { kind: "done" }
+        : openStatus;
   const currentStop =
     spotStatus?.kind === "now" || spotStatus?.kind === "next" ? spots[spotStatus.index] : undefined;
   const dayNo = typeof currentDay.day === "number" ? currentDay.day : today.dayIndex + 1;
@@ -777,7 +807,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
   const weatherBad =
     weather.status === "done" &&
     isBadWeatherText(weather.day.dayWeather + weather.day.nightWeather);
-  const showFix = weatherBad && outdoorSpots.length > 0 && fix.status !== "done";
+  const showFix = !!shareId && weatherBad && outdoorSpots.length > 0 && fix.status !== "done";
 
   // 现在/下一站/已结束/未开始：每种情况都给一句明确说法（用户站在路口时，
   // 「不知道」比「说错」更糟，但「没有时间可解析」必须诚实说没依据）
@@ -873,7 +903,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
             <a className="btn" href="#today-timeline">
               查看今天的安排
             </a>
-            {futureSpots.length > 0 && (
+            {shareId && futureSpots.length > 0 && (
               <a className="btn" href="#today-replan">
                 接下来怎么走
               </a>
@@ -882,8 +912,13 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
         </div>
       </section>
 
-      {!plan.demo && (
-        <JourneyMarksPanel key={`${shareId}:${dayNo}`} shareId={shareId} spots={spots} />
+      {shareId && !plan.demo && (
+        <JourneyMarksPanel
+          key={`${shareId}:${dayNo}`}
+          shareId={shareId}
+          spots={spots}
+          plan={viewPlan}
+        />
       )}
 
       {/* ===== 今日时间轴：每个点 + 点之间的真实路段 ===== */}
@@ -913,6 +948,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                   ? legs.find((l) => l?.from === s.name && l?.to === nextSpot.name)
                   : undefined;
                 const meters = metersFor(s.location);
+                const stopId = s.stopId;
+                const localMark = stopId && localMarks?.[stopId];
                 return (
                   <li
                     className={`today-spot${mark ? ` today-spot-${mark}` : ""}`}
@@ -941,6 +978,41 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
                       {s.name}
                     </div>
 
+                    {stopId && onLocalMark && (
+                      <div className="companion-today-actions">
+                        {localMark ? (
+                          <>
+                            <span role="status">
+                              {localMark === "arrived" ? "已到达" : "已跳过"}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => onLocalMark(stopId)}
+                            >
+                              撤销
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => onLocalMark(stopId, "arrived")}
+                            >
+                              我已到达
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => onLocalMark(stopId, "skipped")}
+                            >
+                              跳过
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <p className="today-spot-meta">
                       {s.area ? `${s.area} · ` : ""}
                       {typeof s.durationMin === "number"
@@ -1041,7 +1113,7 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       {/* 只有「今天还有没走的点」才值得问——走完了再问没有意义。
           求解在服务端纯计算完成（毫秒级、不调模型、不扣配额），结果只是
           建议：保留什么、放弃什么、为什么，全部引用真实约束数据。 */}
-      {futureSpots.length > 0 && (
+      {shareId && futureSpots.length > 0 && (
         <section className="card replan-card" id="today-replan">
           <div className="card-body">
             <h2 className="today-section-title">
@@ -1235,7 +1307,8 @@ export function TodayView({ plan, shareId }: { plan: Plan; shareId: string }) {
       </section>
 
       {/* ===== 今天体检：只在出行中展示；只读、失败降级、不抢执行焦点 ===== */}
-      {today?.kind === "during" &&
+      {shareId &&
+        today?.kind === "during" &&
         currentDay &&
         todayCheck.status !== "idle" &&
         todayCheck.status !== "hidden" && (

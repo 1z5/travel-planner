@@ -1,5 +1,6 @@
 "use client";
 
+import { flushSync } from "react-dom";
 import { useMemo, useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import {
   Landmark,
@@ -30,6 +31,7 @@ import {
   ShieldCheck,
   ChevronDown,
 } from "lucide-react";
+import { downloadTripFile } from "@/lib/trip/trip-file";
 import type { Plan, PlanDay, TransportMode } from "@/lib/types";
 import {
   localTodayIso,
@@ -259,10 +261,12 @@ export function PlanView({
   editable = false,
   ownerCheck = false,
   hideCover = false,
-  layout = "document",
+  layout: screenLayout = "document",
   activeDay,
   onActiveDayChange,
   onPlanChange,
+  allowFileExport = true,
+  importedFile = false,
 }: {
   plan: Plan;
   banner?: ReactNode;
@@ -282,9 +286,27 @@ export function PlanView({
   /** browser 布局下切换查看的天（受控；与 activeDay 配对使用） */
   onActiveDayChange?: (day: number) => void;
   onPlanChange?: (plan: Plan) => void;
+  allowFileExport?: boolean;
+  importedFile?: boolean;
 }) {
   // 本地视图态：修改行程后立刻渲染新版本，不必回源刷新页面。
   // prop 变更（父组件拿到更新后的 plan / 重新生成）时同步回来。
+  const [printing, setPrinting] = useState(false);
+  const layout = printing ? "document" : screenLayout;
+  useEffect(() => {
+    if (screenLayout !== "browser") return;
+    // 浏览视图只渲染当前一天。打印快照前同步换成包含所有天的文档视图。
+    const beforePrint = () => flushSync(() => setPrinting(true));
+    const afterPrint = () => setPrinting(false);
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint", afterPrint);
+    };
+  }, [screenLayout]);
+
+  const [fileExportError, setFileExportError] = useState("");
   const [viewPlan, setViewPlan] = useState<Plan>(plan);
   useEffect(() => setViewPlan(plan), [plan]);
 
@@ -1160,7 +1182,7 @@ export function PlanView({
             <span
               className={`verified-badge ${verification === "ok" ? "live" : verification === "partial" ? "live warn" : "mock"}`}
             >
-              {VERIFY_LABEL[verification]}
+              {importedFile ? "来自行程文件 · 未重新核验" : VERIFY_LABEL[verification]}
             </span>
             {/* 事实先行徽章：如实告诉用户这份行程是在多少个「高德已核验」候选上排出来的。
                 没有事实层（未接高德 / 检索失败）时整块不渲染——不假装用过。 */}
@@ -1329,11 +1351,32 @@ export function PlanView({
                 </a>
               </>
             )}
+            {allowFileExport && !viewPlan.draft && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setFileExportError("");
+                  try {
+                    downloadTripFile(viewPlan);
+                  } catch {
+                    setFileExportError("无法下载这份行程文件。你仍可以打印或存成 PDF。");
+                  }
+                }}
+              >
+                下载行程文件
+              </button>
+            )}
             <button type="button" className="btn" onClick={() => window.print()}>
               <Printer size={14} />
               打印 / 存 PDF
             </button>
           </div>
+          {fileExportError && (
+            <p className="helper" role="alert">
+              {fileExportError}
+            </p>
+          )}
           {subscribeNote && (
             <p className="helper" role="status">
               {subscribeNote.copied

@@ -1,11 +1,15 @@
 # 部署指南
 
+默认 Render 蓝图使用 `DATA_STORE=memory` 和 `LOCAL_TRIPS_ONLY=1`，不申请数据库。账号关闭。模型与实时地图默认关闭，只有供应商确认免费额度耗尽即拒绝调用后，再分别开启 `ENABLE_ONLINE_GENERATION` 和 `ENABLE_ONLINE_MAP`。
+
+切换既有实例前，通过旧分享页下载 JSON，导入本机并核对日期和站点。需要保留已有到达与跳过状态时，在旧行中页登录并读取私人记录，再选「下载含进展的备份」。本机版仅恢复状态。保留原数据库和环境配置，确认旧链接可退役后才切换；恢复时重新设 `DATA_STORE=postgres`、关闭 `LOCAL_TRIPS_ONLY` 并部署。
+
 | 入口       | 运行方式                                        | 需要什么                                      |
 | ---------- | ----------------------------------------------- | --------------------------------------------- |
 | 主站       | 常驻 Node.js 进程，或仓库 Dockerfile 构建的容器 | PostgreSQL 用于持久化，模型与高德服务按需配置 |
 | 离线验真台 | GitHub Pages 或静态托管                         | 已构建的 HTML 和 Service Worker               |
 
-生成任务在请求返回后继续运行，部署平台应允许常驻进程处理后台任务。长期使用建议选 PostgreSQL。内存模式用于本地测试，重启会丢失行程与分享链接。主站的健康检查在 `/api/health`，其中 `commit` 用于核对部署版本。
+生成任务在请求返回后继续运行，部署平台应允许常驻进程处理后台任务。需保留旧分享链接时选 PostgreSQL。内存模式重启会中断未完成的在线任务，浏览器已保存的行程可以继续使用。主站的健康检查在 `/api/health`，其中 `commit` 用于核对部署版本。
 
 ## 主站配置
 
@@ -48,7 +52,7 @@ docker run --env-file .env -p 127.0.0.1:3000:3000 ai-travel-companion
 
 ## Render
 
-现有服务配置见 [`render.yaml`](../render.yaml)。其中同时保留了 `plan: free` 和 `preDeployCommand`，而 Render 仅在付费 Web Service 上提供该钩子。新建免费实例时，通过常规 Web Service 配置使用相同的构建与启动命令，并在部署前从受控环境单独迁移外部数据库。免费实例可能休眠，第一次打开可能需要等待。 [Render 部署文档](https://render.com/docs/deploys)
+新实例使用 [Render 蓝图](../render.yaml)。默认只使用浏览器和进程内存，不运行数据库迁移。免费实例可能休眠。已打开并准备离线页面的用户可以在原设备打开本机行程。 [Render 部署文档](https://render.com/docs/free)
 
 发布后先核对 `/api/health` 的 `commit`，再对目标运行 `npm run smoke -- https://你的域名`。冒烟包含一次生成，会消耗配置服务的额度。
 

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { PlanView } from "@/components/PlanView";
 import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
+import { readTripFile } from "@/lib/trip/trip-file";
 import { localTodayIso } from "@/lib/trip/trip-day";
 
 // 控制「现在」：只 mock 两个读时钟的函数，tripToday/spotNow 保持真实（已被单测
@@ -58,6 +59,33 @@ const duringPlanLocated = () => {
 };
 
 describe("PlanView", () => {
+  it("无需分享 ID 即可下载完整行程，并在打印时展开所有日期", async () => {
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:trip-test");
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.stubGlobal(
+      "URL",
+      class extends URL {
+        static createObjectURL = createObjectURL;
+        static revokeObjectURL() {}
+      },
+    );
+    try {
+      const { container } = render(<PlanView plan={SAMPLE_PLAN} layout="browser" />);
+      await userEvent.click(screen.getByRole("button", { name: "下载行程文件" }));
+      expect(click).toHaveBeenCalledOnce();
+      const [blob] = createObjectURL.mock.calls[0]!;
+      expect(readTripFile(await blob.text()).days).toHaveLength(SAMPLE_PLAN.days.length);
+      expect(container.querySelectorAll(".day-head")).toHaveLength(1);
+      act(() => window.dispatchEvent(new Event("beforeprint")));
+      expect(container.querySelectorAll(".day-head")).toHaveLength(SAMPLE_PLAN.days.length);
+      act(() => window.dispatchEvent(new Event("afterprint")));
+      expect(container.querySelectorAll(".day-head")).toHaveLength(1);
+    } finally {
+      click.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("渲染行程头部：城市/天数/总价/验真状态", () => {
     render(<PlanView plan={SAMPLE_PLAN} />);
     expect(

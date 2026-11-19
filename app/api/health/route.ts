@@ -32,6 +32,7 @@ async function dbProbe(): Promise<"ok" | "error" | "n/a"> {
 }
 
 export async function GET() {
+  const localTripsOnly = process.env.LOCAL_TRIPS_ONLY === "1";
   const db = await dbProbe();
   const healthy = db !== "error";
   // 生产误配时登录链路是关闭的（见 lib/auth/providers.ts 的 DisabledProvider）。
@@ -42,8 +43,15 @@ export async function GET() {
     {
       status: healthy ? "ok" : "error",
       uptimeSec: Math.round(process.uptime()),
-      llmConfigured: Boolean(process.env.LLM_API_KEY),
-      amapMode: process.env.AMAP_WEB_SERVICE_KEY ? "live" : "mock",
+      llmConfigured:
+        Boolean(process.env.LLM_API_KEY) &&
+        (!localTripsOnly || process.env.ENABLE_ONLINE_GENERATION === "1"),
+      localTripsOnly,
+      amapMode:
+        process.env.AMAP_WEB_SERVICE_KEY &&
+        (!localTripsOnly || process.env.ENABLE_ONLINE_MAP === "1")
+          ? "live"
+          : "mock",
       authProvider,
       // 部署自证：Render 会注入 RENDER_GIT_COMMIT。之前「线上是不是最新版」只能
       // 靠猜（本轮 /pricing 404 时无法判断是部署未完成还是构建失败），把 commit

@@ -18,7 +18,10 @@ import type { PlanLeg, TransportMode } from "../types";
 // 标成「未在高德检索到」——预警系统自己变成谎言，正是本项目最怕的事故。
 // 现在返回三态，error 态绝不产生「未检索到」预警，只汇总成系统提示。
 
-const KEY = process.env.AMAP_WEB_SERVICE_KEY;
+const KEY =
+  process.env.LOCAL_TRIPS_ONLY === "1" && process.env.ENABLE_ONLINE_MAP !== "1"
+    ? undefined
+    : process.env.AMAP_WEB_SERVICE_KEY;
 const BASE = process.env.AMAP_BASE_URL || "https://restapi.amap.com";
 export const AMAP_MOCK = !KEY;
 // 静态地图（/v3/staticmap）返回二进制而非 JSON，无法复用 amapGetRetry；

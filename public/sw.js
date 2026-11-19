@@ -14,7 +14,8 @@
 //
 // 注册时机见 components/PwaBootstrap.tsx（仅生产环境注册）。
 
-const CACHE = "tp-trip-shell-v2";
+const CACHE = "tp-trip-shell-v3";
+const LOCAL_CACHE = "tp-local-shell-v1";
 const OFFLINE_MESSAGE = "当前离线，且没有可用的缓存页面。请连网后重试。";
 
 // 跳过 waiting：装完立刻接管，行中场景等不起「关闭所有标签页再打开」
@@ -27,8 +28,36 @@ self.addEventListener("activate", (event) => {
     (async () => {
       // 清掉旧版本缓存（版本号变更时旧壳子必须让位）
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(
+        keys
+          .filter((k) => k.startsWith("tp-trip-shell-") && k !== CACHE)
+          .map((k) => caches.delete(k)),
+      );
       await self.clients.claim();
+    })(),
+  );
+});
+
+// 只缓存不含用户数据的本机页面外壳与版本化静态资源。
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "prepare-local" || !event.ports[0] || !event.source?.url) return;
+  if (new URL(event.source.url).pathname !== "/local") return;
+  const assets = Array.isArray(event.data.assets) ? event.data.assets.slice(0, 100) : [];
+  const paths = assets.filter(
+    (path) =>
+      typeof path === "string" &&
+      /^\/_next\/static\/[a-zA-Z0-9_.%/-]+$/.test(path) &&
+      new URL(path, self.location.origin).pathname === path,
+  );
+  event.waitUntil(
+    (async () => {
+      try {
+        const cache = await caches.open(LOCAL_CACHE);
+        await cache.addAll([...new Set(paths), "/local"]);
+        event.ports[0].postMessage(true);
+      } catch {
+        event.ports[0].postMessage(false);
+      }
     })(),
   );
 });
@@ -44,6 +73,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  if (req.mode === "navigate" && url.pathname === "/local") {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(LOCAL_CACHE);
+        return (
+          (await fetch(req).catch(() => null)) ??
+          (await cache.match("/local")) ??
+          new Response(OFFLINE_MESSAGE, { status: 504 })
+        );
+      })(),
+    );
+    return;
+  }
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(LOCAL_CACHE);
+        return (await cache.match(url.pathname)) ?? fetch(req);
+      })(),
+    );
+    return;
+  }
   const isTripNav = req.mode === "navigate" && url.pathname.startsWith("/t/");
   if (!isTripNav) return;
 

@@ -222,6 +222,9 @@ export const DAY_SYSTEM_PROMPT = `你是资深国内旅行行程规划师，现�
  * 一份 OpenAI 客户端（超时/重试参数在第二个地方独立演化是事故之源）。
  */
 export function client(): OpenAI {
+  if (process.env.LOCAL_TRIPS_ONLY === "1" && process.env.ENABLE_ONLINE_GENERATION !== "1") {
+    throw new Error("此实例未开启在线生成");
+  }
   if (!process.env.LLM_API_KEY) throw new Error("缺少 LLM_API_KEY，请配置 .env");
   return new OpenAI({
     apiKey: process.env.LLM_API_KEY,

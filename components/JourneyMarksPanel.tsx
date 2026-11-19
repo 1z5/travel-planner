@@ -2,11 +2,20 @@
 
 import { useRef, useState } from "react";
 import type { JourneyAction, JourneyCommand, JourneyMark } from "@/lib/trip/journey-marks";
-import type { PlanSpot } from "@/lib/types";
+import { downloadTripFile } from "@/lib/trip/trip-file";
+import type { Plan, PlanSpot } from "@/lib/types";
 
 type JourneySnapshot = { revision: number; marks: JourneyMark[] };
 
-export function JourneyMarksPanel({ shareId, spots }: { shareId: string; spots: PlanSpot[] }) {
+export function JourneyMarksPanel({
+  shareId,
+  spots,
+  plan,
+}: {
+  shareId: string;
+  spots: PlanSpot[];
+  plan?: Plan;
+}) {
   const endpoint = `/api/journey/${encodeURIComponent(shareId)}`;
   const [journey, setJourney] = useState<JourneySnapshot>();
   const [busy, setBusy] = useState(false);
@@ -81,6 +90,25 @@ export function JourneyMarksPanel({ shareId, spots }: { shareId: string; spots: 
         <button type="button" className="btn" disabled={busy} onClick={() => void load()}>
           {journey ? "刷新私人记录" : "记录今天的进展"}
         </button>
+        {plan && journey && journey.marks.length > 0 && (
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={() => {
+              try {
+                downloadTripFile(
+                  plan,
+                  Object.fromEntries(journey.marks.map(({ stopId, action }) => [stopId, action])),
+                );
+              } catch {
+                setError("无法下载这份备份。");
+              }
+            }}
+          >
+            下载含进展的备份
+          </button>
+        )}
         {error && <p role="alert">{error}</p>}
         {journey && (
           <ul className="today-spots" aria-label="今日私人记录">
