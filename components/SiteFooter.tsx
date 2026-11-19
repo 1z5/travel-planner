@@ -10,7 +10,7 @@ export function SiteFooter() {
           <Link href="/privacy">隐私政策</Link>
           <Link href="/terms">使用条款</Link>
         </nav>
-        <span>地图和地点资料来自高德开放平台</span>
+        <span>在线地图和地点检索由高德开放平台提供</span>
       </div>
     </footer>
   );

@@ -61,6 +61,43 @@ export function nowMinutes(now: Date = new Date()): number {
   return now.getHours() * 60 + now.getMinutes();
 }
 
+function zonedClockFormatter(timeZone: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+export function isTripTimeZone(timeZone: string): boolean {
+  if (timeZone !== "UTC" && !timeZone.includes("/")) return false;
+  try {
+    zonedClockFormatter(timeZone);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function tripClock(timeZone?: string, now = new Date()) {
+  if (timeZone) {
+    const parts = Object.fromEntries(
+      zonedClockFormatter(timeZone)
+        .formatToParts(now)
+        .map(({ type, value }) => [type, value]),
+    );
+    return {
+      todayIso: `${parts.year}-${parts.month}-${parts.day}`,
+      minutes: Number(parts.hour) * 60 + Number(parts.minute),
+    };
+  }
+  return { todayIso: localTodayIso(now), minutes: nowMinutes(now) };
+}
+
 export type SpotNow =
   | { kind: "now"; index: number } // 现在在进行第 index 个点
   | { kind: "next"; index: number } // 下一站是第 index 个点

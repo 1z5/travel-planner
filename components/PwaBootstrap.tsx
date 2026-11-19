@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useOffline } from "next/offline";
-import { CloudOff } from "lucide-react";
+import { CloudOff, X } from "lucide-react";
 
 // ============================================================
 // PWA 引导：注册离线 Service Worker + 断网提示
@@ -32,6 +33,7 @@ function registerServiceWorker() {
 
 export function PwaBootstrap() {
   const offline = useOffline();
+  const pathname = usePathname();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -42,10 +44,19 @@ export function PwaBootstrap() {
 
   return (
     <div className="offline-banner" role="status">
-      <CloudOff size={15} aria-hidden="true" />
-      <span>当前离线：显示的是最后一次加载的内容，恢复联网后自动继续。</span>
-      <button type="button" onClick={() => setDismissed(true)} aria-label="关闭离线提示">
-        ×
+      <CloudOff size={16} aria-hidden="true" />
+      <span>
+        {pathname === "/local"
+          ? "当前离线。可以查看本机行程并标记到达。"
+          : "当前离线。显示的是最后一次加载的内容。"}
+      </span>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => setDismissed(true)}
+        aria-label="关闭离线提示"
+      >
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );

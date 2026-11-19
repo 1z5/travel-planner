@@ -255,10 +255,10 @@ Base URL：`/api`（与前端同源）
 
 ## GET /api/events/summary — 只读看板
 
-返回**聚合值**（不输出单条事件）。必须带 `?token=<METRICS_TOKEN>`；未配置 token 或 token 不匹配 → **404（JSON）**。
+返回**聚合值**（不输出单条事件）。必须发送 `Authorization: Bearer <METRICS_TOKEN>`；未配置 token 或 token 不匹配 → **404（JSON）**。
 
 ```bash
-curl "https://你的域名/api/events/summary?token=<METRICS_TOKEN>&days=30"
+curl -H "Authorization: Bearer ${METRICS_TOKEN}" "https://你的域名/api/events/summary?days=30"
 ```
 
 ```json

@@ -77,6 +77,12 @@ export interface PlanSpot {
   reason: string; // 为什么去这里
   rainBackup?: string; // 雨天备选（室外景点必填）
   location?: string; // "经度,纬度"（验真命中时由高德回填，「行中」定位算「我离这站多远」用）
+  /** 本机行程文件提供的地图目的地，例如原文地名加城市。 */
+  navigationQuery?: string;
+  /** 出处随本机行程文件保留，供使用者自行核对。 */
+  placeSource?: { name: string; url: string };
+  /** 来自行程文件的营业时间资料，展示时附来源，由用户确认。 */
+  openingHoursNote?: { hours: string; source: string; url?: string };
   // 高德 POI 详情（验真命中且 extensions=all 有数据时回填）。
   // 为什么单独放一层而不是塞进 PlanSpot 顶层：这些字段**不是** LLM 生成的，
   // 是验真接口返回的事实；分层后 UI/体检能严格区分「模型说的」与「高德证的」。
@@ -135,6 +141,7 @@ export interface Plan {
   /** 跨城/多城市分段（有序；单城市行程为 undefined） */
   cities?: TripCity[];
   startDate?: string; // 行程首日 "YYYY-MM-DD"（日历导出/结果卡/分享页展示）
+  timeZone?: string; // 本机单时区行程的 IANA 时区，例如 Asia/Tokyo
   endDate?: string; // 行程末日 "YYYY-MM-DD"
   startAt?: string; // 完整起始时间 "YYYY-MM-DDTHH:mm"（结果卡展示）
   endAt?: string; // 完整结束时间 "YYYY-MM-DDTHH:mm"

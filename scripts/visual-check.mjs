@@ -134,6 +134,7 @@ const PAGE_CHECK_FN = String.raw`
     '.copilot-chip',
     '.copilot-clear',
     '.copilot-toggle',
+    '.companion-local-form select',
   ].join(',');
   const seen = new Set();
   for (const el of document.querySelectorAll(CONTROL_SELECTOR)) {
@@ -217,7 +218,8 @@ const PAGE_CHECK_FN = String.raw`
     '.tc-report-page', '.tc-report-page-headline', '.tc-fix', '.tc-cred-id',
     '.at-journey-marks .btn', '.companion-page-heading p', '.companion-inline-link',
     '.companion-example-caption', '.companion-template p', '.companion-today-context',
-    '.companion-today-actions a', '.companion-form-hint', '.companion-share-actions a', '.desk-lede',
+    '.companion-today-actions a', '.companion-next-facts p', '.companion-next-facts a',
+    '.companion-local-stop-time', '.companion-form-hint', '.companion-share-actions a', '.desk-lede',
   ];
   for (const sel of CONTRAST_SELECTORS) {
     const el = document.querySelector(sel);
@@ -426,8 +428,65 @@ async function main() {
       features: [{ name: "prefers-color-scheme", value: darkTheme ? "dark" : "light" }],
     });
 
+    const localTripStorage = `(() => {
+          const timeZone = "Asia/Tokyo";
+          const startDate = new Intl.DateTimeFormat("sv-SE", { timeZone, dateStyle: "short" }).format();
+          const file = {
+            format: "ai-travel-companion", version: 1,
+            plan: {
+              city: "东京", startDate, timeZone, summary: "", totalCostCny: 0, tips: [],
+              days: [{
+                day: 1, theme: "浅草", dailyCostCny: 0, transitMin: 0,
+                spots: [{
+                  stopId: "82c7fd7e-401e-494a-bb7f-3f032dbb26b3",
+                  name: "浅草寺", area: "浅草", period: "morning", type: "sight",
+                  time: "09:00-10:00", durationMin: 60, costCny: 0, reason: "",
+                  navigationQuery: "浅草寺 東京都台東区浅草2-3-1",
+                  openingHoursNote: {
+                    hours: "本堂 06:00–17:00，10 月至次年 3 月 06:30 开门",
+                    source: "浅草寺官网", url: "https://www.senso-ji.jp/visit/"
+                  }
+                }]
+              }]
+            }
+          };
+          localStorage.setItem("tp.local-trip-files.v1", JSON.stringify([JSON.stringify(file)]));
+        })()`;
+
     const PAGES = [
-      { name: "local", path: "/local", required: [".companion-local", "input[type=file]"] },
+      {
+        name: "local",
+        path: "/local",
+        required: [".companion-local", "input[type=file]", ".companion-local-sample"],
+      },
+      {
+        name: "local-today",
+        path: "/local",
+        required: [
+          ".today-hero .btn-primary",
+          ".companion-next-facts a",
+          ".today-timeline .companion-today-context",
+        ],
+        storageSetup: localTripStorage,
+        clicks: [".companion-trip .btn"],
+      },
+      {
+        name: "local-editor",
+        path: "/local",
+        required: [".companion-local-form select", 'input[name="start"]', 'input[name="end"]'],
+        storageSetup: localTripStorage,
+        clicks: [
+          ".companion-trip .btn",
+          '.companion-today-actions[aria-label="本机行程视图"] button:last-child',
+        ],
+      },
+      {
+        name: "local-check",
+        path: "/local",
+        required: [".companion-local-check[open] .tc-axis", ".companion-local-check .tc-coverage"],
+        storageSetup: localTripStorage,
+        clicks: [".companion-trip .btn", ".companion-local-check summary"],
+      },
       {
         // 首页要能直接开始新行程，同时保留示例入口。
         name: "trips",
@@ -566,6 +625,12 @@ async function main() {
         }
         await cdp.send("Page.navigate", { url: `${baseUrl}${page.path}` });
         await sleep(3000); // 等 hydration + 懒加载地图请求
+        for (const selector of page.clicks ?? []) {
+          await cdp.send("Runtime.evaluate", {
+            expression: `document.querySelector(${JSON.stringify(selector)})?.click()`,
+          });
+          await sleep(250); // 等本机行程读完并挂载时钟
+        }
 
         const res = await cdp.send("Runtime.evaluate", {
           expression: PAGE_CHECK_FN,

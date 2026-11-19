@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Plan } from "@/lib/types";
+import { isTripTimeZone } from "./trip-day";
 
 export const TRIP_FILE_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -7,6 +8,7 @@ const text = z.string().max(4000);
 const nonnegative = z.number().min(0);
 const date = z.iso.date();
 const mode = z.enum(["walking", "bicycling", "driving", "auto"]);
+const sourceUrl = z.url({ protocol: /^https$/ }).max(2048);
 const spot = z.object({
   stopId: z.uuid().optional(),
   period: z.enum(["morning", "lunch", "afternoon", "dinner", "evening"]),
@@ -18,6 +20,15 @@ const spot = z.object({
   costCny: nonnegative,
   reason: text,
   rainBackup: text.optional(),
+  navigationQuery: z.string().trim().min(1).max(160).optional(),
+  placeSource: z.object({ name: z.string().trim().min(1).max(100), url: sourceUrl }).optional(),
+  openingHoursNote: z
+    .object({
+      hours: z.string().trim().min(1).max(240),
+      source: z.string().trim().min(1).max(100),
+      url: sourceUrl.optional(),
+    })
+    .optional(),
   location: z
     .string()
     .regex(/^-?\d{1,3}(?:\.\d+)?,-?\d{1,3}(?:\.\d+)?$/)
@@ -31,6 +42,7 @@ const planSchema = z.object({
     .max(30)
     .optional(),
   startDate: date.optional(),
+  timeZone: z.string().max(100).refine(isTripTimeZone).optional(),
   endDate: date.optional(),
   startAt: text.optional(),
   endAt: text.optional(),

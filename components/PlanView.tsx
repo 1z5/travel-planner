@@ -35,12 +35,13 @@ import { downloadTripFile } from "@/lib/trip/trip-file";
 import type { Plan, PlanDay, TransportMode } from "@/lib/types";
 import {
   localTodayIso,
-  nowMinutes,
   spotNow,
+  tripClock,
   tripToday,
   type SpotNow,
   type TripToday,
 } from "@/lib/trip/trip-day";
+import { spotNavigationUrl } from "@/lib/geo/navigation";
 import { warnTag } from "@/lib/server/warn-tag";
 import { ownsRecentTrip } from "@/lib/plan/recent-trips";
 import { RouteMap } from "./RouteMap";
@@ -115,20 +116,6 @@ function dayDate(startDate: string | undefined, dayNo: number): string | null {
   if (Number.isNaN(t)) return null;
   const d = new Date(t + (dayNo - 1) * 86_400_000);
   return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/**
- * 「导航到这里」：高德 URI 导航链接（手机浏览器会唤起高德 App，桌面打开高德网页版）。
- *
- * 为什么用这个而不是自己画导航：定位/路线规划是高德的本职，浏览器地理能力做不了；
- * 而行程里每个验真命中的点都带真实坐标（validate 回填），拼一个链接就能把
- * 「看完行程 → 出发」这一步接上。未验真的点没有坐标，不渲染此入口（不给假地址）。
- */
-function amapNavUrl(location: string, name: string): string {
-  return (
-    `https://uri.amap.com/navigation?to=${location},${encodeURIComponent(name)}` +
-    "&mode=car&policy=1&src=travelplanner&coordinate=gaode&callnative=1"
-  );
 }
 
 function toMarkdown(plan: Plan): string {
@@ -605,9 +592,10 @@ export function PlanView({
   // 挂载后补上，对「旅行途中打开」的场景无感。
   const [today, setToday] = useState<TripToday>({ kind: "unknown" });
   const todayRef = useRef<HTMLDivElement | null>(null);
+  const timeZone = importedFile ? viewPlan.timeZone : undefined;
   useEffect(() => {
-    setToday(tripToday(viewPlan.startDate, localTodayIso(), viewPlan.days.length));
-  }, [viewPlan.startDate, viewPlan.days.length]);
+    setToday(tripToday(viewPlan.startDate, tripClock(timeZone).todayIso, viewPlan.days.length));
+  }, [timeZone, viewPlan.startDate, viewPlan.days.length]);
   // 「今天」就绪后自动滚动到当天（依赖 today，等重渲染把 ref 挂上再滚）
   useEffect(() => {
     if (today.kind === "during") {
@@ -642,11 +630,11 @@ export function PlanView({
       return;
     }
     const spots = viewPlan.days[duringIdx].spots;
-    const compute = () => setSpotStatus(spotNow(spots, nowMinutes()));
+    const compute = () => setSpotStatus(spotNow(spots, tripClock(timeZone).minutes));
     compute();
     const timer = setInterval(compute, 60000);
     return () => clearInterval(timer);
-  }, [duringIdx, viewPlan.days]);
+  }, [duringIdx, timeZone, viewPlan.days]);
 
   // 行中状态行文案：今天在哪个位置 +（during 时）现在/下一站。单文本节点，便于测试。
   const tripStatusText = (() => {
@@ -894,6 +882,7 @@ export function PlanView({
         <div className="timeline">
           {day.spots.map((s, i) => {
             const Icon = TYPE_ICON[s.type] ?? Landmark;
+            const navUrl = spotNavigationUrl(s, importedFile);
             // 仅「今天」的卡片标现在/下一站；spotStatus 只在 during 时非空
             const spotMark =
               isToday &&
@@ -1050,10 +1039,10 @@ export function PlanView({
                             : "多看几个"}
                         </button>
                       )}
-                      {s.location && (
+                      {navUrl && (
                         <a
                           className="btn-link spot-action"
-                          href={amapNavUrl(s.location, s.name)}
+                          href={navUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
