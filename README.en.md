@@ -4,7 +4,15 @@
 
 A self-hostable travel tool. Plan a trip before departure, then open Today to see what's next and get directions. Trip Check also checks existing itineraries. It reports schedule consistency and factual coverage separately. Its CLI, API, and offline verifier use the same rules.
 
-Place, hours, and route data come from Amap where available. Check official notices for last-minute changes. Anyone with an itinerary link can view it and may be able to edit its plan.
+Live place, hours, and route data come from Amap where available. Local trips can also display reference information included in their files. Check official notices for last-minute changes. Anyone with an itinerary link can view it and may be able to edit its plan.
+
+## Try the Tokyo itinerary
+
+Open Local Trips (`/local`), download the Tokyo sample, and import the JSON. In a production build, prepare the page for offline use while connected. You can then reopen it offline, mark an arrival, and reopen it again to see the saved record. The walkthrough was captured in a Chrome mobile viewport. [Walkthrough and architecture diagram](README.md#试玩东京行程) · [Production setup](docs/DEPLOY.md)
+
+When editing a Tokyo trip, you can also add places from the built-in city pack. Today shows the place sources and counts how many stops have documented opening hours.
+
+Expand Offline Trip Check to check the schedule and compare matching stops with the bundled data. Imported opening-hour notes and route estimates remain available for reference.
 
 ## Run locally
 
@@ -17,6 +25,6 @@ cp .env.example .env
 npm run dev
 ```
 
-Open <http://localhost:3000>. Sample trips and offline verification work without keys. For itinerary generation, set `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_API_KEY` in `.env.local`. For live maps and place data, set `AMAP_WEB_SERVICE_KEY`. Local memory storage loses trips on restart. See the [deployment guide](docs/DEPLOY.md) for persistent storage and `npm run gate` for the test suite with stubs.
+Open <http://localhost:3000>. Sample trips and offline verification work without keys. For itinerary generation, set `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_API_KEY` in `.env.local`. For live maps and place data, set `AMAP_WEB_SERVICE_KEY`. In local-first mode, the browser keeps saved trips and arrival records across server restarts. Use `npm run gate` for the test suite with stubs. [Deployment and persistent storage](docs/DEPLOY.md)
 
 [Documentation](docs/README.md) · [Trip Check standard](docs/TRIP-CHECK-STANDARD.md) · [Contributing](CONTRIBUTING.md) · [Apache-2.0 license](LICENSE) · [Third-party notices](NOTICE.md)

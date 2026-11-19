@@ -8,12 +8,12 @@ services:
     region: singapore
     # 构建：Prisma 7 需要显式 generate（memory 模式也会静态 import postgres 实现）；
     # standalone 产物不会自动带 static/public，必须显式拷（DEPLOY.md 踩坑记录）。
-    # 注意括号：只有「拷 static/public」允许失败兜底，前面任何一步失败都必须让
-    # 构建真实报错（否则会出现 build 绿、start 崩的假成功）。
+    # 拷贝失败时停止构建，避免发布无法加载静态资源的实例。
     buildCommand: >-
       npm ci && npx prisma generate && npm run build &&
-      (cp -r .next/static .next/standalone/.next/static || true) &&
-      (mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/ || true)
+      mkdir -p .next/standalone/.next/static .next/standalone/public &&
+      cp -R .next/static/. .next/standalone/.next/static/ &&
+      cp -R public/. .next/standalone/public/
     # HOSTNAME 显式绑 0.0.0.0：Render 会给容器注入 HOSTNAME 环境变量，
     # Next standalone 会拿它当监听地址，不覆盖会绑定失败。
     startCommand: sh -c 'HOSTNAME=0.0.0.0 exec node .next/standalone/server.js'
@@ -28,7 +28,7 @@ services:
         value: memory
       - key: LOCAL_TRIPS_ONLY
         value: "1"
-      # 只有供应商确认免费额度用尽即停，才在部署环境显式开启。
+      # 确认供应商免费额度、超额价格和预算后，再在部署环境显式开启。
       - key: ENABLE_ONLINE_GENERATION
         value: "0"
       - key: ENABLE_ONLINE_MAP
@@ -77,7 +77,7 @@ services:
       - key: WEATHER_HOURLY_LIMIT
         value: "60"
       # 看板 token：Render 自动生成随机值，在 Dashboard → Environment 里查看；
-      # 配置后 /api/events/summary?token=... 可用（能看到演示站访问量）
+      # 配置后用 Authorization: Bearer 访问 /api/events/summary（能看到演示站访问量）
       - key: METRICS_TOKEN
         generateValue: true
       # Render 前面有自己的反代：XFF 从右往左第 1 个是真实客户端，保持默认 1

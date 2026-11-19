@@ -13,7 +13,11 @@ import { localTodayIso } from "@/lib/trip/trip-day";
 const mockClock = vi.hoisted(() => ({ today: "2026-10-18", minutes: 9 * 60 + 30 }));
 vi.mock("@/lib/trip/trip-day", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/trip/trip-day")>();
-  return { ...actual, localTodayIso: () => mockClock.today, nowMinutes: () => mockClock.minutes };
+  return {
+    ...actual,
+    localTodayIso: () => mockClock.today,
+    tripClock: () => ({ todayIso: mockClock.today, minutes: mockClock.minutes }),
+  };
 });
 
 // 第一天 spot 时间已知的行程，供「现在/下一站」确定断言

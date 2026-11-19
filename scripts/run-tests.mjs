@@ -2197,11 +2197,17 @@ async function phaseB(api) {
     sumNoToken.status === 404 && sumNoTokenBody.includes("not found"),
     `got ${sumNoToken.status}`,
   );
-  const sumBadToken = await fetch(`${api.baseUrl}/api/events/summary?token=wrong`);
+  const sumOldQuery = await fetch(`${api.baseUrl}/api/events/summary?token=e2e-metrics-token`);
+  check("看板：URL 参数不能鉴权", sumOldQuery.status === 404, `got ${sumOldQuery.status}`);
+  const sumBadToken = await fetch(`${api.baseUrl}/api/events/summary`, {
+    headers: { Authorization: "Bearer wrong" },
+  });
   check("看板：错 token → 404", sumBadToken.status === 404, `got ${sumBadToken.status}`);
   // 带正确 token → 200 + 指标结构（北极星与漏斗都在）
   const sum = await (
-    await fetch(`${api.baseUrl}/api/events/summary?token=e2e-metrics-token`)
+    await fetch(`${api.baseUrl}/api/events/summary`, {
+      headers: { Authorization: "Bearer e2e-metrics-token" },
+    })
   ).json();
   check(
     "看板：带 token → 200 且含北极星与漏斗",

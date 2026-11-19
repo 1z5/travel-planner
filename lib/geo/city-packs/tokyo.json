@@ -1,0 +1,50 @@
+{
+  "city": "东京",
+  "timeZone": "Asia/Tokyo",
+  "places": [
+    {
+      "id": "senso-ji",
+      "name": "浅草寺",
+      "area": "浅草",
+      "navigationQuery": "浅草寺 東京都台東区浅草2-3-1",
+      "placeSource": {
+        "name": "浅草寺官网",
+        "url": "https://www.senso-ji.jp/visit/"
+      },
+      "openingHoursNote": {
+        "hours": "本堂 06:00–17:00，10 月至次年 3 月 06:30 开门",
+        "source": "浅草寺官网",
+        "url": "https://www.senso-ji.jp/visit/"
+      },
+      "hoursByMonth": [
+        { "months": [4, 5, 6, 7, 8, 9], "openTime": "06:00-17:00" },
+        { "months": [1, 2, 3, 10, 11, 12], "openTime": "06:30-17:00" }
+      ]
+    },
+    {
+      "id": "sumida-park-taito",
+      "name": "隅田公园",
+      "area": "隅田川畔",
+      "navigationQuery": "台東区立隅田公園 東京都台東区浅草7丁目1番",
+      "placeSource": {
+        "name": "台东区官方观光网站",
+        "url": "https://t-navi.city.taito.lg.jp/spot/1011"
+      }
+    },
+    {
+      "id": "former-yasuda-garden",
+      "name": "旧安田庭园",
+      "area": "两国",
+      "navigationQuery": "旧安田庭園 東京都墨田区横網1丁目12番1号",
+      "placeSource": {
+        "name": "墨田区官网",
+        "url": "https://www.city.sumida.lg.jp/sisetu_info/kouen/kunai_park_annai/sumida_park/park08.html"
+      },
+      "openingHoursNote": {
+        "hours": "4–9 月 09:00–19:30，10–3 月 09:00–18:00。16:30 后仅部分开放，12 月 29 日至 1 月 1 日休园。",
+        "source": "墨田区官网",
+        "url": "https://www.city.sumida.lg.jp/sisetu_info/kouen/kunai_park_annai/sumida_park/park08.html"
+      }
+    }
+  ]
+}

@@ -758,6 +758,13 @@ body::after {
   padding-block: 24px;
 }
 
+.companion-local-check > summary {
+  display: list-item;
+  align-content: center;
+  cursor: pointer;
+  font-weight: 650;
+}
+
 .companion-local-import {
   display: grid;
   gap: 6px;
@@ -782,6 +789,99 @@ body::after {
 
 .companion-local-form .btn,
 .companion-local-form input,
+.companion-local-form select,
 .companion-local summary {
   min-height: 44px;
+}
+
+.companion-local-sample {
+  margin-inline-start: 8px;
+}
+
+.companion-local-stops {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.companion-local-stops li {
+  display: grid;
+  grid-template-columns: minmax(0, 8em) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px 12px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--at-line);
+  overflow-wrap: anywhere;
+}
+
+.companion-local-stop-time {
+  color: var(--at-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.companion-local-stop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  grid-column: 2;
+}
+
+.companion-local .today-hero .btn {
+  min-height: 44px;
+}
+
+.companion-local .today-hero .btn-primary {
+  min-height: 52px;
+}
+
+.companion-local .today-spot-head {
+  display: block;
+}
+
+.companion-local .today-spot > .companion-today-actions {
+  grid-column: 2;
+  margin-top: 0;
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px max(16px, env(safe-area-inset-right)) 4px max(16px, env(safe-area-inset-left));
+  background: var(--at-surface-2);
+  color: var(--at-ink);
+  font-size: 14px;
+}
+
+.offline-banner > svg {
+  flex: none;
+}
+
+.offline-banner .btn {
+  flex: none;
+  margin-inline-start: auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.companion-next-facts {
+  display: grid;
+  gap: 4px;
+  margin-block: 12px;
+  color: var(--at-ink-3);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.companion-next-facts p {
+  margin: 0;
+}
+
+.companion-next-facts a {
+  color: var(--at-accent);
+  text-decoration: underline;
 }

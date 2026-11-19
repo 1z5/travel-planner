@@ -2,8 +2,18 @@ name: Check demo health
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Expected deployed Git commit (short or full SHA)
+        type: string
+        required: false
+      smoke:
+        description: Run the deployment smoke test after health is confirmed
+        type: boolean
+        default: false
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: keep-demo-warm
@@ -12,19 +22,38 @@ concurrency:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 22
+    env:
+      DEMO_URL: https://travel-planner-demo.onrender.com
+      EXPECTED_COMMIT: ${{ inputs.expected_commit }}
     steps:
-      - name: Ping /api/health
+      - name: Verify deployed commit
         run: |
-          URL="https://travel-planner-demo.onrender.com"
-          for i in 1 2 3; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' -m 90 "$URL/api/health" || true)
-            echo "attempt $i: HTTP $code"
-            if [ "$code" = "200" ]; then
-              echo "🟢 demo 实例在线"
-              exit 0
+          expected="${EXPECTED_COMMIT:0:7}"
+          if [ -n "$EXPECTED_COMMIT" ] && ! [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::expected_commit must be a Git SHA"
+            exit 1
+          fi
+          end=$((SECONDS + 480))
+          while (( SECONDS < end )); do
+            if body=$(curl -fsS --max-time 75 "$DEMO_URL/api/health") &&
+                jq -e '.status == "ok"' <<< "$body" >/dev/null; then
+              live=$(jq -r '.commit // ""' <<< "$body")
+              jq -c '{status, commit, localTripsOnly, llmConfigured, amapMode}' <<< "$body"
+              if [ -z "$expected" ] || [ "$live" = "$expected" ]; then
+                exit 0
+              fi
             fi
             sleep 15
           done
-          echo "::warning::demo 预热失败（实例唤醒失败 / 正在部署 / 服务异常）"
+          echo "::error::demo did not return the expected healthy deployment"
           exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: inputs.smoke
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: inputs.smoke
+        with:
+          node-version: 22
+      - name: Run deployment smoke
+        if: inputs.smoke
+        run: npm run smoke -- "$DEMO_URL"

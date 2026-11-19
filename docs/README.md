@@ -7,5 +7,6 @@
 | 理解代码和历史决策       | [架构](ARCHITECTURE.md) · [ADR](adr/) · [变更记录](../CHANGELOG.md)                        |
 | 接入验真与其他接口       | [Trip Check 标准](TRIP-CHECK-STANDARD.md) · [API](API.md) · [MCP](../mcp/README.md)        |
 | 报告安全问题             | [安全报告](../SECURITY.md) · [历史审计](SECURITY-AUDIT-2026-10-28.md)                      |
+| 复跑生成评测             | [首份计划与终稿对照](GENERATION-EVAL.md)                                                   |
 
 现行说明直接更新原文档。历史策略和旧版说明在[清理前的仓库快照](https://github.com/1z5/AI-Travel-Companion/tree/a25f81d1b9cd75b58157f3eb2ef446a1c88617d6/docs/archive)查阅。ADR 保留决策正文，技术配置以代码和实测为准。

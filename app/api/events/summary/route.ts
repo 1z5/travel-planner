@@ -14,14 +14,14 @@ export const dynamic = "force-dynamic";
 // 的 not-found（text/html 404），e2e 的「无 token → 404」因此变成假阳性——
 // 断言通过但功能不存在。**断言 404 时必须确认响应体是 JSON**。
 //
-// 鉴权：必须带 `?token=<METRICS_TOKEN>`；未配置 METRICS_TOKEN 时一律 404
+// 鉴权：必须带 `Authorization: Bearer <METRICS_TOKEN>`；未配置 METRICS_TOKEN 时一律 404
 // （不暴露“这里有个看板”）。token 用 timingSafeEqual 比较，防时序侧信道。
 // ============================================================
 
 function tokenOk(req: NextRequest): boolean {
   const expected = process.env.METRICS_TOKEN;
   if (!expected) return false;
-  const got = req.nextUrl.searchParams.get("token") ?? "";
+  const got = req.headers.get("authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1] ?? "";
   const a = Buffer.from(got);
   const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
@@ -48,5 +48,7 @@ export async function GET(req: NextRequest) {
   const days = windowDays(req);
   const since = Date.now() - days * 86400000;
   const events = await getStore().events.list({ since, limit: 20000 });
-  return NextResponse.json(summarize(events, since));
+  return NextResponse.json(summarize(events, since), {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }

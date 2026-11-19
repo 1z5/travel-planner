@@ -14,8 +14,7 @@ vi.mock("@/lib/trip/trip-day", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/trip/trip-day")>();
   return {
     ...actual,
-    localTodayIso: () => mockClock.today,
-    nowMinutes: () => mockClock.minutes,
+    tripClock: () => ({ todayIso: mockClock.today, minutes: mockClock.minutes }),
   };
 });
 

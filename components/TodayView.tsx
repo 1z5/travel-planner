@@ -27,17 +27,11 @@ import {
 } from "lucide-react";
 import type { Plan, PlanDay, PlanLeg, PlanSpot, TransportMode } from "@/lib/types";
 import type { FactsVerdict, TripCheckReport, VerifyIssue } from "@/lib/verify/types";
-import {
-  localTodayIso,
-  nowMinutes,
-  spotNow,
-  tripToday,
-  type SpotNow,
-  type TripToday,
-} from "@/lib/trip/trip-day";
+import { spotNow, tripClock, tripToday, type SpotNow, type TripToday } from "@/lib/trip/trip-day";
 import { formatHoursShort } from "@/lib/plan/poi-hours";
 import { parseTimeRange, fmtHourMin } from "@/lib/plan/time";
 import { distMeters, fmtDist } from "@/lib/geo/spatial";
+import { spotNavigationUrl } from "@/lib/geo/navigation";
 import type { LocalMarks } from "@/lib/trip/trip-file";
 import { useArrivedSpots } from "./TodayExecutionCard";
 import { JourneyMarksPanel } from "./JourneyMarksPanel";
@@ -98,18 +92,6 @@ function fmtDate(iso: string | undefined): string {
   const d = Number(parts[2]);
   if (!Number.isFinite(m) || !Number.isFinite(d)) return "";
   return `${m}月${d}日`;
-}
-
-/**
- * 「导航到这里」：高德 URI（手机浏览器唤起高德 App，桌面打开网页版）。
- * 与 PlanView 同一拼法——同一个点从规划页和行中页点进去必须落到同一个导航目标，
- * 不能两个入口给出两套坐标系/参数。
- */
-function amapNavUrl(location: string, name: string): string {
-  return (
-    `https://uri.amap.com/navigation?to=${location},${encodeURIComponent(name)}` +
-    "&mode=car&policy=1&src=travelplanner&coordinate=gaode&callnative=1"
-  );
 }
 
 /** 坏天气判定（与 lib/weather.ts 同口径；那边 server-only，客户端内联这一条正则） */
@@ -312,7 +294,7 @@ function TodayCheckCard({
  * 单独拆组件是为了让「legs 缺失/字段畸形」的降级逻辑只写一处：旧行程没有 legs
  * 字段、高德波动时可能只有部分字段，这里能显示多少显示多少，一样都没有就整条不渲染。
  */
-function TodayLeg({ leg }: { leg: PlanLeg }) {
+function TodayLeg({ leg, fromFile }: { leg: PlanLeg; fromFile: boolean }) {
   const ModeIcon = MODE_ICON[leg.mode];
   const modeLabel = MODE_LABEL[leg.mode];
   const distance = Number.isFinite(leg.distanceM) ? fmtDist(leg.distanceM) : null;
@@ -332,6 +314,7 @@ function TodayLeg({ leg }: { leg: PlanLeg }) {
       {summary && (
         <span className="today-leg-summary">
           {ModeIcon && <ModeIcon size={12} aria-hidden="true" />}
+          {fromFile && "行程文件参考 · "}
           {summary}
         </span>
       )}
@@ -386,6 +369,8 @@ export function TodayView({
 }) {
   const [viewPlan, setViewPlan] = useState<Plan>(plan);
   useEffect(() => setViewPlan(plan), [plan]);
+  const fromFile = !!onLocalMark;
+  const timeZone = fromFile ? plan.timeZone : undefined;
 
   // 时钟：只在客户端挂载后读取。SSR 时服务端时区未必等于用户手机时区，
   // 在服务端算「今天」会让首屏与客户端不一致（hydration 报错），也可能把
@@ -393,11 +378,11 @@ export function TodayView({
   // 可能长开，「现在/下一站」与跨零点都必须跟着走。
   const [clock, setClock] = useState<{ todayIso: string; minutes: number } | null>(null);
   useEffect(() => {
-    const tick = () => setClock({ todayIso: localTodayIso(), minutes: nowMinutes() });
+    const tick = () => setClock(tripClock(timeZone));
     tick();
     const timer = setInterval(tick, 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [timeZone]);
 
   // 天气 / 一键修复 / 定位：都是用户主动触发，不在加载时打上游接口
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
@@ -503,7 +488,7 @@ export function TodayView({
         return;
       }
       // 只取「今天」那份预报；超出预报窗口（高德约 4 天）就明说，不自圆其说
-      const cast = d.days.find((x: WeatherDay) => x?.date === localTodayIso());
+      const cast = d.days.find((x: WeatherDay) => x?.date === tripClock(timeZone).todayIso);
       if (!cast) {
         setWeather({
           status: "unavailable",
@@ -673,7 +658,10 @@ export function TodayView({
               <Loader2 size={16} className="spin" aria-hidden="true" />
               <span className="today-status-text">正在确认今天…</span>
             </div>
-            <p className="today-helper">按你手机的本地时间判断今天是第几天。</p>
+            <p className="today-helper">
+              {timeZone ? `按目的地时区（${timeZone}）` : "按手机本地时间"}
+              判断今天是第几天。
+            </p>
           </div>
         </section>
         <TodayLinks shareId={shareId} />
@@ -793,15 +781,32 @@ export function TodayView({
     openIndices.map((index) => spots[index]!),
     clock.minutes,
   );
+  // 时间过去了，仍可处理尚未标记的站点。只有在线分享页沿用纯时间轴判断。
+  const pendingIndex =
+    fromFile && (openStatus.kind === "done" || openStatus.kind === "none")
+      ? openIndices[0]
+      : undefined;
   const spotStatus: SpotNow =
     openStatus.kind === "now" || openStatus.kind === "next"
       ? { ...openStatus, index: openIndices[openStatus.index]! }
-      : spots.length > 0 && openIndices.length === 0
-        ? { kind: "done" }
-        : openStatus;
-  const currentStop =
-    spotStatus?.kind === "now" || spotStatus?.kind === "next" ? spots[spotStatus.index] : undefined;
+      : pendingIndex !== undefined
+        ? { kind: "next", index: pendingIndex }
+        : spots.length > 0 && openIndices.length === 0
+          ? { kind: "done" }
+          : openStatus;
+  const currentIndex =
+    spotStatus.kind === "now" || spotStatus.kind === "next" ? spotStatus.index : undefined;
+  const currentStop = currentIndex === undefined ? undefined : spots[currentIndex];
+  const currentStopId = currentStop?.stopId;
+  const currentNav = currentStop && spotNavigationUrl(currentStop, fromFile);
+  const previousStop = currentIndex === undefined ? undefined : spots[currentIndex - 1];
+  const currentLeg =
+    fromFile && previousStop && currentStop
+      ? legs.find((leg) => leg.from === previousStop.name && leg.to === currentStop.name)
+      : undefined;
   const dayNo = typeof currentDay.day === "number" ? currentDay.day : today.dayIndex + 1;
+  const placeSources = fromFile ? spots.filter((spot) => spot.placeSource).length : 0;
+  const hoursSources = fromFile ? spots.filter((spot) => spot.openingHoursNote).length : 0;
 
   const outdoorSpots = spots.filter((s) => s.type === "sight" || s.type === "activity");
   const weatherBad =
@@ -814,6 +819,7 @@ export function TodayView({
   const statusText = (() => {
     if (spots.length === 0) return "今天没有安排行程点";
     if (!spotStatus) return "正在确认现在的位置…";
+    if (pendingIndex !== undefined) return `待到达：${currentStop?.name}`;
     if (spotStatus.kind === "now") {
       return `现在：${spots[spotStatus.index]?.name ?? "进行中"}`;
     }
@@ -823,7 +829,7 @@ export function TodayView({
       }
       return `下一站：${spots[spotStatus.index]?.name ?? "待定"}`;
     }
-    if (spotStatus.kind === "done") return "今天的行程已结束";
+    if (spotStatus.kind === "done") return fromFile ? "今天的站点都已处理" : "今天的行程已结束";
     return "今天的行程点没有可识别的时间，不猜现在在哪";
   })();
 
@@ -832,7 +838,7 @@ export function TodayView({
     if (spotStatus.kind !== "now" && spotStatus.kind !== "next") return null;
     const s = spots[spotStatus.index];
     if (!s) return null;
-    return `${s.time} · ${s.area}`;
+    return [timeZone ? `当地计划 ${s.time}` : s.time, s.area].filter(Boolean).join(" · ");
   })();
 
   const weatherAdvice: string | null =
@@ -848,8 +854,9 @@ export function TodayView({
           ? `今天天气不错，${outdoorSpots.length} 个室外景点可放心安排。`
           : null;
 
-  const transitText =
-    currentDay.transitKnown === false
+  const transitText = fromFile
+    ? null
+    : currentDay.transitKnown === false
       ? "通勤未能估算（高德波动）"
       : typeof currentDay.transitMin === "number"
         ? `当天通勤约 ${Math.round(currentDay.transitMin / 6) / 10} 小时`
@@ -884,21 +891,69 @@ export function TodayView({
           <p className="today-sub">
             {currentDay.theme || "今日安排"} · {fmtDate(clock.todayIso)}
           </p>
-          <p className="companion-today-context">按计划时间</p>
+          <p className="companion-today-context">
+            {timeZone ? `当地时间 ${fmtHourMin(clock.minutes)} · ${timeZone}` : "按计划时间"}
+          </p>
           <div className="today-status today-status-during" role="status" aria-live="polite">
             <span className="today-status-text">{statusText}</span>
           </div>
           {statusDetail && <p className="today-status-detail">{statusDetail}</p>}
+          {fromFile && currentStop && (
+            <div className="companion-next-facts">
+              {currentStop.placeSource &&
+                currentStop.placeSource.url !== currentStop.openingHoursNote?.url && (
+                  <p>
+                    地点来源{" "}
+                    <a href={currentStop.placeSource.url} target="_blank" rel="noopener noreferrer">
+                      {currentStop.placeSource.name}
+                    </a>
+                  </p>
+                )}
+              <p>
+                {currentLeg
+                  ? `从${currentLeg.from}出发：${MODE_LABEL[currentLeg.mode]}约 ${Math.max(1, Math.round(currentLeg.durationSec / 60))} 分钟（行程文件参考）`
+                  : "前往本站的交通时长未知"}
+              </p>
+              {currentStop.openingHoursNote ? (
+                <p>
+                  开放时间参考：{currentStop.openingHoursNote.hours} ·{" "}
+                  {currentStop.openingHoursNote.url ? (
+                    <a
+                      href={currentStop.openingHoursNote.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {currentStop.openingHoursNote.source}
+                    </a>
+                  ) : (
+                    currentStop.openingHoursNote.source
+                  )}
+                  {"（随文件保存，未重新核验）"}
+                </p>
+              ) : (
+                <p>开放时间未知，请以现场或官网公告为准。</p>
+              )}
+            </div>
+          )}
           <div className="companion-today-actions">
-            {currentStop?.location && (
+            {currentNav && (
               <a
                 className="btn btn-primary"
-                href={amapNavUrl(currentStop.location, currentStop.name)}
+                href={currentNav}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Navigation size={16} aria-hidden="true" /> 导航
+                <Navigation size={16} aria-hidden="true" /> {fromFile ? "导航到这里" : "导航"}
               </a>
+            )}
+            {currentStopId && onLocalMark && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => onLocalMark(currentStopId, "arrived")}
+              >
+                我已到达
+              </button>
             )}
             <a className="btn" href="#today-timeline">
               查看今天的安排
@@ -928,6 +983,11 @@ export function TodayView({
             <CalendarDays size={16} aria-hidden="true" />
             今日时间轴
           </h2>
+          {(placeSources > 0 || hoursSources > 0) && (
+            <p className="companion-today-context">
+              地点来源 {placeSources}/{spots.length} · 开放时间资料 {hoursSources}/{spots.length}
+            </p>
+          )}
 
           {spots.length === 0 ? (
             <p className="today-degrade">今天没有安排行程点。</p>
@@ -950,6 +1010,7 @@ export function TodayView({
                 const meters = metersFor(s.location);
                 const stopId = s.stopId;
                 const localMark = stopId && localMarks?.[stopId];
+                const navUrl = spotNavigationUrl(s, fromFile);
                 return (
                   <li
                     className={`today-spot${mark ? ` today-spot-${mark}` : ""}`}
@@ -995,13 +1056,15 @@ export function TodayView({
                           </>
                         ) : (
                           <>
-                            <button
-                              type="button"
-                              className="btn"
-                              onClick={() => onLocalMark(stopId, "arrived")}
-                            >
-                              我已到达
-                            </button>
+                            {i !== currentIndex && (
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={() => onLocalMark(stopId, "arrived")}
+                              >
+                                我已到达
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="btn"
@@ -1060,12 +1123,12 @@ export function TodayView({
                       </p>
                     )}
 
-                    {(s.location || meters !== null) && (
+                    {(navUrl || meters !== null) && (
                       <div className="today-spot-actions">
-                        {s.location && (
+                        {navUrl && (
                           <a
                             className="btn-link today-nav-link"
-                            href={amapNavUrl(s.location, s.name)}
+                            href={navUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label={`导航到${s.name}`}
@@ -1080,7 +1143,7 @@ export function TodayView({
                       </div>
                     )}
 
-                    {leg && <TodayLeg leg={leg} />}
+                    {leg && <TodayLeg leg={leg} fromFile={fromFile} />}
                   </li>
                 );
               })}
