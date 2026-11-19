@@ -427,6 +427,7 @@ async function main() {
     });
 
     const PAGES = [
+      { name: "local", path: "/local", required: [".companion-local", "input[type=file]"] },
       {
         // 首页要能直接开始新行程，同时保留示例入口。
         name: "trips",

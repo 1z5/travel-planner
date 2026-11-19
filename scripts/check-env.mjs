@@ -45,8 +45,15 @@ const url = (k) => {
 };
 const oneOf = (k, options) => options.includes((env[k] ?? "").trim());
 
+const localOnly = env.LOCAL_TRIPS_ONLY === "1";
+const modelEnabled = !localOnly || env.ENABLE_ONLINE_GENERATION === "1";
+
 // ---------- 1. 格式校验 ----------
-add("BLOCK", "LLM_API_KEY 已配置（不配则无法生成）", has("LLM_API_KEY"));
+add(
+  "BLOCK",
+  modelEnabled ? "LLM_API_KEY 已配置（不配则无法生成）" : "在线生成关闭",
+  !modelEnabled || has("LLM_API_KEY"),
+);
 if (has("LLM_BASE_URL"))
   add("BLOCK", "LLM_BASE_URL 是合法 URL", url("LLM_BASE_URL"), env.LLM_BASE_URL);
 if (has("LLM_MAX_TOKENS"))
@@ -129,7 +136,11 @@ if (storeMode === "postgres") {
     !dbUrl ? "缺少 DATABASE_URL" : dbUrlOk ? "" : "协议不是 postgres://",
   );
 } else {
-  add("WARN", "DATA_STORE=memory（未设置时默认）→ 重启丢 Plan/配额归零；生产必须 postgres", true);
+  add(
+    "WARN",
+    localOnly ? "DATA_STORE=memory，仅暂存任务和配额" : "DATA_STORE=memory，重启丢失服务端数据",
+    true,
+  );
   add(
     "WARN",
     "使用 memory 时 DATABASE_URL 应为空（否则容易误以为已持久化）",
@@ -142,22 +153,28 @@ const isProd = (env.NODE_ENV ?? "").trim() === "production";
 if (isProd) {
   add(
     "BLOCK",
-    "生产环境 SESSION_SECRET 不是开发默认值",
-    has("SESSION_SECRET") && env.SESSION_SECRET !== "dev-only-insecure-secret",
+    localOnly ? "本机模式无需会话密钥" : "生产环境 SESSION_SECRET 不是开发默认值",
+    localOnly || (has("SESSION_SECRET") && env.SESSION_SECRET !== "dev-only-insecure-secret"),
   );
-  add("BLOCK", "生产环境 DATA_STORE 不是 memory", storeMode !== "memory");
+  add(
+    "BLOCK",
+    "生产环境存储模式与部署配置匹配",
+    localOnly ? storeMode === "memory" : storeMode === "postgres",
+  );
   // 生产 none = 固定验证码 123456 可登录任意手机号（P0-1）
   const provider = (env.AUTH_PROVIDER ?? "none").trim();
   const allowDevAuth = (env.ALLOW_DEV_AUTH ?? "").trim() === "1";
   add(
     "BLOCK",
-    "生产环境 AUTH_PROVIDER 不是 none（或显式 ALLOW_DEV_AUTH=1）",
-    provider !== "none" || allowDevAuth,
-    provider !== "none"
+    localOnly ? "本机模式关闭登录" : "生产环境 AUTH_PROVIDER 不是 none（或显式 ALLOW_DEV_AUTH=1）",
+    localOnly ? provider === "none" && !allowDevAuth : provider !== "none" || allowDevAuth,
+    localOnly
       ? ""
-      : allowDevAuth
-        ? "ALLOW_DEV_AUTH=1 显式允许 dev provider（仅预发/内部演示）"
-        : "当前 none：任意手机号可用固定验证码登录",
+      : provider !== "none"
+        ? ""
+        : allowDevAuth
+          ? "ALLOW_DEV_AUTH=1 显式允许 dev provider（仅预发/内部演示）"
+          : "当前 none：任意手机号可用固定验证码登录",
   );
 }
 

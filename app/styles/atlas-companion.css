@@ -753,3 +753,35 @@ body::after {
 .companion-clone {
   margin-top: 12px;
 }
+
+.companion-local {
+  padding-block: 24px;
+}
+
+.companion-local-import {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.companion-local-import input {
+  max-width: 100%;
+  min-height: 44px;
+}
+
+.companion-local-form {
+  display: grid;
+  gap: 12px;
+  margin-block: 12px;
+}
+
+.companion-local-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.companion-local-form .btn,
+.companion-local-form input,
+.companion-local summary {
+  min-height: 44px;
+}

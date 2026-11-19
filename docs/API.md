@@ -1,5 +1,7 @@
 # API 契约
 
+无数据库发布配置 `LOCAL_TRIPS_ONLY=1` 下，生成结果仍通过状态接口返回，`shareId` 为 null。禁用在线生成时，提交接口返回 503。
+
 Base URL：`/api`（与前端同源）
 
 ## GET / POST /api/journey/{id}

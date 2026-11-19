@@ -1,5 +1,7 @@
 "use client";
 
+import { assignLocalStopIds, saveLocalTrip } from "@/lib/trip/local-trips";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Plan, PlanEvent } from "@/lib/types";
@@ -701,7 +703,8 @@ export function HomeClient() {
       if (data.status === "done") {
         // 任务进入终态：本地句柄清掉，之后打开 /new 不会再续它
         clearPendingJob();
-        const donePlan = data.plan ?? null;
+        const donePlan =
+          data.plan && !data.shareId ? assignLocalStopIds(data.plan) : (data.plan ?? null);
         setPlan(donePlan);
         setShareId(data.shareId ?? null);
         setRemaining(data.remaining ?? null);
@@ -717,6 +720,13 @@ export function HomeClient() {
             summary: donePlan.summary,
             createdAt: Date.now(),
           });
+        }
+        if (!data.shareId && donePlan) {
+          try {
+            saveLocalTrip(donePlan);
+          } catch {
+            setError("行程已生成，但未能保存到浏览器。请下载行程文件或 PDF。");
+          }
         }
         return;
       }
@@ -1655,9 +1665,17 @@ export function HomeClient() {
           </aside>
         </div>
 
+        {plan && !loading && !shareId && !sampleMode && (
+          <p>
+            <Link href="/local" className="btn">
+              打开本机行程
+            </Link>
+          </p>
+        )}
         {displayPlan && (
           <PlanView
             plan={displayPlan}
+            allowFileExport={!loading}
             shareId={sampleMode ? undefined : (shareId ?? undefined)}
             editable={!sampleMode && !!shareId}
             layout="browser"

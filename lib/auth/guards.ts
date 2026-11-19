@@ -68,6 +68,7 @@ export function hasUsableSessionSecret(env: GuardEnv = process.env): boolean {
  * 跑 dev/微信/短信三条登录链路，必须保持原行为。
  */
 export function isProductionAuthMisconfigured(env: GuardEnv = process.env): boolean {
+  if (env.LOCAL_TRIPS_ONLY === "1") return true;
   if (!isProductionEnv(env)) return false;
   const devAuthNotAllowed =
     resolveAuthProviderId(env) === "none" && !isDevAuthExplicitlyAllowed(env);

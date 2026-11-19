@@ -1,4 +1,4 @@
-# 主站部署。外部数据库、运行配置和免费实例迁移见 docs/DEPLOY.md。
+# 主站部署。运行配置与旧实例迁移见 docs/DEPLOY.md。
 services:
   - type: web
     name: travel-planner-demo
@@ -14,11 +14,6 @@ services:
       npm ci && npx prisma generate && npm run build &&
       (cp -r .next/static .next/standalone/.next/static || true) &&
       (mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/ || true)
-    # 每次部署前把 Prisma schema 推到外部库（幂等，不删数据）。
-    # 为什么不放在 buildCommand：build 阶段该失败就失败，但迁移属于「服务启动前」
-    # 的动作；preDeployCommand 在 Render 的服务环境里跑，能拿到运行时注入的
-    # DATABASE_URL，且只在部署时执行一次，不会每次重启都连库。
-    preDeployCommand: npx prisma db push --skip-generate
     # HOSTNAME 显式绑 0.0.0.0：Render 会给容器注入 HOSTNAME 环境变量，
     # Next standalone 会拿它当监听地址，不覆盖会绑定失败。
     startCommand: sh -c 'HOSTNAME=0.0.0.0 exec node .next/standalone/server.js'
@@ -29,14 +24,15 @@ services:
       # 启动时注入 demo/fixtures 里的真实生成行程（秒开分享页，冷启动后也在）
       - key: DEMO_SEED
         value: "1"
-      # 持久化：同一 Store 接口的 postgres 实现，行程/分享链接不再随实例重启消失。
-      # DATABASE_URL 是外部免费 Postgres 的连接串（sync:false → 部署时在 Dashboard 填，
-      # 永不进 Git）。没有它就别把 DATA_STORE 设成 postgres：preDeployCommand 会
-      # 直接失败，这是刻意的「不猜、不假装」，不会悄悄退回 memory 假装存好了。
       - key: DATA_STORE
-        value: postgres
-      - key: DATABASE_URL
-        sync: false
+        value: memory
+      - key: LOCAL_TRIPS_ONLY
+        value: "1"
+      # 只有供应商确认免费额度用尽即停，才在部署环境显式开启。
+      - key: ENABLE_ONLINE_GENERATION
+        value: "0"
+      - key: ENABLE_ONLINE_MAP
+        value: "0"
       # 旧 job 链接只读兜底开关（安全审计 R3）：生产关掉后，/p/<jobId>、
       # /api/plan/ics?id=<jobId> 等旧链接一律读不到，PlanStore 成为唯一读入口，
       # 进一步缩小「弱凭据可读他人行程」的读取面。已持久化的 share_… 分享链接
@@ -46,19 +42,13 @@ services:
       # TokenHub 的 OpenAI 兼容网关；密钥在 TokenHub 控制台创建，不能进仓库。
       - key: LLM_BASE_URL
         value: https://tokenhub.tencentmaas.com/v1
-      - key: LLM_API_KEY
-        sync: false
       - key: LLM_MODEL
         value: hy4-flash
       - key: LLM_REASONING_EFFORT
         value: "off"
       - key: LLM_MAX_TOKENS
         value: "64000"
-      - key: AMAP_WEB_SERVICE_KEY
-        sync: false
       # 登录不做（生产守卫会自动关闭登录链路）；secret 仍建议随机，避免误开
-      - key: SESSION_SECRET
-        sync: false
       # ---- 成本闸门（免费 plan + 个人 key + 长期公开链接，必须收紧）----
       # 每 IP 每天 6 次生成；全站每天 40 次生成 + 150 次 LLM 调用（含改行程/管家）
       - key: DAILY_FREE_LIMIT

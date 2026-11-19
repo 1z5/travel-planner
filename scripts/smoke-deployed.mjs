@@ -43,6 +43,8 @@ const json = async (res) => res.json().catch(() => ({}));
 // ① 健康检查（免费实例冷启动/自动重启时首个请求可能失败：重试 3 次再判死）
 console.log(`目标: ${BASE}`);
 let healthCommit = null;
+let localTripsOnly = false;
+let onlineGeneration = false;
 try {
   let h = null;
   let lastErr = null;
@@ -64,7 +66,9 @@ try {
         healthCommit ? ` commit=${healthCommit}` : ""
       }`,
     );
-    if (!h.llmConfigured) fail("LLM_API_KEY 未生效——检查部署环境变量注入");
+    localTripsOnly = h.localTripsOnly === true;
+    onlineGeneration = h.llmConfigured === true;
+    if (!localTripsOnly && !onlineGeneration) fail("LLM_API_KEY 未生效——检查部署环境变量注入");
     if (h.amapMode !== "live") console.log("⚠️  高德为 MOCK 模式（未配 AMAP key），POI 验真未生效");
   }
 } catch (e) {
@@ -126,7 +130,7 @@ try {
 try {
   const r = await get("/");
   const html = await r.text();
-  if (r.status === 200 && html.includes("AI Travel Companion")) {
+  if (r.status === 200 && html.includes("<h1>我的行程</h1>")) {
     ok("首页可访问且渲染正常");
   } else {
     fail(`首页异常: HTTP ${r.status}`);
@@ -293,8 +297,25 @@ try {
   fail(`Trip Check 验收异常: ${e?.message ?? e}`);
 }
 
+// 本机版本在未开通模型时用只读页面和禁用回执验收。
+if (localTripsOnly) {
+  try {
+    const page = await get("/local");
+    const html = await page.text();
+    if (page.ok && html.includes("本机行程") && html.includes("手动新建行程")) ok("本机行程可访问");
+    else fail("本机行程页面不可用");
+    if (!onlineGeneration) {
+      const response = await get("/api/plan", { method: "POST" });
+      if (response.status === 503) ok("在线生成已关闭");
+      else fail(`关闭在线生成时预期 503，实际 ${response.status}`);
+    }
+  } catch (e) {
+    fail(`本机行程不可达: ${e?.message ?? e}`);
+  }
+}
+
 // ④ 提交一次真实规划
-if (failed === 0) {
+if (failed === 0 && onlineGeneration) {
   console.log("\n— 生成链路 —");
   console.log("提交测试行程（成都 3 天，消耗当前 IP 1 次当日配额）…");
   try {
@@ -350,6 +371,7 @@ if (failed === 0) {
       if (job?.status === "done") {
         const p = job.plan;
         shareId = job.shareId ?? null;
+        if (localTripsOnly && shareId) fail("本机模式不应生成分享链接");
         const spots = p.days.flatMap((d) => d.spots).length;
         ok(
           `生成成功: ${p.city} ${p.days.length} 天 / ${spots} 个点 / 总价 ¥${p.totalCostCny} / verified=${p.verified}`,

@@ -161,6 +161,12 @@ function quotaOf(req: NextRequest): { key: string; limit: number; isUser: boolea
 }
 
 export async function POST(req: NextRequest) {
+  if (process.env.LOCAL_TRIPS_ONLY === "1" && process.env.ENABLE_ONLINE_GENERATION !== "1") {
+    return NextResponse.json(
+      { error: "在线生成未开启。你可以手动新建行程或导入文件。" },
+      { status: 503 },
+    );
+  }
   // 0) 先读 body（安全审计 R1）：App Router 的 req.json() 没有体积上限，
   //    公开生成入口被塞大包会直接吃内存。16 KiB 足够表单（城市/日期/预算/偏好/
   //    档案/活动），超限 413 且**不消耗配额**。

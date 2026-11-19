@@ -1,15 +1,6 @@
-name: Keep demo warm
+name: Check demo health
 
-# 公网演示链接是长期挂着的：Render 免费实例 15 分钟无请求会休眠，第一位访客要等
-# 30-60s 冷启动。每 5 分钟 ping 一次健康检查保活（Render 免费 750 实例小时/月，
-# 24/7 = 730h，够用）。
-#
-# ⚠️ 两个已知边界：
-# - GitHub 的定时工作流可能在仓库长期无活动时停用，可按需配置外部可用性监控。
-# - 这个 job 失败会给仓库 owner 发通知，等于一个免费的 uptime 告警。
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions: {}

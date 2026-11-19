@@ -64,7 +64,9 @@ export function TripsHome() {
         <header className="companion-page-heading">
           <div>
             <h1>我的行程</h1>
-            <p>查看和继续这台设备上的行程。</p>
+            <p>
+              查看和继续这台设备上的行程。 <Link href="/local">打开本机行程</Link>
+            </p>
           </div>
           {trips.length > 0 && (
             <Link href="/new" className="btn btn-primary">
