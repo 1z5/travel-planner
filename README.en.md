@@ -10,7 +10,7 @@ Live place, hours, and route data come from Amap where available. Local trips ca
 
 Open Local Trips (`/local`), download the Tokyo sample, and import the JSON. In a production build, prepare the page for offline use while connected. You can then reopen it offline, mark an arrival, and reopen it again to see the saved record. The walkthrough was captured in a Chrome mobile viewport. [Walkthrough and architecture diagram](README.md#试玩东京行程) · [Production setup](docs/DEPLOY.md)
 
-When editing a Tokyo trip, you can also add places from the built-in city pack. Today shows the place sources and counts how many stops have documented opening hours.
+When editing a Tokyo or Paris trip, you can also add places from the built-in city pack. Today shows place sources and counts stops with documented opening hours. Local calendar exports use the destination time zone when available.
 
 Expand Offline Trip Check to check the schedule and compare matching stops with the bundled data. Imported opening-hour notes and route estimates remain available for reference.
 

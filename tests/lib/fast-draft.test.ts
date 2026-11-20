@@ -88,11 +88,11 @@ describe("秒级初版：真实 POI，不编造", () => {
 });
 
 describe("秒级初版：预算口径", () => {
-  it("正常预算：当天花费不超过日均预算太多（贪心上界）", () => {
-    const plan = buildFastDraft(input({ budget: 300 }), grounding());
+  it("紧预算：当天花费不超过日均预算", () => {
+    const plan = buildFastDraft(input({ budget: 50 }), grounding());
     const dayCost = plan.days[0].dailyCostCny;
-    // 上界是「日均 + 一个最低候选价」，保证不被预算卡到空日
-    expect(dayCost).toBeLessThanOrEqual(300 + 60);
+    expect(dayCost).toBeGreaterThan(0);
+    expect(dayCost).toBeLessThanOrEqual(50);
   });
 
   it("穷游（预算 0）：只取免费/低价候选（<=60 元）", () => {
@@ -182,4 +182,29 @@ describe("秒级初版：跨城", () => {
     expect(d3?.spots.some((s) => s.period === "morning")).toBe(false);
     expect(d3?.city).toBe("香港");
   });
+});
+
+it("首末日时段留在用户指定窗口内", () => {
+  const plan = buildFastDraft(
+    input({
+      days: 2,
+      startAt: "2026-11-01T10:15",
+      endAt: "2026-11-02T13:10",
+    }),
+    grounding(),
+  );
+  expect(plan.days.map(({ day }) => day)).toEqual([1, 2]);
+  expect(plan.days[0].spots[0].time).toBe("10:15-12:15");
+  expect(plan.days[1].spots.every((spot) => spot.time.slice(-5) <= "13:10")).toBe(true);
+});
+
+it("窗口装不下站点时不造一份可发布的初版", () => {
+  const plan = buildFastDraft(
+    input({
+      startAt: "2026-11-01T20:00",
+      endAt: "2026-11-01T20:30",
+    }),
+    grounding(),
+  );
+  expect(isPublishableFastDraft(plan)).toBe(false);
 });

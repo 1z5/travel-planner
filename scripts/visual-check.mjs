@@ -466,6 +466,7 @@ async function main() {
           ".today-hero .btn-primary",
           ".companion-next-facts a",
           ".today-timeline .companion-today-context",
+          ".companion-local-calendar",
         ],
         storageSetup: localTripStorage,
         clicks: [".companion-trip .btn"],

@@ -13,6 +13,26 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+it("新建巴黎计划后使用当地时区、内置地点和官方出处", async () => {
+  vi.setSystemTime(new Date("2026-07-10T06:00:00Z"));
+  const user = userEvent.setup();
+  render(<LocalTrips />);
+  await user.click(screen.getByText("手动新建行程"));
+  await user.type(screen.getByLabelText("目的地"), "Paris");
+  fireEvent.change(screen.getByLabelText("出发日期"), { target: { value: "2026-07-10" } });
+  await user.click(screen.getByRole("button", { name: "创建本机行程" }));
+  await user.selectOptions(screen.getByLabelText("从巴黎城市包添加"), "louvre");
+  fireEvent.change(screen.getByLabelText("开始时间"), { target: { value: "09:00" } });
+  fireEvent.change(screen.getByLabelText("结束时间"), { target: { value: "10:00" } });
+  await user.click(screen.getByRole("button", { name: "添加站点" }));
+  await user.click(screen.getByRole("button", { name: "今日" }));
+  expect(await screen.findByText("当地时间 08:00 · Europe/Paris")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "卢浮宫官网" })).toHaveAttribute(
+    "href",
+    "https://www.louvre.fr/en/visit",
+  );
+});
+
 describe("本机行程文件", () => {
   it("保留示例行程的日期、站点和顺序，忽略文件里的受信字段", () => {
     for (const { plan } of DEMO_FIXTURES) {

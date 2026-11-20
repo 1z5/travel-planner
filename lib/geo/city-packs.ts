@@ -1,4 +1,5 @@
 import type { PlanSpot } from "@/lib/types";
+import paris from "./city-packs/paris.json";
 import tokyo from "./city-packs/tokyo.json";
 
 export type CityPlace = {
@@ -6,8 +7,12 @@ export type CityPlace = {
   hoursByMonth?: { months: number[]; openTime: string }[];
 } & Pick<PlanSpot, "name" | "area" | "navigationQuery" | "placeSource" | "openingHoursNote">;
 
-export const tokyoCityPack: { city: string; timeZone: string; places: CityPlace[] } = tokyo;
+export type CityPack = { city: string; timeZone: string; places: CityPlace[] };
 
-export function findCityPack(city: string) {
-  return /^(东京|東京|tokyo)$/i.test(city.trim()) ? tokyoCityPack : undefined;
+export const tokyoCityPack: CityPack = tokyo;
+
+export function findCityPack(city: string): CityPack | undefined {
+  const name = city.trim();
+  if (/^(东京|東京|tokyo)$/i.test(name)) return tokyoCityPack;
+  if (/^(巴黎|paris)$/i.test(name)) return paris;
 }
