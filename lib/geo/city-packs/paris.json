@@ -1,0 +1,28 @@
+{
+  "city": "巴黎",
+  "timeZone": "Europe/Paris",
+  "places": [
+    {
+      "id": "louvre",
+      "name": "卢浮宫",
+      "area": "巴黎第一区",
+      "navigationQuery": "Musée du Louvre Rue de Rivoli 75001 Paris",
+      "placeSource": { "name": "卢浮宫官网", "url": "https://www.louvre.fr/en/visit" },
+      "openingHoursNote": {
+        "hours": "周二休馆；周三、周五通常 09:00–21:00，其余开放日通常 09:00–18:00。最晚入场为闭馆前 1 小时，节假日及临时安排以官网为准。",
+        "source": "卢浮宫官网",
+        "url": "https://www.louvre.fr/en/visit"
+      }
+    },
+    {
+      "id": "eiffel-tower",
+      "name": "埃菲尔铁塔",
+      "area": "战神广场",
+      "navigationQuery": "Tour Eiffel 5 avenue Anatole France 75007 Paris",
+      "placeSource": {
+        "name": "埃菲尔铁塔官网",
+        "url": "https://www.toureiffel.paris/en/access-map"
+      }
+    }
+  ]
+}

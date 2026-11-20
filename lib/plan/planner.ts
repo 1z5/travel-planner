@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { renderGroundingPrompt, type Grounding } from "./grounding";
 import { renderProfileLines, validateProfile } from "../profile";
+import { fitGeneratedDayWindow } from "./generation-window";
 import type { Plan, PlanInput, PlanSpot } from "../types";
 
 // ============================================================
@@ -799,7 +800,14 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
   // 第二次迭代时被重置丢掉）
   let correction: string | undefined;
 
-  // 两次机会：空返回 / JSON 不合法 / 结构不符，都带原因重试一次
+  // 已生成的结构可用方案作为预算纠正失败时的回退，保留所有已安排的站点。
+  let budgetFallback: { plan: Plan; amount: number } | undefined;
+  const fitWindows = (plan: Plan) => ({
+    ...plan,
+    days: plan.days.map((day) => fitGeneratedDayWindow(day, input)),
+  });
+
+  // 两次机会：结构和硬约束共用一次纠正，不叠加模型请求。
   for (let attempt = 1; attempt <= 2; attempt++) {
     const { content, tokens: totalTokens } = await streamChatRetry(
       llm,
@@ -807,9 +815,13 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
       buildUserPrompt(input, correction, grounding),
       input.city,
       `第${attempt}次`,
-    );
+    ).catch((error: unknown) => {
+      if (!budgetFallback) throw error;
+      return { content: "", tokens: 0 };
+    });
 
     if (!content.trim()) {
+      if (budgetFallback) return fitWindows(budgetFallback.plan);
       if (attempt === 2) {
         throw new Error("LLM 返回为空（推理可能吃满了 token，请调大 LLM_MAX_TOKENS）");
       }
@@ -826,6 +838,7 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
     } catch (e) {
       // 保留原始异常作为 cause：上层日志/排障要能看到解析错误本身，
       // 而不是只有一句「不是合法 JSON」（oxlint preserve-caught-error）。
+      if (budgetFallback) return fitWindows(budgetFallback.plan);
       if (attempt === 2)
         throw new Error(`LLM 输出不是合法 JSON（${(e as Error).message}）`, { cause: e });
       continue;
@@ -834,6 +847,7 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
     // 结构不符：带原因重试；第二次仍不符 → 抛错（结构错的行程没法用）。
     const problem = structuralProblem(plan, input);
     if (problem) {
+      if (budgetFallback) return fitWindows(budgetFallback.plan);
       if (attempt === 2) {
         throw new Error(`LLM 输出的行程结构与请求不符（${problem}），请重试或调整参数`);
       }
@@ -846,6 +860,7 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
     // 看不到，而告警 + 可重试才是诚实的产品行为（也不无限重烧 token）。
     const constraint = constraintProblem(plan, input);
     if (constraint) {
+      if (budgetFallback) return fitWindows(budgetFallback.plan);
       if (attempt === 1) {
         correction = constraint;
         console.log(`[llm] ${citiesRoute(input)} 硬约束不符（${constraint}），带纠正指令重试`);
@@ -853,7 +868,37 @@ export async function generatePlan(input: PlanInput, grounding?: Grounding): Pro
       }
       console.log(`[llm] ${citiesRoute(input)} 硬约束仍未满足（${constraint}），按原样交付并告警`);
     }
-    return plan;
+    const amount = plan.days.reduce(
+      (total, day) => total + day.spots.reduce((sum, spot) => sum + spot.costCny, 0),
+      0,
+    );
+    if (attempt === 1 && !constraint && input.budget > 0 && amount > input.budget * 1.05) {
+      budgetFallback = { plan, amount };
+      correction = `上次各站点人均费用合计 ${Math.round(amount)} 元，超过 ${input.budget} 元预算。换成有依据的低价选择，保留必游地、住所和重点活动，按真实估算填写各站费用，并把合计控制在 ${input.budget} 元以内。`;
+      continue;
+    }
+    if (budgetFallback) {
+      const fallback = budgetFallback;
+      const scheduled = plan.days.flatMap((day) =>
+        day.spots.map((spot) => ({ day: day.day, ...spot })),
+      );
+      const dropsEvent = input.events?.some(({ name }) =>
+        fallback.plan.days.some((day) =>
+          day.spots.some(
+            (spot) =>
+              looselyCovered(name, [spot.name]) &&
+              !scheduled.some(
+                (next) =>
+                  next.day === day.day &&
+                  next.time === spot.time &&
+                  looselyCovered(name, [next.name]),
+              ),
+          ),
+        ),
+      );
+      if (dropsEvent || budgetFallback.amount < amount) return fitWindows(budgetFallback.plan);
+    }
+    return fitWindows(plan);
   }
   throw new Error("unreachable");
 }
@@ -982,7 +1027,7 @@ export async function generateDay(
       console.log(`[llm] ${input.city} 第${expectedDay}天 结构不符（${problem}），带纠正指令重试`);
       continue;
     }
-    return day;
+    return fitGeneratedDayWindow(day, input);
   }
   throw new Error("unreachable");
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Plan } from "@/lib/types";
+import { buildIcs } from "../plan/ics";
 import { isTripTimeZone } from "./trip-day";
 
 export const TRIP_FILE_MAX_BYTES = 2 * 1024 * 1024;
@@ -110,10 +111,21 @@ export function readTripBackup(json: string): { plan: Plan; marks?: LocalMarks }
 
 export function downloadTripFile(plan: Plan, marks?: LocalMarks) {
   const blob = new Blob([serializeTripFile(plan, marks)], { type: "application/json" });
+  downloadBlob(blob, marks ? "travel-companion.backup.json" : "travel-companion.trip.json");
+}
+
+export function downloadTripCalendar(plan: Plan) {
+  downloadBlob(
+    new Blob([buildIcs(plan)], { type: "text/calendar;charset=utf-8" }),
+    "travel-companion.ics",
+  );
+}
+
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = marks ? "travel-companion.backup.json" : "travel-companion.trip.json";
+  link.download = filename;
   link.click();
   // 让浏览器先接管下载。
   setTimeout(() => URL.revokeObjectURL(url), 1000);

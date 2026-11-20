@@ -1,5 +1,6 @@
 import type { Plan, PlanDay, PlanSpot, PlanInput, Period, SpotType } from "../types";
 import type { Grounding } from "./grounding";
+import { fmtHourMin } from "./time";
 
 // ============================================================
 // 秒级初版（Fast Draft）： grounding 就绪后（约 2 秒）用**真实 POI 名单**
@@ -46,9 +47,12 @@ function intercitySpot(from: string, to: string, hour: number): PlanSpot {
 }
 
 function fmt(hour: number): string {
-  const h = Math.floor(hour);
-  const m = Math.round((hour - h) * 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return fmtHourMin(Math.round(hour * 60));
+}
+
+function boundaryHour(value: string | undefined, fallback: number): number {
+  const match = value?.match(/T(\d{2}):(\d{2})/);
+  return match ? Number(match[1]) + Number(match[2]) / 60 : fallback;
 }
 
 /** 当天所属城市（跨城按天分配；与 planner.dayCityOf 同口径但 client-safe） */
@@ -81,8 +85,7 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
     for (const c of pool) {
       if (used.has(c.name)) continue;
       const cost = c.avgCostCny ?? (c.kind === "food" ? 60 : 40);
-      // 穷游模式（perDayBudget=0）：只取免费/低价（<=60 元）
-      if (perDayBudget === 0 ? cost <= 60 : cost <= maxCost) {
+      if (cost <= maxCost) {
         used.add(c.name);
         return c;
       }
@@ -127,8 +130,6 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
       : undefined) ?? take(pool, maxCost);
 
   const days: PlanDay[] = [];
-  let sightIdx = 0;
-  let foodIdx = 0;
   // 每天的取点上限：候选池按天均摊，避免第一天把池子拿光、后面几天全空。
   // （实测踩过：4 个候选 + 6 天行程，全塞给第一天，后面五天只剩空骨架。）
   // 池子比天数还小时上限仍然生效——拿不到就留空，不编造占位点。
@@ -139,11 +140,15 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
     const dayCity = cityOfDay(input, dayNo);
     const prevCity = d > 0 ? cityOfDay(input, d) : undefined;
     const spots: PlanSpot[] = [];
-    let cursor = 9;
+    const isLastDay = dayNo === input.days;
+    const endHour = isLastDay ? boundaryHour(input.endAt, 24) : 24;
+    const startHour = d === 0 ? boundaryHour(input.startAt, 9) : 9;
+    let cursor = startHour;
     let spent = 0;
 
     // 跨城日：上午收尾上一城由精排版负责，这里先放一段城际交通占位
     if (cities && prevCity && prevCity !== dayCity) {
+      if (15.5 > endHour) continue;
       const leg = intercitySpot(prevCity, dayCity, 14);
       spots.push(leg);
       cursor = 15.5;
@@ -152,7 +157,6 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
     let picked = 0; // 当天已取的真实 POI 数（跨城交通段/住所不计入上限）
     for (const slot of DAY_TEMPLATE) {
       if (picked >= perDayCap) break; // 留给后面的天
-      const isLastDay = d === input.days - 1;
       if (isLastDay && slot.period === "evening") continue;
       // 跨城日只排抵达后的轻松点位（下午一个景点 + 晚餐）
       if (cities && prevCity && prevCity !== dayCity) {
@@ -162,59 +166,31 @@ export function buildFastDraft(input: PlanInput, grounding: Grounding): Plan {
 
       const start = Math.max(cursor, slot.startHour);
       const end = start + slot.durationH;
-      const remain = perDayBudget > 0 ? Math.max(0, perDayBudget - spent) : 0;
-
-      if (slot.type === "sight") {
-        const pool = sights.filter((c) => !used.has(c.name));
-        const pick = pickFrom(pool, perDayBudget > 0 ? Math.max(60, remain) : 60);
-        if (pick) {
-          sightIdx += 1;
-          picked += 1;
-          spent += pick.avgCostCny ?? 40;
-          spots.push({
-            period: slot.period,
-            time: `${fmt(start)}-${fmt(end)}`,
-            type: "sight",
-            name: pick.name,
-            area: pick.area || dayCity,
-            durationMin: Math.round(slot.durationH * 60),
-            costCny: pick.avgCostCny ?? 40,
-            reason: `高德候选（${pick.rating ? `评分 ${pick.rating.toFixed(1)}` : "已核实存在"}），动线与时间待精排。`,
-            location: pick.location,
-          });
-          cursor = end + 0.5;
-          continue;
-        }
-      } else if (slot.type === "food") {
-        const pool = foods.filter((c) => !used.has(c.name));
-        const pick = pickFrom(pool, perDayBudget > 0 ? Math.max(60, remain) : 60);
-        if (pick) {
-          foodIdx += 1;
-          picked += 1;
-          spent += pick.avgCostCny ?? 60;
-          spots.push({
-            period: slot.period,
-            time: `${fmt(start)}-${fmt(end)}`,
-            type: "food",
-            name: pick.name,
-            area: pick.area || dayCity,
-            durationMin: Math.round(slot.durationH * 60),
-            costCny: pick.avgCostCny ?? 60,
-            reason: `高德候选（${pick.rating ? `评分 ${pick.rating.toFixed(1)}` : "已核实存在"}），动线与时间待精排。`,
-            location: pick.location,
-          });
-          cursor = end + 0.5;
-          continue;
-        }
+      if (end > endHour || end === 24) continue;
+      // 预算 0 沿用穷游口径。正预算只用当天的剩余额度，优先留空无法负担的时段。
+      const remaining = input.budget > 0 ? perDayBudget - spent : 60;
+      const pick = pickFrom(slot.type === "food" ? foods : sights, remaining);
+      if (pick) {
+        const cost = pick.avgCostCny ?? (pick.kind === "food" ? 60 : 40);
+        picked += 1;
+        spent += cost;
+        spots.push({
+          period: slot.period,
+          time: `${fmt(start)}-${fmt(end)}`,
+          type: slot.type,
+          name: pick.name,
+          area: pick.area || dayCity,
+          durationMin: Math.round(slot.durationH * 60),
+          costCny: cost,
+          reason: `高德候选（${pick.rating ? `评分 ${pick.rating.toFixed(1)}` : "已核实存在"}），动线与时间待精排。`,
+          location: pick.location,
+        });
       }
-
-      // 候选取完（或都超预算）时不编造占位点：留空该时段。
-      // 诚实原则：宁可少一个点，也不生成「成都·上午景点」这种假名字。
       cursor = end + 0.5;
     }
 
     // 住宿：多天行程第一天用用户住所（与 LLM 路径同口径）
-    if (dayNo === 1 && input.days > 1 && input.hotel?.trim()) {
+    if (dayNo === 1 && input.days > 1 && input.hotel?.trim() && startHour <= 21 && cursor <= 21.5) {
       spots.push({
         period: "evening",
         time: "21:00-22:00",

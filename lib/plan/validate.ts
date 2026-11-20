@@ -18,6 +18,7 @@ import {
   type ScheduleConflict,
 } from "./schedule";
 import { addDays, isRealDate, parseTimeRange } from "./time";
+import { generationWindowWarning } from "./generation-window";
 import { nameCovered } from "./name-match";
 import { dayCityOf } from "./planner";
 import type { Plan, PlanDay, PlanInput, PlanLeg, SpotPoiMeta, TransportMode } from "../types";
@@ -243,11 +244,21 @@ function dayHoursWarnings(plan: Plan, day: PlanDay): string[] {
  * validateDay（首生成/refine 重体检）与 refreshTimeWarnings（一键顺延后
  * 只刷新这两类）共用，保证两条路径的判定与文案逐字一致。
  */
-function collectTimeWarnings(plan: Plan): string[] {
+function isTimeWarning(warning: string): boolean {
+  return (
+    isScheduleWarning(warning) ||
+    isHoursWarning(warning) ||
+    /^第 \d+ 天有站点超出行程时间窗 /.test(warning)
+  );
+}
+
+function collectTimeWarnings(plan: Plan, input: PlanInput): string[] {
   const out: string[] = [];
   for (const day of plan.days) {
     const schedule = dayScheduleWarning(day);
     if (schedule) out.push(schedule);
+    const window = generationWindowWarning(day, input);
+    if (window) out.push(window);
     out.push(...dayHoursWarnings(plan, day));
   }
   return out;
@@ -261,15 +272,13 @@ function collectTimeWarnings(plan: Plan): string[] {
  * 不可接受），所以原样保留。新预警插回原来第一条时间类预警的位置——
  * 避免跑到系统提示/天气提示后面，让用户误以为是补充说明。
  */
-export function refreshTimeWarnings(plan: Plan, _input: PlanInput): string[] {
-  const kept = plan.warnings.filter((w) => !isScheduleWarning(w) && !isHoursWarning(w));
-  const fresh = collectTimeWarnings(plan);
+export function refreshTimeWarnings(plan: Plan, input: PlanInput): string[] {
+  const kept = plan.warnings.filter((w) => !isTimeWarning(w));
+  const fresh = collectTimeWarnings(plan, input);
   if (!fresh.length) return kept;
-  const firstOld = plan.warnings.findIndex((w) => isScheduleWarning(w) || isHoursWarning(w));
+  const firstOld = plan.warnings.findIndex(isTimeWarning);
   if (firstOld < 0) return [...kept, ...fresh];
-  const insertAt = plan.warnings
-    .slice(0, firstOld)
-    .filter((w) => !isScheduleWarning(w) && !isHoursWarning(w)).length;
+  const insertAt = plan.warnings.slice(0, firstOld).filter((w) => !isTimeWarning(w)).length;
   return [...kept.slice(0, insertAt), ...fresh, ...kept.slice(insertAt)];
 }
 
@@ -445,6 +454,8 @@ export async function validateDay(
   //     放在 legs 之后、节奏/区域之前：物理上走不通比节奏建议更硬。
   const scheduleWarning = dayScheduleWarning(day);
   if (scheduleWarning) warnings.push(scheduleWarning);
+  const windowWarning = generationWindowWarning(day, input);
+  if (windowWarning) warnings.push(windowWarning);
 
   // 2d) 营业时间体检（到得了，进得去吗）：闭馆日/没开门/暂停开放。
   //     数据来自验真回填的 spot.poi；没有 POI 详情或没有合法日期时

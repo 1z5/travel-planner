@@ -4,6 +4,7 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { Plan, PlanSpot } from "@/lib/types";
 import {
   downloadTripFile,
+  downloadTripCalendar,
   readTripBackup,
   serializeTripFile,
   TRIP_FILE_MAX_BYTES,
@@ -16,7 +17,7 @@ import {
   saveLocalTrip,
 } from "@/lib/trip/local-trips";
 import { addDays, isRealDate, parseTimeRange } from "@/lib/plan/time";
-import { findCityPack, type CityPlace } from "@/lib/geo/city-packs";
+import { findCityPack, type CityPack } from "@/lib/geo/city-packs";
 import { tokyoLocalTrip } from "../demo/fixtures/tokyo-local";
 import { TodayView } from "./TodayView";
 import { LocalTripCheck } from "./LocalTripCheck";
@@ -411,6 +412,22 @@ export function LocalTrips() {
             >
               下载行程文件
             </button>
+            {selected.plan.startDate && (
+              <button
+                type="button"
+                className="btn companion-local-calendar"
+                onClick={() => {
+                  try {
+                    downloadTripCalendar(selected.plan);
+                    setError("");
+                  } catch {
+                    setError("无法下载日历。");
+                  }
+                }}
+              >
+                下载日历（.ics）
+              </button>
+            )}
             {selected.marks && Object.keys(selected.marks).length > 0 && (
               <button
                 type="button"
@@ -522,7 +539,7 @@ function LocalPlanEditor({
             ))}
           </ol>
           <LocalStopForm
-            places={cityPack?.places}
+            cityPack={cityPack}
             disabled={day.spots.length >= 100}
             onAdd={(spot) => updateDay(index, [...day.spots, spot])}
           />
@@ -558,16 +575,16 @@ function LocalPlanEditor({
 }
 
 function LocalStopForm({
-  places,
+  cityPack,
   disabled,
   onAdd,
 }: {
-  places?: CityPlace[];
+  cityPack?: CityPack;
   disabled: boolean;
   onAdd: (spot: PlanSpot) => void;
 }) {
   const [placeId, setPlaceId] = useState("");
-  const place = places?.find(({ id }) => id === placeId);
+  const place = cityPack?.places.find(({ id }) => id === placeId);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -596,12 +613,12 @@ function LocalStopForm({
 
   return (
     <form className="companion-local-form" onSubmit={submit}>
-      {places && (
+      {cityPack && (
         <label>
-          从东京城市包添加
+          从{cityPack.city}城市包添加
           <select value={placeId} onChange={(event) => setPlaceId(event.target.value)}>
             <option value="">手动填写</option>
-            {places.map(({ id, name }) => (
+            {cityPack.places.map(({ id, name }) => (
               <option key={id} value={id}>
                 {name}
               </option>

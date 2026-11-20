@@ -1,9 +1,10 @@
 import type { Plan, PlanDay, PlanSpot } from "../types";
+import { isTripTimeZone } from "../trip/trip-day";
+import { isRealDate, parseClock } from "./time";
 
 // ============================================================
 // 行程 → iCalendar（.ics）：把分天时刻表转换成日历事件，
-// 用户可一键导入手机/电脑日历。时间用本地浮动时间（不带时区），
-// 日历应用会按本地时区解释。
+// 已声明目的地时区的行程导出为 UTC。历史行程沿用浮动时间。
 // ============================================================
 
 const TYPE_LABEL: Record<string, string> = {
@@ -53,12 +54,40 @@ function parseRange(time: string): [string, string] | null {
   const m = time.match(/(\d{1,2}):(\d{2})\s*[-–~]\s*(\d{1,2}):(\d{2})/);
   if (!m) return null;
   const [, h1, m1, h2, m2] = m;
-  return [`${pad(Number(h1))}${m1}00`, `${pad(Number(h2))}${m2}00`];
+  const start = `${pad(Number(h1))}:${m1}`;
+  const end = `${pad(Number(h2))}:${m2}`;
+  if (parseClock(start) === null || parseClock(end) === null) return null;
+  return [`${start.replace(":", "")}00`, `${end.replace(":", "")}00`];
 }
 
 /** 结束早于开始 = 跨零点（如 "23:00-01:00"），DTEND 需顺延一天 */
 function crossesMidnight(range: [string, string]): boolean {
   return range[1] < range[0];
+}
+
+// 在时区转换日前后取偏移。重复或跳过的钟面时间没有唯一对应的 UTC 时刻。
+function zonedIcsTime(date: string, time: string, formatter: Intl.DateTimeFormat): string | null {
+  const wall = Date.parse(
+    `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6)}T${time.slice(0, 2)}:${time.slice(2, 4)}:00Z`,
+  );
+  if (!Number.isFinite(wall)) return null;
+  const offsetAt = (ms: number) => {
+    const zone = formatter.formatToParts(ms).find(({ type }) => type === "timeZoneName")?.value;
+    if (zone === "GMT") return 0;
+    const m = zone?.match(/^GMT([+-])(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    return m
+      ? (m[1] === "-" ? -1 : 1) *
+          (Number(m[2]) * 3600 + Number(m[3]) * 60 + Number(m[4] ?? 0)) *
+          1000
+      : NaN;
+  };
+  const day = 86_400_000;
+  const offsets = new Set([offsetAt(wall - day), offsetAt(wall), offsetAt(wall + day)]);
+  const matches = [...offsets]
+    .filter((offset) => Number.isFinite(offset) && offsetAt(wall - offset) === offset)
+    .map((offset) => wall - offset);
+  if (matches.length !== 1) return null;
+  return new Date(matches[0]).toISOString().replace(/[-:]|\.\d{3}/g, "");
 }
 
 /** RFC5545 文本转义：换行/分号/逗号/反斜杠 */
@@ -113,10 +142,16 @@ function uidFor(plan: Plan, day: PlanDay, spot: PlanSpot, i: number, date: strin
 
 export function buildIcs(plan: Plan): string {
   // 没有 startDate 时退化为明天开始（老数据/分享页兜底）
-  const startDate =
-    plan.startDate && /^\d{4}-\d{2}-\d{2}$/.test(plan.startDate)
-      ? plan.startDate
-      : new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const startDate = isRealDate(plan.startDate)
+    ? plan.startDate
+    : new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+  const timeZone =
+    typeof plan.timeZone === "string" && isTripTimeZone(plan.timeZone) ? plan.timeZone : undefined;
+  const formatter = timeZone
+    ? new Intl.DateTimeFormat("en", { timeZone, timeZoneName: "longOffset" })
+    : undefined;
+  const stamp = new Date().toISOString().replace(/[-:]|\.\d{3}/g, "");
 
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -125,7 +160,7 @@ export function buildIcs(plan: Plan): string {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${esc(`${plan.city} ${plan.days.length} 天行程`)}`,
-    `X-WR-TIMEZONE:Asia/Shanghai`,
+    `X-WR-TIMEZONE:${timeZone ?? "Asia/Shanghai"}`,
     // 订阅型日历（webcal）靠这个字段决定多久拉一次新版本；缺省客户端可能
     // 按自己的默认值（几天一次）刷新，改过的行程迟迟不更新
     `X-PUBLISHED-TTL:${PUBLISHED_TTL}`,
@@ -139,9 +174,18 @@ export function buildIcs(plan: Plan): string {
       // 会被日历客户端丢弃或显示成零时长
       const endDate = range && crossesMidnight(range) ? icsDate(startDate, dayIdx + 1) : date;
       const summary = `${spot.name}（${TYPE_LABEL[spot.type] ?? spot.type}）`;
+      const start =
+        range && (formatter ? zonedIcsTime(date, range[0], formatter) : `${date}T${range[0]}`);
+      const end =
+        range &&
+        (formatter ? zonedIcsTime(endDate, range[1], formatter) : `${endDate}T${range[1]}`);
+      const timed = start && end && (!formatter || end > start);
       const desc = [
         `Day${day.day} ${day.theme}`,
         spot.reason,
+        formatter && range && !timed
+          ? `原计划时段 ${spot.time}（${timeZone}）无法唯一转换，请核对当地时间。`
+          : "",
         spot.rainBackup ? `🌧 雨天备选：${spot.rainBackup}` : "",
       ]
         .filter(Boolean)
@@ -149,9 +193,10 @@ export function buildIcs(plan: Plan): string {
 
       lines.push("BEGIN:VEVENT");
       lines.push(`UID:${uidFor(plan, day, spot, i, date)}@travel-partner`);
-      if (range) {
-        lines.push(`DTSTART:${date}T${range[0]}`);
-        lines.push(`DTEND:${endDate}T${range[1]}`);
+      lines.push(`DTSTAMP:${stamp}`);
+      if (timed) {
+        lines.push(`DTSTART:${start}`);
+        lines.push(`DTEND:${end}`);
       } else {
         lines.push(`DTSTART;VALUE=DATE:${date}`);
       }
@@ -161,7 +206,7 @@ export function buildIcs(plan: Plan): string {
       // 到点提醒（RFC 5545 VALARM）：这是「行中值班」最便宜的一环——系统日历
       // 替我们推送，不需要任何推送资质，也不会被用户当垃圾通知划掉。
       // 只给有时刻的事件加：全天事件的 TRIGGER 会落在午夜，响起来毫无意义。
-      if (range) {
+      if (timed) {
         lines.push("BEGIN:VALARM");
         lines.push(`TRIGGER:${REMIND_LEAD}`);
         lines.push("ACTION:DISPLAY");

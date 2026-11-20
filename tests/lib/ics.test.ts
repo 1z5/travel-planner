@@ -287,3 +287,29 @@ describe("buildIcs", () => {
     expect(ics).toContain("DESCRIPTION:行程提醒：观前街");
   });
 });
+
+describe("目的地时区", () => {
+  it("东京上午九点保存为 UTC 午夜，日期跨夜时转换次日结束", () => {
+    const base = plan({ timeZone: "Asia/Tokyo" });
+    base.days[1].spots[0].time = "23:00-01:00";
+    const ics = buildIcs(base);
+    expect(ics).toContain("X-WR-TIMEZONE:Asia/Tokyo");
+    expect(ics).toContain("DTSTART:20261010T000000Z");
+    expect(ics).toContain("DTEND:20261011T160000Z");
+  });
+
+  it("巴黎按活动日期选择夏令时偏移，并保留无法唯一换算的当地时刻供核对", () => {
+    const summer = buildIcs(plan({ timeZone: "Europe/Paris", startDate: "2026-07-10" }));
+    const winter = buildIcs(plan({ timeZone: "Europe/Paris", startDate: "2026-12-10" }));
+    expect(summer).toContain("DTSTART:20260710T070000Z");
+    expect(winter).toContain("DTSTART:20261210T080000Z");
+    for (const startDate of ["2026-03-29", "2026-10-25"]) {
+      const base = plan({ timeZone: "Europe/Paris", startDate });
+      base.days[0].spots[0].time = "02:30-03:30";
+      const first = buildIcs(base).split("END:VEVENT")[0].replace(/\r\n /g, "");
+      expect(first).toContain("DTSTART;VALUE=DATE:");
+      expect(first).toContain("原计划时段 02:30-03:30");
+      expect(first).not.toContain("BEGIN:VALARM");
+    }
+  });
+});

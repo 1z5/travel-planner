@@ -1640,7 +1640,15 @@ async function phaseA(api) {
 async function phaseB(api) {
   console.log("\n== 高德集成（真实模式走桩，验证官方 API 形状） ==");
   const j = await api.waitJob(
-    (await api.post({ city: "成都", days: 3, budget: 1000, preferences: ["美食"] })).body.jobId,
+    (
+      await api.post({
+        city: "成都",
+        startAt: "2026-10-10T08:00",
+        endAt: DEFAULT_TIME.endAt,
+        budget: 1000,
+        preferences: ["美食"],
+      })
+    ).body.jobId,
   );
   check("任务 done", j.status === "done", JSON.stringify(j).slice(0, 120));
   const plan = j.plan ?? {};
