@@ -16,7 +16,6 @@
 //   但海报是「对外传播物」，示意图冒充真实路线是传播层面的失真，宁缺毋滥。
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { CalendarDays, MapPin, Wallet, Route, ArrowRight } from "lucide-react";
 import type { Plan } from "@/lib/types";
 import { budgetTone, formatCny, summarizeBudget } from "@/lib/plan/budget";
@@ -125,12 +124,7 @@ export function PosterCover({ plan, shareId, showClone = true }: PosterCoverProp
   if (theme) subParts.push(theme);
 
   return (
-    <motion.article
-      className="poster"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
-    >
+    <article className="poster">
       <h1 className="poster-city">{plan.city}</h1>
       {subParts.length > 0 && <p className="poster-sub">{subParts.join(" · ")}</p>}
 
@@ -197,6 +191,6 @@ export function PosterCover({ plan, shareId, showClone = true }: PosterCoverProp
           <ArrowRight size={14} />
         </Link>
       </div>
-    </motion.article>
+    </article>
   );
 }

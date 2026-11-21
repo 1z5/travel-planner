@@ -11,12 +11,12 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "AI Travel Companion",
     short_name: "Travel Companion",
-    description: "AI 生成行程前先用高德核验 POI、营业时间、闭馆日与真实通勤，出发前把风险摊开。",
+    description: "查看下一站、记录旅途见闻，并把行程带到离线环境。",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#f4f6f4",
+    background_color: "#f8f7f0",
     theme_color: "#155b47",
     lang: "zh-CN",
     categories: ["travel", "navigation", "productivity"],
@@ -26,6 +26,7 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
+      { name: "随身行程", url: "/local?open=recent" },
       { name: "新建行程", url: "/new" },
       { name: "我的行程", url: "/" },
     ],

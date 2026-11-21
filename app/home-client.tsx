@@ -8,7 +8,6 @@ import type { Plan, PlanEvent } from "@/lib/types";
 import { SAMPLE_PLAN } from "@/lib/demo/sample-plan";
 import { DEMO_SHOWCASE_SHARE_ID, demoShareHref } from "@/lib/demo/demo-links";
 import { AlertTriangle, MapPin } from "lucide-react";
-import { motion } from "framer-motion";
 import { formatCny } from "@/lib/plan/budget";
 import { PlanView } from "@/components/PlanView";
 import { AddressInput } from "@/components/AddressInput";
@@ -723,7 +722,7 @@ export function HomeClient() {
         }
         if (!data.shareId && donePlan) {
           try {
-            saveLocalTrip(donePlan);
+            await saveLocalTrip({ plan: donePlan });
           } catch {
             setError("行程已生成，但未能保存到浏览器。请下载行程文件或 PDF。");
           }
@@ -898,10 +897,9 @@ export function HomeClient() {
             它是把表单里已填的条件回读成一份「本次会核验什么」的清单，
             数据全部来自表单状态，不新增任何事实。 */}
         <div className={`new-layout${displayPlan && !formOpen ? " is-folded" : ""}`}>
-          <motion.form
+          <form
             className={`panel${displayPlan && !formOpen ? " panel-hidden" : ""}`}
             onSubmit={onSubmit}
-            initial={false}
           >
             <div className="field-group new-core">
               <div className="legend">行程信息</div>
@@ -1629,7 +1627,7 @@ export function HomeClient() {
                 </button>
               </div>
             </div>
-          </motion.form>
+          </form>
 
           <aside className="new-preflight" aria-label="生成前预检">
             <div className="new-preflight-head">
@@ -1667,9 +1665,9 @@ export function HomeClient() {
 
         {plan && !loading && !shareId && !sampleMode && (
           <p>
-            <Link href="/local" className="btn">
+            <a href="/local" className="btn">
               打开本机行程
-            </Link>
+            </a>
           </p>
         )}
         {displayPlan && (

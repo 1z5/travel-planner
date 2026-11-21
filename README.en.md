@@ -8,7 +8,7 @@ Live place, hours, and route data come from Amap where available. Local trips ca
 
 ## Try the Tokyo itinerary
 
-Open Local Trips (`/local`), download the Tokyo sample, and import the JSON. In a production build, prepare the page for offline use while connected. You can then reopen it offline, mark an arrival, and reopen it again to see the saved record. The walkthrough was captured in a Chrome mobile viewport. [Walkthrough and architecture diagram](README.md#试玩东京行程) · [Production setup](docs/DEPLOY.md)
+Start a walk from the home page to record stops, photos, and notes on your device. You can attach your position to a stop and take it with you in a private backup. The Tokyo sample opens directly from the home page. In a production build, prepare it for offline use while connected, then reopen it offline to try marking an arrival. [Walkthrough and architecture diagram](README.md#试玩东京行程) · [Production setup](docs/DEPLOY.md)
 
 When editing a Tokyo or Paris trip, you can also add places from the built-in city pack. Today shows place sources and counts stops with documented opening hours. Local calendar exports use the destination time zone when available.
 

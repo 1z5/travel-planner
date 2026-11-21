@@ -7,7 +7,7 @@
   :root,
   html[data-theme="dark"],
   html:not([data-theme]) {
-    --at-bg: light-dark(#f4f6f4, #101816);
+    --at-bg: light-dark(#f8f7f0, #101816);
     --at-bg-deep: light-dark(#e8eeeb, #0c1311);
     --at-surface: light-dark(#ffffff, #17221f);
     --at-surface-2: light-dark(#f1f5f2, #1d2a25);
@@ -593,7 +593,7 @@ body::after {
   :root,
   html[data-theme="dark"],
   html:not([data-theme]) {
-    --companion-header-height: 93px;
+    --companion-header-height: 52px;
   }
 
   .companion-shell .app-topbar-inner {
@@ -607,7 +607,7 @@ body::after {
     grid-column: 1 / -1;
     grid-row: 2;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: auto;
   }
 
@@ -792,10 +792,6 @@ body::after {
 .companion-local-form select,
 .companion-local summary {
   min-height: 44px;
-}
-
-.companion-local-sample {
-  margin-inline-start: 8px;
 }
 
 .companion-local-stops {

@@ -29,7 +29,7 @@ function applyTheme(theme: Theme | null) {
   // 移动端浏览器 UI 的主题色（meta 由服务端给两套 media 值，这里同步手动切换）
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute("content", theme === "dark" ? "#101816" : "#f4f6f4");
+    meta.setAttribute("content", theme === "dark" ? "#101816" : "#f8f7f0");
   }
 }
 

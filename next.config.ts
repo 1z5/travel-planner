@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
     // CSP 的口径（刻意不用 nonce，用 'unsafe-inline'）：
     // - 站点自身不执行用户输入，XSS 面主要来自「POI 名称/理由」等模型输出文本，
     //   而 React 默认转义 + 这些字段都会经过服务端校验，脚本注入面很小；
-    // - framer-motion 的入场动画靠内联 style；Next 的 hydration 脚本在部分版本
+    // - 地图标记通过内联 style 投影坐标；Next 的 hydration 脚本在部分版本
     //   也需要 'unsafe-inline'。为了不把产品搞挂，这里取「可用的严格」而非
     //   「最严但会坏」；真正的加固点是输入白名单（app/api/plan 已有）与服务端转义。
     // - 地图/OG 图片都走本站 /api/map 代理，所以 img-src 不需要放行高德域名

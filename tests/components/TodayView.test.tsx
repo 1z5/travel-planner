@@ -706,3 +706,29 @@ describe("TodayView 今天体检（行中只读）", () => {
     expect(screen.queryByText("体检暂时不可用（不影响今日行程）")).not.toBeInTheDocument();
   });
 });
+
+it("主人主动打开私人进展后，下一站跳过已有记录，并在鉴权失效后恢复计划视图", async () => {
+  const plan = basePlan();
+  const first = plan.days[0]!.spots[0]!;
+  first.stopId = crypto.randomUUID();
+  let authorized = true;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (!url.startsWith("/api/journey/")) return new Response(null, { status: 404 });
+      return authorized
+        ? Response.json({ revision: 1, marks: [{ stopId: first.stopId, action: "arrived" }] })
+        : new Response(null, { status: 401 });
+    }),
+  );
+  const user = userEvent.setup();
+  mockClock.today = "2026-10-18";
+  mockClock.minutes = 9 * 60;
+  render(<TodayView plan={plan} shareId="share_test" />);
+  expect(await screen.findByText("现在：宽窄巷子")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "记录今天的进展" }));
+  expect(await screen.findByText("下一站：陈麻婆豆腐")).toBeInTheDocument();
+  authorized = false;
+  await user.click(screen.getByRole("button", { name: "刷新私人记录" }));
+  expect(await screen.findByText("现在：宽窄巷子")).toBeInTheDocument();
+});
