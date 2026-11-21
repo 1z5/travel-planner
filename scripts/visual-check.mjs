@@ -25,6 +25,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeCdp, openCdp } from "./lib/chrome-cdp.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -134,7 +135,7 @@ const PAGE_CHECK_FN = String.raw`
     '.copilot-chip',
     '.copilot-clear',
     '.copilot-toggle',
-    '.companion-local-form select',
+    '.companion-local-form select', '.route-inspect select', '.walk-cta', '.journal-pick', '#journal-place',
   ].join(',');
   const seen = new Set();
   for (const el of document.querySelectorAll(CONTROL_SELECTOR)) {
@@ -219,6 +220,7 @@ const PAGE_CHECK_FN = String.raw`
     '.at-journey-marks .btn', '.companion-page-heading p', '.companion-inline-link',
     '.companion-example-caption', '.companion-template p', '.companion-today-context',
     '.companion-today-actions a', '.companion-next-facts p', '.companion-next-facts a',
+    '.route-caption', '.journal-dateline', '.journal-day', '.journal-jump', '.walk-deck', '.walk-cta', '.route-inspect a', '.field-departure p', '.footprint-map figcaption',
     '.companion-local-stop-time', '.companion-form-hint', '.companion-share-actions a', '.desk-lede',
   ];
   for (const sel of CONTRAST_SELECTORS) {
@@ -251,65 +253,6 @@ const PAGE_CHECK_FN = String.raw`
   return JSON.stringify(out);
 })()
 `;
-
-// ---------- Chrome / CDP ----------
-async function openCdp(port) {
-  for (let i = 0; i < 100; i += 1) {
-    try {
-      const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-      const page = list.find((t) => t.type === "page");
-      if (page) return page.webSocketDebuggerUrl;
-    } catch {
-      /* not up */
-    }
-    await sleep(150);
-  }
-  throw new Error("Chrome DevTools 不可达");
-}
-
-function makeCdp(wsUrl) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
-    let seq = 0;
-    const pending = new Map();
-    const errors = [];
-    ws.addEventListener("message", (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.id && pending.has(msg.id)) {
-        const { res, rej } = pending.get(msg.id);
-        pending.delete(msg.id);
-        if (msg.error) rej(new Error(JSON.stringify(msg.error)));
-        else res(msg.result);
-        return;
-      }
-      if (msg.method === "Runtime.exceptionThrown") {
-        errors.push(
-          `exception: ${msg.params.exceptionDetails?.exception?.description ?? msg.params.exceptionDetails?.text ?? "unknown"}`,
-        );
-      }
-      if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error") {
-        const text = (msg.params.args ?? []).map((a) => a.value ?? a.description ?? "").join(" ");
-        if (!/React DevTools|HMR|Fast Refresh/.test(text))
-          errors.push(`console.error: ${text.slice(0, 200)}`);
-      }
-      if (msg.method === "Log.entryAdded" && msg.params.entry.level === "error") {
-        const text = msg.params.entry.text ?? "";
-        if (!/React DevTools|HMR|Fast Refresh|favicon/.test(text))
-          errors.push(`log.error: ${text.slice(0, 200)}`);
-      }
-    });
-    ws.addEventListener("open", () => {
-      const send = (method, params = {}) =>
-        new Promise((res, rej) => {
-          const id = ++seq;
-          pending.set(id, { res, rej });
-          ws.send(JSON.stringify({ id, method, params }));
-        });
-      resolve({ send, errors, close: () => ws.close() });
-    });
-    ws.addEventListener("error", reject);
-  });
-}
 
 // ---------- 主流程 ----------
 async function main() {
@@ -433,6 +376,10 @@ async function main() {
           const startDate = new Intl.DateTimeFormat("sv-SE", { timeZone, dateStyle: "short" }).format();
           const file = {
             format: "ai-travel-companion", version: 1,
+            notes: [{
+              id: "4476104a-05c7-4263-af2a-245642690e2e", at: "2026-11-19T05:15:00Z",
+              place: "浅草寺", text: "刚走出寺门，听见巷口的风铃。"
+            }],
             plan: {
               city: "东京", startDate, timeZone, summary: "", totalCostCny: 0, tips: [],
               days: [{
@@ -453,16 +400,51 @@ async function main() {
           localStorage.setItem("tp.local-trip-files.v1", JSON.stringify([JSON.stringify(file)]));
         })()`;
 
+    const namedWalkStorage = `${localTripStorage}; (() => {
+      const key = "tp.local-trip-files.v1";
+      const files = JSON.parse(localStorage.getItem(key));
+      const walk = JSON.parse(files[0]);
+      walk.localId = "3e31a352-f046-4594-9a47-a242efe8c114";
+      walk.walk = true;
+      walk.title = "沿着隅田川看晚霞";
+      walk.plan.city = "随走手记";
+      walk.plan.days[0].spots = [];
+      localStorage.setItem(key, JSON.stringify([JSON.stringify(walk), ...files]));
+    })()`;
+
     const PAGES = [
       {
         name: "local",
         path: "/local",
-        required: [".companion-local", "input[type=file]", ".companion-local-sample"],
+        required: [
+          ".companion-local",
+          "input[type=file]",
+          ".field-start-walk",
+          ".local-walk-invite",
+        ],
+      },
+      {
+        name: "local-walk",
+        path: "/local?open=walk",
+        required: [
+          ".journal-capture[open]",
+          "#footprint-place",
+          ".stop-capture-actions .btn-primary",
+          ".journal-pages",
+        ],
+      },
+      {
+        name: "local-named-walk",
+        path: "/local?trip=3e31a352-f046-4594-9a47-a242efe8c114",
+        required: [".journal-title-editor[open]", "#walk-title", ".journal-entry"],
+        storageSetup: namedWalkStorage,
+        clicks: [".journal-title-editor summary"],
       },
       {
         name: "local-today",
         path: "/local",
         required: [
+          ".day-route",
           ".today-hero .btn-primary",
           ".companion-next-facts a",
           ".today-timeline .companion-today-context",
@@ -470,6 +452,20 @@ async function main() {
         ],
         storageSetup: localTripStorage,
         clicks: [".companion-trip .btn"],
+      },
+      {
+        name: "local-journal",
+        path: "/local?open=recent",
+        required: [
+          ".field-journal textarea",
+          ".journal-pages",
+          ".journal-entry",
+          ".journal-pick input",
+          "#journal-place",
+          ".journal-day",
+        ],
+        storageSetup: localTripStorage,
+        clicks: ['.companion-today-actions button[data-view="journal"]'],
       },
       {
         name: "local-editor",
@@ -496,6 +492,8 @@ async function main() {
           ".trips-home",
           ".app-topbar",
           ".companion-page-heading",
+          ".field-start-walk",
+          ".walk-cover .walk-cta",
           ".companion-start-form",
           ".companion-example",
           ".companion-template-list",
@@ -614,8 +612,12 @@ async function main() {
         // 某些页面需要真实 localStorage 数据才能进入列表态：先在同一 origin
         // 完成一次导航，再写 storage，最后导航到目标页。
         if (page.storageSetup) {
-          await cdp.send("Page.navigate", { url: `${baseUrl}/` });
-          await sleep(800);
+          await cdp.send("Page.navigate", { url: `${baseUrl}/robots.txt` });
+          await sleep(500);
+          await cdp.send("Storage.clearDataForOrigin", {
+            origin: new URL(baseUrl).origin,
+            storageTypes: "local_storage,indexeddb",
+          });
           const seeded = await cdp.send("Runtime.evaluate", {
             expression: page.storageSetup,
             returnByValue: true,
@@ -704,7 +706,12 @@ async function main() {
 
         // 清理播种数据，避免污染后面的分享页/工作台检查。
         if (page.storageSetup) {
-          await cdp.send("Runtime.evaluate", { expression: "localStorage.clear()" });
+          await cdp.send("Page.navigate", { url: `${baseUrl}/robots.txt` });
+          await sleep(350);
+          await cdp.send("Storage.clearDataForOrigin", {
+            origin: new URL(baseUrl).origin,
+            storageTypes: "local_storage,indexeddb",
+          });
         }
       }
     }

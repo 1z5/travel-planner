@@ -15,7 +15,10 @@
 // 注册时机见 components/PwaBootstrap.tsx（仅生产环境注册）。
 
 const CACHE = "tp-trip-shell-v3";
-const LOCAL_CACHE = "tp-local-shell-v1";
+// 旧外壳仍写 localStorage。存储迁移只能使用与当前版本兼容的离线外壳。
+const LOCAL_CACHE = "tp-local-shell-v3";
+const PREVIOUS_LOCAL_CACHES = ["tp-local-shell-v2", "tp-local-shell-v1"];
+const LOCAL_NETWORK_BUDGET_MS = 1200;
 const OFFLINE_MESSAGE = "当前离线，且没有可用的缓存页面。请连网后重试。";
 
 // 跳过 waiting：装完立刻接管，行中场景等不起「关闭所有标签页再打开」
@@ -40,7 +43,13 @@ self.addEventListener("activate", (event) => {
 
 // 只缓存不含用户数据的本机页面外壳与版本化静态资源。
 self.addEventListener("message", (event) => {
-  if (event.data?.type !== "prepare-local" || !event.ports[0] || !event.source?.url) return;
+  const type = event.data?.type;
+  if (
+    (type !== "prepare-local" && type !== "local-status") ||
+    !event.ports[0] ||
+    !event.source?.url
+  )
+    return;
   if (new URL(event.source.url).pathname !== "/local") return;
   const assets = Array.isArray(event.data.assets) ? event.data.assets.slice(0, 100) : [];
   const paths = assets.filter(
@@ -53,6 +62,22 @@ self.addEventListener("message", (event) => {
     (async () => {
       try {
         const cache = await caches.open(LOCAL_CACHE);
+        if (type === "local-status") {
+          const shell = await cache.match("/local");
+          const ready =
+            !!shell &&
+            paths.length > 0 &&
+            (await Promise.all(paths.map((asset) => cache.match(asset)))).every(Boolean);
+          const prepared =
+            !!shell ||
+            (
+              await Promise.all(
+                PREVIOUS_LOCAL_CACHES.map((cacheName) => caches.match("/local", { cacheName })),
+              )
+            ).some(Boolean);
+          event.ports[0].postMessage({ ready, prepared });
+          return;
+        }
         await cache.addAll([...new Set(paths), "/local"]);
         event.ports[0].postMessage(true);
       } catch {
@@ -77,9 +102,23 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(LOCAL_CACHE);
+        const cached = await cache.match("/local");
+        const controller = new AbortController();
+        const timer = cached
+          ? setTimeout(() => controller.abort(), LOCAL_NETWORK_BUDGET_MS)
+          : undefined;
+        let fresh;
+        try {
+          fresh = await fetch(req, { signal: controller.signal });
+        } catch {
+          // 离线或弱网时用已准备的外壳，行程数据由浏览器本机读取。
+        } finally {
+          clearTimeout(timer);
+        }
         return (
-          (await fetch(req).catch(() => null)) ??
-          (await cache.match("/local")) ??
+          (fresh?.ok ? fresh : undefined) ??
+          cached ??
+          fresh ??
           new Response(OFFLINE_MESSAGE, { status: 504 })
         );
       })(),

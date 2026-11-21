@@ -54,7 +54,7 @@ docker run --env-file .env -p 127.0.0.1:3000:3000 ai-travel-companion
 
 新实例使用 [Render 蓝图](../render.yaml)。默认只使用浏览器和进程内存，不运行数据库迁移。免费实例可能休眠。已打开并准备离线页面的用户可以在原设备打开本机行程。 [Render 部署文档](https://render.com/docs/free)
 
-发布后先核对 `/api/health` 的 `commit`，再对目标运行 `npm run smoke -- https://你的域名`。默认本机模式核对本机页和在线生成关闭时的回执。启用在线生成并配置模型的实例会跑一次生成，消耗相应配额。 本机无法访问 Render 时，可手动运行 GitHub 的「Check demo health」，填写合并提交 SHA 并开启 smoke。工作流在健康检查返回对应提交后运行冒烟。
+发布后先核对 `/api/health` 的 `commit`，再对目标运行 `npm run smoke -- https://你的域名`。默认本机模式核对本机页和在线生成关闭时的回执。启用在线生成并配置模型的实例会跑一次生成，消耗相应配额。
 
 ## 静态入口
 

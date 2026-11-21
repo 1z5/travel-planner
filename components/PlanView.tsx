@@ -59,7 +59,6 @@ import { changeImpact, type ChangeImpact } from "@/lib/plan/change-impact";
 import { SpotCandidates } from "./SpotCandidates";
 import { BackToTop } from "./BackToTop";
 import { formatHoursShort } from "@/lib/plan/poi-hours";
-import { motion } from "framer-motion";
 import { CloudRain } from "lucide-react";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -762,15 +761,12 @@ export function PlanView({
     const isToday = today.kind === "during" && dayIdx === today.dayIndex;
     const dayBusy = busy === `day:${day.day}`;
     return (
-      <motion.div
+      <div
         // id 供 Trip Workspace 的「跳到某一天」定位；scroll-margin 见 globals.css
         id={`day-${day.day}`}
         className={`card${isToday ? " card-today" : ""}`}
         key={day.day}
         ref={isToday ? todayRef : undefined}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: Math.min(dayIdx * 0.06, 0.3) }}
       >
         <div className="day-head">
           <div className="day-num">
@@ -1105,7 +1101,7 @@ export function PlanView({
             人均 ¥{day.dailyCostCny.toLocaleString()}
           </span>
         </p>
-      </motion.div>
+      </div>
     );
   };
 
@@ -1131,12 +1127,7 @@ export function PlanView({
       )}
 
       {/* ===== 行程头部：城市封面 + 日期/概览/预算 + 导出操作 ===== */}
-      <motion.div
-        className="card"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
-      >
+      <div className="card">
         {!hideCover && (
           <div className="result-cover">
             <div className="result-cover-text">
@@ -1385,7 +1376,7 @@ export function PlanView({
             </p>
           )}
         </div>
-      </motion.div>
+      </div>
 
       {/* ===== 吸顶页内导航（TOC）：长页面一键跳段 =====
           为什么吸顶：分享页/工作台规划镜头都会超过 1 屏（分享页 500px 宽实测

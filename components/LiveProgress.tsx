@@ -18,7 +18,6 @@
 // 骨架 + 沿用首页原有的轮换提示——宁可回到泛化提示，也不编一个阶段。
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { Check, Loader2 } from "lucide-react";
 import { WaitProgress } from "./WaitProgress";
 import type { Plan } from "@/lib/types";
@@ -194,14 +193,8 @@ export function LiveProgress({
           不在这里重复——草稿不是生成结果，混进来会让「已生成」失真。 */}
       {isStreaming && plan && plan.days.length > 0 && (
         <div className="live-days">
-          {plan.days.map((d, i) => (
-            <motion.div
-              key={d.day}
-              className="card live-day"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: Math.min(i * 0.06, 0.3) }}
-            >
+          {plan.days.map((d) => (
+            <div key={d.day} className="card live-day">
               <div className="day-head">
                 <div className="day-num live-day-num">
                   <small>DAY</small>
@@ -221,7 +214,7 @@ export function LiveProgress({
                   <li className="live-day-more">还有 {d.spots.length - 5} 站…</li>
                 )}
               </ul>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}

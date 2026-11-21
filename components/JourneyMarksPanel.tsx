@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { JourneyAction, JourneyCommand, JourneyMark } from "@/lib/trip/journey-marks";
-import { downloadTripFile } from "@/lib/trip/trip-file";
+import { downloadTripFile, type LocalMarks } from "@/lib/trip/trip-file";
 import type { Plan, PlanSpot } from "@/lib/types";
 
 type JourneySnapshot = { revision: number; marks: JourneyMark[] };
@@ -11,10 +11,12 @@ export function JourneyMarksPanel({
   shareId,
   spots,
   plan,
+  onProgress,
 }: {
   shareId: string;
   spots: PlanSpot[];
   plan?: Plan;
+  onProgress?: (marks?: LocalMarks) => void;
 }) {
   const endpoint = `/api/journey/${encodeURIComponent(shareId)}`;
   const [journey, setJourney] = useState<JourneySnapshot>();
@@ -22,19 +24,26 @@ export function JourneyMarksPanel({
   const [error, setError] = useState("");
   const retry = useRef<JourneyCommand | null>(null);
 
+  function publish(snapshot?: JourneySnapshot) {
+    setJourney(snapshot);
+    onProgress?.(
+      snapshot && Object.fromEntries(snapshot.marks.map(({ stopId, action }) => [stopId, action])),
+    );
+  }
+
   async function load() {
     setBusy(true);
     setError("");
     try {
       const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) {
-        setJourney(undefined);
+        publish(undefined);
         setError(
           response.status === 401 ? "请先登录，再记录旅行进展。" : "无法打开这趟旅行的私人记录。",
         );
         return;
       }
-      setJourney((await response.json()) as JourneySnapshot);
+      publish((await response.json()) as JourneySnapshot);
       retry.current = null;
     } catch {
       setError("网络异常，暂时无法读取记录。");
@@ -67,12 +76,12 @@ export function JourneyMarksPanel({
       });
       if (!response.ok) {
         if (response.status < 500) retry.current = null;
-        if (response.status === 401 || response.status === 404) setJourney(undefined);
+        if (response.status === 401 || response.status === 404) publish(undefined);
         setError((await response.json()).error ?? "记录未保存，请稍后重试。");
         return;
       }
       const { mark: saved } = (await response.json()) as { mark: JourneyMark };
-      setJourney({ ...journey, marks: [...journey.marks, saved] });
+      publish({ ...journey, marks: [...journey.marks, saved] });
       retry.current = null;
     } catch {
       setError("没收到保存确认，请用同一个按钮重试。");
@@ -97,10 +106,19 @@ export function JourneyMarksPanel({
             disabled={busy}
             onClick={() => {
               try {
-                downloadTripFile(
-                  plan,
-                  Object.fromEntries(journey.marks.map(({ stopId, action }) => [stopId, action])),
-                );
+                downloadTripFile(plan, {
+                  marks: Object.fromEntries(
+                    journey.marks.map(({ stopId, action }) => [stopId, action]),
+                  ),
+                  arrivals: Object.fromEntries(
+                    journey.marks
+                      .filter((record) => record.action === "arrived")
+                      .map((record) => [
+                        record.stopId,
+                        { place: record.name, at: new Date(record.recordedAt).toISOString() },
+                      ]),
+                  ),
+                });
               } catch {
                 setError("无法下载这份备份。");
               }

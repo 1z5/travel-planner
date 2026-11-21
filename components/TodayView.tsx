@@ -34,6 +34,7 @@ import { distMeters, fmtDist } from "@/lib/geo/spatial";
 import { spotNavigationUrl } from "@/lib/geo/navigation";
 import type { LocalMarks } from "@/lib/trip/trip-file";
 import { useArrivedSpots } from "./TodayExecutionCard";
+import { DayRoute } from "./DayRoute";
 import { JourneyMarksPanel } from "./JourneyMarksPanel";
 // 只 import 类型：replan.ts 本身是 client-safe 纯函数（求解在服务端跑，
 // 这里只消费它的返回结构），类型导入不把求解器逻辑打进客户端包。
@@ -361,14 +362,28 @@ export function TodayView({
   shareId,
   localMarks,
   onLocalMark,
+  localSaving = false,
+  onJournal,
+  onExtraStop,
+  arrivalReceipt,
 }: {
   plan: Plan;
   shareId?: string;
   localMarks?: LocalMarks;
+  onJournal?: (place?: string) => void;
+  onExtraStop?: () => void;
+  arrivalReceipt?: React.ReactNode;
+  localSaving?: boolean;
   onLocalMark?: (stopId: string, action?: LocalMarks[string]) => void;
 }) {
   const [viewPlan, setViewPlan] = useState<Plan>(plan);
   useEffect(() => setViewPlan(plan), [plan]);
+  const [privateProgress, setPrivateProgress] = useState<{
+    plan: Plan;
+    shareId: string;
+    day: number;
+    marks: LocalMarks;
+  }>();
   const fromFile = !!onLocalMark;
   const timeZone = fromFile ? plan.timeZone : undefined;
 
@@ -576,7 +591,7 @@ export function TodayView({
           reason: err?.code === 1 ? "定位权限被拒绝，可在浏览器设置里开启" : "定位失败，请重试",
         });
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 30000 },
     );
   }
 
@@ -757,7 +772,13 @@ export function TodayView({
                 </span>
               )}
             </div>
-            <p className="today-helper">这次行程已经走完；想看走过的全部安排，打开完整行程。</p>
+            {onJournal ? (
+              <button type="button" className="btn btn-primary" onClick={() => onJournal()}>
+                翻开旅行手记
+              </button>
+            ) : (
+              <p className="today-helper">打开完整行程可回看当时的安排。</p>
+            )}
           </div>
         </section>
         <TodayLinks shareId={shareId} />
@@ -774,8 +795,15 @@ export function TodayView({
 
   const spots: PlanSpot[] = Array.isArray(currentDay.spots) ? currentDay.spots : [];
   const legs: PlanLeg[] = Array.isArray(currentDay.legs) ? currentDay.legs : [];
+  const effectiveMarks =
+    localMarks ??
+    (privateProgress?.plan === viewPlan &&
+    privateProgress.shareId === shareId &&
+    privateProgress.day === currentDay.day
+      ? privateProgress.marks
+      : undefined);
   const openIndices = spots.flatMap((stop, index) =>
-    stop.stopId && localMarks?.[stop.stopId] ? [] : [index],
+    stop.stopId && effectiveMarks?.[stop.stopId] ? [] : [index],
   );
   const openStatus = spotNow(
     openIndices.map((index) => spots[index]!),
@@ -783,7 +811,7 @@ export function TodayView({
   );
   // 时间过去了，仍可处理尚未标记的站点。只有在线分享页沿用纯时间轴判断。
   const pendingIndex =
-    fromFile && (openStatus.kind === "done" || openStatus.kind === "none")
+    effectiveMarks && (openStatus.kind === "done" || openStatus.kind === "none")
       ? openIndices[0]
       : undefined;
   const spotStatus: SpotNow =
@@ -829,7 +857,8 @@ export function TodayView({
       }
       return `下一站：${spots[spotStatus.index]?.name ?? "待定"}`;
     }
-    if (spotStatus.kind === "done") return fromFile ? "今天的站点都已处理" : "今天的行程已结束";
+    if (spotStatus.kind === "done")
+      return effectiveMarks ? "今天的站点都已处理" : "今天的行程已结束";
     return "今天的行程点没有可识别的时间，不猜现在在哪";
   })();
 
@@ -882,7 +911,7 @@ export function TodayView({
   return (
     <div className="today-root">
       {/* ===== 头部：城市 · 第 N 天 + 现在/下一站 ===== */}
-      <section className="card today-hero">
+      <section className="card today-hero field-day-hero">
         <div className="card-body">
           <p className="today-kicker">行中模式</p>
           <h1 className="today-title">
@@ -894,10 +923,46 @@ export function TodayView({
           <p className="companion-today-context">
             {timeZone ? `当地时间 ${fmtHourMin(clock.minutes)} · ${timeZone}` : "按计划时间"}
           </p>
+          {arrivalReceipt}
           <div className="today-status today-status-during" role="status" aria-live="polite">
             <span className="today-status-text">{statusText}</span>
           </div>
           {statusDetail && <p className="today-status-detail">{statusDetail}</p>}
+          <div className="companion-today-actions">
+            {currentNav && (
+              <a
+                className="btn btn-primary"
+                href={currentNav}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Navigation size={16} aria-hidden="true" /> {fromFile ? "导航到这里" : "导航"}
+              </a>
+            )}
+            {currentStopId && onLocalMark && (
+              <button
+                type="button"
+                className="btn"
+                disabled={localSaving}
+                onClick={() => onLocalMark(currentStopId, "arrived")}
+              >
+                我已到达
+              </button>
+            )}
+            <a className="btn" href="#today-timeline">
+              查看今天的安排
+            </a>
+            {onExtraStop && (
+              <button type="button" className="btn" onClick={onExtraStop}>
+                计划外停留
+              </button>
+            )}
+            {shareId && futureSpots.length > 0 && (
+              <a className="btn" href="#today-replan">
+                接下来怎么走
+              </a>
+            )}
+          </div>
           {fromFile && currentStop && (
             <div className="companion-next-facts">
               {currentStop.placeSource &&
@@ -935,36 +1000,56 @@ export function TodayView({
               )}
             </div>
           )}
-          <div className="companion-today-actions">
-            {currentNav && (
-              <a
-                className="btn btn-primary"
-                href={currentNav}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Navigation size={16} aria-hidden="true" /> {fromFile ? "导航到这里" : "导航"}
-              </a>
-            )}
-            {currentStopId && onLocalMark && (
+        </div>
+        <DayRoute
+          key={dayNo}
+          spots={spots}
+          current={currentIndex}
+          marks={effectiveMarks}
+          day={dayNo}
+          distanceFor={metersFor}
+          onJournal={onJournal}
+        >
+          {hasLocatableSpot && (
+            <div className="route-location">
+              {" "}
               <button
                 type="button"
-                className="btn"
-                onClick={() => onLocalMark(currentStopId, "arrived")}
+                className="btn today-locate-btn"
+                aria-label="计算我离今天各站的距离"
+                disabled={locate.status === "locating"}
+                onClick={locateMe}
               >
-                我已到达
+                {locate.status === "locating" ? (
+                  <>
+                    <Loader2 size={14} className="spin" aria-hidden="true" />
+                    定位中…
+                  </>
+                ) : (
+                  <>
+                    <MapPin size={14} aria-hidden="true" />
+                    离我多远
+                  </>
+                )}
               </button>
-            )}
-            <a className="btn" href="#today-timeline">
-              查看今天的安排
-            </a>
-            {shareId && futureSpots.length > 0 && (
-              <a className="btn" href="#today-replan">
-                接下来怎么走
-              </a>
-            )}
-          </div>
-        </div>
+              {locate.status === "error" && (
+                <p className="today-degrade" role="status">
+                  {locate.reason}
+                </p>
+              )}
+              {locate.status === "done" && locate.distances.length === 0 && (
+                <p className="today-degrade" role="status">
+                  今天的行程点没有可用坐标，算不出距离（未验真的点没有坐标）。
+                </p>
+              )}
+              {locate.status === "done" && locate.distances.length > 0 && (
+                <p className="today-helper">
+                  已算出 {locate.distances.length} 个点的直线距离，显示在时间轴各站下。
+                </p>
+              )}
+            </div>
+          )}
+        </DayRoute>
       </section>
 
       {shareId && !plan.demo && (
@@ -973,6 +1058,11 @@ export function TodayView({
           shareId={shareId}
           spots={spots}
           plan={viewPlan}
+          onProgress={(marks) =>
+            setPrivateProgress(
+              marks ? { plan: viewPlan, shareId, day: currentDay.day, marks } : undefined,
+            )
+          }
         />
       )}
 
@@ -1013,6 +1103,8 @@ export function TodayView({
                 const navUrl = spotNavigationUrl(s, fromFile);
                 return (
                   <li
+                    id={`day-${dayNo}-stop-${i + 1}`}
+                    tabIndex={-1}
                     className={`today-spot${mark ? ` today-spot-${mark}` : ""}`}
                     key={`${s.name}-${i}`}
                   >
@@ -1049,6 +1141,7 @@ export function TodayView({
                             <button
                               type="button"
                               className="btn"
+                              disabled={localSaving}
                               onClick={() => onLocalMark(stopId)}
                             >
                               撤销
@@ -1060,6 +1153,7 @@ export function TodayView({
                               <button
                                 type="button"
                                 className="btn"
+                                disabled={localSaving}
                                 onClick={() => onLocalMark(stopId, "arrived")}
                               >
                                 我已到达
@@ -1068,6 +1162,7 @@ export function TodayView({
                             <button
                               type="button"
                               className="btn"
+                              disabled={localSaving}
                               onClick={() => onLocalMark(stopId, "skipped")}
                             >
                               跳过
@@ -1382,52 +1477,6 @@ export function TodayView({
             onRetry={() => void checkToday()}
           />
         )}
-
-      {/* ===== 离我多远：用户主动定位，一次算出今天各站距离 ===== */}
-      {hasLocatableSpot && (
-        <section className="card today-locate">
-          <div className="card-body">
-            <h2 className="today-section-title">
-              <MapPin size={16} aria-hidden="true" />
-              定位与距离
-            </h2>
-            <button
-              type="button"
-              className="btn today-locate-btn"
-              aria-label="计算我离今天各站的距离"
-              disabled={locate.status === "locating"}
-              onClick={locateMe}
-            >
-              {locate.status === "locating" ? (
-                <>
-                  <Loader2 size={14} className="spin" aria-hidden="true" />
-                  定位中…
-                </>
-              ) : (
-                <>
-                  <MapPin size={14} aria-hidden="true" />
-                  离我多远
-                </>
-              )}
-            </button>
-            {locate.status === "error" && (
-              <p className="today-degrade" role="status">
-                {locate.reason}
-              </p>
-            )}
-            {locate.status === "done" && locate.distances.length === 0 && (
-              <p className="today-degrade" role="status">
-                今天的行程点没有可用坐标，算不出距离（未验真的点没有坐标）。
-              </p>
-            )}
-            {locate.status === "done" && locate.distances.length > 0 && (
-              <p className="today-helper">
-                已算出 {locate.distances.length} 个点的直线距离，显示在时间轴各站下。
-              </p>
-            )}
-          </div>
-        </section>
-      )}
 
       <TodayLinks shareId={shareId} />
     </div>

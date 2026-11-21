@@ -11,8 +11,9 @@ import "./styles/atlas-evidence.css";
 import "./styles/atlas-marketing.css";
 // 验真台 /check 是后加的产品线，放最后：只用 desk-* 前缀，不覆盖任何既有选择器。
 import "./styles/atlas-check.css";
+import "./styles/field-journal.css";
 import "./styles/atlas-companion.css";
-import { MotionPref } from "@/components/MotionPref";
+
 import { PwaBootstrap } from "@/components/PwaBootstrap";
 
 // metadataBase 让 OG/分享链接生成绝对地址。优先级：
@@ -21,20 +22,20 @@ import { PwaBootstrap } from "@/components/PwaBootstrap";
 // 3) localhost（本地开发兜底）
 // openGraph/twitter 的标题与描述在这里统一给默认值，子路由（分享页/报告页）各自覆盖。
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.RENDER_EXTERNAL_URL;
-const description = "规划旅程、查看今日安排，并检查地点、营业时间与通勤。";
+const description = "旅途中查看下一站、记录到达与沿途见闻，随时回看自己的旅行手记。";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl ?? "http://localhost:3000"),
-  title: "AI Travel Companion — 规划和查看你的行程",
+  title: "AI Travel Companion — 随身行程与旅行手记",
   description,
   openGraph: {
     type: "website",
     siteName: "AI Travel Companion",
-    title: "AI Travel Companion — 规划和查看你的行程",
+    title: "AI Travel Companion — 随身行程与旅行手记",
     description,
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Travel Companion — 规划和查看你的行程",
+    title: "AI Travel Companion — 随身行程与旅行手记",
     description,
   },
 };
@@ -49,16 +50,16 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f6f4" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f7f0" },
     { media: "(prefers-color-scheme: dark)", color: "#101816" },
   ],
 };
 
 // 首帧前同步主题：localStorage 有手动选择就写 data-theme，否则留空跟随系统。
 // 必须内联在 <head>（阻塞渲染），否则深色用户会先看到一帧白屏再翻转。
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("at-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#101816":"#f4f6f4")}}catch(e){}})();`;
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("at-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="dark"?"#101816":"#f8f7f0")}}catch(e){}})();`;
 
-// 根布局只提供 <html>/<body> 与动效降级开关，不再挂营销站点头尾。
+// 根布局提供 <html>/<body>、主题初始化与 PWA 引导，不再挂营销站点头尾。
 //
 // 产品面和营销面是两种壳（见 app/(app)/layout.tsx 与 app/(marketing)/layout.tsx）：
 // - 产品壳：悬浮玻璃指令条（我的行程 / 主题）+ 页面内容；
@@ -74,7 +75,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <PwaBootstrap />
-        <MotionPref>{children}</MotionPref>
+        {children}
       </body>
     </html>
   );

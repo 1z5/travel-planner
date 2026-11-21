@@ -7,7 +7,8 @@ import {
   ArrowRight,
   ArrowUpRight,
   CalendarDays,
-  Compass,
+  Footprints,
+  BookOpen,
   Heart,
   MapPin,
   Plus,
@@ -27,15 +28,63 @@ import { loadWishlist, removeWish, type WishlistTrip } from "@/lib/plan/wishlist
 import { countdownFor } from "@/lib/trip/countdown";
 import { localTodayIso } from "@/lib/trip/trip-day";
 
+import { localTripHref } from "@/lib/trip/local-library";
+import type { LocalTripSummary } from "@/lib/trip/local-trips";
+
+function WalkCover() {
+  return (
+    <section className="walk-cover" aria-labelledby="walk-cover-title">
+      <div className="walk-cover-copy">
+        <p className="walk-byline">
+          <Footprints size={16} aria-hidden="true" /> 东京 · 步行示例
+        </p>
+        <h2 id="walk-cover-title">
+          从浅草寺
+          <br />
+          走到隅田川
+        </h2>
+        <p className="walk-deck">沿着两站散步路线，试试导航、到达打卡，记下路上看到的风景。</p>
+        <a href="/local?open=tokyo" className="walk-cta">
+          体验这段散步 <ArrowRight size={16} aria-hidden="true" />
+        </a>
+      </div>
+      <figure>
+        <Image
+          src="/images/asakusa-walk.webp"
+          width={1050}
+          height={700}
+          alt=""
+          preload
+          sizes="(max-width: 700px) 96vw, 620px"
+        />
+        <figcaption>东京 · 浅草街区插画</figcaption>
+      </figure>
+    </section>
+  );
+}
+
 export function TripsHome() {
   const [trips, setTrips] = useState<RecentTrip[]>([]);
+  const [localTrip, setLocalTrip] = useState<LocalTripSummary>();
   const [wishlist, setWishlist] = useState<WishlistTrip[]>([]);
   const [today, setToday] = useState<string>();
   const [removed, setRemoved] = useState<RecentTrip>();
 
   useEffect(() => {
+    let request = 0;
     function refresh() {
+      const current = ++request;
       setTrips(loadRecentTrips());
+      void import("@/lib/trip/local-trips")
+        .then(({ readSavedTrips }) => readSavedTrips())
+        .then(
+          ({ trips }) => {
+            if (current === request) setLocalTrip(trips[0]);
+          },
+          () => {
+            if (current === request) setLocalTrip(undefined);
+          },
+        );
       setWishlist(loadWishlist());
       setToday(localTodayIso());
     }
@@ -44,6 +93,7 @@ export function TripsHome() {
     window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
     return () => {
+      request++;
       window.removeEventListener("focus", refresh);
       window.removeEventListener("storage", refresh);
     };
@@ -64,15 +114,17 @@ export function TripsHome() {
         <header className="companion-page-heading">
           <div>
             <h1>我的行程</h1>
-            <p>
-              查看和继续这台设备上的行程。 <Link href="/local">打开本机行程</Link>
-            </p>
           </div>
-          {trips.length > 0 && (
-            <Link href="/new" className="btn btn-primary">
-              <Plus size={17} aria-hidden="true" /> 新建行程
-            </Link>
-          )}
+          <div className="field-heading-actions">
+            <a className="btn" href="/local">
+              <BookOpen size={16} aria-hidden="true" /> 本机行程
+            </a>
+            {localTrip || trips.length > 0 ? (
+              <Link prefetch={false} href="/new" className="btn">
+                <Plus size={17} aria-hidden="true" /> 新建行程
+              </Link>
+            ) : null}
+          </div>
         </header>
 
         {removed && (
@@ -91,6 +143,31 @@ export function TripsHome() {
           </div>
         )}
 
+        {localTrip && (
+          <section className="field-resume">
+            <div>
+              <p>最近更新的本机行程</p>
+              <h2>{localTrip.name}</h2>
+            </div>
+            <a href={localTripHref(localTrip.id)} className="btn btn-primary">
+              {localTrip.walk ? "继续手记" : "继续旅程"} <ArrowRight size={16} aria-hidden="true" />
+            </a>
+          </section>
+        )}
+        <section className="field-departure" aria-labelledby="field-departure-title">
+          <div>
+            <h2 id="field-departure-title">从眼前这一站开始</h2>
+            <p>随手记下停留、照片和路上的见闻。</p>
+          </div>
+          <a
+            className={`btn field-start-walk${localTrip ? "" : " btn-primary"}`}
+            href="/local?open=walk"
+          >
+            <Footprints size={19} aria-hidden="true" /> 开始随走
+            <ArrowRight size={17} aria-hidden="true" />
+          </a>
+        </section>
+        {!localTrip && orderedTrips.length === 0 && <WalkCover />}
         {orderedTrips.length > 0 ? (
           <section className="companion-trip-list" aria-label="行程列表">
             {orderedTrips.map(({ trip, countdown }) => {
@@ -154,9 +231,8 @@ export function TripsHome() {
         ) : (
           <section className="companion-start" aria-label="开始旅行">
             <div className="companion-start-content">
-              <Compass className="companion-start-icon" size={22} aria-hidden="true" />
-              <h2>这次想去哪？</h2>
-              <p>填个目的地和大致天数，先把下一趟旅行安排起来。</p>
+              <h2>准备下一趟旅行</h2>
+
               <form
                 action="/new"
                 method="get"
@@ -181,7 +257,7 @@ export function TripsHome() {
                   开始规划 <ArrowRight size={17} aria-hidden="true" />
                 </button>
               </form>
-              <Link href="/check" className="companion-inline-link">
+              <Link prefetch={false} href="/check" className="companion-inline-link">
                 <ShieldCheck size={16} aria-hidden="true" /> 已有行程？先做体检{" "}
                 <ArrowUpRight size={14} aria-hidden="true" />
               </Link>
@@ -246,6 +322,7 @@ export function TripsHome() {
           <div className="companion-template-list">
             {FEATURED_DESTINATIONS.map((destination) => (
               <Link
+                prefetch={false}
                 href={featuredHref(destination)}
                 className="companion-template"
                 key={destination.city}

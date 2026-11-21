@@ -9,7 +9,7 @@ describe("ThemeToggle", () => {
   beforeEach(() => {
     window.localStorage.clear();
     delete document.documentElement.dataset.theme;
-    document.head.innerHTML = '<meta name="theme-color" content="#f4f6f4" />';
+    document.head.innerHTML = '<meta name="theme-color" content="#f8f7f0" />';
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: false, addEventListener() {}, removeEventListener() {} })),
@@ -32,7 +32,7 @@ describe("ThemeToggle", () => {
     expect(window.localStorage.getItem("at-theme")).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe(
-      "#f4f6f4",
+      "#f8f7f0",
     );
 
     await user.click(button);
@@ -46,7 +46,7 @@ describe("ThemeToggle", () => {
     expect(window.localStorage.getItem("at-theme")).toBeNull();
     expect(document.documentElement.dataset.theme).toBeUndefined();
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe(
-      "#f4f6f4",
+      "#f8f7f0",
     );
   });
 });

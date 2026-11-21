@@ -166,3 +166,29 @@ export function parseLocText(loc: string | undefined | null): MapPoint | null {
   if (Math.abs(lng) > 180 || Math.abs(lat) > MAX_MERCATOR_LAT) return null;
   return { lng, lat };
 }
+
+export const ROUTE_WIDTH = 400;
+export const ROUTE_HEIGHT = 220;
+
+// 拟合当天所有有效坐标。经度围绕首站展开，跨日期线的相邻站不会隔着整个画面。
+export function layoutRoutePoints<T extends { lng: number; lat: number }>(locations: T[]) {
+  const points = locations.map((location) => ({
+    location,
+    ...mercator(location.lng, location.lat),
+  }));
+  if (!points.length) return [];
+  const origin = points[0]!.x;
+  for (const point of points) point.x -= Math.round(point.x - origin);
+  const xs = points.map((p) => p.x),
+    ys = points.map((p) => p.y);
+  const left = Math.min(...xs),
+    top = Math.min(...ys);
+  const dx = Math.max(...xs) - left,
+    dy = Math.max(...ys) - top;
+  const scale = Math.min((ROUTE_WIDTH - 72) / (dx || 1e-12), (ROUTE_HEIGHT - 72) / (dy || 1e-12));
+  return points.map((p) => ({
+    location: p.location,
+    x: ROUTE_WIDTH / 2 + (p.x - left - dx / 2) * scale,
+    y: ROUTE_HEIGHT / 2 + (p.y - top - dy / 2) * scale,
+  }));
+}
